@@ -1,6 +1,6 @@
 """
 RRT_STAR_SMART 2D
-@author: huiming zhou
+@author: damminhtien
 """
 
 import os

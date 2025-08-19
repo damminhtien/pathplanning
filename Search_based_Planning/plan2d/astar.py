@@ -1,22 +1,18 @@
 """
 A_star 2D
-@author: huiming zhou
+@author: damminhtien
 """
 
-import os
-import sys
 import math
 import heapq
 
-sys.path.append(os.path.dirname(os.path.abspath(__file__)) +
-                "/../../Search_based_Planning/")
-
-from Search_2D import plotting, env
+from utils import plotting, env
 
 
-class AStar:
-    """AStar set the cost + heuristics as the priority
+class Astar:
+    """Astar set the cost + heuristics as the priority
     """
+
     def __init__(self, s_start, s_goal, heuristic_type):
         self.s_start = s_start
         self.s_goal = s_goal
@@ -113,7 +109,8 @@ class AStar:
                 if new_cost < g[s_n]:  # conditions for updating Cost
                     g[s_n] = new_cost
                     PARENT[s_n] = s
-                    heapq.heappush(OPEN, (g[s_n] + e * self.heuristic(s_n), s_n))
+                    heapq.heappush(
+                        OPEN, (g[s_n] + e * self.heuristic(s_n), s_n))
 
         return self.extract_path(PARENT), CLOSED
 
@@ -211,14 +208,14 @@ def main():
     s_start = (5, 5)
     s_goal = (45, 25)
 
-    astar = AStar(s_start, s_goal, "euclidean")
+    astar = Astar(s_start, s_goal, "euclidean")
     plot = plotting.Plotting(s_start, s_goal)
 
     path, visited = astar.searching()
-    plot.animation(path, visited, "A*")  # animation
+    plot.animate(path, visited, "A*")  # animation
 
     # path, visited = astar.searching_repeated_astar(2.5)               # initial weight e = 2.5
-    # plot.animation_ara_star(path, visited, "Repeated A*")
+    # plot.animate_ara_star(path, visited, "Repeated A*")
 
 
 if __name__ == '__main__':

@@ -1,6 +1,6 @@
 """
 RRT_CONNECT_2D
-@author: huiming zhou
+@author: damminhtien
 """
 
 import os

@@ -1,23 +1,17 @@
 """
-Dijkstra 2D
-@author: huiming zhou
+Best-First Searching
+@author: damminhtien
 """
 
-import os
-import sys
 import math
 import heapq
 
-sys.path.append(os.path.dirname(os.path.abspath(__file__)) +
-                "/../../Search_based_Planning/")
-
-from Search_2D import plotting, env
-
-from Search_2D.Astar import AStar
+from utils import plotting
+from astar import Astar
 
 
-class Dijkstra(AStar):
-    """Dijkstra set the cost as the priority 
+class BestFirstSearch(Astar):
+    """BestFirst set the heuristics as the priority 
     """
     def searching(self):
         """
@@ -29,7 +23,7 @@ class Dijkstra(AStar):
         self.g[self.s_start] = 0
         self.g[self.s_goal] = math.inf
         heapq.heappush(self.OPEN,
-                       (0, self.s_start))
+                       (self.heuristic(self.s_start), self.s_start))
 
         while self.OPEN:
             _, s = heapq.heappop(self.OPEN)
@@ -49,7 +43,7 @@ class Dijkstra(AStar):
                     self.PARENT[s_n] = s
 
                     # best first set the heuristics as the priority 
-                    heapq.heappush(self.OPEN, (new_cost, s_n))
+                    heapq.heappush(self.OPEN, (self.heuristic(s_n), s_n))
 
         return self.extract_path(self.PARENT), self.CLOSED
 
@@ -58,11 +52,11 @@ def main():
     s_start = (5, 5)
     s_goal = (45, 25)
 
-    dijkstra = Dijkstra(s_start, s_goal, 'None')
+    BF = BestFirst(s_start, s_goal, 'euclidean')
     plot = plotting.Plotting(s_start, s_goal)
 
-    path, visited = dijkstra.searching()
-    plot.animation(path, visited, "Dijkstra's")  # animation generate
+    path, visited = BF.searching()
+    plot.animate(path, visited, "Best-first Searching")  # animation
 
 
 if __name__ == '__main__':

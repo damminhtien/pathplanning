@@ -2,7 +2,7 @@
 bezier path
 
 author: Atsushi Sakai(@Atsushi_twi)
-modified: huiming zhou
+modified: damminhtien
 """
 
 import numpy as np

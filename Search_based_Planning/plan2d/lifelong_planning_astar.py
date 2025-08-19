@@ -1,6 +1,6 @@
 """
 LPA_star 2D
-@author: huiming zhou
+@author: damminhtien
 """
 
 import os
@@ -11,10 +11,10 @@ import matplotlib.pyplot as plt
 sys.path.append(os.path.dirname(os.path.abspath(__file__)) +
                 "/../../Search_based_Planning/")
 
-from Search_2D import plotting, env
+from utils import plotting, env
 
 
-class LPAStar:
+class LifelongPlanningAstar:
     def __init__(self, s_start, s_goal, heuristic_type):
         self.s_start, self.s_goal = s_start, s_goal
         self.heuristic_type = heuristic_type
@@ -248,7 +248,7 @@ def main():
     x_start = (5, 5)
     x_goal = (45, 25)
 
-    lpastar = LPAStar(x_start, x_goal, "Euclidean")
+    lpastar = LPAstar(x_start, x_goal, "Euclidean")
     lpastar.run()
 
 

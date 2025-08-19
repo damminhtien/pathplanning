@@ -1,6 +1,6 @@
 """
 DUBINS_RRT_STAR 2D
-@author: huiming zhou
+@author: damminhtien
 """
 
 import os

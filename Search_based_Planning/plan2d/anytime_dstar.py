@@ -1,21 +1,15 @@
 """
 Anytime_D_star 2D
-@author: huiming zhou
+@author: damminhtien
 """
 
-import os
-import sys
 import math
 import matplotlib.pyplot as plt
 
-sys.path.append(os.path.dirname(os.path.abspath(__file__)) +
-                "/../../Search_based_Planning/")
-
-from Search_2D import plotting
-from Search_2D import env
+from utils import plotting, env
 
 
-class ADStar:
+class AnytimeDstar:
     def __init__(self, s_start, s_goal, eps, heuristic_type):
         self.s_start, self.s_goal = s_start, s_goal
         self.heuristic_type = heuristic_type

@@ -1,6 +1,6 @@
 """
 Env 2D
-@author: huiming zhou
+@author: damminhtien
 """
 
 

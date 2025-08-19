@@ -17,7 +17,7 @@ class MinheapPQ:
         self.REMOVED = '<removed-item>'
     
     def put(self, item, priority):
-        '''add a new task or update the priority of an existing item'''
+        """add a new task or update the priority of an existing item"""
         if item in self.entry_finder:
             self.check_remove(item)
         count = next(self.counter)
@@ -27,7 +27,7 @@ class MinheapPQ:
         self.nodes.add(item)
 
     def put_set(self, dictin):
-        '''add a new dict into the priority queue'''
+        """add a new dict into the priority queue"""
         for item, priority in enumerate(dictin):
             self.put(item, priority)
 

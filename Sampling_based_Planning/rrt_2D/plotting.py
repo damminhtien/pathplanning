@@ -1,6 +1,6 @@
 """
 Plotting tools for Sampling-based algorithms
-@author: huiming zhou
+@author: damminhtien
 """
 
 import matplotlib.pyplot as plt

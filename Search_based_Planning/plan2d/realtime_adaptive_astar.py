@@ -1,20 +1,14 @@
 """
 RTAAstar 2D (Real-time Adaptive A*)
-@author: huiming zhou
+@author: damminhtien
 """
-
-import os
-import sys
 import copy
 import math
 
-sys.path.append(os.path.dirname(os.path.abspath(__file__)) +
-                "/../../Search_based_Planning/")
-
-from Search_2D import queue, plotting, env
+from utils import queue, plotting, env
 
 
-class RTAAStar:
+class RealtimeAdaptiveAstar:
     def __init__(self, s_start, s_goal, N, heuristic_type):
         self.s_start, self.s_goal = s_start, s_goal
         self.heuristic_type = heuristic_type
@@ -225,11 +219,11 @@ def main():
     s_start = (10, 5)
     s_goal = (45, 25)
 
-    rtaa = RTAAStar(s_start, s_goal, 240, "euclidean")
+    rtaa = RTAAstar(s_start, s_goal, 240, "euclidean")
     plot = plotting.Plotting(s_start, s_goal)
 
     rtaa.searching()
-    plot.animation_lrta(rtaa.path, rtaa.visited,
+    plot.animate_lrta(rtaa.path, rtaa.visited,
                         "Real-time Adaptive A* (RTAA*)")
 
 
