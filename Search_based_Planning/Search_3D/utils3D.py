@@ -18,7 +18,7 @@ def getManDist(pos1, pos2):
 
 
 def getNearest(Space, pt):
-    '''get the nearest point on the grid'''
+    """get the nearest point on the grid"""
     mindis, minpt = 1000, None
     for pts in Space:
         dis = getDist(pts, pt)
@@ -28,7 +28,7 @@ def getNearest(Space, pt):
 
 
 def Heuristic(Space, t):
-    '''Max norm distance'''
+    """Max norm distance"""
     h = {}
     for k in Space.keys():
         h[k] = max([abs(t[0] - k[0]), abs(t[1] - k[1]), abs(t[2] - k[2])])
@@ -254,8 +254,8 @@ def StateSpace(env, factor=0):
     return Space
 
 def g_Space(initparams):
-    '''This function is used to get nodes and discretize the space.
-       State space is by s*y*z,3 where each 3 is a point in 3D.'''
+    """This function is used to get nodes and discretize the space.
+       State space is by s*y*z,3 where each 3 is a point in 3D."""
     g = {}
     Space = StateSpace(initparams.env)
     for v in Space:
@@ -263,8 +263,8 @@ def g_Space(initparams):
     return g
 
 def isCollide(initparams, x, child, dist=None):
-    '''see if line intersects obstacle'''
-    '''specified for expansion in A* 3D lookup table'''
+    """see if line intersects obstacle"""
+    """specified for expansion in A* 3D lookup table"""
     if dist==None:
         dist = getDist(x, child)
     # check in bound

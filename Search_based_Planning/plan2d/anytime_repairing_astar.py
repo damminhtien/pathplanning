@@ -1,23 +1,18 @@
 """
 ARA_star 2D (Anytime Repairing A*)
-@author: huiming zhou
+@author: damminhtien
 
 @description: local inconsistency: g-value decreased.
 g(s) decreased introduces a local inconsistency between s and its successors.
 
 """
 
-import os
-import sys
 import math
 
-sys.path.append(os.path.dirname(os.path.abspath(__file__)) +
-                "/../../Search_based_Planning/")
-
-from Search_2D import plotting, env
+from utils import plotting, env
 
 
-class AraStar:
+class AnytimeRepairingAstar:
     def __init__(self, s_start, s_goal, e, heuristic_type):
         self.s_start, self.s_goal = s_start, s_goal
         self.heuristic_type = heuristic_type
@@ -215,7 +210,7 @@ def main():
     plot = plotting.Plotting(s_start, s_goal)
 
     path, visited = arastar.searching()
-    plot.animation_ara_star(path, visited, "Anytime Repairing A* (ARA*)")
+    plot.animate_ara_star(path, visited, "Anytime Repairing A* (ARA*)")
 
 
 if __name__ == '__main__':

@@ -1,6 +1,6 @@
 """
 Bidirectional_a_star 2D
-@author: huiming zhou
+@author: damminhtien
 """
 
 import os
@@ -8,13 +8,10 @@ import sys
 import math
 import heapq
 
-sys.path.append(os.path.dirname(os.path.abspath(__file__)) +
-                "/../../Search_based_Planning/")
-
-from Search_2D import plotting, env
+from utils import plotting, env
 
 
-class BidirectionalAStar:
+class BidirectionalAstar:
     def __init__(self, s_start, s_goal, heuristic_type):
         self.s_start = s_start
         self.s_goal = s_goal
@@ -218,11 +215,11 @@ def main():
     x_start = (5, 5)
     x_goal = (45, 25)
 
-    bastar = BidirectionalAStar(x_start, x_goal, "euclidean")
+    bastar = BidirectionalAstar(x_start, x_goal, "euclidean")
     plot = plotting.Plotting(x_start, x_goal)
 
     path, visited_fore, visited_back = bastar.searching()
-    plot.animation_bi_astar(path, visited_fore, visited_back, "Bidirectional-A*")  # animation
+    plot.animate_bi_astar(path, visited_fore, visited_back, "Bidirectional-A*")  # animation
 
 
 if __name__ == '__main__':

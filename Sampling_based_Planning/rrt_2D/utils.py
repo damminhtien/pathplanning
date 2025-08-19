@@ -1,6 +1,6 @@
 """
 utils for collision check
-@author: huiming zhou
+@author: damminhtien
 """
 
 import math

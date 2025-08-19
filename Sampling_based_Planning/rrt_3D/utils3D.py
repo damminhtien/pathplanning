@@ -26,7 +26,7 @@ def getDist(pos1, pos2):
     return np.sqrt(sum([(pos1[0] - pos2[0]) ** 2, (pos1[1] - pos2[1]) ** 2, (pos1[2] - pos2[2]) ** 2]))
 
 
-''' The following utils can be used for rrt or rrt*,
+""" The following utils can be used for rrt or rrt*,
     required param initparams should have
     env,      environement generated from env3D
     V,        node set
@@ -35,11 +35,11 @@ def getDist(pos1, pos2):
     maxiter,  maximum iteration allowed
     stepsize, leaf growth restriction
 
-'''
+"""
 
 
 def sampleFree(initparams, bias = 0.1):
-    '''biased sampling'''
+    """biased sampling"""
     x = np.random.uniform(initparams.env.boundary[0:3], initparams.env.boundary[3:6])
     i = np.random.random()
     if isinside(initparams, x):
@@ -53,7 +53,7 @@ def sampleFree(initparams, bias = 0.1):
 
 # ---------------------- Collision checking algorithms
 def isinside(initparams, x):
-    '''see if inside obstacle'''
+    """see if inside obstacle"""
     for i in initparams.env.blocks:
         if isinbound(i, x):
             return True
@@ -145,8 +145,8 @@ def lineOBB(p0, p1, dist, obb):
     return ans
 
 def isCollide(initparams, x, child, dist=None):
-    '''see if line intersects obstacle'''
-    '''specified for expansion in A* 3D lookup table'''
+    """see if line intersects obstacle"""
+    """specified for expansion in A* 3D lookup table"""
     if dist==None:
         dist = getDist(x, child)
     # check in bound
@@ -207,13 +207,13 @@ def steer(initparams, x, y, DIST=False):
     return xnew, dist
 
 def cost(initparams, x):
-    '''here use the additive recursive cost function'''
+    """here use the additive recursive cost function"""
     if x == initparams.x0:
         return 0
     return cost(initparams, initparams.Parent[x]) + getDist(x, initparams.Parent[x])
 
 def cost_from_set(initparams, x):
-    '''here use a incremental cost set function'''
+    """here use a incremental cost set function"""
     if x == initparams.x0:
         return 0
     return initparams.COST[initparams.Parent[x]] + getDist(x, initparams.Parent[x])

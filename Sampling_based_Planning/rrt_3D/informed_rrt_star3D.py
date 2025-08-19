@@ -175,7 +175,7 @@ class IRRT:
 
     def cost(self, x):
         # actual cost 
-        '''here use the additive recursive cost function'''
+        """here use the additive recursive cost function"""
         if x == self.xstart:
             return 0.0
         if x not in self.Parent:

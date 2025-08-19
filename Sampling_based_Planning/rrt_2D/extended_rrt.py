@@ -1,6 +1,6 @@
 """
 EXTENDED_RRT_2D
-@author: huiming zhou
+@author: damminhtien
 """
 
 import os

@@ -1,22 +1,17 @@
 """
-Best-First Searching
-@author: huiming zhou
+Breadth-first Searching_2D (BFS)
+@author: damminhtien
 """
 
-import os
-import sys
-import math
 import heapq
+import math
 
-sys.path.append(os.path.dirname(os.path.abspath(__file__)) +
-                "/../../Search_based_Planning/")
-
-from Search_2D import plotting, env
-from Search_2D.Astar import AStar
+from astar import Astar
+from utils import plotting
 
 
-class BestFirst(AStar):
-    """BestFirst set the heuristics as the priority 
+class BreadthFirstSearch(Astar):
+    """BFS add the new visited node in the end of the openset
     """
     def searching(self):
         """
@@ -28,7 +23,7 @@ class BestFirst(AStar):
         self.g[self.s_start] = 0
         self.g[self.s_goal] = math.inf
         heapq.heappush(self.OPEN,
-                       (self.heuristic(self.s_start), self.s_start))
+                       (0, self.s_start))
 
         while self.OPEN:
             _, s = heapq.heappop(self.OPEN)
@@ -47,21 +42,23 @@ class BestFirst(AStar):
                     self.g[s_n] = new_cost
                     self.PARENT[s_n] = s
 
-                    # best first set the heuristics as the priority 
-                    heapq.heappush(self.OPEN, (self.heuristic(s_n), s_n))
+                    # bfs, add new node to the end of the openset
+                    prior = self.OPEN[-1][0]+1 if len(self.OPEN)>0 else 0
+                    heapq.heappush(self.OPEN, (prior, s_n))
 
         return self.extract_path(self.PARENT), self.CLOSED
 
 
 def main():
+    """ Run a demo of the Breadth-first Search planner."""
     s_start = (5, 5)
     s_goal = (45, 25)
 
-    BF = BestFirst(s_start, s_goal, 'euclidean')
+    bfs = BreadthFirstSearch(s_start, s_goal, 'None')
     plot = plotting.Plotting(s_start, s_goal)
 
-    path, visited = BF.searching()
-    plot.animation(path, visited, "Best-first Searching")  # animation
+    path, visited = bfs.searching()
+    plot.animate(path, visited, "Breadth-first Searching (BFS)")
 
 
 if __name__ == '__main__':

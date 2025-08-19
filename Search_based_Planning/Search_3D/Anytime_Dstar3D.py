@@ -217,11 +217,11 @@ class Anytime_Dstar(object):
             t += 1
 
     def path(self, s_start=None):
-        '''After ComputeShortestPath()
+        """After ComputeShortestPath()
         returns, one can then follow a shortest path from x_init to
         x_goal by always moving from the current vertex s, starting
         at x_init. , to any successor s' that minimizes cBest(s,s') + g(s')
-        until x_goal is reached (ties can be broken arbitrarily).'''
+        until x_goal is reached (ties can be broken arbitrarily)."""
         path = []
         s_goal = self.xt
         s = self.x0

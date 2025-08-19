@@ -1,6 +1,6 @@
 """
 Fast Marching Trees (FMT*)
-@author: huiming zhou
+@author: damminhtien
 """
 
 import os

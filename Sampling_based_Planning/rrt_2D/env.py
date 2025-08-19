@@ -1,6 +1,6 @@
 """
 Environment for rrt_2D
-@author: huiming zhou
+@author: damminhtien
 """
 
 

@@ -1,6 +1,6 @@
 """
 LRTA_star 2D (Learning Real-time A*)
-@author: huiming zhou
+@author: damminhtien
 """
 
 import os
@@ -8,13 +8,10 @@ import sys
 import copy
 import math
 
-sys.path.append(os.path.dirname(os.path.abspath(__file__)) +
-                "/../../Search_based_Planning/")
-
-from Search_2D import queue, plotting, env
+from utils import queue, plotting, env
 
 
-class LrtAStarN:
+class LearningRealtimeAstar:
     def __init__(self, s_start, s_goal, N, heuristic_type):
         self.s_start, self.s_goal = s_start, s_goal
         self.heuristic_type = heuristic_type
@@ -44,7 +41,7 @@ class LrtAStarN:
         s_start = self.s_start  # initialize start node
 
         while True:
-            OPEN, CLOSED = self.AStar(s_start, self.N)  # OPEN, CLOSED sets in each iteration
+            OPEN, CLOSED = self.Astar(s_start, self.N)  # OPEN, CLOSED sets in each iteration
 
             if OPEN == "FOUND":  # reach the goal node
                 self.path.append(CLOSED)
@@ -98,7 +95,7 @@ class LrtAStarN:
             if h_value == h_value_rec:  # h_value table converged
                 return h_value
 
-    def AStar(self, x_start, N):
+    def Astar(self, x_start, N):
         OPEN = queue.QueuePrior()  # OPEN set
         OPEN.put(x_start, self.h(x_start))
         CLOSED = []  # CLOSED set
@@ -218,11 +215,11 @@ def main():
     s_start = (10, 5)
     s_goal = (45, 25)
 
-    lrta = LrtAStarN(s_start, s_goal, 250, "euclidean")
+    lrta = LrtAstarN(s_start, s_goal, 250, "euclidean")
     plot = plotting.Plotting(s_start, s_goal)
 
     lrta.searching()
-    plot.animation_lrta(lrta.path, lrta.visited,
+    plot.animate_lrta(lrta.path, lrta.visited,
                         "Learning Real-time A* (LRTA*)")
 
 

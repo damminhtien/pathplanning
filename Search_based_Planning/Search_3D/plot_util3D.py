@@ -21,9 +21,9 @@ def draw_Spheres(ax,balls):
         ax.plot_wireframe(xs, ys, zs, alpha=0.15,color="b")
 
 def draw_block_list(ax, blocks ,color=None,alpha=0.15):
-    '''
+    """
     drawing the blocks on the graph
-    '''
+    """
     v = np.array([[0, 0, 0], [1, 0, 0], [1, 1, 0], [0, 1, 0], [0, 0, 1], [1, 0, 1], [1, 1, 1], [0, 1, 1]],
                  dtype='float')
     f = np.array([[0, 1, 5, 4], [1, 2, 6, 5], [2, 3, 7, 6], [3, 0, 4, 7], [0, 1, 2, 3], [4, 5, 6, 7]])
@@ -114,13 +114,13 @@ def visualization(initparams):
         plt.pause(0.0001)
 
 def set_axes_equal(ax):
-    '''Make axes of 3D plot have equal scale so that spheres appear as spheres,
+    """Make axes of 3D plot have equal scale so that spheres appear as spheres,
     cubes as cubes, etc..  This is one possible solution to Matplotlib's
     ax.set_aspect('equal') and ax.axis('equal') not working for 3D.
     https://stackoverflow.com/questions/13685386/matplotlib-equal-unit-length-with-equal-aspect-ratio-z-axis-is-not-equal-to
     Input
       ax: a matplotlib axis, e.g., as output from plt.gca().
-    '''
+    """
 
     x_limits = ax.get_xlim3d()
     y_limits = ax.get_ylim3d()

@@ -1,17 +1,17 @@
+"""
+Dijkstra 2D
+@author: damminhtien
+"""
 
-import os
-import sys
 import math
 import heapq
 
-sys.path.append(os.path.dirname(os.path.abspath(__file__)) +
-                "/../../Search_based_Planning/")
+from utils import plotting
+from astar import Astar
 
-from Search_2D import plotting, env
-from Search_2D.Astar import AStar
 
-class DFS(AStar):
-    """DFS add the new visited node in the front of the openset
+class Dijkstra(Astar):
+    """Dijkstra set the cost as the priority 
     """
     def searching(self):
         """
@@ -42,23 +42,22 @@ class DFS(AStar):
                     self.g[s_n] = new_cost
                     self.PARENT[s_n] = s
 
-                    # dfs, add new node to the front of the openset
-                    prior = self.OPEN[0][0]-1 if len(self.OPEN)>0 else 0
-                    heapq.heappush(self.OPEN, (prior, s_n))
+                    # best first set the heuristics as the priority 
+                    heapq.heappush(self.OPEN, (new_cost, s_n))
 
         return self.extract_path(self.PARENT), self.CLOSED
 
 
 def main():
+    """ Main function to run Dijkstra's algorithm."""
     s_start = (5, 5)
     s_goal = (45, 25)
 
-    dfs = DFS(s_start, s_goal, 'None')
+    dijkstra = Dijkstra(s_start, s_goal, 'None')
     plot = plotting.Plotting(s_start, s_goal)
 
-    path, visited = dfs.searching()
-    visited = list(dict.fromkeys(visited))
-    plot.animation(path, visited, "Depth-first Searching (DFS)")  # animation
+    path, visited = dijkstra.searching()
+    plot.animate(path, visited, "Dijkstra's")  # animation generate
 
 
 if __name__ == '__main__':
