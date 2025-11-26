@@ -12,14 +12,12 @@ from pathplanning.nn.index import (
 )
 
 from .contracts import (
-    BatchConfigurationSpace,
-    ConfigurationSpace,
     ContinuousProblem,
     ContinuousSpace,
     ContinuousSpaceMetadata,
-    DistanceAwareGoalRegion,
     DiscreteGraph,
     DiscreteProblem,
+    DistanceAwareGoalRegion,
     ExactGoalTest,
     GoalRegion,
     GoalState,
@@ -27,13 +25,13 @@ from .contracts import (
     HeuristicDiscreteGraph,
     InterpolatingContinuousSpace,
     Objective,
-    SupportsBatchMotionCheck,
     State,
+    SupportsBatchMotionCheck,
     ValidatingDiscreteGraph,
 )
 from .params import RrtParams
 from .results import PlanResult, StopReason
-from .types import BoolArray, Float, FloatArray, Mat, N, NodeId, RNG, S, Vec
+from .types import RNG, BoolArray, Float, FloatArray, Mat, N, NodeId, S, Vec
 
 __all__ = [
     "DiscreteGraph",
@@ -51,8 +49,6 @@ __all__ = [
     "SupportsBatchMotionCheck",
     "Objective",
     "ContinuousProblem",
-    "ConfigurationSpace",
-    "BatchConfigurationSpace",
     "PlanResult",
     "StopReason",
     "RrtParams",

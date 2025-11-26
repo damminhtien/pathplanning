@@ -1,11 +1,12 @@
-"""Canonical 2D grid-space definitions shared across planners."""
+"""Reusable 2D grid-space building blocks for planners and examples."""
 
 from __future__ import annotations
 
-from collections.abc import Iterable, Sequence
+from collections.abc import Callable, Iterable, Sequence
 import math
 
 import numpy as np
+from numpy.typing import NDArray
 
 Point2D = tuple[int, int]
 Motion2D = tuple[int, int]
@@ -14,8 +15,9 @@ ObstacleRect = list[int]
 ObstacleCircle = list[int]
 GridCell = Point2D
 SampleState2D = tuple[float, float]
+BlockedCellPredicate = Callable[[GridCell], bool]
 
-_DEFAULT_8_CONNECTED_MOTIONS: list[Motion2D] = [
+_DEFAULT_8_CONNECTED_MOTIONS: tuple[Motion2D, ...] = (
     (-1, 0),
     (-1, 1),
     (0, 1),
@@ -24,60 +26,7 @@ _DEFAULT_8_CONNECTED_MOTIONS: list[Motion2D] = [
     (1, -1),
     (0, -1),
     (-1, -1),
-]
-
-
-def _default_search_obstacles(width: int, height: int) -> set[Point2D]:
-    """Build the default obstacle set used by legacy 2D search planners."""
-    obs: set[Point2D] = set()
-
-    for x_coord in range(width):
-        obs.add((x_coord, 0))
-        obs.add((x_coord, height - 1))
-
-    for y_coord in range(height):
-        obs.add((0, y_coord))
-        obs.add((width - 1, y_coord))
-
-    for x_coord in range(10, 21):
-        obs.add((x_coord, 15))
-    for y_coord in range(15):
-        obs.add((20, y_coord))
-
-    for y_coord in range(15, 30):
-        obs.add((30, y_coord))
-    for y_coord in range(16):
-        obs.add((40, y_coord))
-
-    return obs
-
-
-def _default_sampling_obstacle_boundary() -> list[BoundaryRect]:
-    return [
-        [0, 0, 1, 30],
-        [0, 30, 50, 1],
-        [1, 0, 50, 1],
-        [50, 1, 1, 30],
-    ]
-
-
-def _default_sampling_obstacle_rectangles() -> list[ObstacleRect]:
-    return [
-        [14, 12, 8, 2],
-        [18, 22, 8, 3],
-        [26, 7, 2, 12],
-        [32, 14, 10, 2],
-    ]
-
-
-def _default_sampling_obstacle_circles() -> list[ObstacleCircle]:
-    return [
-        [7, 12, 3],
-        [46, 20, 2],
-        [15, 5, 2],
-        [37, 7, 3],
-        [37, 23, 3],
-    ]
+)
 
 
 class Grid2DSearchSpace:
@@ -89,75 +38,145 @@ class Grid2DSearchSpace:
         height: int = 31,
         motions: Sequence[Motion2D] | None = None,
         obstacles: Iterable[Point2D] | None = None,
+        occupancy: NDArray[np.bool_] | None = None,
+        is_blocked: BlockedCellPredicate | None = None,
     ) -> None:
         self.x_range = int(width)
         self.y_range = int(height)
-        self.motions: list[Motion2D] = list(
-            _DEFAULT_8_CONNECTED_MOTIONS if motions is None else motions
+        if self.x_range <= 0 or self.y_range <= 0:
+            raise ValueError("width and height must be > 0")
+
+        chosen_motions = _DEFAULT_8_CONNECTED_MOTIONS if motions is None else tuple(motions)
+        if not chosen_motions:
+            raise ValueError("motions must be non-empty")
+        self.motions: tuple[Motion2D, ...] = tuple(
+            (int(dx), int(dy)) for dx, dy in chosen_motions
         )
-        self.obs: set[Point2D] = self.obs_map() if obstacles is None else set(obstacles)
+
+        self._blocked_cells: set[GridCell] = set(obstacles or [])
+        self._occupancy: NDArray[np.bool_] | None = None
+        self._is_blocked_callback: BlockedCellPredicate | None = is_blocked
+
+        if occupancy is not None:
+            self.set_occupancy(occupancy)
 
     @property
     def obstacles(self) -> set[GridCell]:
-        """Return blocked grid cells."""
-        return self.obs
+        """Return blocked cells by expanding all configured blockage sources."""
+        return self.obs_map()
 
     def update_obs(self, obs: Iterable[Point2D]) -> None:
-        self.obs = set(obs)
+        self._blocked_cells = {self._coerce_cell(cell) for cell in obs}
+
+    def set_occupancy(self, occupancy: NDArray[np.bool_]) -> None:
+        matrix = np.asarray(occupancy, dtype=np.bool_)
+        if matrix.ndim != 2:
+            raise ValueError("occupancy must be a 2D boolean matrix")
+        if matrix.shape != (self.y_range, self.x_range):
+            raise ValueError(
+                "occupancy shape must match (height, width); "
+                f"expected {(self.y_range, self.x_range)}, got {matrix.shape}"
+            )
+        self._occupancy = matrix
+
+    def set_blocked_predicate(self, callback: BlockedCellPredicate | None) -> None:
+        self._is_blocked_callback = callback
+
+    @staticmethod
+    def _coerce_cell(cell: Sequence[int] | GridCell) -> GridCell:
+        if len(cell) != 2:
+            raise ValueError("cell must have length 2")
+        return int(cell[0]), int(cell[1])
+
+    def _in_bounds(self, cell: GridCell) -> bool:
+        return 0 <= cell[0] < self.x_range and 0 <= cell[1] < self.y_range
+
+    def _is_blocked(self, cell: GridCell) -> bool:
+        if cell in self._blocked_cells:
+            return True
+
+        occupancy = self._occupancy
+        if occupancy is not None and bool(occupancy[cell[1], cell[0]]):
+            return True
+
+        if self._is_blocked_callback is not None:
+            return bool(self._is_blocked_callback(cell))
+        return False
 
     def is_valid_node(self, n: GridCell) -> bool:
-        x_coord, y_coord = n
-        in_bounds = 0 <= x_coord < self.x_range and 0 <= y_coord < self.y_range
-        return in_bounds and n not in self.obs
+        cell = self._coerce_cell(n)
+        return self._in_bounds(cell) and not self._is_blocked(cell)
 
     def neighbors(self, n: GridCell) -> Iterable[GridCell]:
-        return (
-            (n[0] + dx, n[1] + dy)
-            for dx, dy in self.motions
-            if self.is_valid_node((n[0] + dx, n[1] + dy))
-        )
+        cell = self._coerce_cell(n)
+        for dx, dy in self.motions:
+            nxt = (cell[0] + dx, cell[1] + dy)
+            if self.is_valid_node(nxt):
+                yield nxt
 
     def edge_cost(self, a: GridCell, b: GridCell) -> float:
-        if not self.is_valid_node(a) or not self.is_valid_node(b):
+        src = self._coerce_cell(a)
+        dst = self._coerce_cell(b)
+        if not self.is_valid_node(src) or not self.is_valid_node(dst):
             return float("inf")
-        dx = abs(a[0] - b[0])
-        dy = abs(a[1] - b[1])
+        dx = abs(src[0] - dst[0])
+        dy = abs(src[1] - dst[1])
         if dx > 1 or dy > 1 or (dx == 0 and dy == 0):
             return float("inf")
         return math.hypot(float(dx), float(dy))
 
     def heuristic(self, n: GridCell, goal: GridCell) -> float:
-        _ = self
-        return math.hypot(float(goal[0] - n[0]), float(goal[1] - n[1]))
+        node = self._coerce_cell(n)
+        target = self._coerce_cell(goal)
+        return math.hypot(float(target[0] - node[0]), float(target[1] - node[1]))
 
     def obs_map(self) -> set[Point2D]:
-        return _default_search_obstacles(self.x_range, self.y_range)
+        blocked: set[Point2D] = set()
+        for y_coord in range(self.y_range):
+            for x_coord in range(self.x_range):
+                cell = (x_coord, y_coord)
+                if self._is_blocked(cell):
+                    blocked.add(cell)
+        return blocked
 
 
 class Grid2DSamplingSpace:
-    """Map model used by sampling-based 2D planners."""
+    """Reference 2D continuous space with configurable obstacle primitives."""
 
-    def __init__(self) -> None:
-        self.x_range = (0, 50)
-        self.y_range = (0, 30)
-        self.obs_boundary = self.default_obs_boundary()
-        self.obs_circle = self.default_obs_circle()
-        self.obs_rectangle = self.default_obs_rectangle()
-        self.delta = 0.5
-        self.collision_step = 0.5
-        self.max_sample_tries = 10_000
+    def __init__(
+        self,
+        x_range: tuple[float, float] = (0.0, 50.0),
+        y_range: tuple[float, float] = (0.0, 30.0),
+        *,
+        obs_boundary: Iterable[BoundaryRect] | None = None,
+        obs_circle: Iterable[ObstacleCircle] | None = None,
+        obs_rectangle: Iterable[ObstacleRect] | None = None,
+        delta: float = 0.5,
+        collision_step: float = 0.5,
+        max_sample_tries: int = 10_000,
+    ) -> None:
+        self.x_range = (float(x_range[0]), float(x_range[1]))
+        self.y_range = (float(y_range[0]), float(y_range[1]))
+        if self.x_range[0] >= self.x_range[1]:
+            raise ValueError("x_range min must be < max")
+        if self.y_range[0] >= self.y_range[1]:
+            raise ValueError("y_range min must be < max")
 
-    @staticmethod
-    def default_obs_boundary() -> list[BoundaryRect]:
-        return _default_sampling_obstacle_boundary()
+        self.obs_boundary = [list(item) for item in (obs_boundary or [])]
+        self.obs_circle = [list(item) for item in (obs_circle or [])]
+        self.obs_rectangle = [list(item) for item in (obs_rectangle or [])]
 
-    @staticmethod
-    def default_obs_rectangle() -> list[ObstacleRect]:
-        return _default_sampling_obstacle_rectangles()
+        self.delta = float(delta)
+        if self.delta < 0.0:
+            raise ValueError("delta must be >= 0")
 
-    @staticmethod
-    def default_obs_circle() -> list[ObstacleCircle]:
-        return _default_sampling_obstacle_circles()
+        self.collision_step = float(collision_step)
+        if self.collision_step <= 0.0:
+            raise ValueError("collision_step must be > 0")
+
+        self.max_sample_tries = int(max_sample_tries)
+        if self.max_sample_tries <= 0:
+            raise ValueError("max_sample_tries must be > 0")
 
     @staticmethod
     def _as_state(x: Sequence[float]) -> SampleState2D:
@@ -174,11 +193,17 @@ class Grid2DSamplingSpace:
                 return True
 
         for ox, oy, width, height in self.obs_rectangle:
-            if 0 <= px - (ox - delta) <= width + 2 * delta and 0 <= py - (oy - delta) <= height + 2 * delta:
+            if (
+                0 <= px - (ox - delta) <= width + 2 * delta
+                and 0 <= py - (oy - delta) <= height + 2 * delta
+            ):
                 return True
 
         for ox, oy, width, height in self.obs_boundary:
-            if 0 <= px - (ox - delta) <= width + 2 * delta and 0 <= py - (oy - delta) <= height + 2 * delta:
+            if (
+                0 <= px - (ox - delta) <= width + 2 * delta
+                and 0 <= py - (oy - delta) <= height + 2 * delta
+            ):
                 return True
 
         return False
@@ -211,11 +236,7 @@ class Grid2DSamplingSpace:
         if segment_length == 0.0:
             return self.is_state_valid(start)
 
-        step = float(self.collision_step)
-        if step <= 0.0:
-            raise ValueError("collision_step must be > 0")
-
-        num_steps = int(math.ceil(segment_length / step))
+        num_steps = int(math.ceil(segment_length / self.collision_step))
         for i in range(num_steps + 1):
             alpha = i / num_steps
             sample = (
@@ -249,8 +270,13 @@ class Grid2DSamplingSpace:
         )
 
 
+Grid2DGraph = Grid2DSearchSpace
+
+
 __all__ = [
     "GridCell",
+    "Grid2DGraph",
     "Grid2DSearchSpace",
     "Grid2DSamplingSpace",
+    "BlockedCellPredicate",
 ]

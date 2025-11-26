@@ -3,19 +3,18 @@
 from __future__ import annotations
 
 import argparse
-import contextlib
 from dataclasses import asdict, dataclass
-import io
 import json
 import random
 import time
 
 import numpy as np
 
-from pathplanning.planners.sampling.rrt_grid2d import Rrt
-from pathplanning.planners.search.astar_3d import Weighted_A_star
-from pathplanning.search2d import PlanConfig, Planner, Search2D
-from pathplanning.spaces.grid2d import Grid2DSearchSpace
+from pathplanning.api import plan_continuous, plan_discrete
+from pathplanning.core.contracts import ContinuousProblem, DiscreteProblem, GoalState
+from pathplanning.core.params import RrtParams
+from pathplanning.spaces.grid2d import Grid2DSamplingSpace, Grid2DSearchSpace
+from pathplanning.spaces.grid3d import Grid3DSearchSpace
 
 
 @dataclass
@@ -28,50 +27,79 @@ class BenchmarkRow:
     path_found: bool
 
 
-def _benchmark_search2d() -> BenchmarkRow:
-    planner = Search2D()
-    cfg = PlanConfig(start=(5, 5), goal=(45, 25), graph=Grid2DSearchSpace())
-
+def _benchmark_search2d_astar() -> BenchmarkRow:
+    problem = DiscreteProblem(
+        graph=Grid2DSearchSpace(),
+        start=(5, 5),
+        goal=(45, 25),
+    )
     start = time.perf_counter()
-    result = planner.plan(Planner.ASTAR, cfg)
+    result = plan_discrete(
+        problem,
+        planner="astar",
+        params={"max_expansions": 50_000},
+        seed=0,
+    )
     runtime_s = time.perf_counter() - start
 
     return BenchmarkRow(
-        planner_id="search2d.astar",
+        planner_id="discrete2d.astar",
         runtime_s=runtime_s,
-        nodes_expanded=int(result.nodes_expanded or 0),
-        path_found=bool(result.path),
+        nodes_expanded=result.iters,
+        path_found=result.path is not None,
     )
 
 
 def _benchmark_sampling2d_rrt() -> BenchmarkRow:
-    planner = Rrt((2, 2), (49, 24), step_len=0.5, goal_sample_rate=0.05, iter_max=3000)
+    space = Grid2DSamplingSpace()
+    problem = ContinuousProblem(
+        space=space,
+        start=np.array([2.0, 2.0], dtype=float),
+        goal=GoalState(
+            state=np.array([49.0, 24.0], dtype=float),
+            radius=0.25,
+            distance_fn=space.distance,
+        ),
+    )
 
     start = time.perf_counter()
-    path = planner.planning()
+    result = plan_continuous(
+        problem,
+        planner="rrt",
+        params=RrtParams(step_size=0.5, goal_sample_rate=0.05, max_iters=3000),
+        seed=0,
+    )
     runtime_s = time.perf_counter() - start
 
     return BenchmarkRow(
         planner_id="sampling2d.rrt",
         runtime_s=runtime_s,
-        nodes_expanded=len(planner.vertex),
-        path_found=path is not None,
+        nodes_expanded=result.nodes,
+        path_found=result.path is not None,
     )
 
 
-def _benchmark_search3d_astar() -> BenchmarkRow:
-    planner = Weighted_A_star(resolution=1.0)
+def _benchmark_search3d_weighted_astar() -> BenchmarkRow:
+    problem = DiscreteProblem(
+        graph=Grid3DSearchSpace(width=21, height=21, depth=6),
+        start=(2, 2, 1),
+        goal=(18, 17, 1),
+    )
 
     start = time.perf_counter()
-    with contextlib.redirect_stdout(io.StringIO()):
-        ok = planner.run(N=500)
+    result = plan_discrete(
+        problem,
+        planner="weighted_astar",
+        params={"weight": 1.0, "max_expansions": 50000},
+        seed=0,
+    )
     runtime_s = time.perf_counter() - start
 
     return BenchmarkRow(
-        planner_id="search3d.astar",
+        planner_id="search3d.weighted_astar",
         runtime_s=runtime_s,
-        nodes_expanded=len(planner.CLOSED),
-        path_found=ok,
+        nodes_expanded=result.iters,
+        path_found=result.path is not None,
     )
 
 
@@ -80,9 +108,9 @@ def run_benchmarks(seed: int) -> list[BenchmarkRow]:
     random.seed(seed)
     np.random.seed(seed)
     return [
-        _benchmark_search2d(),
+        _benchmark_search2d_astar(),
         _benchmark_sampling2d_rrt(),
-        _benchmark_search3d_astar(),
+        _benchmark_search3d_weighted_astar(),
     ]
 
 

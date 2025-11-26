@@ -13,8 +13,8 @@ with reusable planner contracts and optional visualization utilities.
 
 Current codebase organization:
 
-- `pathplanning/planners/search`: search planners (2D/3D modules)
-- `pathplanning/planners/sampling`: sampling planners (2D/3D modules)
+- `pathplanning/planners/search`: dimension-agnostic discrete-search implementations
+- `pathplanning/planners/sampling`: dimension-agnostic sampling-planner cores
 - `pathplanning/spaces`: canonical environment/configuration-space layer
 - `pathplanning/nn`: nearest-neighbor index abstractions
 - `pathplanning/data_structures`: reusable tree/storage structures
@@ -47,10 +47,7 @@ Current codebase organization:
 
 ## Production Support Matrix
 
-Production API support is intentionally small and registry-driven.
-
-- `sampling3d.rrt` -> `pathplanning.planners.sampling.rrt:RrtPlanner`
-- `sampling3d.rrt_star` -> `pathplanning.planners.sampling.rrt_star:RrtStarPlanner`
+Production API support is intentionally small and planner-registry driven.
 
 See `SUPPORTED_ALGORITHMS.md` for the canonical matrix.
 
@@ -91,17 +88,21 @@ Python `>=3.10` is required.
 Minimal import-first usage:
 
 ```python
-from pathplanning import RrtParams, run_planner
+from pathplanning import RrtParams, plan_continuous
+from pathplanning.core.contracts import ContinuousProblem, GoalState
 from pathplanning.spaces.continuous_3d import ContinuousSpace3D
 
 space = ContinuousSpace3D(lower_bound=[0, 0, 0], upper_bound=[10, 10, 10])
 params = RrtParams(max_iters=2_000, step_size=0.6, goal_sample_rate=0.1)
-
-result = run_planner(
-    "sampling3d.rrt",
+problem = ContinuousProblem(
     space=space,
     start=[1.0, 1.0, 1.0],
-    goal=([9.0, 9.0, 1.0], 0.5),
+    goal=GoalState(state=[9.0, 9.0, 1.0], radius=0.5, distance_fn=space.distance),
+)
+
+result = plan_continuous(
+    problem,
+    planner="rrt",
     params=params,
     seed=7,
 )
@@ -109,14 +110,20 @@ result = run_planner(
 print(result.success, result.stop_reason, result.path)
 ```
 
-Registry-driven module loading:
+Single public API for both planner families:
 
 ```python
-from pathplanning import list_supported_algorithms, load_algorithm_module
+from pathplanning.api import plan_discrete
+from pathplanning.core.contracts import DiscreteProblem
+from pathplanning.spaces.grid2d import Grid2DSearchSpace
 
-for spec in list_supported_algorithms():
-    module = load_algorithm_module(spec.algorithm_id)
-    print(spec.algorithm_id, module.__name__)
+problem = DiscreteProblem(
+    graph=Grid2DSearchSpace(),
+    start=(5, 5),
+    goal=(45, 25),
+)
+result = plan_discrete(problem, planner="astar", seed=0)
+print(result.success, result.iters)
 ```
 
 ## Run Demos
@@ -124,10 +131,9 @@ for spec in list_supported_algorithms():
 Run from repository root.
 
 ```bash
-python pathplanning/planners/search/run.py
-python pathplanning/planners/search/astar.py
-python pathplanning/planners/sampling/rrt_grid2d.py
-python pathplanning/planners/search/astar_3d.py
+python examples/worlds/custom_grid_world.py
+python examples/worlds/demo_3d_world.py
+python scripts/benchmark_planners.py
 ```
 
 ## Developer Workflow

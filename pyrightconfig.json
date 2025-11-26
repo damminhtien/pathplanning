@@ -8,7 +8,6 @@
     "pathplanning/data_structures",
     "pathplanning/api.py",
     "pathplanning/registry.py",
-    "pathplanning/search2d.py",
     "pathplanning/planners/sampling/rrt.py",
     "pathplanning/planners/sampling/rrt_star.py",
     "pathplanning/viz/sampling3d_plotting.py",

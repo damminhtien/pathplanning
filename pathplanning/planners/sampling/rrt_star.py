@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 import time
 from typing import TypeAlias, cast
@@ -11,6 +11,7 @@ import numpy as np
 from numpy.typing import NDArray
 
 from pathplanning.core.contracts import (
+    ContinuousProblem,
     ContinuousSpace,
     GoalRegion,
     GoalState,
@@ -19,9 +20,13 @@ from pathplanning.core.contracts import (
 )
 from pathplanning.core.params import RrtParams
 from pathplanning.core.results import PlanResult, StopReason
-from pathplanning.core.types import Mat, NodeId
+from pathplanning.core.types import Mat, NodeId, RNG
 from pathplanning.data_structures.tree_array import ArrayTree
 from pathplanning.nn.index import NaiveNnIndex, NearestNeighborIndex
+from pathplanning.planners.sampling._internal.problem_adapter import (
+    coerce_rrt_params,
+    resolve_rng,
+)
 
 GoalPredicate: TypeAlias = Callable[[State], bool]
 IndexFactory: TypeAlias = Callable[[int], NearestNeighborIndex]
@@ -341,3 +346,18 @@ class RrtStarPlanner:
             nodes=tree.size,
             stats=stats,
         )
+
+
+def plan_rrt_star(
+    problem: ContinuousProblem[State],
+    *,
+    params: RrtParams | Mapping[str, object] | None = None,
+    rng: RNG | None = None,
+) -> PlanResult:
+    """Plan one ``ContinuousProblem`` with RRT*."""
+    resolved_params = coerce_rrt_params(problem, params)
+    planner = RrtStarPlanner(problem.space, resolved_params, resolve_rng(rng))
+    return planner.plan(problem.start, problem.goal)
+
+
+__all__ = ["GoalPredicate", "IndexFactory", "RrtStarPlanner", "plan_rrt_star"]

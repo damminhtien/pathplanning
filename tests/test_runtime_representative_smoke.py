@@ -4,10 +4,11 @@ from __future__ import annotations
 
 import numpy as np
 
-from pathplanning.core.contracts import GoalState
+from pathplanning.api import plan_discrete
+from pathplanning.core.contracts import DiscreteProblem, GoalState
 from pathplanning.core.params import RrtParams
 from pathplanning.planners.sampling.rrt import RrtPlanner
-from pathplanning.planners.search.astar_3d import Weighted_A_star
+from pathplanning.spaces.grid3d import Grid3DSearchSpace
 
 
 class OpenPlane2D:
@@ -59,8 +60,17 @@ def test_sampling2d_rrt_runtime_smoke() -> None:
     assert result.path is None or isinstance(result.path, np.ndarray)
 
 
-def test_search3d_astar_runtime_smoke() -> None:
-    planner = Weighted_A_star(resolution=1.0)
-    # Limit expansions to keep test fast and headless.
-    ok = planner.run(N=200)
-    assert ok is True
+def test_search3d_weighted_astar_runtime_smoke() -> None:
+    problem = DiscreteProblem(
+        graph=Grid3DSearchSpace(width=21, height=21, depth=6),
+        start=(2, 2, 1),
+        goal=(18, 17, 1),
+    )
+    result = plan_discrete(
+        problem,
+        planner="weighted_astar",
+        params={"weight": 1.0, "max_expansions": 50000},
+        seed=0,
+    )
+    assert result.success is True
+    assert result.path is not None

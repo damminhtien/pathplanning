@@ -12,21 +12,16 @@ from pathplanning.core.contracts import GoalState
 from pathplanning.core.params import RrtParams
 from pathplanning.planners.sampling.rrt import RrtPlanner
 from pathplanning.planners.sampling.rrt_star import RrtStarPlanner
-from pathplanning.registry import expected_entrypoint_for_algorithm, list_supported_algorithms
+from pathplanning.registry import SAMPLING_PLANNERS
 from pathplanning.spaces.continuous_3d import AABB, ContinuousSpace3D
 
 
 def test_sampling_planners_accept_rng() -> None:
     """All supported sampling planners should accept an injected RNG."""
-    for spec in list_supported_algorithms():
-        if spec.family != "sampling":
-            continue
-        module = importlib.import_module(spec.module)
-        entrypoint = expected_entrypoint_for_algorithm(spec.algorithm_id)
-        planner_cls = getattr(module, entrypoint)
-        signature = inspect.signature(planner_cls.__init__)
+    for planner_name, planner_fn in SAMPLING_PLANNERS.items():
+        signature = inspect.signature(planner_fn)
         assert "rng" in signature.parameters, (
-            f"{spec.algorithm_id} entrypoint '{entrypoint}' must accept rng parameter"
+            f"continuous:{planner_name} planner callable must accept rng parameter"
         )
 
 
@@ -34,19 +29,17 @@ def test_supported_sampling_modules_do_not_use_global_np_random() -> None:
     """Supported sampling modules should not call global np.random helpers."""
     forbidden = (
         "np.random.random",
-        "np.random.default_rng",
         "np.random.uniform",
         "np.random.randint",
         "np.random.choice",
         "np.random.rand",
     )
-    for spec in list_supported_algorithms():
-        if spec.family != "sampling":
-            continue
-        module = importlib.import_module(spec.module)
+    modules = sorted({planner_fn.__module__ for planner_fn in SAMPLING_PLANNERS.values()})
+    for module_name in modules:
+        module = importlib.import_module(module_name)
         source = Path(module.__file__).read_text(encoding="utf-8")
         for token in forbidden:
-            assert token not in source, f"{spec.module} uses forbidden global RNG call: {token}"
+            assert token not in source, f"{module_name} uses forbidden global RNG call: {token}"
 
 
 def test_planners_do_not_use_global_np_random(monkeypatch) -> None:

@@ -1,9 +1,9 @@
-"""3D environment primitives used by sampling-based planners."""
+"""Reusable 3D environment primitives for geometry-based planning spaces."""
 
 from __future__ import annotations
 
 from collections.abc import Sequence
-from typing import TypeAlias, cast
+from typing import TypeAlias
 
 import numpy as np
 from numpy.typing import NDArray
@@ -41,58 +41,14 @@ def rotation_matrix(z_angle: float, y_angle: float, x_angle: float) -> NDArray[n
     return rz @ ry @ rx
 
 
-def get_blocks() -> NDArray[np.float64]:
-    """Return axis-aligned obstacle blocks for the default benchmark map."""
-    return np.array(
-        [
-            [4.00e00, 1.20e01, 0.00e00, 5.00e00, 2.00e01, 5.00e00],
-            [5.50e00, 1.20e01, 0.00e00, 1.00e01, 1.30e01, 5.00e00],
-            [1.00e01, 1.20e01, 0.00e00, 1.40e01, 1.30e01, 5.00e00],
-            [1.00e01, 9.00e00, 0.00e00, 2.00e01, 1.00e01, 5.00e00],
-            [9.00e00, 6.00e00, 0.00e00, 1.00e01, 1.00e01, 5.00e00],
-        ],
-        dtype=float,
-    )
-
-
-def get_balls() -> NDArray[np.float64]:
-    """Return spherical obstacles for the default benchmark map."""
-    return np.array([[2.0, 6.0, 2.5, 1.0], [14.0, 14.0, 2.5, 2.0]], dtype=float)
-
-
-def get_aabb_pyrr(blocks: NDArray[np.float64]) -> list[Block6]:
-    """Convert block bounds to the AABB representation used by ``pyrr``."""
-    aabb_list: list[Block6] = []
-    for block in blocks:
-        aabb_list.append(np.array([np.add(block[0:3], -0.0), np.add(block[3:6], 0.0)], dtype=float))
-    return aabb_list
-
-
-def get_aabb_list(blocks: NDArray[np.float64]) -> list[AxisAlignedBoundingBox]:
-    """Convert block bounds to ``AxisAlignedBoundingBox`` objects."""
-    aabb_list: list[AxisAlignedBoundingBox] = []
-    for block in blocks:
-        aabb_list.append(AxisAlignedBoundingBox(block))
-    return aabb_list
-
-
-def add_block(block: Sequence[float] | None = None) -> NDArray[np.float64]:
-    """Return a block definition to append to the environment obstacle list."""
-    if block is None:
-        block = [1.51e01, 0.00e00, 2.10e00, 1.59e01, 5.00e00, 6.00e00]
-    return np.asarray(block, dtype=float)
-
-
 class AxisAlignedBoundingBox:
-    """Axis-aligned bounding box with center/extents representation."""
+    """Axis-aligned bounding box represented by center/extents/axes."""
 
-    def __init__(self, aabb_values: Sequence[float] | NDArray[np.float64]) -> None:
-        """Create an AABB from `[xmin, ymin, zmin, xmax, ymax, zmax]`.
+    def __init__(self, bounds: Sequence[float] | NDArray[np.float64]) -> None:
+        values = np.asarray(bounds, dtype=float)
+        if values.shape != (6,):
+            raise ValueError("AABB bounds must be shape (6,)")
 
-        Args:
-            aabb_values: Bounds encoded as six coordinates.
-        """
-        values = np.asarray(aabb_values, dtype=float)
         self.center: list[float] = [
             float((values[3] + values[0]) / 2),
             float((values[4] + values[1]) / 2),
@@ -111,20 +67,24 @@ class OrientedBoundingBox:
 
     def __init__(
         self,
-        p: Sequence[float] | NDArray[np.float64],
-        e: Sequence[float] | NDArray[np.float64],
-        o: NDArray[np.float64],
+        center: Sequence[float] | NDArray[np.float64],
+        extents: Sequence[float] | NDArray[np.float64],
+        orientation: NDArray[np.float64],
     ) -> None:
-        """Create an OBB from center, extents, and orientation matrix.
+        center_arr = np.asarray(center, dtype=float)
+        extents_arr = np.asarray(extents, dtype=float)
+        orientation_arr = np.asarray(orientation, dtype=float)
 
-        Args:
-            p: Box center in world coordinates.
-            e: Half-extents along local box axes.
-            o: 3x3 local-to-world rotation matrix.
-        """
-        self.center: list[float] = [float(v) for v in p]
-        self.extents: list[float] = [float(v) for v in e]
-        self.orientation: NDArray[np.float64] = np.asarray(o, dtype=float)
+        if center_arr.shape != (3,):
+            raise ValueError("center must be shape (3,)")
+        if extents_arr.shape != (3,):
+            raise ValueError("extents must be shape (3,)")
+        if orientation_arr.shape != (3, 3):
+            raise ValueError("orientation must be shape (3, 3)")
+
+        self.center: list[float] = [float(v) for v in center_arr]
+        self.extents: list[float] = [float(v) for v in extents_arr]
+        self.orientation: NDArray[np.float64] = orientation_arr
         self.transform: NDArray[np.float64] = np.vstack(
             [
                 np.column_stack(
@@ -137,9 +97,54 @@ class OrientedBoundingBox:
             ]
         )
 
+    @property
+    def P(self) -> NDArray[np.float64]:
+        return np.asarray(self.center, dtype=float)
+
+    @property
+    def E(self) -> NDArray[np.float64]:
+        return np.asarray(self.extents, dtype=float)
+
+    @property
+    def O(self) -> NDArray[np.float64]:
+        return self.orientation
+
+    @property
+    def T(self) -> NDArray[np.float64]:
+        return self.transform
+
+
+def get_aabb_pyrr(blocks: NDArray[np.float64]) -> list[Block6]:
+    """Convert block bounds to the AABB representation used by plotting helpers."""
+    normalized = np.asarray(blocks, dtype=float)
+    if normalized.size == 0:
+        return []
+    if normalized.ndim != 2 or normalized.shape[1] != 6:
+        raise ValueError("blocks must be shape (n, 6)")
+
+    aabb_list: list[Block6] = []
+    for block in normalized:
+        aabb_list.append(np.array([np.add(block[0:3], -0.0), np.add(block[3:6], 0.0)], dtype=float))
+    return aabb_list
+
+
+def get_aabb_list(blocks: NDArray[np.float64]) -> list[AxisAlignedBoundingBox]:
+    """Convert block bounds to :class:`AxisAlignedBoundingBox` objects."""
+    normalized = np.asarray(blocks, dtype=float)
+    if normalized.size == 0:
+        return []
+    if normalized.ndim != 2 or normalized.shape[1] != 6:
+        raise ValueError("blocks must be shape (n, 6)")
+
+    return [AxisAlignedBoundingBox(block) for block in normalized]
+
 
 class Environment3D:
-    """Dynamic 3D world model with AABB/OBB/sphere obstacles."""
+    """Container for 3D bounds and obstacle primitives.
+
+    This class intentionally does not define any hardcoded demo world data.
+    Examples and benchmarks should construct concrete worlds in `examples/`.
+    """
 
     def __init__(
         self,
@@ -156,56 +161,45 @@ class Environment3D:
         start: Sequence[float] | NDArray[np.float64] | None = None,
         goal: Sequence[float] | NDArray[np.float64] | None = None,
     ) -> None:
-        """Initialize the default 3D benchmark environment.
-
-        Args:
-            xmin: Minimum x boundary.
-            ymin: Minimum y boundary.
-            zmin: Minimum z boundary.
-            xmax: Maximum x boundary.
-            ymax: Maximum y boundary.
-            zmax: Maximum z boundary.
-            resolution: Inflation margin for dynamic obstacle sweeps.
-            blocks: Optional custom axis-aligned blocks.
-            balls: Optional custom spherical obstacles.
-            obb: Optional custom oriented obstacles.
-            start: Optional start state.
-            goal: Optional goal state.
-        """
         self.resolution = float(resolution)
         self.boundary = np.array([xmin, ymin, zmin, xmax, ymax, zmax], dtype=float)
-        self.blocks = np.asarray(get_blocks() if blocks is None else blocks, dtype=float)
+
+        block_matrix = np.asarray(
+            np.empty((0, 6), dtype=float) if blocks is None else blocks,
+            dtype=float,
+        )
+        if block_matrix.ndim != 2 or block_matrix.shape[1] != 6:
+            raise ValueError("blocks must be shape (n, 6)")
+        self.blocks = block_matrix
+
+        ball_matrix = np.asarray(
+            np.empty((0, 4), dtype=float) if balls is None else balls,
+            dtype=float,
+        )
+        if ball_matrix.ndim != 2 or ball_matrix.shape[1] != 4:
+            raise ValueError("balls must be shape (n, 4)")
+        self.balls = ball_matrix
+
         self.aabb = get_aabb_list(self.blocks)
         self.aabb_pyrr = get_aabb_pyrr(self.blocks)
-        self.balls = np.asarray(get_balls() if balls is None else balls, dtype=float)
+        self.obb: NDArray[np.object_] = np.asarray(list(obb or []), dtype=object)
 
-        default_obb = np.array(
-            [
-                OrientedBoundingBox(
-                    [5.0, 7.0, 2.5],
-                    [0.5, 2.0, 2.5],
-                    rotation_matrix(np.deg2rad(135.0), 0.0, 0.0),
-                ),
-                OrientedBoundingBox(
-                    [12.0, 4.0, 2.5],
-                    [0.5, 2.0, 2.5],
-                    rotation_matrix(np.deg2rad(45.0), 0.0, 0.0),
-                ),
-            ],
-            dtype=object,
+        self.start = np.asarray(
+            [xmin, ymin, zmin] if start is None else start,
+            dtype=float,
         )
-        if obb is None:
-            self.obb: NDArray[np.object_] = default_obb
-        else:
-            self.obb = np.asarray(list(obb), dtype=object)
-
-        self.start = np.asarray([2.0, 2.0, 2.0] if start is None else start, dtype=float)
-        self.goal = np.asarray([6.0, 16.0, 0.0] if goal is None else goal, dtype=float)
+        self.goal = np.asarray(
+            [xmax, ymax, zmin] if goal is None else goal,
+            dtype=float,
+        )
         self.t = 0.0
 
-    def new_block(self) -> None:
-        """Append one additional obstacle block and refresh cached AABB data."""
-        new_block = add_block()
+    def add_block(self, block: Sequence[float] | NDArray[np.float64]) -> None:
+        """Append one AABB block and refresh cached AABB helpers."""
+        new_block = np.asarray(block, dtype=float)
+        if new_block.shape != (6,):
+            raise ValueError("block must be shape (6,)")
+
         self.blocks = np.vstack([self.blocks, new_block])
         self.aabb = get_aabb_list(self.blocks)
         self.aabb_pyrr = get_aabb_pyrr(self.blocks)
@@ -222,17 +216,16 @@ class Environment3D:
         block_to_move: int = 0,
         mode: str = "translation",
     ) -> tuple[NDArray[np.float64], NDArray[np.float64]] | None:
-        """Move one AABB obstacle and return swept current/previous bounds.
-
-        Returns ``None`` for unsupported modes.
-        """
+        """Move one AABB obstacle and return swept current/previous bounds."""
         _ = v
-        if a is None:
-            a = [0.0, 0.0, 0.0]
-        delta = np.asarray(a, dtype=float)
-
         if mode != "translation":
             return None
+        if self.blocks.shape[0] == 0:
+            raise IndexError("cannot move block: no blocks configured")
+
+        delta = np.asarray([0.0, 0.0, 0.0] if a is None else a, dtype=float)
+        if delta.shape != (3,):
+            raise ValueError("a must be shape (3,)")
 
         original = np.array(self.blocks[block_to_move], dtype=float)
         self.blocks[block_to_move] = np.array(
@@ -247,11 +240,8 @@ class Environment3D:
             dtype=float,
         )
 
-        self.aabb[block_to_move].center = [
-            self.aabb[block_to_move].center[0] + float(delta[0]),
-            self.aabb[block_to_move].center[1] + float(delta[1]),
-            self.aabb[block_to_move].center[2] + float(delta[2]),
-        ]
+        self.aabb = get_aabb_list(self.blocks)
+        self.aabb_pyrr = get_aabb_pyrr(self.blocks)
         self.t += float(s)
 
         moved = self.blocks[block_to_move]
@@ -286,17 +276,24 @@ class Environment3D:
         translation: Sequence[float] | None = None,
     ) -> tuple[OrientedBoundingBox, OrientedBoundingBox]:
         """Move/rotate one OBB and return ``(new_obb, old_obb_reference)``."""
-        if theta is None:
-            theta = [0.0, 0.0, 0.0]
-        if translation is None:
-            translation = [0.0, 0.0, 0.0]
+        if self.obb.size == 0:
+            raise IndexError("cannot move obb: no OBB configured")
 
-        theta_vec = np.asarray(theta, dtype=float)
-        translation_vec = np.asarray(translation, dtype=float)
+        theta_vec = np.asarray([0.0, 0.0, 0.0] if theta is None else theta, dtype=float)
+        translation_vec = np.asarray(
+            [0.0, 0.0, 0.0] if translation is None else translation,
+            dtype=float,
+        )
+        if theta_vec.shape != (3,):
+            raise ValueError("theta must be shape (3,)")
+        if translation_vec.shape != (3,):
+            raise ValueError("translation must be shape (3,)")
 
-        current_obb = cast(OrientedBoundingBox, self.obb[obb_to_move])
-        previous_ref = [current_obb]
+        current_obb = self.obb[obb_to_move]
+        if not isinstance(current_obb, OrientedBoundingBox):
+            raise TypeError("obb array must contain OrientedBoundingBox instances")
 
+        old_reference = current_obb
         current_obb.center = [
             current_obb.center[0] + float(translation_vec[0]),
             current_obb.center[1] + float(translation_vec[1]),
@@ -315,198 +312,10 @@ class Environment3D:
                         -current_obb.orientation.T @ np.asarray(current_obb.center, dtype=float),
                     ]
                 ),
-                [
-                    float(translation_vec[0]),
-                    float(translation_vec[1]),
-                    float(translation_vec[2]),
-                    1.0,
-                ],
+                [0.0, 0.0, 0.0, 1.0],
             ]
         )
-        return current_obb, previous_ref[0]
-
-
-def R_matrix(z_angle: float, y_angle: float, x_angle: float) -> NDArray[np.float64]:
-    """Legacy alias for :func:`rotation_matrix`."""
-    return rotation_matrix(z_angle, y_angle, x_angle)
-
-
-def getblocks() -> NDArray[np.float64]:
-    """Legacy alias for :func:`get_blocks`."""
-    return get_blocks()
-
-
-def getballs() -> NDArray[np.float64]:
-    """Legacy alias for :func:`get_balls`."""
-    return get_balls()
-
-
-def getAABB(blocks: NDArray[np.float64]) -> list[Block6]:
-    """Legacy alias for :func:`get_aabb_pyrr`."""
-    return get_aabb_pyrr(blocks)
-
-
-class aabb:
-    """Legacy AABB representation with ``P``/``E``/``O`` fields."""
-
-    def __init__(self, bounds: Sequence[float] | NDArray[np.float64]) -> None:
-        values = np.asarray(bounds, dtype=float)
-        self.P = [
-            float((values[3] + values[0]) / 2),
-            float((values[4] + values[1]) / 2),
-            float((values[5] + values[2]) / 2),
-        ]
-        self.E = [
-            float((values[3] - values[0]) / 2),
-            float((values[4] - values[1]) / 2),
-            float((values[5] - values[2]) / 2),
-        ]
-        self.O = [[1, 0, 0], [0, 1, 0], [0, 0, 1]]
-
-
-def getAABB2(blocks: NDArray[np.float64]) -> list[aabb]:
-    """Legacy alias that returns ``aabb`` objects."""
-    return [aabb(block) for block in blocks]
-
-
-class obb:
-    """Legacy OBB representation with ``P``/``E``/``O``/``T`` fields."""
-
-    def __init__(
-        self,
-        P: Sequence[float] | NDArray[np.float64],
-        E: Sequence[float] | NDArray[np.float64],
-        O: NDArray[np.float64],
-    ) -> None:
-        self.P = [float(v) for v in P]
-        self.E = [float(v) for v in E]
-        self.O = np.asarray(O, dtype=float)
-        self.T = np.vstack(
-            [np.column_stack([self.O.T, -self.O.T @ np.asarray(self.P, dtype=float)]), [0, 0, 0, 1]]
-        )
-
-
-class env:
-    """Legacy 3D environment API used by search-based 3D planners."""
-
-    def __init__(
-        self,
-        xmin: float = 0,
-        ymin: float = 0,
-        zmin: float = 0,
-        xmax: float = 20,
-        ymax: float = 20,
-        zmax: float = 5,
-        resolution: float = 1,
-    ) -> None:
-        self.resolution = float(resolution)
-        self.boundary = np.array([xmin, ymin, zmin, xmax, ymax, zmax], dtype=float)
-        self.blocks = getblocks()
-        self.AABB = getAABB2(self.blocks)
-        self.AABB_pyrr = getAABB(self.blocks)
-        self.balls = getballs()
-        self.OBB = np.array(
-            [
-                obb([5.0, 7.0, 2.5], [0.5, 2.0, 2.5], R_matrix(135, 0, 0)),
-                obb([12.0, 4.0, 2.5], [0.5, 2.0, 2.5], R_matrix(45, 0, 0)),
-            ],
-            dtype=object,
-        )
-        self.start = np.array([2.0, 2.0, 2.0], dtype=float)
-        self.goal = np.array([6.0, 16.0, 0.0], dtype=float)
-        self.t = 0.0
-
-    def New_block(self) -> None:
-        new_block = add_block()
-        self.blocks = np.vstack([self.blocks, new_block])
-        self.AABB = getAABB2(self.blocks)
-        self.AABB_pyrr = getAABB(self.blocks)
-
-    def move_start(self, x: Sequence[float] | NDArray[np.float64]) -> None:
-        self.start = np.asarray(x, dtype=float)
-
-    def move_block(
-        self,
-        a: Sequence[float] = (0, 0, 0),
-        s: float = 0,
-        v: Sequence[float] = (0.1, 0, 0),
-        block_to_move: int = 0,
-        mode: str = "translation",
-    ) -> tuple[NDArray[np.float64], NDArray[np.float64]] | None:
-        _ = v
-        if mode != "translation":
-            return None
-        delta = np.asarray(a, dtype=float)
-        original = np.array(self.blocks[block_to_move], dtype=float)
-        self.blocks[block_to_move] = np.array(
-            [
-                original[0] + delta[0],
-                original[1] + delta[1],
-                original[2] + delta[2],
-                original[3] + delta[0],
-                original[4] + delta[1],
-                original[5] + delta[2],
-            ],
-            dtype=float,
-        )
-        self.AABB[block_to_move].P = [
-            self.AABB[block_to_move].P[0] + float(delta[0]),
-            self.AABB[block_to_move].P[1] + float(delta[1]),
-            self.AABB[block_to_move].P[2] + float(delta[2]),
-        ]
-        self.t += float(s)
-        moved = self.blocks[block_to_move]
-        return (
-            np.array(
-                [
-                    moved[0] - self.resolution,
-                    moved[1] - self.resolution,
-                    moved[2] - self.resolution,
-                    moved[3] + self.resolution,
-                    moved[4] + self.resolution,
-                    moved[5] + self.resolution,
-                ],
-                dtype=float,
-            ),
-            np.array(
-                [
-                    original[0] - self.resolution,
-                    original[1] - self.resolution,
-                    original[2] - self.resolution,
-                    original[3] + self.resolution,
-                    original[4] + self.resolution,
-                    original[5] + self.resolution,
-                ],
-                dtype=float,
-            ),
-        )
-
-    def move_OBB(
-        self,
-        obb_to_move: int = 0,
-        theta: Sequence[float] = (0, 0, 0),
-        translation: Sequence[float] = (0, 0, 0),
-    ) -> tuple[obb, obb]:
-        previous = [self.OBB[obb_to_move]]
-        self.OBB[obb_to_move].P = [
-            self.OBB[obb_to_move].P[0] + translation[0],
-            self.OBB[obb_to_move].P[1] + translation[1],
-            self.OBB[obb_to_move].P[2] + translation[2],
-        ]
-        self.OBB[obb_to_move].O = R_matrix(theta[0], theta[1], theta[2])
-        self.OBB[obb_to_move].T = np.vstack(
-            [
-                np.column_stack(
-                    [
-                        self.OBB[obb_to_move].O.T,
-                        -self.OBB[obb_to_move].O.T
-                        @ np.asarray(self.OBB[obb_to_move].P, dtype=float),
-                    ]
-                ),
-                [translation[0], translation[1], translation[2], 1],
-            ]
-        )
-        return self.OBB[obb_to_move], previous[0]
+        return current_obb, old_reference
 
 
 __all__ = [
@@ -514,17 +323,6 @@ __all__ = [
     "AxisAlignedBoundingBox",
     "OrientedBoundingBox",
     "rotation_matrix",
-    "get_blocks",
-    "get_balls",
     "get_aabb_pyrr",
     "get_aabb_list",
-    "add_block",
-    "R_matrix",
-    "getblocks",
-    "getballs",
-    "getAABB",
-    "getAABB2",
-    "aabb",
-    "obb",
-    "env",
 ]

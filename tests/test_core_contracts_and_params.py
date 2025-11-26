@@ -8,14 +8,12 @@ import numpy as np
 import pytest
 
 from pathplanning.core.contracts import (
-    BatchConfigurationSpace,
-    ConfigurationSpace,
     ContinuousProblem,
     ContinuousSpace,
     ContinuousSpaceMetadata,
-    DistanceAwareGoalRegion,
     DiscreteGraph,
     DiscreteProblem,
+    DistanceAwareGoalRegion,
     ExactGoalTest,
     GoalRegion,
     GoalState,
@@ -47,9 +45,6 @@ def test_core_contracts_importable() -> None:
     assert Objective is not None
     assert SupportsBatchMotionCheck is not None
     assert ContinuousProblem is not None
-    assert ConfigurationSpace is not None
-    assert BatchConfigurationSpace is not None
-
     result = PlanResult(
         success=True,
         path=None,

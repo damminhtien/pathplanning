@@ -10,13 +10,38 @@ import numpy as np
 from numpy.typing import NDArray
 from scipy.spatial import cKDTree
 
-from examples.worlds.demo_3d_world import build_demo_3d_world
 from pathplanning.core.contracts import ContinuousSpace, State
+from pathplanning.spaces.continuous_3d import AABB, ContinuousSpace3D, Sphere
 
 Node: TypeAlias = tuple[float, float, float]
 Edge: TypeAlias = tuple[Node, Node]
 PathEdge: TypeAlias = NDArray[np.float64]
 Obstacle: TypeAlias = Sequence[float] | NDArray[np.float64]
+
+
+def _default_dynamic_space() -> tuple[ContinuousSpace[State], State, State]:
+    space = ContinuousSpace3D(
+        lower_bound=np.array([0.0, 0.0, 0.0], dtype=float),
+        upper_bound=np.array([20.0, 20.0, 6.0], dtype=float),
+        spheres=(
+            Sphere(center=np.array([6.0, 7.0, 2.5], dtype=float), radius=1.5),
+            Sphere(center=np.array([12.0, 15.0, 2.5], dtype=float), radius=2.2),
+        ),
+        aabbs=(
+            AABB(
+                min_corner=np.array([8.5, 3.0, 0.0], dtype=float),
+                max_corner=np.array([10.5, 12.0, 5.0], dtype=float),
+            ),
+            AABB(
+                min_corner=np.array([3.5, 13.0, 0.0], dtype=float),
+                max_corner=np.array([5.0, 19.5, 5.5], dtype=float),
+            ),
+        ),
+        collision_step=0.12,
+    )
+    start = np.array([2.0, 2.0, 1.0], dtype=float)
+    goal = np.array([18.0, 17.0, 1.0], dtype=float)
+    return space, start, goal
 
 
 @dataclass(frozen=True)
@@ -176,7 +201,7 @@ class DynamicRRT3D:
         self.rng = rng if rng is not None else np.random.default_rng()
 
         if environment is None:
-            default_space, default_start, default_goal = build_demo_3d_world()
+            default_space, default_start, default_goal = _default_dynamic_space()
             self.space: ContinuousSpace[State] = default_space
             start_state = default_start if start is None else start
             goal_state = default_goal if goal is None else goal

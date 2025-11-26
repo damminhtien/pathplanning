@@ -14,7 +14,7 @@ import numpy as np
 from numpy.typing import NDArray
 
 from pathplanning.core.contracts import ContinuousProblem, GoalState
-from pathplanning.core.types import Float, RNG
+from pathplanning.core.types import RNG, Float
 
 Vec3 = NDArray[np.float64]
 

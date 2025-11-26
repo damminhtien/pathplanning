@@ -1,1 +1,0 @@
-"""Collision checking namespace placeholder."""

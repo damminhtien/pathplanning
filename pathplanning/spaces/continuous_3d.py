@@ -7,7 +7,7 @@ from dataclasses import dataclass, field
 
 import numpy as np
 
-from pathplanning.core.contracts import BatchConfigurationSpace
+from pathplanning.core.contracts import ContinuousSpace
 from pathplanning.core.types import BoolArray, Float, FloatArray, Mat, Vec
 from pathplanning.spaces.continuous_nd import (
     as_state_nd,
@@ -77,7 +77,7 @@ class OBB:
 
 
 @dataclass(slots=True)
-class ContinuousSpace3D(BatchConfigurationSpace):
+class ContinuousSpace3D(ContinuousSpace[Vec]):
     """Continuous 3D configuration space with collision-checking primitives."""
 
     lower_bound: Vec
@@ -176,8 +176,8 @@ class ContinuousSpace3D(BatchConfigurationSpace):
     def distance(self, a: Vec, b: Vec) -> Float:
         return euclidean_distance_nd(a, b, dim=self.dim)
 
-    def steer(self, a: Vec, b: Vec, step: Float) -> Vec:
-        return steer_towards_nd(a, b, step, dim=self.dim)
+    def steer(self, a: Vec, b: Vec, step_size: Float) -> Vec:
+        return steer_towards_nd(a, b, step_size, dim=self.dim)
 
     def interpolate(self, a: Vec, b: Vec, t: Float) -> Vec:
         start_state = as_state_nd(a, "a", self.dim)

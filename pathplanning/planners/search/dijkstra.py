@@ -1,26 +1,32 @@
-"""Legacy Dijkstra compatibility wrapper backed by shared graph contracts."""
+"""Dijkstra discrete-search planner."""
 
 from __future__ import annotations
 
-from pathplanning.planners.search.plan2d_facade import Planner
+from collections.abc import Mapping
+from typing import TypeVar
 
-from .astar import Astar
-from ._legacy2d_common import reverse_path
+from pathplanning.core.contracts import DiscreteProblem
+from pathplanning.core.results import PlanResult
+from pathplanning.core.types import RNG
+from pathplanning.planners.search._internal.common import coerce_max_expansions, run_best_first
 
-
-class Dijkstra(Astar):
-    """Dijkstra compatibility class using ``Search2dFacade`` internally."""
-
-    def searching(self):
-        result = self._plan(planner=Planner.DIJKSTRA)
-        return reverse_path(result.path), (result.visited or [])
+N = TypeVar("N")
 
 
-def main():
-    planner = Dijkstra((5, 5), (45, 25), "euclidean")
-    path, visited = planner.searching()
-    print(f"path_len={len(path)}, visited={len(visited)}")
+def plan_dijkstra(
+    problem: DiscreteProblem[N],
+    *,
+    params: Mapping[str, object] | None = None,
+    rng: RNG | None = None,
+) -> PlanResult:
+    """Plan a path for one ``DiscreteProblem`` with Dijkstra."""
+    _ = rng
+    max_expansions = coerce_max_expansions(params)
+    return run_best_first(
+        problem,
+        max_expansions=max_expansions,
+        use_heuristic=False,
+    )
 
 
-if __name__ == "__main__":
-    main()
+__all__ = ["plan_dijkstra"]

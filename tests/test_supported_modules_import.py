@@ -1,4 +1,4 @@
-"""Import and entrypoint contract tests for production-supported algorithm modules."""
+"""Import and callable contract tests for registered production planners."""
 
 from __future__ import annotations
 
@@ -9,7 +9,7 @@ from pathlib import Path
 import subprocess
 import sys
 
-from pathplanning.registry import expected_entrypoint_for_algorithm, list_supported_algorithms
+from pathplanning.registry import SAMPLING_PLANNERS, SEARCH_PLANNERS, planner_modules
 
 
 def _module_source_path(module_name: str) -> Path:
@@ -48,29 +48,27 @@ def _is_stub_node(node: ast.AST) -> bool:
     return False
 
 
-def _entrypoint_is_stubbed(source_text: str, entrypoint_name: str) -> bool:
+def _callable_is_stubbed(source_text: str, callable_name: str) -> bool:
     tree = ast.parse(source_text)
     for node in tree.body:
         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)) and (
-            node.name == entrypoint_name
+            node.name == callable_name
         ):
             return _is_stub_node(node)
     return False
 
 
-def test_import_all_supported_modules() -> None:
-    modules = sorted({spec.module for spec in list_supported_algorithms()})
-    for module_name in modules:
+def test_import_all_registered_modules() -> None:
+    for module_name in planner_modules():
         importlib.import_module(module_name)
 
 
-def test_import_supported_modules_does_not_load_matplotlib() -> None:
-    modules = sorted({spec.module for spec in list_supported_algorithms()})
-    for module_name in modules:
+def test_import_registered_modules_does_not_load_matplotlib() -> None:
+    for module_name in planner_modules():
         code = (
             "import importlib\n"
             "import sys\n"
-            f"before = set(sys.modules)\n"
+            "before = set(sys.modules)\n"
             f"importlib.import_module({module_name!r})\n"
             "loaded = set(sys.modules) - before\n"
             "bad = sorted(\n"
@@ -89,9 +87,9 @@ def test_import_supported_modules_does_not_load_matplotlib() -> None:
         )
 
 
-def test_import_all_supported_modules_together_does_not_load_matplotlib() -> None:
-    """Importing all supported planners in one process must stay headless-safe."""
-    modules = sorted({spec.module for spec in list_supported_algorithms()})
+def test_import_all_registered_modules_together_does_not_load_matplotlib() -> None:
+    """Importing all planners in one process must stay headless-safe."""
+    modules = planner_modules()
     code = (
         "import importlib\n"
         "import sys\n"
@@ -112,35 +110,28 @@ def test_import_all_supported_modules_together_does_not_load_matplotlib() -> Non
         [sys.executable, "-c", code], capture_output=True, text=True, check=False
     )
     assert result.returncode == 0, (
-        f"Batch import of supported modules loads matplotlib:\\n{result.stdout}{result.stderr}"
+        f"Batch import of registered modules loads matplotlib:\\n{result.stdout}{result.stderr}"
     )
 
 
-def test_supported_modules_have_non_empty_source_and_expected_entrypoint() -> None:
-    """
-    Expected entrypoint contract:
-    - every supported algorithm module has non-empty source text.
-    - every supported algorithm exposes the registry-declared top-level callable/class symbol.
-    - entrypoint symbol cannot be a stub (`pass`, `...`, `NotImplementedError` only).
-    """
-    for algo_spec in list_supported_algorithms():
-        source_path = _module_source_path(algo_spec.module)
+def test_registered_modules_have_non_empty_source_and_concrete_callables() -> None:
+    """Registered planner modules should expose concrete callable implementations."""
+    for planner_name, planner_fn in [*SEARCH_PLANNERS.items(), *SAMPLING_PLANNERS.items()]:
+        module_name = planner_fn.__module__
+        source_path = _module_source_path(module_name)
         source_text = source_path.read_text(encoding="utf-8")
-        assert source_text.strip(), (
-            f"{algo_spec.algorithm_id} points to an empty module: {source_path}"
+        assert source_text.strip(), f"{planner_name} points to an empty module: {source_path}"
+
+        callable_name = planner_fn.__name__
+        module = importlib.import_module(module_name)
+        assert hasattr(module, callable_name), (
+            f"{planner_name} missing callable '{callable_name}' in module {module_name}"
         )
 
-        expected_entrypoint = expected_entrypoint_for_algorithm(algo_spec.algorithm_id)
-        module = importlib.import_module(algo_spec.module)
-        assert hasattr(module, expected_entrypoint), (
-            f"{algo_spec.algorithm_id} missing expected entrypoint '{expected_entrypoint}' "
-            f"in module {algo_spec.module}"
+        module_callable = getattr(module, callable_name)
+        assert callable(module_callable), (
+            f"{planner_name} callable '{callable_name}' is not callable"
         )
-
-        entrypoint = getattr(module, expected_entrypoint)
-        assert callable(entrypoint), (
-            f"{algo_spec.algorithm_id} entrypoint '{expected_entrypoint}' is not callable"
-        )
-        assert not _entrypoint_is_stubbed(source_text, expected_entrypoint), (
-            f"{algo_spec.algorithm_id} entrypoint '{expected_entrypoint}' is stubbed"
+        assert not _callable_is_stubbed(source_text, callable_name), (
+            f"{planner_name} callable '{callable_name}' is stubbed"
         )

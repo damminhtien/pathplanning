@@ -36,7 +36,7 @@ class Plotting:
     def __init__(self, start: Point, goal: Point) -> None:
         self.start, self.goal = start, goal
         self.env = Grid2DSearchSpace()
-        self.obstacles = self.env.obs_map()
+        self.obstacles = self.env.obstacles
         self._figure = None  # type: ignore[var-annotated]
 
     # ---------------------------------------------------------------------- #

@@ -1,4 +1,4 @@
-"""Problem-oriented discrete planner entrypoints."""
+"""Shared utilities for best-first discrete-search planners."""
 
 from __future__ import annotations
 
@@ -13,12 +13,12 @@ import numpy as np
 
 from pathplanning.core.contracts import DiscreteProblem, HeuristicDiscreteGraph
 from pathplanning.core.results import PlanResult, StopReason
-from pathplanning.core.types import RNG
 
 N = TypeVar("N")
 
 
-def _coerce_max_expansions(params: Mapping[str, object] | None) -> int | None:
+def coerce_max_expansions(params: Mapping[str, object] | None) -> int | None:
+    """Parse and validate optional expansion budget from planner params."""
     if params is None:
         return None
     raw_value = params.get("max_expansions")
@@ -29,6 +29,21 @@ def _coerce_max_expansions(params: Mapping[str, object] | None) -> int | None:
     if raw_value <= 0:
         raise ValueError("max_expansions must be > 0 when provided")
     return raw_value
+
+
+def coerce_weight(params: Mapping[str, object] | None) -> float:
+    """Parse and validate weighted-A* heuristic weight."""
+    if params is None:
+        return 1.0
+    raw_value = params.get("weight", 1.0)
+    if isinstance(raw_value, bool) or not isinstance(raw_value, (int, float)):
+        raise TypeError("weight must be a finite real number when provided")
+    weight = float(raw_value)
+    if not math.isfinite(weight):
+        raise TypeError("weight must be a finite real number when provided")
+    if weight < 1.0:
+        raise ValueError("weight must be >= 1.0")
+    return weight
 
 
 def _path_to_matrix(path_nodes: list[N]) -> np.ndarray | None:
@@ -43,6 +58,22 @@ def _path_to_matrix(path_nodes: list[N]) -> np.ndarray | None:
     return path_array.astype(float, copy=False)
 
 
+def path_to_matrix(path_nodes: list[N]) -> np.ndarray | None:
+    """Public wrapper for converting one node path to matrix form."""
+    return _path_to_matrix(path_nodes)
+
+
+def reconstruct_path(parent: Mapping[N, N], start: N, reached: N) -> list[N]:
+    """Reconstruct one path from ``start`` to ``reached`` using parent links."""
+    path_nodes: list[N] = [reached]
+    current = reached
+    while current != start:
+        current = parent[current]
+        path_nodes.append(current)
+    path_nodes.reverse()
+    return path_nodes
+
+
 def _resolve_heuristic(problem: DiscreteProblem[N]) -> tuple[Any, N | None]:
     goal_value = problem.goal
     if hasattr(goal_value, "is_goal"):
@@ -52,19 +83,23 @@ def _resolve_heuristic(problem: DiscreteProblem[N]) -> tuple[Any, N | None]:
     return (None, None)
 
 
-def _run_astar(
+def run_best_first(
     problem: DiscreteProblem[N],
-    max_expansions: int | None,
     *,
+    max_expansions: int | None,
     use_heuristic: bool,
+    heuristic_weight: float = 1.0,
 ) -> PlanResult:
+    """Run a best-first family planner (A*/Dijkstra/weighted A*)."""
     graph = problem.graph
     start = problem.start
     goal_test = problem.resolve_goal_test()
     heuristic_graph, exact_goal = _resolve_heuristic(problem)
 
     if use_heuristic and exact_goal is not None:
-        heuristic = lambda node: float(heuristic_graph.heuristic(node, exact_goal))
+        heuristic = lambda node: heuristic_weight * float(
+            heuristic_graph.heuristic(node, exact_goal)
+        )
     else:
         heuristic = lambda node: 0.0
 
@@ -87,12 +122,7 @@ def _run_astar(
         expanded += 1
 
         if goal_test.is_goal(node):
-            path_nodes: list[N] = [node]
-            current = node
-            while current in parent:
-                current = parent[current]
-                path_nodes.append(current)
-            path_nodes.reverse()
+            path_nodes = reconstruct_path(parent, start, node)
             path = _path_to_matrix(path_nodes)
             elapsed = time.perf_counter() - start_time
             stats: dict[str, float] = {
@@ -141,28 +171,10 @@ def _run_astar(
     )
 
 
-def plan_astar(
-    problem: DiscreteProblem[N],
-    *,
-    params: Mapping[str, object] | None = None,
-    rng: RNG | None = None,
-) -> PlanResult:
-    """Plan a path for one ``DiscreteProblem`` with A*."""
-    _ = rng
-    max_expansions = _coerce_max_expansions(params)
-    return _run_astar(problem, max_expansions=max_expansions, use_heuristic=True)
-
-
-def plan_dijkstra(
-    problem: DiscreteProblem[N],
-    *,
-    params: Mapping[str, object] | None = None,
-    rng: RNG | None = None,
-) -> PlanResult:
-    """Plan a path for one ``DiscreteProblem`` with Dijkstra."""
-    _ = rng
-    max_expansions = _coerce_max_expansions(params)
-    return _run_astar(problem, max_expansions=max_expansions, use_heuristic=False)
-
-
-__all__ = ["plan_astar", "plan_dijkstra"]
+__all__ = [
+    "coerce_max_expansions",
+    "coerce_weight",
+    "path_to_matrix",
+    "reconstruct_path",
+    "run_best_first",
+]

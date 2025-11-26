@@ -2,13 +2,18 @@
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 
 import numpy as np
 
-from pathplanning.core.contracts import ContinuousSpace, GoalRegion, State
+from pathplanning.core.contracts import ContinuousProblem, ContinuousSpace, GoalRegion, State
 from pathplanning.core.params import RrtParams
 from pathplanning.core.results import PlanResult
+from pathplanning.core.types import RNG
+from pathplanning.planners.sampling._internal.problem_adapter import (
+    coerce_rrt_params,
+    resolve_rng,
+)
 from pathplanning.planners.sampling.rrt_star import IndexFactory, RrtStarPlanner
 
 
@@ -48,4 +53,16 @@ class BitStar:
         return self.plan(start, goal_region)
 
 
-__all__ = ["BitStar"]
+def plan_bit_star(
+    problem: ContinuousProblem[State],
+    *,
+    params: RrtParams | Mapping[str, object] | None = None,
+    rng: RNG | None = None,
+) -> PlanResult:
+    """Plan one ``ContinuousProblem`` with BIT*."""
+    resolved_params = coerce_rrt_params(problem, params)
+    planner = BitStar(problem.space, resolved_params, resolve_rng(rng))
+    return planner.plan(problem.start, problem.goal)
+
+
+__all__ = ["BitStar", "plan_bit_star"]

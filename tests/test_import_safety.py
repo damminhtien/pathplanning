@@ -8,7 +8,7 @@ import importlib
 from pathlib import Path
 import sys
 
-from pathplanning.registry import list_supported_algorithms
+from pathplanning.registry import planner_modules
 
 
 def _import_modules(modules: Iterable[str]) -> None:
@@ -43,10 +43,10 @@ def test_core_modules_import_headless() -> None:
 
 
 def test_supported_planners_import_headless() -> None:
-    planner_modules = [spec.module for spec in list_supported_algorithms()]
+    modules = planner_modules()
 
     before = set(sys.modules)
-    _import_modules(planner_modules)
+    _import_modules(modules)
     after = set(sys.modules)
 
     if "matplotlib" not in before:
