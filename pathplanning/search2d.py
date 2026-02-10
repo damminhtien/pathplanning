@@ -2,17 +2,12 @@
 
 from __future__ import annotations
 
-from Search_based_Planning.plan2d.plan2d_facade import (
-    Heuristic,
-    PlanConfig,
-    PlanResult,
-    Planner,
-    Search2dFacade,
-)  # pylint: disable=unused-import
+from Search_based_Planning.plan2d import plan2d_facade as _facade
 
+Heuristic = _facade.Heuristic
+PlanConfig = _facade.PlanConfig
+PlanResult = _facade.PlanResult
+Planner = _facade.Planner
+Search2D = _facade.Search2dFacade
 
 __all__ = ["Heuristic", "PlanConfig", "PlanResult", "Planner", "Search2D"]
-
-
-class Search2D(Search2dFacade):  # pylint: disable=too-few-public-methods
-    """Stable package entrypoint for 2D search planners."""
