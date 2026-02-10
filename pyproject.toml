@@ -60,9 +60,9 @@ line-length = 100
 select = ["E9", "F63", "F7"]
 
 [tool.ruff.lint.isort]
-known_first_party = ["pathplanning", "Search_based_Planning", "Sampling_based_Planning", "CurvesGenerator"]
-lines_between_types = 1
-force_sort_within_sections = true
+known-first-party = ["pathplanning", "Search_based_Planning", "Sampling_based_Planning", "CurvesGenerator"]
+lines-between-types = 1
+force-sort-within-sections = true
 
 [tool.ruff.lint.per-file-ignores]
 # Allow scripts to have __main__ boilerplate without unused-import noise.
