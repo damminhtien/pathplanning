@@ -10,7 +10,7 @@ lint:
 	ruff check .
 
 lint-google:
-	pylint --rcfile .pylintrc pathplanning Search_based_Planning Sampling_based_Planning CurvesGenerator
+	pylint --rcfile .pylintrc pathplanning
 
 format:
 	ruff format .
