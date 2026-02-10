@@ -128,7 +128,7 @@ pip install --upgrade pip
 pip install -r requirements.txt
 ```
 
-Python `>=3.9` is recommended.
+Python `>=3.10` is recommended.
 
 ## Package API
 

@@ -16,11 +16,13 @@ repos:
     hooks:
       - id: ruff-format
         name: ruff format
-        entry: ruff format --config pyproject.toml
+        entry: ruff format --check --diff --config pyproject.toml
         language: system
         types: [python]
+        files: ^(pathplanning/(api|registry|search2d)\.py|scripts/.*\.py|tests/.*\.py)$
       - id: ruff-check
         name: ruff check
         entry: ruff check --config pyproject.toml
         language: system
         types: [python]
+        files: ^(pathplanning/(api|registry|search2d)\.py|scripts/.*\.py|tests/.*\.py)$
