@@ -5,13 +5,11 @@ Plotting tools for Sampling-based algorithms
 
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
-import os
-import sys
 
-sys.path.append(os.path.dirname(os.path.abspath(__file__)) +
-                "/../../Sampling_based_Planning/")
-
-from Sampling_based_Planning.rrt_2D import env
+try:
+    from . import env
+except ImportError:  # pragma: no cover - script execution fallback
+    import env
 
 
 class Plotting:

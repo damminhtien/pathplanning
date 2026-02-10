@@ -6,7 +6,10 @@ Anytime_D_star 2D
 import math
 import matplotlib.pyplot as plt
 
-from utils import plotting, env
+try:
+    from .utils import plotting, env
+except ImportError:  # pragma: no cover - script execution fallback
+    from utils import plotting, env
 
 
 class AnytimeDstar:
@@ -303,7 +306,7 @@ def main():
     s_start = (5, 5)
     s_goal = (45, 25)
 
-    dstar = ADStar(s_start, s_goal, 2.5, "euclidean")
+    dstar = AnytimeDstar(s_start, s_goal, 2.5, "euclidean")
     dstar.run()
 
 

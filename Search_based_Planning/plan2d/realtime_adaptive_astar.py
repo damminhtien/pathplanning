@@ -5,7 +5,10 @@ RTAAstar 2D (Real-time Adaptive A*)
 import copy
 import math
 
-from utils import queue, plotting, env
+try:
+    from .utils import queue, plotting, env
+except ImportError:  # pragma: no cover - script execution fallback
+    from utils import queue, plotting, env
 
 
 class RealtimeAdaptiveAstar:
@@ -219,7 +222,7 @@ def main():
     s_start = (10, 5)
     s_goal = (45, 25)
 
-    rtaa = RTAAstar(s_start, s_goal, 240, "euclidean")
+    rtaa = RealtimeAdaptiveAstar(s_start, s_goal, 240, "euclidean")
     plot = plotting.Plotting(s_start, s_goal)
 
     rtaa.searching()

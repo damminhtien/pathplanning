@@ -63,13 +63,19 @@ class Planner(str, Enum):
     # A* Variants
     ASTAR = "astar"
     ANYTIME_DSTAR = "anytime_dstar"
-    ANYTIME_REPARING_ASTAR = "anytime_replanning_astar"
+    ANYTIME_REPAIRING_ASTAR = "anytime_repairing_astar"
+    # Backward-compatible alias.
+    ANYTIME_REPARING_ASTAR = ANYTIME_REPAIRING_ASTAR
     BIDIRECTIONAL_ASTAR = "bidirectional_astar"
     DSTAR_LITE = "dstar_lite"
     DSTAR = "dstar"
     LEARNING_REALTIME_ASTAR = "learning_realtime_astar"
-    LIFELONG_REPAIRING_ASTAR = "lifelong_repairing_astar"
-    REALTIME_ADPTIVE_ASTAR = "realtime_adaptive_astar"
+    LIFELONG_PLANNING_ASTAR = "lifelong_planning_astar"
+    # Backward-compatible alias.
+    LIFELONG_REPAIRING_ASTAR = LIFELONG_PLANNING_ASTAR
+    REALTIME_ADAPTIVE_ASTAR = "realtime_adaptive_astar"
+    # Backward-compatible alias.
+    REALTIME_ADPTIVE_ASTAR = REALTIME_ADAPTIVE_ASTAR
 
 
 @dataclass
@@ -169,6 +175,37 @@ def _concat_unique(seq_of_paths: Iterable[Sequence[Coord]]) -> List[Coord]:
     return out
 
 
+_LEGACY_PLANNER_NAMES = {
+    "anytime_replanning_astar": Planner.ANYTIME_REPAIRING_ASTAR,
+    "lifelong_repairing_astar": Planner.LIFELONG_PLANNING_ASTAR,
+    "realtime_adptive_astar": Planner.REALTIME_ADAPTIVE_ASTAR,
+}
+
+
+def _parse_planner(algo: Planner | str) -> Planner:
+    """Parse planner enums and backward-compatible string aliases."""
+    if isinstance(algo, Planner):
+        return algo
+    name = str(algo).lower().strip()
+    if name in _LEGACY_PLANNER_NAMES:
+        return _LEGACY_PLANNER_NAMES[name]
+    return Planner(name)
+
+
+def _import_local(module_name: str):
+    """
+    Import a sibling module under plan2d with support for:
+    1) package imports (`Search_based_Planning.plan2d...`)
+    2) script execution from this folder (`python run.py`)
+    """
+    if __package__:
+        return importlib.import_module(f"{__package__}.{module_name}")
+    try:
+        return importlib.import_module(f"Search_based_Planning.plan2d.{module_name}")
+    except ModuleNotFoundError:
+        return importlib.import_module(module_name)
+
+
 # -- Core interface ------------------------------------------------------------
 class Search2dFacade:
     """
@@ -182,8 +219,7 @@ class Search2dFacade:
         :param cfg: PlanConfig with start, goal, heuristic, and optional knobs
         :return: PlanResult with the path, cost, nodes expanded, runtime, etc.
         """
-        if isinstance(algo, str):
-            algo = Planner(algo.lower())
+        algo = _parse_planner(algo)
         if not isinstance(algo, Planner):
             raise ValueError(f"Unsupported algorithm type: {type(algo)}")
         name = algo.value
@@ -198,19 +234,19 @@ class Search2dFacade:
             res = self._run_astar_family(name, heur, cfg)
         elif name == Planner.BIDIRECTIONAL_ASTAR:
             res = self._run_bi_astar(heur, cfg)
-        elif name == Planner.ANYTIME_REPARING_ASTAR:
+        elif name == Planner.ANYTIME_REPAIRING_ASTAR:
             res = self._run_arastar(heur, cfg)
         elif name == Planner.LEARNING_REALTIME_ASTAR:
             res = self._run_lrta(heur, cfg)
-        elif name == Planner.REALTIME_ADPTIVE_ASTAR:
+        elif name == Planner.REALTIME_ADAPTIVE_ASTAR:
             res = self._run_rtaa(heur, cfg)
-        elif name == Planner.LIFELONG_REPAIRING_ASTAR:
+        elif name == Planner.LIFELONG_PLANNING_ASTAR:
             res = self._run_lpastar(heur, cfg)
         elif name == Planner.DSTAR_LITE:
             res = self._run_dstar_lite(heur, cfg)
         elif name == Planner.DSTAR:
             res = self._run_dstar(heur, cfg)
-        elif name in (Planner.ANYTIME_DSTAR, Planner.ANYTIME_REPARING_ASTAR):  # tolerate mixed case
+        elif name == Planner.ANYTIME_DSTAR:
             res = self._run_adstar(heur, cfg)
         else:
             raise ValueError(f"Unsupported algorithm: {algo}")
@@ -239,7 +275,7 @@ class Search2dFacade:
             Planner.BEST_FIRST_SEARCH:              ("best_first_search", "BestFirstSearch"),
         }
         mod_name, cls_name = mod_map[name]
-        Mod = importlib.import_module(mod_name)
+        Mod = _import_local(mod_name)
         Cls = getattr(Mod, cls_name)
         inst = Cls(cfg.s_start, cfg.s_goal, heur)
         path_raw, visited = inst.searching()  # type: ignore[assignment]
@@ -252,7 +288,7 @@ class Search2dFacade:
         )
 
     def _run_bi_astar(self, heur: str, cfg: PlanConfig) -> PlanResult:
-        Mod = importlib.import_module("bidirectional_astar")
+        Mod = _import_local("bidirectional_astar")
         Cls = getattr(Mod, "BidirectionalAstar")
         inst = Cls(cfg.s_start, cfg.s_goal, heur)
         path, visited_fore, visited_back = inst.searching()
@@ -264,7 +300,7 @@ class Search2dFacade:
         )
 
     def _run_arastar(self, heur: str, cfg: PlanConfig) -> PlanResult:
-        Mod = importlib.import_module("anytime_repairing_astar")
+        Mod = _import_local("anytime_repairing_astar")
         Cls = getattr(Mod, "AnytimeRepairingAstar")
         inst = Cls(cfg.s_start, cfg.s_goal, cfg.ara_e, heur)
         paths_raw, visited_iters = inst.searching()
@@ -273,13 +309,13 @@ class Search2dFacade:
             p, cfg.s_start, cfg.s_goal) or [] for p in paths_raw]
         final_path = paths[-1] if paths else None
         return PlanResult(
-            algo=Planner.ANYTIME_REPARING_ASTAR, heuristic=Heuristic(heur),
+            algo=Planner.ANYTIME_REPAIRING_ASTAR, heuristic=Heuristic(heur),
             s_start=cfg.s_start, s_goal=cfg.s_goal,
             path=final_path, paths=paths, visited_iters=visited_iters
         )
 
     def _run_lrta(self, heur: str, cfg: PlanConfig) -> PlanResult:
-        Mod = importlib.import_module("learning_realtime_astar")
+        Mod = _import_local("learning_realtime_astar")
         Cls = getattr(Mod, "LearningRealtimeAstar")
         inst = Cls(cfg.s_start, cfg.s_goal, cfg.lrta_N, heur)
         inst.searching()
@@ -300,7 +336,7 @@ class Search2dFacade:
         )
 
     def _run_rtaa(self, heur: str, cfg: PlanConfig) -> PlanResult:
-        Mod = importlib.import_module("realtime_adaptive_astar")
+        Mod = _import_local("realtime_adaptive_astar")
         Cls = getattr(Mod, "RealtimeAdaptiveAstar")
         inst = Cls(cfg.s_start, cfg.s_goal, cfg.rtaa_N, heur)
         inst.searching()
@@ -309,13 +345,13 @@ class Search2dFacade:
         final_path = _ensure_start_to_goal(combined, cfg.s_start, cfg.s_goal)
         visited_iters = [list(v) for v in inst.visited]
         return PlanResult(
-            algo=Planner.REALTIME_ADPTIVE_ASTAR, heuristic=Heuristic(heur),
+            algo=Planner.REALTIME_ADAPTIVE_ASTAR, heuristic=Heuristic(heur),
             s_start=cfg.s_start, s_goal=cfg.s_goal,
             path=final_path, paths=segments, visited_iters=visited_iters
         )
 
     def _run_lpastar(self, heur: str, cfg: PlanConfig) -> PlanResult:
-        Mod = importlib.import_module("lifelong_planning_astar")
+        Mod = _import_local("lifelong_planning_astar")
         Cls = getattr(Mod, "LifelongPlanningAstar")
         inst = Cls(cfg.s_start, cfg.s_goal, heur)
         # Headless run: directly compute shortest path and extract, no plotting
@@ -324,13 +360,13 @@ class Search2dFacade:
         path = _ensure_start_to_goal(path, cfg.s_start, cfg.s_goal)
         visited = list(inst.visited) if hasattr(inst, "visited") else None
         return PlanResult(
-            algo=Planner.LIFELONG_REPAIRING_ASTAR, heuristic=Heuristic(heur),
+            algo=Planner.LIFELONG_PLANNING_ASTAR, heuristic=Heuristic(heur),
             s_start=cfg.s_start, s_goal=cfg.s_goal,
             path=path, visited=visited
         )
 
     def _run_dstar_lite(self, heur: str, cfg: PlanConfig) -> PlanResult:
-        Mod = importlib.import_module("dstar_lite")
+        Mod = _import_local("dstar_lite")
         Cls = getattr(Mod, "DStarLite")
         inst = Cls(cfg.s_start, cfg.s_goal, heur)
         inst.ComputePath()               # plan once
@@ -345,7 +381,7 @@ class Search2dFacade:
 
     def _run_dstar(self, heur: str, cfg: PlanConfig) -> PlanResult:
         # Classic D*: replicate headless portion of run()
-        Mod = importlib.import_module("dstar")
+        Mod = _import_local("dstar")
         Cls = getattr(Mod, "Dstar")
         inst = Cls(cfg.s_start, cfg.s_goal)
         inst.init()
@@ -365,7 +401,7 @@ class Search2dFacade:
 
     def _run_adstar(self, heur: str, cfg: PlanConfig) -> PlanResult:
         # Headless version of Anytime D*
-        Mod = importlib.import_module("anytime_dstar")
+        Mod = _import_local("anytime_dstar")
         Cls = getattr(Mod, "AnytimeDstar")
         inst = Cls(cfg.s_start, cfg.s_goal, cfg.adstar_eps, heur)
 

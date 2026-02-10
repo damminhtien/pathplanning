@@ -2,6 +2,7 @@
 numpy>=1.23,<3.0
 matplotlib>=3.7,<4.0
 scipy>=1.9,<2.0
+pyrr>=0.10,<1.0
 
 # GIF export (recommended for saving animations)
 pillow>=9.0,<11.0

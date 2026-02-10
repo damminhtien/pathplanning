@@ -8,7 +8,10 @@ import sys
 import math
 import heapq
 
-from utils import plotting, env
+try:
+    from .utils import plotting, env
+except ImportError:  # pragma: no cover - script execution fallback
+    from utils import plotting, env
 
 
 class BidirectionalAstar:

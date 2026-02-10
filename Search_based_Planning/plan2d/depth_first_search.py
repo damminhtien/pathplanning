@@ -6,8 +6,12 @@ author: damminhtien
 import math
 import heapq
 
-from utils import plotting
-from astar import Astar
+try:
+    from .utils import plotting
+    from .astar import Astar
+except ImportError:  # pragma: no cover - script execution fallback
+    from utils import plotting
+    from astar import Astar
 
 class DepthFirstSearch(Astar):
     """DFS add the new visited node in the front of the openset

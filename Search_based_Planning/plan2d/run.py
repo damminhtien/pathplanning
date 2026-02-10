@@ -7,7 +7,10 @@ each algorithm, printing the results including nodes expanded, cost, path length
 
 author: damminhtien
 """
-from plan2d_facade import Search2dFacade, PlanConfig, Heuristic, Planner
+try:
+    from .plan2d_facade import Search2dFacade, PlanConfig, Heuristic, Planner
+except ImportError:  # pragma: no cover - script execution fallback
+    from plan2d_facade import Search2dFacade, PlanConfig, Heuristic, Planner
 
 ALL_ALGORITHMS = [
     # Uninformed Search
@@ -20,9 +23,9 @@ ALL_ALGORITHMS = [
     Planner.ASTAR,
     Planner.BIDIRECTIONAL_ASTAR,
     Planner.ANYTIME_DSTAR,
-    Planner.ANYTIME_REPARING_ASTAR,
+    Planner.ANYTIME_REPAIRING_ASTAR,
     Planner.LIFELONG_REPAIRING_ASTAR,
-    Planner.REALTIME_ADPTIVE_ASTAR,
+    Planner.REALTIME_ADAPTIVE_ASTAR,
     Planner.LEARNING_REALTIME_ASTAR,
     Planner.DSTAR_LITE,
     Planner.DSTAR,

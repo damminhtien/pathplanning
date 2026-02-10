@@ -6,8 +6,12 @@ Dijkstra 2D
 import math
 import heapq
 
-from utils import plotting
-from astar import Astar
+try:
+    from .utils import plotting
+    from .astar import Astar
+except ImportError:  # pragma: no cover - script execution fallback
+    from utils import plotting
+    from astar import Astar
 
 
 class Dijkstra(Astar):

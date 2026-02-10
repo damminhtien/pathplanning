@@ -5,14 +5,19 @@ utils for collision check
 
 import math
 import numpy as np
-import os
-import sys
 
-sys.path.append(os.path.dirname(os.path.abspath(__file__)) +
-                "/../../Sampling_based_Planning/")
+try:
+    from . import env
+except ImportError:  # pragma: no cover - script execution fallback
+    import env
 
-from Sampling_based_Planning.rrt_2D import env
-from Sampling_based_Planning.rrt_2D.rrt import Node
+
+class Node:
+    """Lightweight node for geometry helper computations."""
+
+    def __init__(self, n):
+        self.x = n[0]
+        self.y = n[1]
 
 
 class Utils:
