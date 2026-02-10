@@ -20,8 +20,8 @@ Use this as a lightweight execution board for AI agents.
 | T-005 | done | high | Add missing runtime dependencies for supported 3D algorithms | agent | Added `pyrr` to `requirements.txt` |
 | T-006 | done | high | Add automated smoke tests for all supported algorithms | agent | Added pytest smoke tests for package API + all supported module imports + all search2d planners + representative 2D/3D runtime |
 | T-007 | done | high | Update CI to run smoke/integration checks in addition to lint | agent | Workflow now runs `pytest -q` after pre-commit |
-| T-008 | todo | medium | Increase lint strictness after runtime failures are resolved | unassigned | Re-enable undefined-name checks (`F821`) incrementally |
-| T-009 | todo | medium | Add benchmark script for representative planners | unassigned | Capture runtime + nodes expanded |
+| T-008 | done | medium | Increase lint strictness after runtime failures are resolved | agent | Enabled `F821` in ruff and fixed real undefined names in ABIT* |
+| T-009 | done | medium | Add benchmark script for representative planners | agent | Added `scripts/benchmark_planners.py` + `make benchmark` |
 | T-010 | done | medium | Document package API usage examples in README | agent | Added package-first examples and production support policy |
 
 ## Production Problem Backlog
@@ -33,7 +33,6 @@ Use this as a lightweight execution board for AI agents.
 | P-003 | critical | Incomplete ABIT* implementation has undefined symbols and stubbed methods | T-004 |
 | P-004 | high | 3D modules require `pyrr` but dependency is missing in runtime requirements | T-005 |
 | P-005 | high | CI passes lint but does not execute algorithm runtime smoke tests | T-006, T-007 |
-| P-006 | medium | Conservative lint profile misses undefined-name class errors | T-008 |
 
 ## Completed Tasks
 
@@ -43,6 +42,7 @@ Use this as a lightweight execution board for AI agents.
 | C-002 | 2026-02-10 | Refreshed README and added visual preview gallery |
 | C-003 | 2026-02-10 | Added agent operating documents and decision log |
 | C-004 | 2026-02-10 | Executed T-001 to T-007 and T-010: package API, support matrix, dependency fix, smoke tests, CI runtime checks |
+| C-005 | 2026-02-10 | Closed T-008 and T-009: enabled `F821`, fixed ABIT* undefined names, and added benchmark runner |
 
 ## Task Intake Template
 

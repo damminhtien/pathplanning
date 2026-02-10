@@ -1,4 +1,4 @@
-.PHONY: install install-dev lint format precommit test typecheck
+.PHONY: install install-dev lint format precommit test typecheck benchmark
 
 install:
 	pip install -r requirements.txt
@@ -26,6 +26,9 @@ typecheck:
 
 test:
 	pytest -q
+
+benchmark:
+	python scripts/benchmark_planners.py
 
 build:
 	rm -rf dist

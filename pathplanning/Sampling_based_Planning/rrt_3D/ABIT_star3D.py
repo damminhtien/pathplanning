@@ -46,7 +46,7 @@ class ABIT_star:
             if self.is_search_marked_finished():
                 if self.update_approximation(eps_infl, eps_trunc):
                     T, Xunconnected = self.prune(T, Xunconnected, self.xgoal)
-                    Xunconnected.update(self.sample(m, self.xgoal))
+                    Xunconnected.update(self.sample(self.n, self.xgoal))
                     q = len(V) + len(Xunconnected)
                     Q = self.expand({self.xstart}, T, Xunconnected, self.r(q))
                 else:
@@ -66,12 +66,12 @@ class ABIT_star:
                     else:
                         Q.update(self.expand({xc}, T, Xunconnected, self.r(q)))
                         Vclosed.add(xc)
-                elif eps_trunc * (self.g_T(xp) + self.c_hat(xi, xj) + self.h_hat(xc)) <= self.g_T(self.xgoal):
+                elif eps_trunc * (self.g_T(xp) + self.c_hat(xp, xc) + self.h_hat(xc)) <= self.g_T(self.xgoal):
                     if self.g_T(xp) + self.c_hat(xp, xc) < self.g_T(xc):
                         if self.g_T(xp) + self.c(xp, xc) + self.h_hat(xc) < self.g_T(self.xgoal):
                             if self.g_T(xp) + self.c(xp, xc) < self.g_T(xc):
                                 if xc in V:
-                                    E = E.difference({(xprev, xc)})
+                                    E = E.difference({(x_parent, x_child) for (x_parent, x_child) in E if x_child == xc})
                                 else:
                                     Xunconnected.difference_update({xc})
                                     V.add(xc)
