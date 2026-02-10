@@ -11,6 +11,7 @@ The repository is organized for practical use:
 ## Contents
 
 - [Overview](#overview)
+- [Visual Preview](#visual-preview)
 - [Repository Layout](#repository-layout)
 - [Implemented Algorithms](#implemented-algorithms)
 - [Installation](#installation)
@@ -33,6 +34,32 @@ Primary modules:
 - `Sampling_based_Planning/rrt_2D`: 2D sampling-based planners
 - `Sampling_based_Planning/rrt_3D`: 3D sampling-based planners
 - `CurvesGenerator`: curve generation utilities (Bezier, spline, Dubins, Reeds-Shepp)
+
+## Visual Preview
+
+A small gallery from the built-in animations:
+
+### Search-Based
+
+<p align="center">
+  <img src="./Search_based_Planning/gif/Astar.gif" alt="A star planning animation" width="360"/>
+  <img src="./Search_based_Planning/gif/Bi-Astar.gif" alt="Bidirectional A star animation" width="360"/>
+</p>
+<p align="center">
+  <img src="./Search_based_Planning/gif/D_star_Lite.gif" alt="D star lite planning animation" width="360"/>
+  <img src="./Search_based_Planning/gif/ARA_star.gif" alt="ARA star planning animation" width="360"/>
+</p>
+
+### Sampling-Based
+
+<p align="center">
+  <img src="./Sampling_based_Planning/gif/RRT_2D.gif" alt="RRT 2D planning animation" width="360"/>
+  <img src="./Sampling_based_Planning/gif/RRT_CONNECT_2D.gif" alt="RRT connect 2D planning animation" width="360"/>
+</p>
+<p align="center">
+  <img src="./Sampling_based_Planning/gif/FMT.gif" alt="FMT star planning animation" width="360"/>
+  <img src="./Sampling_based_Planning/gif/BIT2.gif" alt="BIT star planning animation" width="360"/>
+</p>
 
 ## Repository Layout
 
