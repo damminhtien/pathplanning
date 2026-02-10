@@ -2,10 +2,7 @@
 load-plugins=pylint.extensions.docparams
 
 [MESSAGES CONTROL]
-disable=
-    missing-module-docstring,
-    missing-class-docstring,
-    missing-function-docstring
+# Do not disable required messages; fix violations instead.
 
 [FORMAT]
 max-line-length=100
@@ -24,3 +21,4 @@ ignored-modules=numpy,matplotlib,pyrr
 
 [DOCSTRING]
 docstring-min-length=10
+default-docstring-type=google
