@@ -10,6 +10,9 @@ lint:
 	ruff check .
 
 lint-google:
+	pylint --rcfile .pylintrc pathplanning/api.py pathplanning/registry.py pathplanning/search2d.py
+
+lint-google-legacy:
 	pylint --rcfile .pylintrc pathplanning
 
 format:

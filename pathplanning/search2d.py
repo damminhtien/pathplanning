@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from Search_based_Planning.plan2d import plan2d_facade as _facade
+from .Search_based_Planning.plan2d import plan2d_facade as _facade
 
 Heuristic = _facade.Heuristic
 PlanConfig = _facade.PlanConfig

@@ -45,9 +45,9 @@ Issues = "https://github.com/damminhtien/PathPlanningV2/issues"
 [tool.setuptools.packages.find]
 include = [
   "pathplanning*",
-  "Search_based_Planning*",
-  "Sampling_based_Planning*",
-  "CurvesGenerator*",
+  "Search_based_Planning",
+  "Sampling_based_Planning",
+  "CurvesGenerator",
 ]
 
 [tool.ruff]
