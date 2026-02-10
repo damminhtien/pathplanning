@@ -30,7 +30,7 @@ Branch: `main`
 4. README visual preview gallery added using existing GIF assets.
 5. Added agent operating documents (`agent.md`, `state.md`, `tasks.md`, `handoff.md`, `decisions.md`).
 6. Fixed plan2d script runtime failures caused by wrong class names in `main()`.
-7. Added reusable package API under `pathplanningv2`.
+7. Added reusable package API under `pathplanning`.
 8. Added supported algorithm registry and support matrix (`SUPPORTED_ALGORITHMS.md`).
 9. Dropped incomplete `sampling3d.abit_star` from production API surface.
 10. Added runtime dependency `pyrr` for 3D modules.
@@ -69,7 +69,7 @@ Recent observed behavior:
 
 1. `python Search_based_Planning/plan2d/run.py` succeeds with all listed planners.
 2. Individual previously failing plan2d scripts now execute without `NameError`.
-3. Package import works from repo root: `import pathplanningv2`.
+3. Package import works from repo root: `import pathplanning`.
 4. Representative 3D script run works headless (`MPLBACKEND=Agg python Search_based_Planning/Search_3D/Astar3D.py`).
 5. Smoke tests pass: `pytest -q`.
 

@@ -55,7 +55,7 @@ Track durable decisions so future agents do not re-litigate baseline choices.
 - Date: 2026-02-10
 - Status: accepted
 - Context: Production scope needs an auditable list of supported vs dropped algorithms.
-- Decision: Define algorithm metadata in `pathplanningv2.registry` and publish matrix in `SUPPORTED_ALGORITHMS.md`.
+- Decision: Define algorithm metadata in `pathplanning.registry` and publish matrix in `SUPPORTED_ALGORITHMS.md`.
 - Consequence: Changes to production support now require explicit registry updates and become easier to review.
 
 ## Decision Template

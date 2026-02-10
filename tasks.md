@@ -14,8 +14,8 @@ Use this as a lightweight execution board for AI agents.
 | ID | Status | Priority | Task | Owner | Notes |
 | --- | --- | --- | --- | --- | --- |
 | T-001 | done | critical | Fix all plan2d direct script runtime failures (`NameError` in `main`) | agent | Fixed class-name mismatches in 8 script entrypoints |
-| T-002 | done | critical | Add reusable package layout and stable imports | agent | Added `pathplanningv2` package + dual-mode imports in plan2d/rrt2d |
-| T-003 | done | critical | Define supported algorithm matrix and enforce "all complete algorithms" production scope | agent | Added `SUPPORTED_ALGORITHMS.md` + `pathplanningv2.registry` |
+| T-002 | done | critical | Add reusable package layout and stable imports | agent | Added `pathplanning` package + dual-mode imports in plan2d/rrt2d |
+| T-003 | done | critical | Define supported algorithm matrix and enforce "all complete algorithms" production scope | agent | Added `SUPPORTED_ALGORITHMS.md` + `pathplanning.registry` |
 | T-004 | done | critical | Drop incomplete algorithms from production surface | agent | `sampling3d.abit_star` marked dropped and blocked by package loader |
 | T-005 | done | high | Add missing runtime dependencies for supported 3D algorithms | agent | Added `pyrr` to `requirements.txt` |
 | T-006 | done | high | Add automated smoke tests for all supported algorithms | agent | Added pytest smoke tests for package API + all supported module imports + all search2d planners + representative 2D/3D runtime |
