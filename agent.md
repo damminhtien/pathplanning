@@ -6,12 +6,21 @@ This document defines how AI agents should operate in `PathPlanningV2`.
 
 Deliver safe, production-quality improvements to the repository while preserving reproducibility, readability, and developer velocity.
 
+## Product Directives (Authoritative)
+
+1. Production scope must include all supported algorithms in this repository.
+2. Delivery must expose a reusable Python package API.
+3. Incomplete algorithms are not part of the production surface and must be dropped from support until completed.
+
 ## Success Criteria
 
 1. Changes are correct and minimal.
 2. Existing demos continue to run.
 3. Quality checks pass before handoff.
-4. Documentation and state are updated for the next agent.
+4. Reusable package API works from repository root imports.
+5. Supported algorithm matrix is accurate and enforced.
+6. Incomplete algorithms are excluded from production API/docs/CI.
+7. Documentation and state are updated for the next agent.
 
 ## Repository Context
 
@@ -31,6 +40,7 @@ Deliver safe, production-quality improvements to the repository while preserving
 3. Avoid broad refactors mixed with feature work.
 4. Do not silently change algorithm behavior.
 5. Add or update docs when behavior, commands, or workflow changes.
+6. Do not expose experimental/incomplete algorithms through production package exports.
 
 ## Required Quality Gates
 
@@ -39,6 +49,12 @@ Run from repository root:
 ```bash
 ruff check .
 pre-commit run --all-files
+```
+
+Package/import smoke check:
+
+```bash
+python -c "import pathplanningv2"
 ```
 
 If code was changed in runnable modules, run at least one relevant smoke demo:
@@ -55,7 +71,8 @@ python Sampling_based_Planning/rrt_2D/rrt.py
 3. Implement with focused commits.
 4. Execute quality gates.
 5. Update `state.md` and `tasks.md`.
-6. Write a concise handoff in `handoff.md`.
+6. Update supported/dropped algorithm status in docs and decisions.
+7. Write a concise handoff in `handoff.md`.
 
 ## Coding Standards
 
@@ -92,5 +109,7 @@ A task is done only when:
 
 1. Requested behavior is implemented.
 2. `ruff` and `pre-commit` pass.
-3. Docs/state files are updated when relevant.
-4. Risks and follow-ups are recorded in `handoff.md`.
+3. Reusable package imports work in a clean shell.
+4. Supported algorithm list matches executable/validated implementations.
+5. Docs/state files are updated when relevant.
+6. Risks and follow-ups are recorded in `handoff.md`.
