@@ -1,0 +1,7 @@
+-r requirements.txt
+
+# Linting / formatting
+ruff>=0.9,<1.0
+
+# Git hook framework
+pre-commit>=3.7,<5.0
