@@ -1,0 +1,18 @@
+{
+  "$schema": "https://raw.githubusercontent.com/microsoft/pyright/main/packages/pyright-schemas/pyrightconfig.schema.json",
+  "include": ["pathplanning"],
+  "exclude": [
+    "Sampling_based_Planning",
+    "Search_based_Planning",
+    "CurvesGenerator",
+    "tests",
+    "dist",
+    "build",
+    ".venv",
+    "pathplanning.egg-info",
+    "pathplanningv2.egg-info"
+  ],
+  "typeCheckingMode": "strict",
+  "reportMissingImports": "warning",
+  "reportMissingTypeStubs": "warning"
+}

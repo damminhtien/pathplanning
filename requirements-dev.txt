@@ -2,6 +2,7 @@
 
 # Linting / formatting
 ruff>=0.9,<1.0
+pyright>=1.1,<1.2
 
 # Git hook framework
 pre-commit>=3.7,<5.0
