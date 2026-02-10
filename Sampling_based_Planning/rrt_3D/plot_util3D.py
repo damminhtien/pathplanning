@@ -71,7 +71,7 @@ def draw_obb(ax, OBB, color=None, alpha=0.15):
 
 
 def draw_line(ax, SET, visibility=1, color=None):
-    if SET != []:
+    if len(SET) > 0:
         for i in SET:
             xs = i[0][0], i[1][0]
             ys = i[0][1], i[1][1]

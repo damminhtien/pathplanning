@@ -16,7 +16,10 @@ from Search_3D import Astar3D
 from Search_3D.utils3D import getDist, getRay, g_Space, Heuristic, getNearest, isCollide, \
     cost, obstacleFree, children
 from Search_3D.plot_util3D import visualization
-import queue
+try:
+    from . import queue
+except ImportError:  # pragma: no cover - script execution fallback
+    from Search_3D import queue
 
 class RTA_A_star:
     def __init__(self, resolution=0.5, N=7):

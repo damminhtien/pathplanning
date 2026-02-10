@@ -8,7 +8,10 @@ import sys
 import copy
 import math
 
-from utils import queue, plotting, env
+try:
+    from .utils import queue, plotting, env
+except ImportError:  # pragma: no cover - script execution fallback
+    from utils import queue, plotting, env
 
 
 class LearningRealtimeAstar:
@@ -215,7 +218,7 @@ def main():
     s_start = (10, 5)
     s_goal = (45, 25)
 
-    lrta = LrtAstarN(s_start, s_goal, 250, "euclidean")
+    lrta = LearningRealtimeAstar(s_start, s_goal, 250, "euclidean")
     plot = plotting.Plotting(s_start, s_goal)
 
     lrta.searching()

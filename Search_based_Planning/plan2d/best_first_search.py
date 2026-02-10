@@ -6,8 +6,12 @@ Best-First Searching
 import math
 import heapq
 
-from utils import plotting
-from astar import Astar
+try:
+    from .utils import plotting
+    from .astar import Astar
+except ImportError:  # pragma: no cover - script execution fallback
+    from utils import plotting
+    from astar import Astar
 
 
 class BestFirstSearch(Astar):
@@ -52,7 +56,7 @@ def main():
     s_start = (5, 5)
     s_goal = (45, 25)
 
-    BF = BestFirst(s_start, s_goal, 'euclidean')
+    BF = BestFirstSearch(s_start, s_goal, 'euclidean')
     plot = plotting.Plotting(s_start, s_goal)
 
     path, visited = BF.searching()

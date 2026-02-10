@@ -8,7 +8,10 @@ import sys
 import math
 import matplotlib.pyplot as plt
 
-from utils import plotting, env
+try:
+    from .utils import plotting, env
+except ImportError:  # pragma: no cover - script execution fallback
+    from utils import plotting, env
 
 
 class Dstar:
@@ -293,7 +296,7 @@ class Dstar:
 def main():
     s_start = (5, 5)
     s_goal = (45, 25)
-    dstar = DStar(s_start, s_goal)
+    dstar = Dstar(s_start, s_goal)
     dstar.run(s_start, s_goal)
 
 

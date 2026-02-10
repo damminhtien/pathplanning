@@ -9,7 +9,10 @@ g(s) decreased introduces a local inconsistency between s and its successors.
 
 import math
 
-from utils import plotting, env
+try:
+    from .utils import plotting, env
+except ImportError:  # pragma: no cover - script execution fallback
+    from utils import plotting, env
 
 
 class AnytimeRepairingAstar:
@@ -206,7 +209,7 @@ def main():
     s_start = (5, 5)
     s_goal = (45, 25)
 
-    arastar = AraStar(s_start, s_goal, 2.5, "euclidean")
+    arastar = AnytimeRepairingAstar(s_start, s_goal, 2.5, "euclidean")
     plot = plotting.Plotting(s_start, s_goal)
 
     path, visited = arastar.searching()

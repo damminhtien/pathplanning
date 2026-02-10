@@ -6,8 +6,12 @@ Breadth-first Searching_2D (BFS)
 import heapq
 import math
 
-from astar import Astar
-from utils import plotting
+try:
+    from .astar import Astar
+    from .utils import plotting
+except ImportError:  # pragma: no cover - script execution fallback
+    from astar import Astar
+    from utils import plotting
 
 
 class BreadthFirstSearch(Astar):

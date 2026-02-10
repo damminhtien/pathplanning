@@ -3,15 +3,15 @@ RRT_2D
 @author: damminhtien
 """
 
-import os
-import sys
 import math
 import numpy as np
 
-sys.path.append(os.path.dirname(os.path.abspath(__file__)) +
-                "/../../Sampling_based_Planning/")
-
-from Sampling_based_Planning.rrt_2D import env, plotting, utils
+try:
+    from . import env, plotting, utils
+except ImportError:  # pragma: no cover - script execution fallback
+    import env
+    import plotting
+    import utils
 
 
 class Node:

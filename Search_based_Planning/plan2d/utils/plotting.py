@@ -13,7 +13,10 @@ from typing import Iterable, List, Sequence, Tuple
 
 import matplotlib.pyplot as plt
 
-from utils import env
+try:
+    from . import env
+except ImportError:  # pragma: no cover - script execution fallback
+    from utils import env
 
 Point = Tuple[int, int]
 

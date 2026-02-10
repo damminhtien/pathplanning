@@ -3,15 +3,13 @@ LPA_star 2D
 @author: damminhtien
 """
 
-import os
-import sys
 import math
 import matplotlib.pyplot as plt
 
-sys.path.append(os.path.dirname(os.path.abspath(__file__)) +
-                "/../../Search_based_Planning/")
-
-from utils import plotting, env
+try:
+    from .utils import plotting, env
+except ImportError:  # pragma: no cover - script execution fallback
+    from utils import plotting, env
 
 
 class LifelongPlanningAstar:
@@ -248,7 +246,7 @@ def main():
     x_start = (5, 5)
     x_goal = (45, 25)
 
-    lpastar = LPAstar(x_start, x_goal, "Euclidean")
+    lpastar = LifelongPlanningAstar(x_start, x_goal, "Euclidean")
     lpastar.run()
 
 
