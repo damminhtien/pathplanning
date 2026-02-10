@@ -11,7 +11,7 @@ Author: AI Agent and damminhtien
 
 1. Executed critical production tasks from `tasks.md`:
    - fixed plan2d script runtime failures
-   - added reusable package API (`pathplanningv2`)
+   - added reusable package API (`pathplanning`)
    - added support matrix (`SUPPORTED_ALGORITHMS.md`) + production registry
    - dropped `sampling3d.abit_star` from production API surface
    - added `pyrr` runtime dependency
@@ -28,7 +28,7 @@ Author: AI Agent and damminhtien
 1. `ruff check .`
 2. `pre-commit run --all-files`
 3. `pytest -q`
-4. `python -c "import pathplanningv2; print('import ok')"`
+4. `python -c "import pathplanning; print('import ok')"`
 5. `python Search_based_Planning/plan2d/run.py`
 6. `MPLBACKEND=Agg python Sampling_based_Planning/rrt_2D/rrt.py`
 7. `MPLBACKEND=Agg python Search_based_Planning/Search_3D/Astar3D.py`
