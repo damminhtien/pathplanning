@@ -1,0 +1,27 @@
+[MASTER]
+load-plugins=pylint.extensions.docparams
+
+[MESSAGES CONTROL]
+disable=
+    missing-module-docstring,
+    missing-class-docstring,
+    missing-function-docstring
+
+[FORMAT]
+max-line-length=100
+indent-string='    '
+
+[BASIC]
+good-names=i,j,k,x,y,z,dx,dy,dz,xc,yc,zc
+
+[DESIGN]
+max-args=8
+max-attributes=15
+max-locals=25
+
+[TYPECHECK]
+ignored-modules=numpy,matplotlib,pyrr
+
+[DOCSTRING]
+docstring-min-length=10
+docstring-convention=google

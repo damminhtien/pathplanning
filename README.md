@@ -231,6 +231,8 @@ Run lint checks:
 
 ```bash
 ruff check .
+# optional: google-style lint via pylint
+make lint-google
 ```
 
 Run formatter (optional but recommended before commit):
