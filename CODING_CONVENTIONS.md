@@ -3,7 +3,7 @@
 This document defines enforceable rules for this repository. Keywords use RFC 2119 semantics (MUST/SHOULD/MAY).
 
 ## Scope & Tooling
-- Code MUST target Python ≥ 3.9 and line length 100 with LF endings and 4-space indents.
+- Code MUST target Python ≥ 3.10 and line length 100 with LF endings and 4-space indents.
 - `ruff format` output is authoritative; run via `make format` or `ruff format .`.
 - `ruff check --config pyproject.toml` MUST be clean before merge (`make lint` or `pre-commit run --all-files`).
 - Google-style lint (`make lint-google`) MAY be used for additional checks.
