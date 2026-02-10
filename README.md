@@ -1,6 +1,6 @@
 # PathPlanningV2
 
-PathPlanningV2 is a curated collection of search-based and sampling-based path planning algorithms for robotics, with built-in visualizations for 2D and 3D demos.
+PathPlanning is a curated collection of search-based and sampling-based path planning algorithms for robotics, with built-in visualizations for 2D and 3D demos.
 
 The repository is organized for practical use:
 - algorithm implementations grouped by planning family
@@ -135,7 +135,7 @@ Python `>=3.9` is recommended.
 Import-first usage (production path):
 
 ```python
-from pathplanningv2 import Search2D, Planner, PlanConfig, Heuristic
+from pathplanning import Search2D, Planner, PlanConfig, Heuristic
 
 planner = Search2D()
 result = planner.plan(
@@ -150,7 +150,7 @@ print(result.cost)
 Load algorithm modules via registry:
 
 ```python
-from pathplanningv2 import list_supported_algorithms, load_algorithm_module
+from pathplanning import list_supported_algorithms, load_algorithm_module
 
 for spec in list_supported_algorithms():
     module = load_algorithm_module(spec.algorithm_id)

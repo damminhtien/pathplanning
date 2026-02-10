@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import importlib
 
-from pathplanningv2.registry import list_supported_algorithms
+from pathplanning.registry import list_supported_algorithms
 
 
 def test_import_all_supported_modules() -> None:
