@@ -26,6 +26,38 @@ Track durable decisions so future agents do not re-litigate baseline choices.
 - Decision: Keep runtime deps in `requirements.txt` and dev tooling in `requirements-dev.txt`.
 - Consequence: Cleaner onboarding and smaller production runtime environment.
 
+## DEC-004: Production scope covers all supported algorithms
+
+- Date: 2026-02-10
+- Status: accepted
+- Context: Product requirement is broad algorithm coverage, not a small subset.
+- Decision: Maintain production support across all algorithms that pass packaging, runtime smoke checks, and quality gates.
+- Consequence: Higher maintenance cost, but complete capability coverage.
+
+## DEC-005: Provide a reusable Python package API
+
+- Date: 2026-02-10
+- Status: accepted
+- Context: Script-only execution is insufficient for integration use cases.
+- Decision: Standardize imports and expose stable package-level APIs for planner execution.
+- Consequence: Requires import refactor away from path hacks and stronger API compatibility discipline.
+
+## DEC-006: Drop incomplete algorithms from production surface
+
+- Date: 2026-02-10
+- Status: accepted
+- Context: Incomplete modules create runtime failures and erode reliability.
+- Decision: Mark incomplete algorithms as unsupported and remove them from package exports, CI gates, and production docs until implemented.
+- Consequence: Reduced immediate algorithm count in production, increased reliability and clarity.
+
+## DEC-007: Use explicit algorithm registry as production contract
+
+- Date: 2026-02-10
+- Status: accepted
+- Context: Production scope needs an auditable list of supported vs dropped algorithms.
+- Decision: Define algorithm metadata in `pathplanningv2.registry` and publish matrix in `SUPPORTED_ALGORITHMS.md`.
+- Consequence: Changes to production support now require explicit registry updates and become easier to review.
+
 ## Decision Template
 
 Use this template for future entries:
