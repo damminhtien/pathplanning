@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import pytest
 
-import pathplanningv2 as pp
-from pathplanningv2.registry import DROPPED_INCOMPLETE
+import pathplanning as pp
+from pathplanning.registry import DROPPED_INCOMPLETE
 
 
 def test_package_import_and_symbols() -> None:

@@ -19,6 +19,7 @@ test:
 	pytest -q
 
 build:
+	rm -rf dist
 	python -m build
 
 publish-test: build

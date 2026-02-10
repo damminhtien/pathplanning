@@ -1,4 +1,4 @@
-"""PathPlanningV2 reusable package API."""
+"""PathPlanning reusable package API."""
 
 from .api import load_algorithm_module
 from .registry import (
