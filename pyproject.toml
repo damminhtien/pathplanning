@@ -61,7 +61,6 @@ select = ["E9", "F63", "F7"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["pathplanning", "Search_based_Planning", "Sampling_based_Planning", "CurvesGenerator"]
-lines-between-types = 1
 force-sort-within-sections = true
 
 [tool.ruff.lint.per-file-ignores]
@@ -69,7 +68,7 @@ force-sort-within-sections = true
 "Search_based_Planning/plan2d/*.py" = ["E402"]
 
 [tool.ruff.lint.flake8-tidy-imports]
-ban-relative-imports = "all"
+ban-relative-imports = "parents"
 
 [tool.ruff.format]
 quote-style = "double"

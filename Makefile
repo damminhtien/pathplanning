@@ -1,4 +1,4 @@
-.PHONY: install install-dev lint format precommit test
+.PHONY: install install-dev lint format precommit test typecheck
 
 install:
 	pip install -r requirements.txt
@@ -17,6 +17,9 @@ format:
 
 precommit:
 	pre-commit run --all-files
+
+typecheck:
+	pyright
 
 test:
 	pytest -q
