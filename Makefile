@@ -1,4 +1,4 @@
-.PHONY: install install-dev lint format precommit
+.PHONY: install install-dev lint format precommit test
 
 install:
 	pip install -r requirements.txt
@@ -14,3 +14,15 @@ format:
 
 precommit:
 	pre-commit run --all-files
+
+test:
+	pytest -q
+
+build:
+	python -m build
+
+publish-test: build
+	twine upload --repository testpypi dist/*
+
+publish: build
+	twine upload dist/*

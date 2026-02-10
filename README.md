@@ -15,7 +15,10 @@ The repository is organized for practical use:
 - [Repository Layout](#repository-layout)
 - [Implemented Algorithms](#implemented-algorithms)
 - [Installation](#installation)
+- [Package API](#package-api)
+- [Production Support Matrix](#production-support-matrix)
 - [Run Demos](#run-demos)
+- [Publish to PyPI](#publish-to-pypi)
 - [Production Developer Workflow](#production-developer-workflow)
 - [Code Quality Files](#code-quality-files)
 - [CI](#ci)
@@ -111,7 +114,6 @@ Sampling-based (2D/3D):
 - RRT* Smart
 - FMT*
 - BIT*
-- ABIT*
 - AIT*
 
 ## Installation
@@ -127,6 +129,63 @@ pip install -r requirements.txt
 ```
 
 Python `>=3.9` is recommended.
+
+## Package API
+
+Import-first usage (production path):
+
+```python
+from pathplanningv2 import Search2D, Planner, PlanConfig, Heuristic
+
+planner = Search2D()
+result = planner.plan(
+    Planner.ASTAR,
+    PlanConfig(s_start=(5, 5), s_goal=(45, 25), heuristic=Heuristic.EUCLIDEAN),
+)
+
+print(result.path)
+print(result.cost)
+```
+
+Load algorithm modules via registry:
+
+```python
+from pathplanningv2 import list_supported_algorithms, load_algorithm_module
+
+for spec in list_supported_algorithms():
+    module = load_algorithm_module(spec.algorithm_id)
+    print(spec.algorithm_id, module.__name__)
+```
+
+## Production Support Matrix
+
+Production algorithm support is documented in:
+
+- `SUPPORTED_ALGORITHMS.md`
+
+Policy:
+
+1. All complete algorithms are included in production scope.
+2. Incomplete algorithms are explicitly marked as dropped.
+3. `sampling3d.abit_star` is currently dropped as incomplete and excluded from production API surface.
+
+## Publish to PyPI
+
+Build and upload (requires `build` and `twine`, already in `requirements-dev.txt`):
+
+```bash
+make build            # creates dist/ artifacts
+make publish-test     # upload to TestPyPI (configure ~/.pypirc)
+make publish          # upload to PyPI (configure ~/.pypirc)
+```
+
+Manual commands:
+
+```bash
+python -m build
+twine check dist/*
+twine upload --repository testpypi dist/*
+```
 
 ## Run Demos
 
@@ -192,6 +251,12 @@ Run all hooks manually:
 pre-commit run --all-files
 ```
 
+Run smoke tests:
+
+```bash
+pytest -q
+```
+
 Shortcut commands:
 
 ```bash
@@ -199,6 +264,7 @@ make install-dev
 make lint
 make format
 make precommit
+make test
 ```
 
 ## Code Quality Files
@@ -224,6 +290,7 @@ CI installs `requirements-dev.txt` and runs:
 
 ```bash
 pre-commit run --all-files --show-diff-on-failure
+pytest -q
 ```
 
 ## License
