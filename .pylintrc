@@ -1,5 +1,6 @@
 [MASTER]
 load-plugins=pylint.extensions.docparams
+ignore=Search_based_Planning,Sampling_based_Planning,CurvesGenerator,pathplanningv2.egg-info,dist,build
 
 [MESSAGES CONTROL]
 disable=
@@ -24,4 +25,3 @@ ignored-modules=numpy,matplotlib,pyrr
 
 [DOCSTRING]
 docstring-min-length=10
-docstring-convention=google

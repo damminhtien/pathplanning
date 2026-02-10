@@ -8,8 +8,11 @@ from Search_based_Planning.plan2d.plan2d_facade import (
     PlanResult,
     Planner,
     Search2dFacade,
-)
+)  # pylint: disable=unused-import
 
 
-class Search2D(Search2dFacade):
+__all__ = ["Heuristic", "PlanConfig", "PlanResult", "Planner", "Search2D"]
+
+
+class Search2D(Search2dFacade):  # pylint: disable=too-few-public-methods
     """Stable package entrypoint for 2D search planners."""
