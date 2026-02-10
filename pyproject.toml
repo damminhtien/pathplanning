@@ -1,0 +1,13 @@
+[tool.ruff]
+target-version = "py39"
+line-length = 100
+
+[tool.ruff.lint]
+# Start with correctness-focused checks for an existing legacy codebase.
+# The rule set can be expanded over time as modules are cleaned up.
+select = ["E9", "F63", "F7"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+line-ending = "lf"
