@@ -9,6 +9,9 @@ install-dev:
 lint:
 	ruff check .
 
+lint-google:
+	pylint --rcfile .pylintrc pathplanningv2 Search_based_Planning Sampling_based_Planning CurvesGenerator
+
 format:
 	ruff format .
 
