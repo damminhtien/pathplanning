@@ -54,7 +54,7 @@ pre-commit run --all-files
 Package/import smoke check:
 
 ```bash
-python -c "import pathplanningv2"
+python -c "import pathplanning; print('import ok')"
 ```
 
 If code was changed in runnable modules, run at least one relevant smoke demo:
@@ -63,6 +63,14 @@ If code was changed in runnable modules, run at least one relevant smoke demo:
 python Search_based_Planning/plan2d/run.py
 python Sampling_based_Planning/rrt_2D/rrt.py
 ```
+
+## Release Hygiene
+
+For any version bump, update these files in the same change:
+
+1. `pyproject.toml` (`[project].version`)
+2. `README.md` (release metadata and install URL if changed)
+3. Agentic state files (`state.md`, `tasks.md`, `decisions.md`, `handoff.md`) with current date and validation status
 
 ## Standard Workflow
 
