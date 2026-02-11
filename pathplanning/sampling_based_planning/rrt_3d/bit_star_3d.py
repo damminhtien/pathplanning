@@ -1,305 +1,350 @@
-# This is Batched Informed Tree star 3D algorithm 
-# implementation
-"""
-This is ABIT* code for 3D
-@author: yue qi 
-Algorithm 1
-source: Gammell, Jonathan D., Siddhartha S. Srinivasa, and Timothy D. Barfoot. "Batch informed trees (BIT*): 
-        Sampling-based optimal planning via the heuristically guided search of implicit random geometric graphs." 
-        2015 IEEE international conference on robotics and automation (ICRA). IEEE, 2015.  
-and 
-source: Gammell, Jonathan D., Timothy D. Barfoot, and Siddhartha S. Srinivasa. 
-        "Batch Informed Trees (BIT*): Informed asymptotically optimal anytime search." 
-        The International Journal of Robotics Research 39.5 (2020): 543-567.
+"""Batch Informed Trees (BIT*) implementation for 3D planning.
+
+References:
+    Gammell, J. D., Srinivasa, S. S., and Barfoot, T. D.
+    "Batch informed trees (BIT*): Sampling-based optimal planning via the
+    heuristically guided search of implicit random geometric graphs." ICRA 2015.
+
+    Gammell, J. D., Barfoot, T. D., and Srinivasa, S. S.
+    "Batch Informed Trees (BIT*): Informed asymptotically optimal anytime search."
+    IJRR 39(5), 2020.
 """
 
-import numpy as np
-import time
 import copy
 
-
-import os
-import sys
+import numpy as np
 
 from .env_3d import Environment3D
-from .utils_3d import getDist, sampleFree, nearest, steer, isCollide, isinside, isinbound
-from .queue import MinheapPQ
+from .utils_3d import get_dist, is_collide, is_in_bound, is_inside, sample_free
 
-#---------methods to draw ellipse during sampling
-def CreateUnitSphere(r = 1):
-    phi = np.linspace(0,2*np.pi, 256).reshape(256, 1) # the angle of the projection in the xy-plane
-    theta = np.linspace(0, np.pi, 256).reshape(-1, 256) # the angle from the polar axis, ie the polar angle
-    radius = r
+def create_unit_sphere(radius: float = 1.0) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Create a sampled sphere mesh in Cartesian coordinates."""
+    phi = np.linspace(0, 2 * np.pi, 256).reshape(256, 1)
+    theta = np.linspace(0, np.pi, 256).reshape(-1, 256)
+    sphere_radius = radius
 
-    # Transformation formulae for a spherical coordinate system.
-    x = radius*np.sin(theta)*np.cos(phi)
-    y = radius*np.sin(theta)*np.sin(phi)
-    z = radius*np.cos(theta)
-    return (x, y, z)
+    x = sphere_radius * np.sin(theta) * np.cos(phi)
+    y = sphere_radius * np.sin(theta) * np.sin(phi)
+    z = sphere_radius * np.cos(theta)
+    return x, y, z
 
-def draw_ellipsoid(ax, C, L, xcenter):
-    (xs, ys, zs) = CreateUnitSphere()
+
+def draw_ellipsoid(
+    ax: object,
+    rotation_matrix: np.ndarray,
+    scale_matrix: np.ndarray,
+    x_center: np.ndarray,
+) -> None:
+    """Draw an ellipsoid in the world frame."""
+    xs, ys, zs = create_unit_sphere()
     pts = np.array([xs, ys, zs])
-    pts_in_world_frame = C@L@pts + xcenter
-    ax.plot_surface(pts_in_world_frame[0], pts_in_world_frame[1], pts_in_world_frame[2], alpha=0.05, color="g")
+    pts_in_world_frame = rotation_matrix @ scale_matrix @ pts + x_center
+    ax.plot_surface(
+        pts_in_world_frame[0],
+        pts_in_world_frame[1],
+        pts_in_world_frame[2],
+        alpha=0.05,
+        color="g",
+    )
 
-class BIT_star:
-# ---------initialize and run
-    def __init__(self, show_ellipse=False):
+
+class BitStar:
+    """BIT* planner over the legacy ``Environment3D`` obstacle model."""
+
+    def __init__(self, show_ellipse: bool = False) -> None:
+        """Initialize planner state and default tuning parameters.
+
+        Args:
+            show_ellipse: Whether to expose ellipsoid state for visualization.
+        """
         self.env = Environment3D()
         self.xstart, self.xgoal = tuple(self.env.start), tuple(self.env.goal)
         self.x0, self.xt = tuple(self.env.start), tuple(self.env.goal)
-        self.maxiter = 1000 # used for determining how many batches needed
-        
-        # radius calc parameter:
-        # larger value makes better 1-time-performance, but longer time trade off
-        self.eta = 7 # bigger or equal to 1
+        self.max_iterations = 1000
+        self.eta = 7
 
-        # sampling 
-        self.m = 400 # number of samples for one time sample
-        self.d = 3 # dimension we work with
-        
-        # instance of the cost to come gT
-        self.g = {self.xstart:0, self.xgoal:np.inf}
+        self.samples_per_batch = 400
+        self.dimension = 3
+        self.g = {self.xstart: 0.0, self.xgoal: np.inf}
 
-        # draw ellipse
         self.show_ellipse = show_ellipse
 
-        # denote if the path is found 
         self.done = False
-        self.Path = []
-        
-        # for drawing the ellipse
-        self.C = np.zeros([3,3])
-        self.L = np.zeros([3,3])
-        self.xcenter = np.zeros(3)
-        self.show_ellipse = show_ellipse
+        self.path_edges: list[tuple[tuple[float, ...], tuple[float, ...]]] = []
 
-    def run(self):
-        self.V = {self.xstart} # node expanded
-        self.E = set() # edge set
-        self.Parent = {} # Parent relation
-        # self.T = (self.V, self.E) # tree
-        self.Xsamples = {self.xgoal} # sampled set
-        self.QE = set() # edges in queue
-        self.QV = set() # nodes in queue
-        self.r = np.inf # radius for evaluation
-        self.ind = 0
+        self.rotation_matrix_world = np.zeros([3, 3])
+        self.ellipse_scale = np.zeros([3, 3])
+        self.xcenter = np.zeros(3)
+        self.iteration_index = 0
+
+    def run(self) -> None:
+        """Execute BIT* iterations until reaching iteration budget."""
+        self.vertices = {self.xstart}
+        self.edges: set[tuple[tuple[float, ...], tuple[float, ...]]] = set()
+        self.parent_by_node: dict[tuple[float, ...], tuple[float, ...]] = {}
+        self.samples = {self.xgoal}
+        self.edge_queue: set[tuple[tuple[float, ...], tuple[float, ...]]] = set()
+        self.vertex_queue: set[tuple[float, ...]] = set()
+        self.connection_radius = np.inf
+        self.iteration_index = 0
         num_resample = 0
         while True:
-            # for the first round
-            print('round '+str(self.ind))
-            # print(len(self.V))
-            if len(self.QE) == 0 and len(self.QV) == 0:
-                self.Prune(self.g_T(self.xgoal))
-                self.Xsamples = self.Sample(self.m, self.g_T(self.xgoal)) # sample function
-                self.Xsamples.add(self.xgoal) # adding goal into the sample
-                self.Vold = {v for v in self.V}
-                self.QV = {v for v in self.V}
-                # setting the radius 
+            print("round " + str(self.iteration_index))
+            if len(self.edge_queue) == 0 and len(self.vertex_queue) == 0:
+                self.prune(self.g_t(self.xgoal))
+                self.samples = self.sample(self.samples_per_batch, self.g_t(self.xgoal))
+                self.samples.add(self.xgoal)
+                self.previous_vertices = {v for v in self.vertices}
+                self.vertex_queue = {v for v in self.vertices}
                 if self.done:
-                    self.r = 2 # sometimes the original radius criteria makes the radius too small to improve existing tree
+                    self.connection_radius = 2
                     num_resample += 1
                 else:
-                    self.r = self.radius(len(self.V) + len(self.Xsamples)) # radius determined with the sample size and dimension of conf space
-            while self.BestQueueValue(self.QV, mode = 'QV') <= self.BestQueueValue(self.QE, mode = 'QE'):
-                self.ExpandVertex(self.BestInQueue(self.QV, mode = 'QV'))
-            (vm, xm) = self.BestInQueue(self.QE, mode = 'QE')
-            self.QE.remove((vm, xm))
-            if self.g_T(vm) + self.c_hat(vm, xm) + self.h_hat(xm) < self.g_T(self.xgoal):
+                    self.connection_radius = self.radius(len(self.vertices) + len(self.samples))
+            while self.best_queue_value(self.vertex_queue, mode="QV") <= self.best_queue_value(
+                self.edge_queue, mode="QE"
+            ):
+                self.expand_vertex(self.best_in_queue(self.vertex_queue, mode="QV"))
+            (vm, xm) = self.best_in_queue(self.edge_queue, mode="QE")
+            self.edge_queue.remove((vm, xm))
+            if self.g_t(vm) + self.c_hat(vm, xm) + self.h_hat(xm) < self.g_t(self.xgoal):
                 cost = self.c(vm, xm)
-                if self.g_hat(vm) + cost + self.h_hat(xm) < self.g_T(self.xgoal):
-                    if self.g_T(vm) + cost < self.g_T(xm):
-                        if xm in self.V:
-                            self.E.difference_update({(v, x) for (v, x) in self.E if x == xm})
+                if self.g_hat(vm) + cost + self.h_hat(xm) < self.g_t(self.xgoal):
+                    if self.g_t(vm) + cost < self.g_t(xm):
+                        if xm in self.vertices:
+                            self.edges.difference_update({(v, x) for (v, x) in self.edges if x == xm})
                         else:
-                            self.Xsamples.remove(xm)
-                            self.V.add(xm)
-                            self.QV.add(xm)
+                            self.samples.remove(xm)
+                            self.vertices.add(xm)
+                            self.vertex_queue.add(xm)
                         self.g[xm] = self.g[vm] + cost
-                        self.E.add((vm, xm))
-                        self.Parent[xm] = vm # add parent or update parent
-                        self.QE.difference_update({(v, x) for (v, x) in self.QE if x == xm and (self.g_T(v) + self.c_hat(v, xm)) >= self.g_T(xm)})
-            
-            # reinitializing sampling
+                        self.edges.add((vm, xm))
+                        self.parent_by_node[xm] = vm
+                        self.edge_queue.difference_update(
+                            {
+                                (v, x)
+                                for (v, x) in self.edge_queue
+                                if x == xm and (self.g_t(v) + self.c_hat(v, xm)) >= self.g_t(xm)
+                            }
+                        )
             else:
-                self.QE = set()
-                self.QV = set()
-            self.ind += 1
-            
-            # if the goal is reached
-            if self.xgoal in self.Parent:
-                print('locating path...')
-                self.done = True
-                self.Path = self.path()
+                self.edge_queue = set()
+                self.vertex_queue = set()
+            self.iteration_index += 1
 
-            # if the iteration is bigger
-            if self.ind > self.maxiter:
+            if self.xgoal in self.parent_by_node:
+                print("locating path...")
+                self.done = True
+                self.path_edges = self.path()
+
+            if self.iteration_index > self.max_iterations:
                 break
 
-        print('complete')
-        print('number of times resampling ' + str(num_resample))
+        print("complete")
+        print("number of times resampling " + str(num_resample))
 
-# ---------IRRT utils
-    def Sample(self, m, cmax, bias = 0.05, xrand = set()):
-        # sample within a eclipse 
-        print('new sample')
+    def sample(
+        self,
+        sample_count: int,
+        cmax: float,
+        bias: float = 0.05,
+        xrand: set[tuple[float, ...]] | None = None,
+    ) -> set[tuple[float, ...]]:
+        """Sample free states from informed ellipsoid or full configuration space."""
+        if xrand is None:
+            xrand = set()
+        print("new sample")
         if cmax < np.inf:
-            cmin = getDist(self.xgoal, self.xstart)
-            xcenter = np.array([(self.xgoal[0] + self.xstart[0]) / 2, (self.xgoal[1] + self.xstart[1]) / 2, (self.xgoal[2] + self.xstart[2]) / 2])
-            C = self.RotationToWorldFrame(self.xstart, self.xgoal)
-            r = np.zeros(3)
-            r[0] = cmax /2
-            for i in range(1,3):
-                r[i] = np.sqrt(cmax**2 - cmin**2) / 2
-            L = np.diag(r) # R3*3 
-            xball = self.SampleUnitBall(m) # np.array
-            x = (C @ L @ xball).T + np.tile(xcenter, (len(xball.T), 1))
-            # x2 = set(map(tuple, x))
-            self.C = C # save to global var
+            cmin = get_dist(self.xgoal, self.xstart)
+            xcenter = np.array(
+                [
+                    (self.xgoal[0] + self.xstart[0]) / 2,
+                    (self.xgoal[1] + self.xstart[1]) / 2,
+                    (self.xgoal[2] + self.xstart[2]) / 2,
+                ]
+            )
+            rotation = self.rotation_to_world_frame(self.xstart, self.xgoal)
+            radius = np.zeros(3)
+            radius[0] = cmax / 2
+            for i in range(1, 3):
+                radius[i] = np.sqrt(cmax**2 - cmin**2) / 2
+            scale = np.diag(radius)
+            xball = self.sample_unit_ball(sample_count)
+            x = (rotation @ scale @ xball).T + np.tile(xcenter, (len(xball.T), 1))
+            self.rotation_matrix_world = rotation
             self.xcenter = xcenter
-            self.L = L
-            x2 = set(map(tuple, x[np.array([not isinside(self, state) and isinbound(self.env.boundary, state) for state in x])])) # intersection with the state space
+            self.ellipse_scale = scale
+            x2 = set(
+                map(
+                    tuple,
+                    x[
+                        np.array(
+                            [
+                                not is_inside(self, state)
+                                and is_in_bound(self.env.boundary, state)
+                                for state in x
+                            ]
+                        )
+                    ],
+                )
+            )
             xrand.update(x2)
-            # if there are samples inside obstacle: recursion
-            if len(x2) < m:
-                return self.Sample(m - len(x2), cmax, bias=bias, xrand=xrand)
+            if len(x2) < sample_count:
+                return self.sample(sample_count - len(x2), cmax, bias=bias, xrand=xrand)
         else:
-            for i in range(m):
-                xrand.add(tuple(sampleFree(self, bias = bias)))
+            for _ in range(sample_count):
+                xrand.add(tuple(sample_free(self, bias=bias)))
         return xrand
 
-    def SampleUnitBall(self, n):
-        # uniform sampling in spherical coordinate system in 3D
-        # sample radius
-        r = np.random.uniform(0.0, 1.0, size = n)
-        theta = np.random.uniform(0, np.pi, size = n)
-        phi = np.random.uniform(0, 2 * np.pi, size = n)
+    def sample_unit_ball(self, n: int) -> np.ndarray:
+        """Sample ``n`` points in a unit ball using spherical coordinates."""
+        r = np.random.uniform(0.0, 1.0, size=n)
+        theta = np.random.uniform(0, np.pi, size=n)
+        phi = np.random.uniform(0, 2 * np.pi, size=n)
         x = r * np.sin(theta) * np.cos(phi)
         y = r * np.sin(theta) * np.sin(phi)
         z = r * np.cos(theta)
-        return np.array([x,y,z])
+        return np.array([x, y, z])
 
-    def RotationToWorldFrame(self, xstart, xgoal):
-        # S0(n): such that the xstart and xgoal are the center points
-        d = getDist(xstart, xgoal)
+    def rotation_to_world_frame(
+        self, xstart: tuple[float, ...], xgoal: tuple[float, ...]
+    ) -> np.ndarray:
+        """Compute rotation that aligns +x axis with start-goal direction."""
+        d = get_dist(xstart, xgoal)
         xstart, xgoal = np.array(xstart), np.array(xgoal)
         a1 = (xgoal - xstart) / d
-        M = np.outer(a1,[1,0,0])
-        U, S, V = np.linalg.svd(M)
-        C = U@np.diag([1, 1, np.linalg.det(U)*np.linalg.det(V)])@V.T
-        return C
+        matrix = np.outer(a1, [1, 0, 0])
+        U, _S, V = np.linalg.svd(matrix)
+        return U @ np.diag([1, 1, np.linalg.det(U) * np.linalg.det(V)]) @ V.T
 
-#----------BIT_star particular
-    def ExpandVertex(self, v):
-        self.QV.remove(v)
-        Xnear = {x for x in self.Xsamples if getDist(x, v) <= self.r}
-        self.QE.update({(v, x) for x in Xnear if self.g_hat(v) + self.c_hat(v, x) + self.h_hat(x) < self.g_T(self.xgoal)})
-        if v not in self.Vold:
-            Vnear = {w for w in self.V if getDist(w, v) <= self.r}
-            self.QE.update({(v,w) for w in Vnear if \
-                ((v,w) not in self.E) and \
-                (self.g_hat(v) + self.c_hat(v, w) + self.h_hat(w) < self.g_T(self.xgoal)) and \
-                (self.g_T(v) + self.c_hat(v, w) < self.g_T(w))})
+    def expand_vertex(self, v: tuple[float, ...]) -> None:
+        """Expand one vertex and push valid outgoing candidates into edge queue."""
+        self.vertex_queue.remove(v)
+        x_near = {x for x in self.samples if get_dist(x, v) <= self.connection_radius}
+        self.edge_queue.update(
+            {
+                (v, x)
+                for x in x_near
+                if self.g_hat(v) + self.c_hat(v, x) + self.h_hat(x) < self.g_t(self.xgoal)
+            }
+        )
+        if v not in self.previous_vertices:
+            v_near = {w for w in self.vertices if get_dist(w, v) <= self.connection_radius}
+            self.edge_queue.update(
+                {
+                    (v, w)
+                    for w in v_near
+                    if ((v, w) not in self.edges)
+                    and (self.g_hat(v) + self.c_hat(v, w) + self.h_hat(w) < self.g_t(self.xgoal))
+                    and (self.g_t(v) + self.c_hat(v, w) < self.g_t(w))
+                }
+            )
 
-    def Prune(self, c):
-        self.Xsamples = {x for x in self.Xsamples if self.f_hat(x) >= c}
-        self.V.difference_update({v for v in self.V if self.f_hat(v) >= c})
-        self.E.difference_update({(v, w) for (v, w) in self.E if (self.f_hat(v) > c) or (self.f_hat(w) > c)})
-        self.Xsamples.update({v for v in self.V if self.g_T(v) == np.inf})
-        self.V.difference_update({v for v in self.V if self.g_T(v) == np.inf})
+    def prune(self, c: float) -> None:
+        """Prune samples/vertices/edges that cannot improve current best cost."""
+        self.samples = {x for x in self.samples if self.f_hat(x) >= c}
+        self.vertices.difference_update({v for v in self.vertices if self.f_hat(v) >= c})
+        self.edges.difference_update({(v, w) for (v, w) in self.edges if (self.f_hat(v) > c) or (self.f_hat(w) > c)})
+        self.samples.update({v for v in self.vertices if self.g_t(v) == np.inf})
+        self.vertices.difference_update({v for v in self.vertices if self.g_t(v) == np.inf})
 
-    def radius(self, q):
-        return 2 * self.eta * (1 + 1/self.d) ** (1/self.d) * \
-            (self.Lambda(self.Xf_hat(self.V)) / self.Zeta() ) ** (1/self.d) * \
-            (np.log(q) / q) ** (1/self.d)
+    def radius(self, q: int) -> float:
+        """Return the BIT* connection radius."""
+        return (
+            2
+            * self.eta
+            * (1 + 1 / self.dimension) ** (1 / self.dimension)
+            * (self.lambda_measure(self.xf_hat(self.vertices)) / self.zeta()) ** (1 / self.dimension)
+            * (np.log(q) / q) ** (1 / self.dimension)
+        )
 
-    def Lambda(self, inputset):
-        # lebesgue measure of a set, defined as 
-        # mu: L(Rn) --> [0, inf], e.g. volume
+    def lambda_measure(self, inputset: set[tuple[float, ...]]) -> int:
+        """Return a simple cardinality-based measure for sampled sets."""
         return len(inputset)
 
-    def Xf_hat(self, X):
-        # the X is a set, defined as {x in X | fhat(x) <= cbest}
-        # where cbest is current best cost.
-        cbest = self.g_T(self.xgoal)
-        return {x for x in X if self.f_hat(x) <= cbest}
+    def xf_hat(self, xset: set[tuple[float, ...]]) -> set[tuple[float, ...]]:
+        """Return states with heuristic total cost <= current best cost."""
+        cbest = self.g_t(self.xgoal)
+        return {x for x in xset if self.f_hat(x) <= cbest}
 
-    def Zeta(self):
-        # Lebesgue measure of a n dimensional unit ball
-        # since it's the 3D, use volume
-        return 4/3 * np.pi
+    def zeta(self) -> float:
+        """Return 3D unit-ball volume."""
+        return 4 / 3 * np.pi
 
-    def BestInQueue(self, inputset, mode):
-        # returns the best vertex in the vertex queue given this ordering
-        # mode = 'QE' or 'QV'
-        if mode == 'QV':
-            V = {state: self.g_T(state) + self.h_hat(state) for state in self.QV}
-        if mode == 'QE':
-            V = {state: self.g_T(state[0]) + self.c_hat(state[0], state[1]) + self.h_hat(state[1]) for state in self.QE}
-        if len(V) == 0:
-            print(mode + 'empty')
+    def best_in_queue(self, _inputset: set[object], mode: str):
+        """Return queue element with minimum priority under BIT* ordering."""
+        if mode == "QV":
+            values = {state: self.g_t(state) + self.h_hat(state) for state in self.vertex_queue}
+        if mode == "QE":
+            values = {
+                state: self.g_t(state[0]) + self.c_hat(state[0], state[1]) + self.h_hat(state[1])
+                for state in self.edge_queue
+            }
+        if len(values) == 0:
+            print(mode + "empty")
             return None
-        return min(V, key = V.get)
+        return min(values, key=values.get)
 
-    def BestQueueValue(self, inputset, mode):
-        # returns the best value in the vertex queue given this ordering
-        # mode = 'QE' or 'QV'
-        if mode == 'QV':
-            V = {self.g_T(state) + self.h_hat(state) for state in self.QV}
-        if mode == 'QE':
-            V = {self.g_T(state[0]) + self.c_hat(state[0], state[1]) + self.h_hat(state[1]) for state in self.QE}
-        if len(V) == 0:
+    def best_queue_value(self, _inputset: set[object], mode: str) -> float:
+        """Return minimum queue key under BIT* ordering."""
+        if mode == "QV":
+            values = {self.g_t(state) + self.h_hat(state) for state in self.vertex_queue}
+        if mode == "QE":
+            values = {
+                self.g_t(state[0]) + self.c_hat(state[0], state[1]) + self.h_hat(state[1])
+                for state in self.edge_queue
+            }
+        if len(values) == 0:
             return np.inf
-        return min(V)
+        return min(values)
 
-    def g_hat(self, v):
-        return getDist(self.xstart, v)
+    def g_hat(self, v: tuple[float, ...]) -> float:
+        """Heuristic lower-bound cost from start to ``v``."""
+        return get_dist(self.xstart, v)
 
-    def h_hat(self, v):
-        return getDist(self.xgoal, v)
+    def h_hat(self, v: tuple[float, ...]) -> float:
+        """Heuristic lower-bound cost from ``v`` to goal."""
+        return get_dist(self.xgoal, v)
 
-    def f_hat(self, v):
-        # f = g + h: estimate cost
+    def f_hat(self, v: tuple[float, ...]) -> float:
+        """Heuristic lower-bound total cost through ``v``."""
         return self.g_hat(v) + self.h_hat(v)
 
-    def c(self, v, w):
-        # admissible estimate of the cost of an edge between state v, w
-        collide, dist = isCollide(self, v, w)
+    def c(self, v: tuple[float, ...], w: tuple[float, ...]) -> float:
+        """Return true edge cost if collision-free, else ``np.inf``."""
+        collide, dist = is_collide(self, v, w)
         if collide:
             return np.inf
-        else: 
-            return dist
+        return dist
 
-    def c_hat(self, v, w):
-        # c_hat < c < np.inf
-        # heuristic estimate of the edge cost, since c is expensive
-        return getDist(v, w)
+    def c_hat(self, v: tuple[float, ...], w: tuple[float, ...]) -> float:
+        """Return admissible lower-bound edge cost."""
+        return get_dist(v, w)
 
-    def g_T(self, v):
-        # represent cost-to-come from the start in the tree, 
-        # if the state is not in tree, or unreachable, return inf
+    def g_t(self, v: tuple[float, ...]) -> float:
+        """Return cached tree cost-to-come for ``v``."""
         if v not in self.g:
             self.g[v] = np.inf
         return self.g[v]
 
-    def path(self):
-        path = []
+    def path(self) -> list[tuple[tuple[float, ...], tuple[float, ...]]]:
+        """Backtrack and return edge list from goal to start."""
+        path_edges = []
         s = self.xgoal
         i = 0
         while s != self.xstart:
-            path.append((s, self.Parent[s]))
-            s = self.Parent[s]
-            if i > self.m:
+            path_edges.append((s, self.parent_by_node[s]))
+            s = self.parent_by_node[s]
+            if i > self.samples_per_batch:
                 break
             i += 1
-        return path
-         
-    def visualization(self):
+        return path_edges
+
+    def visualization(self) -> None:
         """Deprecated no-op. Use plotting helpers from ``pathplanning.viz.rrt_3d``."""
         return None
 
 
-if __name__ == '__main__':
-    Newprocess = BIT_star(show_ellipse=False)
-    Newprocess.run()
+if __name__ == "__main__":
+    new_process = BitStar(show_ellipse=False)
+    new_process.run()

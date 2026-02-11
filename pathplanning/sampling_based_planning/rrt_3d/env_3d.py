@@ -3,8 +3,6 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
-import inspect
-import warnings
 from typing import TypeAlias, cast
 
 import numpy as np
@@ -12,22 +10,6 @@ from numpy.typing import NDArray
 
 Vector3: TypeAlias = NDArray[np.float64]
 Block6: TypeAlias = NDArray[np.float64]
-
-
-def _warn_deprecated_name(legacy_name: str, replacement: str) -> None:
-    # Internal planner modules still reference legacy names; keep runtime noise down
-    # while preserving external migration signals.
-    caller = inspect.stack()[2].filename
-    normalized = caller.replace("\\", "/")
-    if "/pathplanning/" in normalized and "/tests/" not in normalized:
-        return
-
-    warnings.warn(
-        f"'{legacy_name}' is deprecated and will be removed in a future release. "
-        f"Use '{replacement}' instead.",
-        DeprecationWarning,
-        stacklevel=2,
-    )
 
 
 def rotation_matrix(z_angle: float, y_angle: float, x_angle: float) -> NDArray[np.float64]:
@@ -105,6 +87,11 @@ class AxisAlignedBoundingBox:
     """Axis-aligned bounding box with center/extents representation."""
 
     def __init__(self, aabb_values: Sequence[float] | NDArray[np.float64]) -> None:
+        """Create an AABB from `[xmin, ymin, zmin, xmax, ymax, zmax]`.
+
+        Args:
+            aabb_values: Bounds encoded as six coordinates.
+        """
         values = np.asarray(aabb_values, dtype=float)
         self.center: list[float] = [
             float((values[3] + values[0]) / 2),
@@ -118,39 +105,6 @@ class AxisAlignedBoundingBox:
         ]
         self.axes: list[list[float]] = [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]]
 
-    @property
-    def P(self) -> list[float]:
-        """Deprecated alias for ``center``."""
-        _warn_deprecated_name("P", "center")
-        return self.center
-
-    @P.setter
-    def P(self, value: Sequence[float]) -> None:
-        _warn_deprecated_name("P", "center")
-        self.center = [float(v) for v in value]
-
-    @property
-    def E(self) -> list[float]:
-        """Deprecated alias for ``extents``."""
-        _warn_deprecated_name("E", "extents")
-        return self.extents
-
-    @E.setter
-    def E(self, value: Sequence[float]) -> None:
-        _warn_deprecated_name("E", "extents")
-        self.extents = [float(v) for v in value]
-
-    @property
-    def O(self) -> list[list[float]]:
-        """Deprecated alias for ``axes``."""
-        _warn_deprecated_name("O", "axes")
-        return self.axes
-
-    @O.setter
-    def O(self, value: Sequence[Sequence[float]]) -> None:
-        _warn_deprecated_name("O", "axes")
-        self.axes = [[float(v) for v in axis] for axis in value]
-
 
 class OrientedBoundingBox:
     """Oriented bounding box represented by center, extents, and orientation."""
@@ -161,6 +115,13 @@ class OrientedBoundingBox:
         e: Sequence[float] | NDArray[np.float64],
         o: NDArray[np.float64],
     ) -> None:
+        """Create an OBB from center, extents, and orientation matrix.
+
+        Args:
+            p: Box center in world coordinates.
+            e: Half-extents along local box axes.
+            o: 3x3 local-to-world rotation matrix.
+        """
         self.center: list[float] = [float(v) for v in p]
         self.extents: list[float] = [float(v) for v in e]
         self.orientation: NDArray[np.float64] = np.asarray(o, dtype=float)
@@ -175,50 +136,6 @@ class OrientedBoundingBox:
                 [0.0, 0.0, 0.0, 1.0],
             ]
         )
-
-    @property
-    def P(self) -> list[float]:
-        """Deprecated alias for ``center``."""
-        _warn_deprecated_name("P", "center")
-        return self.center
-
-    @P.setter
-    def P(self, value: Sequence[float]) -> None:
-        _warn_deprecated_name("P", "center")
-        self.center = [float(v) for v in value]
-
-    @property
-    def E(self) -> list[float]:
-        """Deprecated alias for ``extents``."""
-        _warn_deprecated_name("E", "extents")
-        return self.extents
-
-    @E.setter
-    def E(self, value: Sequence[float]) -> None:
-        _warn_deprecated_name("E", "extents")
-        self.extents = [float(v) for v in value]
-
-    @property
-    def O(self) -> NDArray[np.float64]:
-        """Deprecated alias for ``orientation``."""
-        _warn_deprecated_name("O", "orientation")
-        return self.orientation
-
-    @O.setter
-    def O(self, value: NDArray[np.float64]) -> None:
-        _warn_deprecated_name("O", "orientation")
-        self.orientation = np.asarray(value, dtype=float)
-
-    @property
-    def T(self) -> NDArray[np.float64]:
-        """Deprecated alias for ``transform``."""
-        _warn_deprecated_name("T", "transform")
-        return self.transform
-
-    @T.setter
-    def T(self, value: NDArray[np.float64]) -> None:
-        _warn_deprecated_name("T", "transform")
-        self.transform = np.asarray(value, dtype=float)
 
 
 class Environment3D:
@@ -239,6 +156,22 @@ class Environment3D:
         start: Sequence[float] | NDArray[np.float64] | None = None,
         goal: Sequence[float] | NDArray[np.float64] | None = None,
     ) -> None:
+        """Initialize the default 3D benchmark environment.
+
+        Args:
+            xmin: Minimum x boundary.
+            ymin: Minimum y boundary.
+            zmin: Minimum z boundary.
+            xmax: Maximum x boundary.
+            ymax: Maximum y boundary.
+            zmax: Maximum z boundary.
+            resolution: Inflation margin for dynamic obstacle sweeps.
+            blocks: Optional custom axis-aligned blocks.
+            balls: Optional custom spherical obstacles.
+            obb: Optional custom oriented obstacles.
+            start: Optional start state.
+            goal: Optional goal state.
+        """
         self.resolution = float(resolution)
         self.boundary = np.array([xmin, ymin, zmin, xmax, ymax, zmax], dtype=float)
         self.blocks = np.asarray(get_blocks() if blocks is None else blocks, dtype=float)
@@ -269,39 +202,6 @@ class Environment3D:
         self.start = np.asarray([2.0, 2.0, 2.0] if start is None else start, dtype=float)
         self.goal = np.asarray([6.0, 16.0, 0.0] if goal is None else goal, dtype=float)
         self.t = 0.0
-
-    @property
-    def AABB(self) -> list[AxisAlignedBoundingBox]:
-        """Deprecated alias for ``aabb``."""
-        _warn_deprecated_name("AABB", "aabb")
-        return self.aabb
-
-    @AABB.setter
-    def AABB(self, value: Sequence[AxisAlignedBoundingBox]) -> None:
-        _warn_deprecated_name("AABB", "aabb")
-        self.aabb = list(value)
-
-    @property
-    def AABB_pyrr(self) -> list[Block6]:
-        """Deprecated alias for ``aabb_pyrr``."""
-        _warn_deprecated_name("AABB_pyrr", "aabb_pyrr")
-        return self.aabb_pyrr
-
-    @AABB_pyrr.setter
-    def AABB_pyrr(self, value: Sequence[Block6]) -> None:
-        _warn_deprecated_name("AABB_pyrr", "aabb_pyrr")
-        self.aabb_pyrr = list(value)
-
-    @property
-    def OBB(self) -> NDArray[np.object_]:
-        """Deprecated alias for ``obb``."""
-        _warn_deprecated_name("OBB", "obb")
-        return self.obb
-
-    @OBB.setter
-    def OBB(self, value: Sequence[OrientedBoundingBox] | NDArray[np.object_]) -> None:
-        _warn_deprecated_name("OBB", "obb")
-        self.obb = np.asarray(value, dtype=object)
 
     def new_block(self) -> None:
         """Append one additional obstacle block and refresh cached AABB data."""

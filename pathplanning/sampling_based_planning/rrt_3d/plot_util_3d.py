@@ -29,11 +29,11 @@ def visualization(init_params: Any) -> None:
     if init_params.ind % 100 != 0 and not init_params.done:
         return
 
-    edges = [[child, parent] for child, parent in init_params.Parent.items()]
+    edges = [[child, parent] for child, parent in init_params.parent_by_node.items()]
     render_tree_state(
         env=init_params.env,
         parent_edges=edges,
-        path_edges=np.asarray(init_params.Path, dtype=float),
+        path_edges=np.asarray(init_params.path_edges, dtype=float),
         start=init_params.env.start,
         goal=init_params.env.goal,
     )
