@@ -11,6 +11,7 @@ import numpy as np
 
 from pathplanning.core.contracts import ConfigurationSpace, PlanResult, State
 from pathplanning.core.nn_index import NaiveIndex, NearestNeighborIndex
+from pathplanning.core.tree import Tree
 from pathplanning.core.params import RrtParams
 
 GoalPredicate: TypeAlias = Callable[[State], bool]
@@ -126,15 +127,10 @@ class RrtPlanner:
         return index.nearest(target)
 
     @staticmethod
-    def _reconstruct_path(nodes: list[State], parents: list[int], last_index: int) -> list[State]:
-        """Backtrack parent pointers to reconstruct a root-to-leaf path."""
-        path_reversed: list[State] = []
-        index = last_index
-        while index != -1:
-            path_reversed.append(np.asarray(nodes[index], dtype=float))
-            index = parents[index]
-        path_reversed.reverse()
-        return path_reversed
+    def _path_from_tree(tree: Tree, node_id: int) -> list[State]:
+        """Return root-to-node path as a list of states."""
+        path = tree.extract_path(node_id)
+        return [np.asarray(state, dtype=float) for state in path]
 
     def plan(self, start: Sequence[float] | State, goal_region: GoalRegion) -> PlanResult:
         """Compute a collision-free path from ``start`` into ``goal_region``."""
@@ -152,12 +148,11 @@ class RrtPlanner:
                 stats={"reason": "start_in_goal", "goal_checks": 1},
             )
 
-        nodes: list[State] = [np.asarray(start_state, dtype=float)]
-        parents: list[int] = [-1]
-        costs: list[float] = [0.0]
+        tree = Tree(self.space.dim)
+        root_id = tree.append_node(start_state, -1, 0.0)
         goal_checks = 0
         index = self._nn_index_factory(self.space.dim)
-        index.add(nodes[0])
+        index.add(tree.nodes[root_id])
 
         start_time = time.perf_counter()
         iters_run = 0
@@ -172,7 +167,7 @@ class RrtPlanner:
             target = goal.target_state if use_goal_sample else self._sample_free()
 
             nearest_index = self._nearest_index(index, target)
-            nearest = nodes[nearest_index]
+            nearest = tree.nodes[nearest_index]
             candidate = self.space.steer(
                 nearest, target, self.params.step_size)
 
@@ -181,24 +176,21 @@ class RrtPlanner:
             if not self.space.segment_free(nearest, candidate, self.params.collision_step):
                 continue
 
-            nodes.append(np.asarray(candidate, dtype=float))
-            parents.append(nearest_index)
-            costs.append(costs[nearest_index] +
-                         self.space.distance(nearest, candidate))
-            index.add(nodes[-1])
-            new_index = len(nodes) - 1
+            new_cost = float(tree.cost[nearest_index] + self.space.distance(nearest, candidate))
+            new_index = tree.append_node(candidate, nearest_index, new_cost)
+            index.add(tree.nodes[new_index])
 
             goal_checks += 1
-            if goal.predicate(nodes[new_index]):
-                path = self._reconstruct_path(nodes, parents, new_index)
+            if goal.predicate(tree.nodes[new_index]):
+                path = self._path_from_tree(tree, new_index)
                 return PlanResult(
                     success=True,
                     path=path,
                     iters=iters_run,
-                    nodes=len(nodes),
+                    nodes=tree.size,
                     stats={
                         "goal_checks": goal_checks,
-                        "path_cost": float(costs[new_index]),
+                        "path_cost": float(tree.cost[new_index]),
                     },
                 )
 
@@ -206,6 +198,6 @@ class RrtPlanner:
             success=False,
             path=[],
             iters=iters_run,
-            nodes=len(nodes),
+            nodes=tree.size,
             stats={"goal_checks": goal_checks},
         )
