@@ -9,7 +9,7 @@ description = "Production-oriented search-based and sampling-based path planning
 readme = { file = "README.md", content-type = "text/markdown" }
 requires-python = ">=3.10"
 license = { file = "LICENSE" }
-authors = [{ name = "PathPlanningV2 maintainers" }]
+authors = [{ name = "damminhtien" }]
 keywords = ["path-planning", "rrt", "astar", "motion-planning", "robotics"]
 classifiers = [
   "Development Status :: 4 - Beta",
@@ -54,9 +54,8 @@ target-version = "py310"
 line-length = 100
 
 [tool.ruff.lint]
-# Start with correctness-focused checks for an existing legacy codebase.
-# The rule set can be expanded over time as modules are cleaned up.
-select = ["E9", "F63", "F7", "F821"]
+# Keep a practical baseline for library code; expand as legacy modules are cleaned up.
+select = ["E", "F", "I", "B", "UP", "SIM"]
 
 [tool.ruff.lint.isort]
 known-first-party = [
@@ -70,6 +69,12 @@ force-sort-within-sections = true
 [tool.ruff.lint.per-file-ignores]
 # Keep legacy script-style modules runnable while preserving stricter checks elsewhere.
 "pathplanning/search_based_planning/plan2d/*.py" = ["E402"]
+"pathplanning/search_based_planning/search_3d/*.py" = ["E402"]
+"pathplanning/sampling_based_planning/rrt_2d/*.py" = ["E402"]
+"pathplanning/sampling_based_planning/rrt_3d/*.py" = ["E402"]
+"Search_based_Planning/**/*.py" = ["E402"]
+"Sampling_based_Planning/**/*.py" = ["E402"]
+"CurvesGenerator/**/*.py" = ["E402"]
 
 [tool.ruff.lint.flake8-tidy-imports]
 ban-relative-imports = "parents"
