@@ -24,7 +24,7 @@ import copy
 import os
 import sys
 
-from .env_3d import env
+from .env_3d import Environment3D
 from .utils_3d import getDist, sampleFree, nearest, steer, isCollide, isinside, isinbound
 from .plot_util_3d import set_axes_equal, draw_block_list, draw_Spheres, draw_obb, draw_line, make_transparent
 from .queue import MinheapPQ
@@ -50,7 +50,7 @@ def draw_ellipsoid(ax, C, L, xcenter):
 class BIT_star:
 # ---------initialize and run
     def __init__(self, show_ellipse=False):
-        self.env = env()
+        self.env = Environment3D()
         self.xstart, self.xgoal = tuple(self.env.start), tuple(self.env.goal)
         self.x0, self.xt = tuple(self.env.start), tuple(self.env.goal)
         self.maxiter = 1000 # used for determining how many batches needed

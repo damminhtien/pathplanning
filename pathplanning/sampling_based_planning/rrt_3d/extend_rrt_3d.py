@@ -13,7 +13,7 @@ plt = lazy_import("matplotlib.pyplot")
 import os
 import sys
 
-from .env_3d import env
+from .env_3d import Environment3D
 from .utils_3d import getDist, sampleFree, nearest, steer, isCollide, near, visualization, cost, path
 
 # here attempt to use a KD tree for the data structure implementation
@@ -22,7 +22,7 @@ import scipy.spatial.kdtree as KDtree
 
 class extend_rrt(object):
     def __init__(self):
-        self.env = env()
+        self.env = Environment3D()
         self.x0, self.xt = tuple(self.env.start), tuple(self.env.goal)
         self.current = tuple(self.env.start)
         self.stepsize = 0.5

@@ -16,7 +16,7 @@ import copy
 import os
 import sys
 
-from .env_3d import env
+from .env_3d import Environment3D
 from .utils_3d import getDist, sampleFree, nearest, steer, isCollide
 from .plot_util_3d import set_axes_equal, draw_block_list, draw_Spheres, draw_obb, draw_line, make_transparent
 from .queue import MinheapPQ
@@ -24,7 +24,7 @@ from .queue import MinheapPQ
 class FMT_star:
 
     def __init__(self, radius = 1, n = 1000):
-        self.env = env()
+        self.env = Environment3D()
         # init start and goal
             # note that the xgoal could be a region since this algorithm is a multiquery method
         self.xinit, self.xgoal = tuple(self.env.start), tuple(self.env.goal)

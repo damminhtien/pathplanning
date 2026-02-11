@@ -1,148 +1,285 @@
-# this is the three dimensional configuration space for rrt
-# !/usr/bin/env python3
-# -*- coding: utf-8 -*-
-"""
-@author: yue qi
-"""
+"""3D environment primitives used by sampling-based planners."""
+
+from __future__ import annotations
+
+from collections.abc import Sequence
+from typing import TypeAlias, cast
+
 import numpy as np
-# from utils3D import OBB2AABB
+from numpy.typing import NDArray
 
-def R_matrix(z_angle,y_angle,x_angle):
-    # s angle: row; y angle: pitch; z angle: yaw
-    # generate rotation matrix in SO3
-    # RzRyRx = R, ZYX intrinsic rotation
-    # also (r1,r2,r3) in R3*3 in {W} frame
-    # used in obb.O
-    # [[R p]
-    # [0T 1]] gives transformation from body to world 
-    return np.array([[np.cos(z_angle), -np.sin(z_angle), 0.0], [np.sin(z_angle), np.cos(z_angle), 0.0], [0.0, 0.0, 1.0]])@ \
-           np.array([[np.cos(y_angle), 0.0, np.sin(y_angle)], [0.0, 1.0, 0.0], [-np.sin(y_angle), 0.0, np.cos(y_angle)]])@ \
-           np.array([[1.0, 0.0, 0.0], [0.0, np.cos(x_angle), -np.sin(x_angle)], [0.0, np.sin(x_angle), np.cos(x_angle)]])
+Vector3: TypeAlias = NDArray[np.float64]
+Block6: TypeAlias = NDArray[np.float64]
 
-def getblocks():
-    # AABBs
-    block = [[4.00e+00, 1.20e+01, 0.00e+00, 5.00e+00, 2.00e+01, 5.00e+00],
-             [5.5e+00, 1.20e+01, 0.00e+00, 1.00e+01, 1.30e+01, 5.00e+00],
-             [1.00e+01, 1.20e+01, 0.00e+00, 1.40e+01, 1.30e+01, 5.00e+00],
-             [1.00e+01, 9.00e+00, 0.00e+00, 2.00e+01, 1.00e+01, 5.00e+00],
-             [9.00e+00, 6.00e+00, 0.00e+00, 1.00e+01, 1.00e+01, 5.00e+00]]
-    Obstacles = []
-    for i in block:
-        i = np.array(i)
-        Obstacles.append([j for j in i])
-    return np.array(Obstacles)
 
-def getballs():
-    spheres = [[2.0,6.0,2.5,1.0],[14.0,14.0,2.5,2]]
-    Obstacles = []
-    for i in spheres:
-        Obstacles.append([j for j in i])
-    return np.array(Obstacles)
+def rotation_matrix(z_angle: float, y_angle: float, x_angle: float) -> NDArray[np.float64]:
+    """Build a 3D rotation matrix from Z-Y-X intrinsic Euler angles."""
+    rz = np.array(
+        [
+            [np.cos(z_angle), -np.sin(z_angle), 0.0],
+            [np.sin(z_angle), np.cos(z_angle), 0.0],
+            [0.0, 0.0, 1.0],
+        ],
+        dtype=float,
+    )
+    ry = np.array(
+        [
+            [np.cos(y_angle), 0.0, np.sin(y_angle)],
+            [0.0, 1.0, 0.0],
+            [-np.sin(y_angle), 0.0, np.cos(y_angle)],
+        ],
+        dtype=float,
+    )
+    rx = np.array(
+        [
+            [1.0, 0.0, 0.0],
+            [0.0, np.cos(x_angle), -np.sin(x_angle)],
+            [0.0, np.sin(x_angle), np.cos(x_angle)],
+        ],
+        dtype=float,
+    )
+    return rz @ ry @ rx
 
-def getAABB(blocks):
-    # used for Pyrr package for detecting collision
-    AABB = []
-    for i in blocks:
-        AABB.append(np.array([np.add(i[0:3], -0), np.add(i[3:6], 0)]))  # make AABBs alittle bit of larger
-    return AABB
 
-def getAABB2(blocks):
-    # used in lineAABB
-    AABB = []
-    for i in blocks:
-        AABB.append(aabb(i))
-    return AABB
+def get_blocks() -> NDArray[np.float64]:
+    """Return axis-aligned obstacle blocks for the default benchmark map."""
+    return np.array(
+        [
+            [4.00e00, 1.20e01, 0.00e00, 5.00e00, 2.00e01, 5.00e00],
+            [5.50e00, 1.20e01, 0.00e00, 1.00e01, 1.30e01, 5.00e00],
+            [1.00e01, 1.20e01, 0.00e00, 1.40e01, 1.30e01, 5.00e00],
+            [1.00e01, 9.00e00, 0.00e00, 2.00e01, 1.00e01, 5.00e00],
+            [9.00e00, 6.00e00, 0.00e00, 1.00e01, 1.00e01, 5.00e00],
+        ],
+        dtype=float,
+    )
 
-def add_block(block = [1.51e+01, 0.00e+00, 2.10e+00, 1.59e+01, 5.00e+00, 6.00e+00]):
-    return block
 
-class aabb(object):
-    # make AABB out of blocks, 
-    # P: center point
-    # E: extents
-    # O: Rotation matrix in SO(3), in {w}
-    def __init__(self,AABB):
-        self.P = [(AABB[3] + AABB[0])/2, (AABB[4] + AABB[1])/2, (AABB[5] + AABB[2])/2]# center point
-        self.E = [(AABB[3] - AABB[0])/2, (AABB[4] - AABB[1])/2, (AABB[5] - AABB[2])/2]# extents
-        self.O = [[1,0,0],[0,1,0],[0,0,1]]
+def get_balls() -> NDArray[np.float64]:
+    """Return spherical obstacles for the default benchmark map."""
+    return np.array([[2.0, 6.0, 2.5, 1.0], [14.0, 14.0, 2.5, 2.0]], dtype=float)
 
-class obb(object):
-    # P: center point
-    # E: extents
-    # O: Rotation matrix in SO(3), in {w}
-    def __init__(self, P, E, O):
-        self.P = P
-        self.E = E
-        self.O = O
-        self.T = np.vstack([np.column_stack([self.O.T,-self.O.T@self.P]),[0,0,0,1]])
 
-class env():
-    def __init__(self, xmin=0, ymin=0, zmin=0, xmax=20, ymax=20, zmax=5, resolution=1):
-    # def __init__(self, xmin=-5, ymin=0, zmin=-5, xmax=10, ymax=5, zmax=10, resolution=1):  
-        self.resolution = resolution
-        self.boundary = np.array([xmin, ymin, zmin, xmax, ymax, zmax]) 
-        self.blocks = getblocks()
-        self.AABB = getAABB2(self.blocks)
-        self.AABB_pyrr = getAABB(self.blocks)
-        self.balls = getballs()
-        self.OBB = np.array([obb([5.0,7.0,2.5],[0.5,2.0,2.5],R_matrix(135,0,0)),
-                             obb([12.0,4.0,2.5],[0.5,2.0,2.5],R_matrix(45,0,0))])
-        self.start = np.array([2.0, 2.0, 2.0])
-        self.goal = np.array([6.0, 16.0, 0.0])
-        self.t = 0 # time 
+def get_aabb_pyrr(blocks: NDArray[np.float64]) -> list[Block6]:
+    """Convert block bounds to the AABB representation used by `pyrr`."""
+    aabb_list: list[Block6] = []
+    for block in blocks:
+        aabb_list.append(np.array([np.add(block[0:3], -0.0), np.add(block[3:6], 0.0)], dtype=float))
+    return aabb_list
 
-    def New_block(self):
-        newblock = add_block()
-        self.blocks = np.vstack([self.blocks,newblock])
-        self.AABB = getAABB2(self.blocks)
-        self.AABB_pyrr = getAABB(self.blocks)
 
-    def move_start(self, x):
-        self.start = x
+def get_aabb_list(blocks: NDArray[np.float64]) -> list[AxisAlignedBoundingBox]:
+    """Convert block bounds to `AxisAlignedBoundingBox` objects."""
+    aabb_list: list[AxisAlignedBoundingBox] = []
+    for block in blocks:
+        aabb_list.append(AxisAlignedBoundingBox(block))
+    return aabb_list
 
-    def move_block(self, a = [0,0,0], s = 0, v = [0.1,0,0], block_to_move = 0, mode = 'translation'):
-        # t is time , v is velocity in R3, a is acceleration in R3, s is increment ini time, 
-        # R is an orthorgonal transform in R3*3, is the rotation matrix
-        # (s',t') = (s + tv, t) is uniform transformation
-        # (s',t') = (s + a, t + s) is a translation
-        if mode == 'translation':
-            ori = np.array(self.blocks[block_to_move])
-            self.blocks[block_to_move] = \
-                np.array([ori[0] + a[0],\
-                    ori[1] + a[1],\
-                    ori[2] + a[2],\
-                    ori[3] + a[0],\
-                    ori[4] + a[1],\
-                    ori[5] + a[2]])
 
-            self.AABB[block_to_move].P = \
-            [self.AABB[block_to_move].P[0] + a[0], \
-            self.AABB[block_to_move].P[1] + a[1], \
-            self.AABB[block_to_move].P[2] + a[2]]
-            self.t += s
-            # return a range of block that the block might moved
-            a = self.blocks[block_to_move]
-            return np.array([a[0] - self.resolution, a[1] - self.resolution, a[2] - self.resolution, \
-                            a[3] + self.resolution, a[4] + self.resolution, a[5] + self.resolution]), \
-                    np.array([ori[0] - self.resolution, ori[1] - self.resolution, ori[2] - self.resolution, \
-                            ori[3] + self.resolution, ori[4] + self.resolution, ori[5] + self.resolution])
-            # return a,ori
-        # (s',t') = (Rx, t)
-    def move_OBB(self, obb_to_move = 0, theta=[0,0,0], translation=[0,0,0]):
-    # theta stands for rotational angles around three principle axis in world frame
-    # translation stands for translation in the world frame
-        ori = [self.OBB[obb_to_move]]
-        # move obb position
-        self.OBB[obb_to_move].P = \
-            [self.OBB[obb_to_move].P[0] + translation[0], 
-            self.OBB[obb_to_move].P[1] + translation[1], 
-            self.OBB[obb_to_move].P[2] + translation[2]]
-        # Calculate orientation
-        self.OBB[obb_to_move].O = R_matrix(z_angle=theta[0],y_angle=theta[1],x_angle=theta[2])
-        # generating transformation matrix
-        self.OBB[obb_to_move].T = np.vstack([np.column_stack([self.OBB[obb_to_move].O.T,\
-            -self.OBB[obb_to_move].O.T@self.OBB[obb_to_move].P]),[translation[0],translation[1],translation[2],1]])
-        return self.OBB[obb_to_move], ori[0]
-          
-if __name__ == '__main__':
-    newenv = env()
+def add_block(block: Sequence[float] | None = None) -> NDArray[np.float64]:
+    """Return a block definition to append to the environment obstacle list."""
+    if block is None:
+        block = [1.51e01, 0.00e00, 2.10e00, 1.59e01, 5.00e00, 6.00e00]
+    return np.asarray(block, dtype=float)
+
+
+class AxisAlignedBoundingBox:
+    """Axis-aligned bounding box with center/extents representation."""
+
+    def __init__(self, aabb_values: Sequence[float] | NDArray[np.float64]) -> None:
+        values = np.asarray(aabb_values, dtype=float)
+        self.P: list[float] = [
+            float((values[3] + values[0]) / 2),
+            float((values[4] + values[1]) / 2),
+            float((values[5] + values[2]) / 2),
+        ]
+        self.E: list[float] = [
+            float((values[3] - values[0]) / 2),
+            float((values[4] - values[1]) / 2),
+            float((values[5] - values[2]) / 2),
+        ]
+        self.O: list[list[float]] = [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]]
+
+
+class OrientedBoundingBox:
+    """Oriented bounding box represented by center, extents, and orientation."""
+
+    def __init__(
+        self,
+        p: Sequence[float] | NDArray[np.float64],
+        e: Sequence[float] | NDArray[np.float64],
+        o: NDArray[np.float64],
+    ) -> None:
+        self.P: list[float] = [float(v) for v in p]
+        self.E: list[float] = [float(v) for v in e]
+        self.O: NDArray[np.float64] = np.asarray(o, dtype=float)
+        self.T: NDArray[np.float64] = np.vstack(
+            [
+                np.column_stack([self.O.T, -self.O.T @ np.asarray(self.P, dtype=float)]),
+                [0.0, 0.0, 0.0, 1.0],
+            ]
+        )
+
+
+class Environment3D:
+    """Dynamic 3D world model with AABB/OBB/sphere obstacles."""
+
+    def __init__(
+        self,
+        xmin: float = 0.0,
+        ymin: float = 0.0,
+        zmin: float = 0.0,
+        xmax: float = 20.0,
+        ymax: float = 20.0,
+        zmax: float = 5.0,
+        resolution: float = 1.0,
+    ) -> None:
+        self.resolution = float(resolution)
+        self.boundary = np.array([xmin, ymin, zmin, xmax, ymax, zmax], dtype=float)
+        self.blocks = get_blocks()
+        self.AABB = get_aabb_list(self.blocks)
+        self.AABB_pyrr = get_aabb_pyrr(self.blocks)
+        self.balls = get_balls()
+        self.OBB: NDArray[np.object_] = np.array(
+            [
+                OrientedBoundingBox(
+                    [5.0, 7.0, 2.5],
+                    [0.5, 2.0, 2.5],
+                    rotation_matrix(135.0, 0.0, 0.0),
+                ),
+                OrientedBoundingBox(
+                    [12.0, 4.0, 2.5],
+                    [0.5, 2.0, 2.5],
+                    rotation_matrix(45.0, 0.0, 0.0),
+                ),
+            ],
+            dtype=object,
+        )
+        self.start = np.array([2.0, 2.0, 2.0], dtype=float)
+        self.goal = np.array([6.0, 16.0, 0.0], dtype=float)
+        self.t = 0.0
+
+    def new_block(self) -> None:
+        """Append one additional obstacle block and refresh cached AABB data."""
+        new_block = add_block()
+        self.blocks = np.vstack([self.blocks, new_block])
+        self.AABB = get_aabb_list(self.blocks)
+        self.AABB_pyrr = get_aabb_pyrr(self.blocks)
+
+    def move_start(self, x: Sequence[float] | NDArray[np.float64]) -> None:
+        """Update the start position."""
+        self.start = np.asarray(x, dtype=float)
+
+    def move_block(
+        self,
+        a: Sequence[float] | None = None,
+        s: float = 0.0,
+        v: Sequence[float] | None = None,
+        block_to_move: int = 0,
+        mode: str = "translation",
+    ) -> tuple[NDArray[np.float64], NDArray[np.float64]] | None:
+        """Move one AABB obstacle and return swept current/previous bounds.
+
+        Returns `None` for unsupported modes.
+        """
+        _ = v
+        if a is None:
+            a = [0.0, 0.0, 0.0]
+        delta = np.asarray(a, dtype=float)
+
+        if mode != "translation":
+            return None
+
+        original = np.array(self.blocks[block_to_move], dtype=float)
+        self.blocks[block_to_move] = np.array(
+            [
+                original[0] + delta[0],
+                original[1] + delta[1],
+                original[2] + delta[2],
+                original[3] + delta[0],
+                original[4] + delta[1],
+                original[5] + delta[2],
+            ],
+            dtype=float,
+        )
+
+        self.AABB[block_to_move].P = [
+            self.AABB[block_to_move].P[0] + float(delta[0]),
+            self.AABB[block_to_move].P[1] + float(delta[1]),
+            self.AABB[block_to_move].P[2] + float(delta[2]),
+        ]
+        self.t += float(s)
+
+        moved = self.blocks[block_to_move]
+        current = np.array(
+            [
+                moved[0] - self.resolution,
+                moved[1] - self.resolution,
+                moved[2] - self.resolution,
+                moved[3] + self.resolution,
+                moved[4] + self.resolution,
+                moved[5] + self.resolution,
+            ],
+            dtype=float,
+        )
+        previous = np.array(
+            [
+                original[0] - self.resolution,
+                original[1] - self.resolution,
+                original[2] - self.resolution,
+                original[3] + self.resolution,
+                original[4] + self.resolution,
+                original[5] + self.resolution,
+            ],
+            dtype=float,
+        )
+        return current, previous
+
+    def move_obb(
+        self,
+        obb_to_move: int = 0,
+        theta: Sequence[float] | None = None,
+        translation: Sequence[float] | None = None,
+    ) -> tuple[OrientedBoundingBox, OrientedBoundingBox]:
+        """Move/rotate one OBB and return `(new_obb, old_obb_reference)`."""
+        if theta is None:
+            theta = [0.0, 0.0, 0.0]
+        if translation is None:
+            translation = [0.0, 0.0, 0.0]
+
+        theta_vec = np.asarray(theta, dtype=float)
+        translation_vec = np.asarray(translation, dtype=float)
+
+        current_obb = cast(OrientedBoundingBox, self.OBB[obb_to_move])
+        previous_ref = [current_obb]
+
+        current_obb.P = [
+            current_obb.P[0] + float(translation_vec[0]),
+            current_obb.P[1] + float(translation_vec[1]),
+            current_obb.P[2] + float(translation_vec[2]),
+        ]
+        current_obb.O = rotation_matrix(
+            z_angle=float(theta_vec[0]),
+            y_angle=float(theta_vec[1]),
+            x_angle=float(theta_vec[2]),
+        )
+        current_obb.T = np.vstack(
+            [
+                np.column_stack(
+                    [
+                        current_obb.O.T,
+                        -current_obb.O.T @ np.asarray(current_obb.P, dtype=float),
+                    ]
+                ),
+                [
+                    float(translation_vec[0]),
+                    float(translation_vec[1]),
+                    float(translation_vec[2]),
+                    1.0,
+                ],
+            ]
+        )
+        return current_obb, previous_ref[0]
+
+if __name__ == "__main__":
+    _new_env = Environment3D()
