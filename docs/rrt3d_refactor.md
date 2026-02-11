@@ -34,6 +34,13 @@ Plot utilities are imported lazily inside visualization paths.
 `utils_3d` now exposes a lazy wrapper for `visualization(...)` to avoid importing
 `plot_util_3d` during core module import.
 
+### Legacy wrapper removal
+
+Legacy compatibility wrappers (`rrt` / `rrtstar`) were removed.
+Registry-supported RRT entrypoints now map directly to:
+- `RrtPlanner` in `pathplanning.sampling_based_planning.rrt_3d.rrt`
+- `RrtStarPlanner` in `pathplanning.sampling_based_planning.rrt_3d.rrt_star`
+
 ### Environment3D canonical naming
 
 `Environment3D` now stores canonical snake_case obstacle fields:

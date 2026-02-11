@@ -4,14 +4,10 @@ This is rrt connect implementation for 3D
 @author: yue qi
 """
 import numpy as np
-from collections import defaultdict
 import time
 
-import os
-import sys
-
 from .env_3d import Environment3D
-from .utils_3d import getDist, sampleFree, nearest, steer, isCollide, near, visualization, cost, path, edgeset
+from .utils_3d import sampleFree, steer, isCollide
 
 
 class Tree():
@@ -137,13 +133,6 @@ class rrt_connect():
             if qnew == self.qinit or qnew == self.qgoal:
                 break
         return patha + pathb
-
-#----------RRT connect algorithm        
-    def visualization(self, tree_a, tree_b, index):
-        _ = tree_a, tree_b, index
-        return None
-
-
 
 if __name__ == '__main__':
     p = rrt_connect()

@@ -8,20 +8,9 @@ source: M.P.Strub, J.D.Gammel. "Advanced BIT* (ABIT*):
 """
 
 import numpy as np
-from pathplanning.viz import lazy_import
-
-plt = lazy_import("matplotlib.pyplot")
-import time
-import copy
-
-
-import os
-import sys
 
 from .env_3d import Environment3D
 from .utils_3d import getDist, sampleFree, nearest, steer, isCollide
-from .plot_util_3d import make_get_proj, draw_block_list, draw_Spheres, draw_obb, draw_line, make_transparent
-from .queue import MinheapPQ
 
 class ABIT_star:
 

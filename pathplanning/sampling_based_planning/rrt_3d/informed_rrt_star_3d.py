@@ -7,16 +7,9 @@ source: J. D. Gammell, S. S. Srinivasa, and T. D. Barfoot, “Informed RRT*:
         an admissible ellipsoidal heuristic,” in IROS, 2997–3004, 2014.
 """
 import numpy as np
-import time
-import copy
-
-
-import os
-import sys
 
 from .env_3d import Environment3D
-from .utils_3d import getDist, sampleFree, nearest, steer, isCollide, isinside, near, nearest, path
-from .queue import MinheapPQ
+from .utils_3d import getDist, sampleFree, nearest, steer, isCollide, isinside, near, path
 
 
 def CreateUnitSphere(r = 1):
@@ -180,10 +173,6 @@ class IRRT:
 
     def line(self, x, y):
         return getDist(x, y)
-
-    def visualization(self):
-        """Deprecated no-op. Use plotting helpers from ``pathplanning.viz.rrt_3d``."""
-        return None
 
 if __name__ == '__main__':
     A = IRRT(show_ellipse=False)
