@@ -1,135 +1,163 @@
+"""Fast Marching Tree* implementation for 3D planning.
+
+References:
+    Janson, Lucas, et al. "Fast marching tree: A fast marching sampling-based
+    method for optimal motion planning in many dimensions." The International
+    Journal of Robotics Research 34.7 (2015): 883-921.
 """
-This is fast marching tree* code for 3D
-@author: yue qi 
-source: Janson, Lucas, et al. "Fast marching tree: A fast marching sampling-based method 
-        for optimal motion planning in many dimensions." 
-        The International journal of robotics research 34.7 (2015): 883-921.
-"""
-import numpy as np
+
+from __future__ import annotations
+
 import copy
+from typing import Any
+
+import numpy as np
 
 from .env_3d import Environment3D
-from .utils_3d import getDist, sampleFree, isCollide
 from .queue import MinheapPQ
+from .utils_3d import getDist, isCollide, sampleFree
 
-class FMT_star:
 
-    def __init__(self, radius = 1, n = 1000):
+class FmtStar:
+    """Fast Marching Tree* planner for 3D environments."""
+
+    def __init__(self, radius: float = 1, n: int = 1000) -> None:
+        """Initialize planner state.
+
+        Args:
+            radius: Neighbor search radius.
+            n: Number of sampled states.
+        """
         self.env = Environment3D()
-        # init start and goal
-            # note that the xgoal could be a region since this algorithm is a multiquery method
         self.xinit, self.xgoal = tuple(self.env.start), tuple(self.env.goal)
-        self.x0, self.xt = tuple(self.env.start), tuple(self.env.goal) # used for sample free
-        self.n = n # number of samples
-        self.radius = radius # radius of the ball
-        # self.radius = 40 * np.sqrt((np.log(self.n) / self.n))
-        # sets
-        self.Vopen, self.Vopen_queue, self.Vclosed, self.V, self.Vunvisited, self.c = self.initNodeSets()
-        # make space for save 
-        self.neighbors = {}
-        # additional
+        self.x0, self.xt = tuple(self.env.start), tuple(self.env.goal)
+        self.n = n
+        self.radius = radius
+        (
+            self.Vopen,
+            self.Vopen_queue,
+            self.Vclosed,
+            self.V,
+            self.Vunvisited,
+            self.c,
+        ) = self.init_node_sets()
+        self.neighbors: dict[tuple[float, ...], set[tuple[float, ...]]] = {}
         self.done = True
-        self.Path = []
-        self.Parent = {}
+        self.Path: list[Any] = []
+        self.Parent: dict[tuple[float, ...], tuple[float, ...]] = {}
 
-    def generateSampleSet(self, n):
-        V = set()
-        for i in range(n):
-            V.add(tuple(sampleFree(self, bias = 0.0)))
-        return V
+    def generate_sample_set(self, n: int) -> set[tuple[float, ...]]:
+        """Generate collision-free sample set.
 
-    def initNodeSets(self):
-        # open set
-        Vopen = {self.xinit} # open set
-        # closed set
-        closed = set()
-        # V, Vunvisited set 
-        V = self.generateSampleSet(self.n - 2) # set of all nodes
-        Vunvisited = copy.deepcopy(V) # unvisited set
-        Vunvisited.add(self.xgoal)
-        V.add(self.xinit)
-        V.add(self.xgoal)
-        # initialize all cost to come at inf
-        c = {node : np.inf for node in V}
-        c[self.xinit] = 0
-        # use a min heap to speed up
-        Vopen_queue = MinheapPQ()
-        Vopen_queue.put(self.xinit, c[self.xinit]) # priority organized as the cost to come
-        return Vopen, Vopen_queue, closed, V, Vunvisited, c
+        Args:
+            n: Number of samples.
 
-    def Near(self, nodeset, node, rn):
+        Returns:
+            Set of sampled states.
+        """
+        vertices: set[tuple[float, ...]] = set()
+        for _ in range(n):
+            vertices.add(tuple(sampleFree(self, bias=0.0)))
+        return vertices
+
+    def init_node_sets(
+        self,
+    ) -> tuple[
+        set[tuple[float, ...]],
+        MinheapPQ,
+        set[tuple[float, ...]],
+        set[tuple[float, ...]],
+        set[tuple[float, ...]],
+        dict[tuple[float, ...], float],
+    ]:
+        """Initialize open/closed/unvisited sets and costs."""
+        v_open = {self.xinit}
+        v_closed: set[tuple[float, ...]] = set()
+        vertices = self.generate_sample_set(self.n - 2)
+        v_unvisited = copy.deepcopy(vertices)
+        v_unvisited.add(self.xgoal)
+        vertices.add(self.xinit)
+        vertices.add(self.xgoal)
+
+        costs = {node: np.inf for node in vertices}
+        costs[self.xinit] = 0
+
+        v_open_queue = MinheapPQ()
+        v_open_queue.put(self.xinit, costs[self.xinit])
+        return v_open, v_open_queue, v_closed, vertices, v_unvisited, costs
+
+    def near(
+        self, nodeset: set[tuple[float, ...]], node: tuple[float, ...], radius: float
+    ) -> set[tuple[float, ...]]:
+        """Return neighbors within radius."""
         if node in self.neighbors:
             return self.neighbors[node]
-        validnodes = {i for i in nodeset if getDist(i, node) < rn}
-        return validnodes
+        return {candidate for candidate in nodeset if getDist(candidate, node) < radius}
 
-    def Save(self, V_associated, node):
-        self.neighbors[node] = V_associated
+    def save_neighbors(
+        self, associated_nodes: set[tuple[float, ...]], node: tuple[float, ...]
+    ) -> None:
+        """Cache neighborhood for a node."""
+        self.neighbors[node] = associated_nodes
 
-    def path(self, z, initT):
-        path = []
-        s = self.xgoal
+    def path(
+        self,
+        _z: tuple[float, ...],
+        _init_tree: tuple[set[tuple[float, ...]], set[tuple[tuple[float, ...], tuple[float, ...]]]],
+    ) -> list[tuple[tuple[float, ...], tuple[float, ...]]]:
+        """Extract path from goal to start using parent pointers."""
+        path_edges: list[tuple[tuple[float, ...], tuple[float, ...]]] = []
+        state = self.xgoal
         i = 0
-        while s != self.xinit:
-            path.append((s, self.Parent[s]))
-            s = self.Parent[s]
+        while state != self.xinit:
+            path_edges.append((state, self.Parent[state]))
+            state = self.Parent[state]
             if i > self.n:
                 break
             i += 1
-        return path
+        return path_edges
 
-    def Cost(self, x, y):
-        # collide, dist = isCollide(self, x, y)
-        # if collide:
-        #     return np.inf
-        # return dist
+    def cost(self, x: tuple[float, ...], y: tuple[float, ...]) -> float:
+        """Return edge metric used by FMT*."""
         return getDist(x, y)
 
-    def FMTrun(self):
+    def run(self) -> None:
+        """Run FMT* search until goal or failure."""
         z = self.xinit
-        rn = self.radius
-        Nz = self.Near(self.Vunvisited, z, rn)
-        E = set()
-        self.Save(Nz, z)
+        radius = self.radius
+        nz = self.near(self.Vunvisited, z, radius)
+        edges: set[tuple[tuple[float, ...], tuple[float, ...]]] = set()
+        self.save_neighbors(nz, z)
         ind = 0
         while z != self.xgoal:
-            Vopen_new = set()
-            #Nz = self.Near(self.Vunvisited, z, rn)
-            #self.Save(Nz, z)
-            #Xnear = Nz.intersection(self.Vunvisited)
-            Xnear = self.Near(self.Vunvisited, z ,rn)
-            self.Save(Xnear, z)
-            for x in Xnear:
-                #Nx = self.Near(self.V.difference({x}), x, rn)
-                #self.Save(Nx, x)
-                #Ynear = list(Nx.intersection(self.Vopen))
-                Ynear = list(self.Near(self.Vopen, x, rn))
-                # self.Save(set(Ynear), x)
-                ymin = Ynear[np.argmin([self.c[y] + self.Cost(y,x) for y in Ynear])] # DP programming equation
+            v_open_new: set[tuple[float, ...]] = set()
+            x_near = self.near(self.Vunvisited, z, radius)
+            self.save_neighbors(x_near, z)
+            for x in x_near:
+                y_near = list(self.near(self.Vopen, x, radius))
+                ymin = y_near[np.argmin([self.c[y] + self.cost(y, x) for y in y_near])]
                 collide, _ = isCollide(self, ymin, x)
                 if not collide:
-                    E.add((ymin, x)) # straight line joining ymin and x is collision free
-                    Vopen_new.add(x)
+                    edges.add((ymin, x))
+                    v_open_new.add(x)
                     self.Parent[x] = z
                     self.Vunvisited = self.Vunvisited.difference({x})
-                    self.c[x] = self.c[ymin] + self.Cost(ymin, x) # estimated cost-to-arrive from xinit in tree T = (VopenUVclosed, E)
-            # update open set
-            self.Vopen = self.Vopen.union(Vopen_new).difference({z})
+                    self.c[x] = self.c[ymin] + self.cost(ymin, x)
+            self.Vopen = self.Vopen.union(v_open_new).difference({z})
             self.Vclosed.add(z)
             if len(self.Vopen) == 0:
-                print('Failure')
-                return 
+                print("Failure")
+                return
             ind += 1
-            print(str(ind) + ' node expanded')
-            # update current node
-            Vopenlist = list(self.Vopen)
-            z = Vopenlist[np.argmin([self.c[y] for y in self.Vopen])]
-        # creating the tree
-        T = (self.Vopen.union(self.Vclosed), E)
-        self.done = True
-        self.Path = self.path(z, T)
-        # return self.path(z, T)
+            print(str(ind) + " node expanded")
+            v_open_list = list(self.Vopen)
+            z = v_open_list[np.argmin([self.c[y] for y in self.Vopen])]
 
-if __name__ == '__main__':
-    A = FMT_star(radius = 1, n = 3000)
-    A.FMTrun()
+        tree = (self.Vopen.union(self.Vclosed), edges)
+        self.done = True
+        self.Path = self.path(z, tree)
+
+
+if __name__ == "__main__":
+    planner = FmtStar(radius=1, n=3000)
+    planner.run()
