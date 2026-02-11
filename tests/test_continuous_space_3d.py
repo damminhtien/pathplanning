@@ -44,4 +44,3 @@ def test_segment_free_trivial_and_blocked_cases() -> None:
         np.array([5.0, 5.0, 5.0], dtype=float),
         collision_step=0.1,
     )
-

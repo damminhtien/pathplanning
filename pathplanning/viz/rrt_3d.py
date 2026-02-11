@@ -14,7 +14,9 @@ plt3d = lazy_import("mpl_toolkits.mplot3d")
 art3d = lazy_import("mpl_toolkits.mplot3d.art3d")
 
 
-def create_sphere(center: Sequence[float], radius: float) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+def create_sphere(
+    center: Sequence[float], radius: float
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     u = np.linspace(0, 2 * np.pi, 30)
     v = np.linspace(0, np.pi, 30)
     x = np.outer(np.cos(u), np.sin(v))
@@ -126,7 +128,12 @@ def draw_obb(ax: Any, obb_items: np.ndarray, alpha: float = 0.15) -> Any | None:
     )
 
 
-def draw_line(ax: Any, edges: Sequence[Sequence[Sequence[float]]], visibility: float = 1.0, color: str | None = None) -> None:
+def draw_line(
+    ax: Any,
+    edges: Sequence[Sequence[Sequence[float]]],
+    visibility: float = 1.0,
+    color: str | None = None,
+) -> None:
     if len(edges) == 0:
         return
     for edge in edges:

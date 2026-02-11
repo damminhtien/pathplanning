@@ -57,4 +57,3 @@ def test_rrt_params_validate_rejects_invalid_values(
     """Invalid parameter values should fail fast with strict checks."""
     with pytest.raises(error_type):
         RrtParams(**kwargs)
-
