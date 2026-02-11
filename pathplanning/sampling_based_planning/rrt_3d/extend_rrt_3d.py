@@ -27,8 +27,8 @@ class extend_rrt(object):
         self.current = tuple(self.env.start)
         self.stepsize = 0.5
         self.maxiter = 10000
-        self.GoalProb = 0.05 # probability biased to the goal
-        self.WayPointProb = 0.05 # probability falls back on to the way points
+        self.goal_prob = 0.05 # probability biased to the goal
+        self.way_point_prob = 0.05 # probability falls back on to the way points
 
         self.done = False
         self.V = [] # vertices
@@ -90,11 +90,11 @@ class extend_rrt(object):
             i = 0
         else:
             i = np.random.randint(0, high = len(self.V) - 1)
-        if 0 < p < self.GoalProb:
+        if 0 < p < self.goal_prob:
             return self.xt
-        elif self.GoalProb < p < self.GoalProb + self.WayPointProb:
+        elif self.goal_prob < p < self.goal_prob + self.way_point_prob:
             return self.V[i]
-        elif self.GoalProb + self.WayPointProb < p < 1:
+        elif self.goal_prob + self.way_point_prob < p < 1:
             return tuple(self.RandomState())
         
 if __name__ == '__main__':

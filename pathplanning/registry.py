@@ -356,7 +356,7 @@ _EXPECTED_ENTRYPOINTS: Dict[str, str] = {
     "sampling2d.rrt_star": "RrtStar",
     "sampling2d.rrt_star_smart": "RrtStarSmart",
     "sampling3d.bit_star": "BIT_star",
-    "sampling3d.dynamic_rrt": "dynamic_rrt_3D",
+    "sampling3d.dynamic_rrt": "DynamicRRT3D",
     "sampling3d.extended_rrt": "extend_rrt",
     "sampling3d.fmt_star": "FMT_star",
     "sampling3d.informed_rrt_star": "IRRT",

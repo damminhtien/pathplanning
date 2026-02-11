@@ -64,7 +64,8 @@ def get_aabb_pyrr(blocks: NDArray[np.float64]) -> list[Block6]:
     """Convert block bounds to the AABB representation used by `pyrr`."""
     aabb_list: list[Block6] = []
     for block in blocks:
-        aabb_list.append(np.array([np.add(block[0:3], -0.0), np.add(block[3:6], 0.0)], dtype=float))
+        aabb_list.append(
+            np.array([np.add(block[0:3], -0.0), np.add(block[3:6], 0.0)], dtype=float))
     return aabb_list
 
 
@@ -98,7 +99,8 @@ class AxisAlignedBoundingBox:
             float((values[4] - values[1]) / 2),
             float((values[5] - values[2]) / 2),
         ]
-        self.O: list[list[float]] = [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]]
+        self.O: list[list[float]] = [
+            [1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]]
 
 
 class OrientedBoundingBox:
@@ -115,7 +117,8 @@ class OrientedBoundingBox:
         self.O: NDArray[np.float64] = np.asarray(o, dtype=float)
         self.T: NDArray[np.float64] = np.vstack(
             [
-                np.column_stack([self.O.T, -self.O.T @ np.asarray(self.P, dtype=float)]),
+                np.column_stack(
+                    [self.O.T, -self.O.T @ np.asarray(self.P, dtype=float)]),
                 [0.0, 0.0, 0.0, 1.0],
             ]
         )
@@ -135,7 +138,8 @@ class Environment3D:
         resolution: float = 1.0,
     ) -> None:
         self.resolution = float(resolution)
-        self.boundary = np.array([xmin, ymin, zmin, xmax, ymax, zmax], dtype=float)
+        self.boundary = np.array(
+            [xmin, ymin, zmin, xmax, ymax, zmax], dtype=float)
         self.blocks = get_blocks()
         self.AABB = get_aabb_list(self.blocks)
         self.AABB_pyrr = get_aabb_pyrr(self.blocks)
@@ -280,6 +284,7 @@ class Environment3D:
             ]
         )
         return current_obb, previous_ref[0]
+
 
 if __name__ == "__main__":
     _new_env = Environment3D()
