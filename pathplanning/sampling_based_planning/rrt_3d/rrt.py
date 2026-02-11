@@ -99,7 +99,7 @@ class RrtPlanner:
         goal_state = _as_state(goal_region, "goal_state", dim=self.space.dim)
         return GoalSpec(
             predicate=lambda state: self.space.distance(
-                state, goal_state) <= 1e-9,
+                state, goal_state) <= self.params.goal_reach_tolerance,
             target_state=goal_state,
         )
 
@@ -134,6 +134,7 @@ class RrtPlanner:
 
     def plan(self, start: Sequence[float] | State, goal_region: GoalRegion) -> PlanResult:
         """Compute a collision-free path from ``start`` into ``goal_region``."""
+        self.params.validate()
         start_state = _as_state(start, "start", dim=self.space.dim)
         if not self.space.is_free(start_state):
             raise ValueError("start must be collision free")

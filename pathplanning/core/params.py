@@ -20,6 +20,10 @@ class RrtParams:
     time_budget_s: float | None = None
     max_sample_tries: int = 1_000
     collision_step: float = 0.1
+    goal_reach_tolerance: float = 1e-9
+    rrt_star_radius_gamma: float = 2.0
+    rrt_star_radius_bias: float = 1.0
+    rrt_star_radius_max_factor: float = 6.0
 
     def __post_init__(self) -> None:
         self.validate()
@@ -57,5 +61,24 @@ class RrtParams:
         if self.collision_step <= 0:
             raise ValueError("collision_step must be > 0")
 
-        return self
+        if not _is_valid_real(self.goal_reach_tolerance):
+            raise TypeError("goal_reach_tolerance must be a finite real number")
+        if self.goal_reach_tolerance < 0:
+            raise ValueError("goal_reach_tolerance must be >= 0")
 
+        if not _is_valid_real(self.rrt_star_radius_gamma):
+            raise TypeError("rrt_star_radius_gamma must be a finite real number")
+        if self.rrt_star_radius_gamma <= 0:
+            raise ValueError("rrt_star_radius_gamma must be > 0")
+
+        if not _is_valid_real(self.rrt_star_radius_bias):
+            raise TypeError("rrt_star_radius_bias must be a finite real number")
+        if self.rrt_star_radius_bias < 0:
+            raise ValueError("rrt_star_radius_bias must be >= 0")
+
+        if not _is_valid_real(self.rrt_star_radius_max_factor):
+            raise TypeError("rrt_star_radius_max_factor must be a finite real number")
+        if self.rrt_star_radius_max_factor <= 0:
+            raise ValueError("rrt_star_radius_max_factor must be > 0")
+
+        return self
