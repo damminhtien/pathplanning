@@ -156,10 +156,12 @@ class RrtPlanner:
 
         start_time = time.perf_counter()
         iters_run = 0
+        stop_reason: str | None = None
         for iters_run in range(1, self.params.max_iters + 1):
             if self.params.time_budget_s is not None:
                 elapsed = time.perf_counter() - start_time
                 if elapsed >= self.params.time_budget_s:
+                    stop_reason = "time_budget"
                     break
 
             use_goal_sample = goal.target_state is not None and self.rng.random(
@@ -183,6 +185,7 @@ class RrtPlanner:
             goal_checks += 1
             if goal.predicate(tree.nodes[new_index]):
                 path = self._path_from_tree(tree, new_index)
+                elapsed = time.perf_counter() - start_time
                 return PlanResult(
                     success=True,
                     path=path,
@@ -191,13 +194,24 @@ class RrtPlanner:
                     stats={
                         "goal_checks": goal_checks,
                         "path_cost": float(tree.cost[new_index]),
+                        "stopped_reason": "goal_reached",
+                        "elapsed_s": elapsed,
+                        "time_budget_s": self.params.time_budget_s,
                     },
                 )
 
+        if stop_reason is None:
+            stop_reason = "max_iters"
+        elapsed = time.perf_counter() - start_time
         return PlanResult(
             success=False,
             path=[],
             iters=iters_run,
             nodes=tree.size,
-            stats={"goal_checks": goal_checks},
+            stats={
+                "goal_checks": goal_checks,
+                "stopped_reason": stop_reason,
+                "elapsed_s": elapsed,
+                "time_budget_s": self.params.time_budget_s,
+            },
         )
