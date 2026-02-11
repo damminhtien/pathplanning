@@ -31,7 +31,7 @@ def _warn_deprecated_name(legacy_name: str, replacement: str) -> None:
 
 
 def rotation_matrix(z_angle: float, y_angle: float, x_angle: float) -> NDArray[np.float64]:
-    """Build a 3D rotation matrix from Z-Y-X intrinsic Euler angles."""
+    """Build a 3D rotation matrix from Z-Y-X intrinsic Euler angles in radians."""
     rz = np.array(
         [
             [np.cos(z_angle), -np.sin(z_angle), 0.0],
@@ -251,12 +251,12 @@ class Environment3D:
                 OrientedBoundingBox(
                     [5.0, 7.0, 2.5],
                     [0.5, 2.0, 2.5],
-                    rotation_matrix(135.0, 0.0, 0.0),
+                    rotation_matrix(np.deg2rad(135.0), 0.0, 0.0),
                 ),
                 OrientedBoundingBox(
                     [12.0, 4.0, 2.5],
                     [0.5, 2.0, 2.5],
-                    rotation_matrix(45.0, 0.0, 0.0),
+                    rotation_matrix(np.deg2rad(45.0), 0.0, 0.0),
                 ),
             ],
             dtype=object,
