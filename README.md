@@ -12,7 +12,7 @@ The repository is organized for practical use:
 ## Release
 
 - Package: `pathplanning`
-- Version: `0.1.1`
+- Version: `0.1.2`
 - Canonical repository: `https://github.com/damminhtien/pathplanning`
 
 ## Contents
@@ -55,23 +55,23 @@ A small gallery from the built-in animations:
 ### Search-Based
 
 <p align="center">
-  <img src="./Search_based_Planning/gif/Astar.gif" alt="A star planning animation" width="360"/>
-  <img src="./Search_based_Planning/gif/Bi-Astar.gif" alt="Bidirectional A star animation" width="360"/>
+  <img src="./pathplanning/search_based_planning/gif/Astar.gif" alt="A star planning animation" width="360"/>
+  <img src="./pathplanning/search_based_planning/gif/Bi-Astar.gif" alt="Bidirectional A star animation" width="360"/>
 </p>
 <p align="center">
-  <img src="./Search_based_Planning/gif/D_star_Lite.gif" alt="D star lite planning animation" width="360"/>
-  <img src="./Search_based_Planning/gif/ARA_star.gif" alt="ARA star planning animation" width="360"/>
+  <img src="./pathplanning/search_based_planning/gif/D_star_Lite.gif" alt="D star lite planning animation" width="360"/>
+  <img src="./pathplanning/search_based_planning/gif/ARA_star.gif" alt="ARA star planning animation" width="360"/>
 </p>
 
 ### Sampling-Based
 
 <p align="center">
-  <img src="./Sampling_based_Planning/gif/RRT_2D.gif" alt="RRT 2D planning animation" width="360"/>
-  <img src="./Sampling_based_Planning/gif/RRT_CONNECT_2D.gif" alt="RRT connect 2D planning animation" width="360"/>
+  <img src="./pathplanning/sampling_based_planning/gif/RRT_2D.gif" alt="RRT 2D planning animation" width="360"/>
+  <img src="./pathplanning/sampling_based_planning/gif/RRT_CONNECT_2D.gif" alt="RRT connect 2D planning animation" width="360"/>
 </p>
 <p align="center">
-  <img src="./Sampling_based_Planning/gif/FMT.gif" alt="FMT star planning animation" width="360"/>
-  <img src="./Sampling_based_Planning/gif/BIT2.gif" alt="BIT star planning animation" width="360"/>
+  <img src="./pathplanning/sampling_based_planning/gif/FMT.gif" alt="FMT star planning animation" width="360"/>
+  <img src="./pathplanning/sampling_based_planning/gif/BIT2.gif" alt="BIT star planning animation" width="360"/>
 </p>
 
 ## Repository Layout
@@ -187,10 +187,11 @@ See:
 
 Highlights:
 
-- `DynamicRRT3DConfig` and seeded constructor support (`DynamicRRT3D.with_seed`)
-- pluggable nearest-neighbor backends (`BruteForceNearestNodeIndex`, `KDTreeNearestNodeIndex`)
-- canonical `Environment3D` snake_case fields (`aabb`, `aabb_pyrr`, `obb`)
-- legacy environment field compatibility preserved with deprecation guidance
+- contract-based planners: `RrtPlanner` (`rrt.py`) and `RrtStarPlanner` (`rrt_star.py`)
+- no matplotlib imports in core planner modules
+- injected RNG and parameter dataclass (`RrtParams`) for deterministic runs
+- canonical `Environment3D` snake_case obstacle fields: `aabb`, `aabb_pyrr`, `obb`
+- explicit angle unit handling for rotations (`rotation_matrix` uses radians)
 
 ## Production Support Matrix
 
@@ -229,31 +230,31 @@ Run from repository root.
 2D search demo (runs multiple algorithms):
 
 ```bash
-python Search_based_Planning/plan2d/run.py
+python pathplanning/search_based_planning/plan2d/run.py
 ```
 
 Single 2D search example:
 
 ```bash
-python Search_based_Planning/plan2d/astar.py
+python pathplanning/search_based_planning/plan2d/astar.py
 ```
 
 2D sampling example:
 
 ```bash
-python Sampling_based_Planning/rrt_2D/rrt.py
+python pathplanning/sampling_based_planning/rrt_2d/rrt.py
 ```
 
 3D search example:
 
 ```bash
-python Search_based_Planning/Search_3D/Astar3D.py
+python pathplanning/search_based_planning/search_3d/Astar3D.py
 ```
 
 Generated animations are available under:
 
-- `Search_based_Planning/gif`
-- `Sampling_based_Planning/gif`
+- `pathplanning/search_based_planning/gif`
+- `pathplanning/sampling_based_planning/gif`
 
 ## Production Developer Workflow
 

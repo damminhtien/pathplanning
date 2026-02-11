@@ -6,7 +6,7 @@ Branch: `refactor/naming`
 ## Current Snapshot
 
 - Project: `PathPlanning`
-- Package version: `0.1.1`
+- Package version: `0.1.2`
 - Canonical repository: `https://github.com/damminhtien/pathplanning`
 - Language: Python
 - Runtime deps: `requirements.txt`
