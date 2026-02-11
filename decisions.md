@@ -58,6 +58,14 @@ Track durable decisions so future agents do not re-litigate baseline choices.
 - Decision: Define algorithm metadata in `pathplanning.registry` and publish matrix in `SUPPORTED_ALGORITHMS.md`.
 - Consequence: Changes to production support now require explicit registry updates and become easier to review.
 
+## DEC-008: Keep release metadata and agentic context synchronized
+
+- Date: 2026-02-11
+- Status: accepted
+- Context: Version bumps without synchronized docs/agent files cause drift between package metadata, README, and operating context.
+- Decision: Every version bump must update `pyproject.toml`, `README.md`, and agentic state files (`state.md`, `tasks.md`, `decisions.md`, `handoff.md`) in the same change.
+- Consequence: Release context remains auditable and reduces onboarding friction for subsequent agents and reviewers.
+
 ## Decision Template
 
 Use this template for future entries:
