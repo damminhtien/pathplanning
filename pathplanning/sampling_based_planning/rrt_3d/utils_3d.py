@@ -5,8 +5,6 @@ from collections import deque
 import os
 import sys
 
-from .plot_util_3d import visualization
-
 
 def getRay(x, y):
     direc = [y[0] - x[0], y[1] - x[1], y[2] - x[2]]
@@ -38,6 +36,13 @@ def getDist(pos1, pos2):
     stepsize, leaf growth restriction
 
 """
+
+
+def visualization(initparams):
+    """Lazy wrapper around plot visualization to avoid import-time side effects."""
+    from .plot_util_3d import visualization as _visualization
+
+    return _visualization(initparams)
 
 
 def sampleFree(initparams, bias=0.1):

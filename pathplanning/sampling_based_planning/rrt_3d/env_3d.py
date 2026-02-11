@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
+import inspect
 import warnings
 from typing import TypeAlias, cast
 
@@ -14,6 +15,13 @@ Block6: TypeAlias = NDArray[np.float64]
 
 
 def _warn_deprecated_name(legacy_name: str, replacement: str) -> None:
+    # Internal planner modules still reference legacy names; keep runtime noise down
+    # while preserving external migration signals.
+    caller = inspect.stack()[2].filename
+    normalized = caller.replace("\\", "/")
+    if "/pathplanning/" in normalized and "/tests/" not in normalized:
+        return
+
     warnings.warn(
         f"'{legacy_name}' is deprecated and will be removed in a future release. "
         f"Use '{replacement}' instead.",
