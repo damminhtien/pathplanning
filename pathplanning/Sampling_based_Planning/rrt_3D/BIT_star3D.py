@@ -14,7 +14,9 @@ source: Gammell, Jonathan D., Timothy D. Barfoot, and Siddhartha S. Srinivasa.
 """
 
 import numpy as np
-import matplotlib.pyplot as plt
+from pathplanning.viz import lazy_import
+
+plt = lazy_import("matplotlib.pyplot")
 from numpy.matlib import repmat
 import time
 import copy
@@ -23,11 +25,10 @@ import copy
 import os
 import sys
 
-sys.path.append(os.path.dirname(os.path.abspath(__file__)) + "/../../Sampling_based_Planning/")
-from rrt_3D.env3D import env
-from rrt_3D.utils3D import getDist, sampleFree, nearest, steer, isCollide, isinside, isinbound
-from rrt_3D.plot_util3D import set_axes_equal, draw_block_list, draw_Spheres, draw_obb, draw_line, make_transparent
-from rrt_3D.queue import MinheapPQ
+from .env3D import env
+from .utils3D import getDist, sampleFree, nearest, steer, isCollide, isinside, isinbound
+from .plot_util3D import set_axes_equal, draw_block_list, draw_Spheres, draw_obb, draw_line, make_transparent
+from .queue import MinheapPQ
 
 #---------methods to draw ellipse during sampling
 def CreateUnitSphere(r = 1):

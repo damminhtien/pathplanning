@@ -1,16 +1,17 @@
 import numpy as np
-import matplotlib.pyplot as plt
+from pathplanning.viz import lazy_import
+
+plt = lazy_import("matplotlib.pyplot")
 
 import os
 import sys
 from collections import defaultdict
 
-sys.path.append(os.path.dirname(os.path.abspath(__file__)) + "/../../Search_based_Planning/")
-from Search_3D.env3D import env
-from Search_3D.utils3D import getDist, heuristic_fun, getNearest, isinbound, \
+from .env3D import env
+from .utils3D import getDist, heuristic_fun, getNearest, isinbound, \
      cost, children, StateSpace
-from Search_3D.plot_util3D import visualization
-from Search_3D import queue
+from .plot_util3D import visualization
+from . import queue
 import time
 
 class D_star_Lite(object):

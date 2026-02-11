@@ -7,7 +7,9 @@ source: J. D. Gammell, S. S. Srinivasa, and T. D. Barfoot, “Informed RRT*:
         an admissible ellipsoidal heuristic,” in IROS, 2997–3004, 2014.
 """
 import numpy as np
-import matplotlib.pyplot as plt
+from pathplanning.viz import lazy_import
+
+plt = lazy_import("matplotlib.pyplot")
 import time
 import copy
 
@@ -15,11 +17,10 @@ import copy
 import os
 import sys
 
-sys.path.append(os.path.dirname(os.path.abspath(__file__)) + "/../../Sampling_based_Planning/")
-from rrt_3D.env3D import env
-from rrt_3D.utils3D import getDist, sampleFree, nearest, steer, isCollide, isinside, near, nearest, path
-from rrt_3D.plot_util3D import set_axes_equal, draw_block_list, draw_Spheres, draw_obb, draw_line, make_transparent
-from rrt_3D.queue import MinheapPQ
+from .env3D import env
+from .utils3D import getDist, sampleFree, nearest, steer, isCollide, isinside, near, nearest, path
+from .plot_util3D import set_axes_equal, draw_block_list, draw_Spheres, draw_obb, draw_line, make_transparent
+from .queue import MinheapPQ
 
 
 def CreateUnitSphere(r = 1):

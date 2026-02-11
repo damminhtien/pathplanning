@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import numpy as np
 
-from Sampling_based_Planning.rrt_2D.rrt import Rrt
-from Search_based_Planning.Search_3D.Astar3D import Weighted_A_star
+from pathplanning.Sampling_based_Planning.rrt_2D.rrt import Rrt
+from pathplanning.Search_based_Planning.Search_3D.Astar3D import Weighted_A_star
 
 
 def test_sampling2d_rrt_runtime_smoke() -> None:

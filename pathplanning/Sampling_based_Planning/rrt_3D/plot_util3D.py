@@ -1,9 +1,9 @@
 # plotting
-import matplotlib.pyplot as plt
-from mpl_toolkits.mplot3d import Axes3D
-from mpl_toolkits.mplot3d.art3d import Poly3DCollection
-import mpl_toolkits.mplot3d as plt3d
-from mpl_toolkits.mplot3d import proj3d
+from pathplanning.viz import lazy_import
+
+plt = lazy_import("matplotlib.pyplot")
+plt3d = lazy_import("mpl_toolkits.mplot3d")
+art3d = lazy_import("mpl_toolkits.mplot3d.art3d")
 import numpy as np
 
 
@@ -37,10 +37,12 @@ def draw_block_list(ax, blocks, color=None, alpha=0.15):
     for k in range(n):
         vl[k * 8:(k + 1) * 8, :] = v * d[k] + blocks[k, :3]
         fl[k * 6:(k + 1) * 6, :] = f + k * 8
-    if type(ax) is Poly3DCollection:
+    if type(ax) is art3d.Poly3DCollection:
         ax.set_verts(vl[fl])
     else:
-        h = ax.add_collection3d(Poly3DCollection(vl[fl], facecolors='black', alpha=alpha, linewidths=1, edgecolors='k'))
+        h = ax.add_collection3d(
+            art3d.Poly3DCollection(vl[fl], facecolors='black', alpha=alpha, linewidths=1, edgecolors='k')
+        )
         return h
 
 
@@ -63,10 +65,12 @@ def draw_obb(ax, OBB, color=None, alpha=0.15):
     for k in range(n):
         vl[k * 8:(k + 1) * 8, :] = obb_verts(OBB[k])
         fl[k * 6:(k + 1) * 6, :] = f + k * 8
-    if type(ax) is Poly3DCollection:
+    if type(ax) is art3d.Poly3DCollection:
         ax.set_verts(vl[fl])
     else:
-        h = ax.add_collection3d(Poly3DCollection(vl[fl], facecolors='black', alpha=alpha, linewidths=1, edgecolors='k'))
+        h = ax.add_collection3d(
+            art3d.Poly3DCollection(vl[fl], facecolors='black', alpha=alpha, linewidths=1, edgecolors='k')
+        )
         return h
 
 

@@ -11,7 +11,9 @@ from __future__ import annotations
 
 from typing import Iterable, List, Sequence, Tuple
 
-import matplotlib.pyplot as plt
+from pathplanning.viz import lazy_import
+
+plt = lazy_import("matplotlib.pyplot")
 
 try:
     from . import env

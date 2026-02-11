@@ -7,13 +7,12 @@ import os
 import sys
 import math
 import numpy as np
-import matplotlib.pyplot as plt
-import matplotlib.patches as patches
+from pathplanning.viz import lazy_import
 
-sys.path.append(os.path.dirname(os.path.abspath(__file__)) +
-                "/../../Sampling_based_Planning/")
+plt = lazy_import("matplotlib.pyplot")
+patches = lazy_import("matplotlib.patches")
 
-from Sampling_based_Planning.rrt_2D import env, plotting, utils
+from . import env, plotting, utils
 
 
 class Node:

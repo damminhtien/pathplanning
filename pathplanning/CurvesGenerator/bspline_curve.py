@@ -7,7 +7,9 @@ author: Atsushi Sakai (@Atsushi_twi)
 """
 
 import numpy as np
-import matplotlib.pyplot as plt
+from pathplanning.viz import lazy_import
+
+plt = lazy_import("matplotlib.pyplot")
 import scipy.interpolate as scipy_interpolate
 import cubic_spline as cs
 

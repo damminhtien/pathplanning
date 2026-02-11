@@ -3,8 +3,10 @@ Plotting tools for Sampling-based algorithms
 @author: damminhtien
 """
 
-import matplotlib.pyplot as plt
-import matplotlib.patches as patches
+from pathplanning.viz import lazy_import
+
+plt = lazy_import("matplotlib.pyplot")
+patches = lazy_import("matplotlib.patches")
 
 try:
     from . import env
