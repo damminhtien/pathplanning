@@ -16,6 +16,7 @@ The repository is organized for practical use:
 - [Implemented Algorithms](#implemented-algorithms)
 - [Installation](#installation)
 - [Package API](#package-api)
+- [3D RRT Refactor](#3d-rrt-refactor)
 - [Production Support Matrix](#production-support-matrix)
 - [Run Demos](#run-demos)
 - [Publish to PyPI](#publish-to-pypi)
@@ -156,6 +157,20 @@ for spec in list_supported_algorithms():
     module = load_algorithm_module(spec.algorithm_id)
     print(spec.algorithm_id, module.__name__)
 ```
+
+## 3D RRT Refactor
+
+The 3D sampling stack includes a production refactor for deterministic execution,
+headless-safe imports, and clearer environment contracts.
+
+See:
+- `docs/rrt3d_refactor.md`
+
+Highlights:
+- `DynamicRRT3DConfig` and seeded constructor support (`DynamicRRT3D.with_seed`)
+- pluggable nearest-neighbor backends (`BruteForceNearestNodeIndex`, `KDTreeNearestNodeIndex`)
+- canonical `Environment3D` snake_case fields (`aabb`, `aabb_pyrr`, `obb`)
+- legacy environment field compatibility preserved with deprecation guidance
 
 ## Production Support Matrix
 
