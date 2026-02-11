@@ -48,15 +48,19 @@ class BruteForceNearestNodeIndex:
     """Simple exact nearest-neighbor index based on vectorized NumPy distance."""
 
     def __init__(self) -> None:
+        """Initialize an empty node container."""
         self._nodes: list[Node] = []
 
     def reset(self, nodes: Sequence[Node]) -> None:
+        """Replace index content with ``nodes``."""
         self._nodes = list(nodes)
 
     def add(self, node: Node) -> None:
+        """Append one node to the index."""
         self._nodes.append(node)
 
     def nearest(self, target: Node) -> Node:
+        """Return the exact nearest node to ``target``."""
         if not self._nodes:
             raise ValueError("nearest called with an empty node set")
         if len(self._nodes) == 1:
@@ -76,12 +80,18 @@ class KDTreeNearestNodeIndex:
     """
 
     def __init__(self, rebuild_threshold: int = 64) -> None:
+        """Initialize an empty KD-tree index.
+
+        Args:
+            rebuild_threshold: Number of pending points before rebuilding.
+        """
         self._rebuild_threshold = max(1, rebuild_threshold)
         self._indexed_points: NDArray[np.float64] = np.empty((0, 3), dtype=float)
         self._pending_nodes: list[Node] = []
         self._tree: cKDTree | None = None
 
     def reset(self, nodes: Sequence[Node]) -> None:
+        """Replace index content with ``nodes`` and rebuild internal tree."""
         points = np.asarray(nodes, dtype=float)
         if points.size == 0:
             self._indexed_points = np.empty((0, 3), dtype=float)
@@ -93,9 +103,11 @@ class KDTreeNearestNodeIndex:
         self._pending_nodes = []
 
     def add(self, node: Node) -> None:
+        """Buffer one node insertion until next lazy rebuild."""
         self._pending_nodes.append(node)
 
     def _rebuild_if_needed(self) -> None:
+        """Rebuild tree if pending inserts cross the configured threshold."""
         if self._tree is None and self._pending_nodes:
             points = np.asarray(self._pending_nodes, dtype=float)
             self._indexed_points = points
@@ -113,6 +125,7 @@ class KDTreeNearestNodeIndex:
             self._pending_nodes = []
 
     def nearest(self, target: Node) -> Node:
+        """Return the exact nearest node to ``target``."""
         self._rebuild_if_needed()
 
         best_node: Node | None = None
@@ -148,8 +161,8 @@ def _as_node(point: Sequence[float] | NDArray[Any]) -> Node:
 
 
 def get_dist(pos1: Node, pos2: Node) -> float:
-    """Typed wrapper around ``utils_3d.getDist``."""
-    return float(utils_3d.getDist(pos1, pos2))
+    """Typed wrapper around ``utils_3d.get_dist``."""
+    return float(utils_3d.get_dist(pos1, pos2))
 
 
 def steer_node(initparams: Any, x: Node, y: Node) -> tuple[Node, float]:
@@ -165,7 +178,7 @@ def is_collide(
     dist: float | None = None,
 ) -> tuple[bool, float]:
     """Typed wrapper around segment-obstacle collision checking."""
-    collide, actual_dist = utils_3d.isCollide(initparams, x, child, dist)
+    collide, actual_dist = utils_3d.is_collide(initparams, x, child, dist)
     return bool(collide), float(actual_dist)
 
 
@@ -310,7 +323,7 @@ class DynamicRRT3D:
         while True:
             xrand = self.rng.uniform(lower, upper)
             candidate = _as_node(xrand)
-            if not utils_3d.isinside(self, candidate):
+            if not utils_3d.is_inside(self, candidate):
                 return candidate
 
     def add_node(self, parent_node: Node, extended: Node) -> None:

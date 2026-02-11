@@ -18,6 +18,19 @@ GoalRegion: TypeAlias = GoalPredicate | tuple[Sequence[float],
 
 
 def _as_state(value: Sequence[float] | State, name: str, *, dim: int) -> State:
+    """Normalize a coordinate-like value to a 1D float state vector.
+
+    Args:
+        value: Input coordinate sequence.
+        name: Human-readable argument name for error messages.
+        dim: Expected state dimension.
+
+    Returns:
+        Normalized NumPy state vector with shape ``(dim,)``.
+
+    Raises:
+        ValueError: If the input does not match the expected dimension.
+    """
     state = np.asarray(value, dtype=float)
     if state.shape != (dim,):
         raise ValueError(f"{name} must be shape ({dim},), got {state.shape}")
@@ -25,7 +38,9 @@ def _as_state(value: Sequence[float] | State, name: str, *, dim: int) -> State:
 
 
 @dataclass(slots=True)
-class _GoalSpec:
+class GoalSpec:
+    """Parsed goal definition for sampling and termination checks."""
+
     predicate: GoalPredicate
     target_state: State | None
 
@@ -39,18 +54,26 @@ class RrtPlanner:
         params: RrtParams,
         rng: np.random.Generator,
     ) -> None:
+        """Initialize a contract-based RRT planner.
+
+        Args:
+            space: Configuration space implementation.
+            params: Planner parameters.
+            rng: Random number generator used for sampling.
+        """
         self.space = space
         self.params = params.validate()
         self.rng = rng
 
-    def _goal_spec(self, goal_region: GoalRegion) -> _GoalSpec:
+    def _goal_spec(self, goal_region: GoalRegion) -> GoalSpec:
+        """Build an internal goal specification from supported goal inputs."""
         if callable(goal_region):
             target = getattr(self.space, "goal", None)
             target_state: State | None = None
             if target is not None:
                 target_state = _as_state(
                     target, "space.goal", dim=self.space.dim)
-            return _GoalSpec(predicate=goal_region, target_state=target_state)
+            return GoalSpec(predicate=goal_region, target_state=target_state)
 
         if (
             isinstance(goal_region, tuple)
@@ -62,20 +85,25 @@ class RrtPlanner:
             tolerance = float(goal_region[1])
             if tolerance < 0.0:
                 raise ValueError("goal tolerance must be >= 0")
-            return _GoalSpec(
+            return GoalSpec(
                 predicate=lambda state: self.space.distance(
                     state, center) <= tolerance,
                 target_state=center,
             )
 
         goal_state = _as_state(goal_region, "goal_state", dim=self.space.dim)
-        return _GoalSpec(
+        return GoalSpec(
             predicate=lambda state: self.space.distance(
                 state, goal_state) <= 1e-9,
             target_state=goal_state,
         )
 
     def _sample_free(self) -> State:
+        """Sample one collision-free state within configured bounds.
+
+        Raises:
+            RuntimeError: If no free sample is found within max retries.
+        """
         lower, upper = self.space.bounds
         lower_state = _as_state(lower, "space.bounds[0]", dim=self.space.dim)
         upper_state = _as_state(upper, "space.bounds[1]", dim=self.space.dim)
@@ -89,11 +117,13 @@ class RrtPlanner:
         )
 
     def _nearest_index(self, nodes: list[State], target: State) -> int:
+        """Return the index of the nearest node to ``target``."""
         distances = [self.space.distance(node, target) for node in nodes]
         return int(np.argmin(np.asarray(distances, dtype=float)))
 
     @staticmethod
     def _reconstruct_path(nodes: list[State], parents: list[int], last_index: int) -> list[State]:
+        """Backtrack parent pointers to reconstruct a root-to-leaf path."""
         path_reversed: list[State] = []
         index = last_index
         while index != -1:

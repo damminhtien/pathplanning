@@ -5,7 +5,7 @@ from __future__ import annotations
 import numpy as np
 
 from .env_3d import Environment3D
-from .utils_3d import getDist, isCollide, nearest, path, sampleFree, steer
+from .utils_3d import get_dist, is_collide, nearest, path, sample_free, steer
 
 
 class ExtendRrt:
@@ -22,13 +22,13 @@ class ExtendRrt:
         self.way_point_prob = 0.05
 
         self.done = False
-        self.V: list[tuple[float, ...]] = []
-        self.Parent: dict[tuple[float, ...], tuple[float, ...]] = {}
-        self.Path = []
+        self.vertices: list[tuple[float, ...]] = []
+        self.parent_by_node: dict[tuple[float, ...], tuple[float, ...]] = {}
+        self.path_edges: list[np.ndarray] = []
         self.ind = 0
         self.i = 0
 
-    def rrt_plan(
+    def plan(
         self, env: Environment3D, initial: tuple[float, ...], goal: tuple[float, ...]
     ) -> None:
         """Run a basic extend-RRT planning loop.
@@ -40,7 +40,7 @@ class ExtendRrt:
         """
         threshold = self.stepsize
         nearest_node = initial
-        self.V.append(initial)
+        self.vertices.append(initial)
         rrt_tree = initial
         while self.ind <= self.maxiter:
             target = self.choose_target(goal)
@@ -48,14 +48,14 @@ class ExtendRrt:
             extended, collide = self.extend_toward(env, nearest_node, target)
             if not collide:
                 self.add_node(rrt_tree, nearest_node, extended)
-                if getDist(nearest_node, goal) <= threshold:
+                if get_dist(nearest_node, goal) <= threshold:
                     self.add_node(rrt_tree, nearest_node, self.xt)
                     break
                 self.i += 1
             self.ind += 1
 
         self.done = True
-        self.Path, _ = path(self)
+        self.path_edges, _ = path(self)
 
     def nearest_node(
         self, _tree: tuple[float, ...], target: tuple[float, ...]
@@ -71,7 +71,7 @@ class ExtendRrt:
     ) -> tuple[tuple[float, ...], bool]:
         """Steer from nearest state toward target and collision-check edge."""
         extended, dist = steer(self, nearest_state, target, DIST=True)
-        collide, _ = isCollide(self, nearest_state, target, dist)
+        collide, _ = is_collide(self, nearest_state, target, dist)
         return extended, collide
 
     def add_node(
@@ -81,27 +81,27 @@ class ExtendRrt:
         extended: tuple[float, ...],
     ) -> None:
         """Add a node and parent relation to the planner tree."""
-        self.V.append(extended)
-        self.Parent[extended] = nearest_state
+        self.vertices.append(extended)
+        self.parent_by_node[extended] = nearest_state
 
     def random_state(self) -> np.ndarray | tuple[float, ...]:
         """Sample a random collision-free state."""
-        return sampleFree(self, bias=0)
+        return sample_free(self, bias=0)
 
     def choose_target(self, _state: tuple[float, ...]) -> tuple[float, ...]:
         """Choose goal, waypoint, or random state using configured probabilities."""
         p = np.random.uniform()
-        if len(self.V) == 1:
+        if len(self.vertices) == 1:
             index = 0
         else:
-            index = np.random.randint(0, high=len(self.V) - 1)
+            index = np.random.randint(0, high=len(self.vertices) - 1)
         if 0 < p < self.goal_prob:
             return self.xt
         if self.goal_prob < p < self.goal_prob + self.way_point_prob:
-            return self.V[index]
+            return self.vertices[index]
         return tuple(self.random_state())
 
 
 if __name__ == "__main__":
     planner = ExtendRrt()
-    planner.rrt_plan(planner.env, planner.x0, planner.xt)
+    planner.plan(planner.env, planner.x0, planner.xt)

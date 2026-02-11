@@ -1,85 +1,89 @@
-# min heap used in the FMT*
+"""Priority queue utilities for 3D sampling-based planners."""
+
+from __future__ import annotations
 
 import heapq
 import itertools
+from typing import Any
 
-class MinheapPQ:
-    """
-    A priority queue based on min heap, which takes O(logn) on element removal
-    https://docs.python.org/3/library/heapq.html#priority-queue-implementation-notes
-    """
-    def __init__(self):
-        self.pq = [] # lis of the entries arranged in a heap
-        self.nodes = set()
-        self.entry_finder = {} # mapping of the item entries
-        self.counter = itertools.count() # unique sequence count
-        self.REMOVED = '<removed-item>'
-    
-    def put(self, item, priority):
-        """add a new task or update the priority of an existing item"""
-        if item in self.entry_finder:
-            self.check_remove(item)
-        count = next(self.counter)
-        entry = [priority, count, item]
-        self.entry_finder[item] = entry
-        heapq.heappush(self.pq, entry)
-        self.nodes.add(item)
 
-    def put_set(self, dictin):
-        """add a new dict into the priority queue"""
-        for item, priority in dictin.items():
+class MinHeapPriorityQueue:
+    """Heap-backed priority queue with explicit delete support."""
+
+    def __init__(self) -> None:
+        """Initialize an empty queue."""
+        self._heap: list[list[Any]] = []
+        self._nodes: set[Any] = set()
+        self._entry_finder: dict[Any, list[Any]] = {}
+        self._counter = itertools.count()
+        self._removed_sentinel = "<removed-item>"
+
+    def put(self, item: Any, priority: float) -> None:
+        """Insert an item or update its priority."""
+        if item in self._entry_finder:
+            self.remove(item)
+        entry = [priority, next(self._counter), item]
+        self._entry_finder[item] = entry
+        heapq.heappush(self._heap, entry)
+        self._nodes.add(item)
+
+    def put_many(self, priorities: dict[Any, float]) -> None:
+        """Insert multiple ``item -> priority`` entries."""
+        for item, priority in priorities.items():
             self.put(item, priority)
 
-    def check_remove(self, item):
-        if item not in self.entry_finder:
+    def remove(self, item: Any) -> None:
+        """Mark an item as removed if it is present."""
+        if item not in self._entry_finder:
             return
-        entry = self.entry_finder.pop(item)
-        entry[-1] = self.REMOVED
-        self.nodes.remove(item)
+        entry = self._entry_finder.pop(item)
+        entry[-1] = self._removed_sentinel
+        self._nodes.remove(item)
 
-    def check_remove_set(self, set_input):
-        if len(set_input) == 0:
-            return
-        for item in set_input:
-            if item not in self.entry_finder:
+    def remove_many(self, items: set[Any]) -> None:
+        """Mark all provided items as removed."""
+        for item in items:
+            self.remove(item)
+
+    def filter_priorities(self, threshold: float, mode: str) -> None:
+        """Remove items above/below a threshold.
+
+        Args:
+            threshold: Threshold to compare with entry priority.
+            mode: ``\"lowpass\"`` removes entries with priority >= threshold.
+                ``\"highpass\"`` removes entries with priority <= threshold.
+        """
+        for entry in self.entries():
+            item = entry[2]
+            if item == self._removed_sentinel:
                 continue
-            entry = self.entry_finder.pop(item)
-            entry[-1] = self.REMOVED
-            self.nodes.remove(item)
+            if mode == "lowpass" and entry[0] >= threshold:
+                self.remove(item)
+            elif mode == "highpass" and entry[0] <= threshold:
+                self.remove(item)
 
-    def priority_filtering(self, threshold, mode):
-        # mode: bigger: check and remove those key vals bigger than threshold
-        if mode == 'lowpass':
-            for entry in self.enumerate():
-                item = entry[2]
-                if entry[0] >= threshold: # priority
-                    _ = self.entry_finder.pop(item)
-                    entry[-1] = self.REMOVED
-                    self.nodes.remove(item)
-        # mode: smaller: check and remove those key vals smaller than threshold
-        elif mode == 'highpass':
-            for entry in self.enumerate():
-                item = entry[2]
-                if entry[0] <= threshold: # priority
-                    _ = self.entry_finder.pop(item)
-                    entry[-1] = self.REMOVED
-                    self.nodes.remove(item)
-        
-    def get(self):
-        """Remove and return the lowest priority task. Raise KeyError if empty."""
-        while self.pq:
-            priority, count, item = heapq.heappop(self.pq)
-            if item != self.REMOVED:
-                del self.entry_finder[item]
-                self.nodes.remove(item)
+    def get(self) -> Any:
+        """Pop and return the lowest-priority item.
+
+        Raises:
+            KeyError: If the queue is empty.
+        """
+        while self._heap:
+            _priority, _count, item = heapq.heappop(self._heap)
+            if item != self._removed_sentinel:
+                del self._entry_finder[item]
+                self._nodes.remove(item)
                 return item
-        raise KeyError('pop from an empty priority queue')
+        raise KeyError("pop from an empty priority queue")
 
-    def top_key(self):
-        return self.pq[0][0]
-        
-    def enumerate(self):
-        return self.pq
+    def top_key(self) -> float:
+        """Return the minimum priority currently at the heap top."""
+        return float(self._heap[0][0])
 
-    def allnodes(self):
-        return self.nodes
+    def entries(self) -> list[list[Any]]:
+        """Return raw heap entries."""
+        return self._heap
+
+    def nodes(self) -> set[Any]:
+        """Return active nodes currently present in the queue."""
+        return self._nodes

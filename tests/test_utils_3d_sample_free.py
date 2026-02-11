@@ -9,7 +9,7 @@ class _Env:
     def __init__(self) -> None:
         self.boundary = np.array([0.0, 0.0, 0.0, 1.0, 1.0, 1.0])
         self.blocks = []
-        self.OBB = []
+        self.obb = []
         self.balls = []
 
 
@@ -26,14 +26,14 @@ def _within_bounds(sample: np.ndarray, boundary: np.ndarray) -> bool:
 
 def test_sample_free_within_bounds() -> None:
     initparams = _InitParams()
-    sample = utils_3d.sampleFree(initparams, bias=0.0, max_tries=10)
+    sample = utils_3d.sample_free(initparams, bias=0.0, max_tries=10)
     assert _within_bounds(sample, initparams.env.boundary)
 
 
 def test_sample_free_bounded_resampling(monkeypatch) -> None:
     initparams = _InitParams()
 
-    monkeypatch.setattr(utils_3d, "isinside", lambda _initparams, _x: True)
+    monkeypatch.setattr(utils_3d, "is_inside", lambda _initparams, _x: True)
 
-    sample = utils_3d.sampleFree(initparams, bias=0.0, max_tries=3)
+    sample = utils_3d.sample_free(initparams, bias=0.0, max_tries=3)
     assert _within_bounds(sample, initparams.env.boundary)

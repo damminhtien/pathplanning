@@ -7,7 +7,7 @@ class _InitParams:
     def __init__(self) -> None:
         self.x0 = (0.0, 0.0, 0.0)
         self.xt = (1.0, 0.0, 0.0)
-        self.Parent = {self.xt: self.x0}
+        self.parent_by_node = {self.xt: self.x0}
 
 
 def test_path_does_not_accumulate_across_calls() -> None:

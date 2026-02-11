@@ -14,13 +14,13 @@ import numpy as np
 
 from .env_3d import Environment3D
 from .utils_3d import (
-    getDist,
-    isCollide,
-    isinside,
+    get_dist,
+    is_collide,
+    is_inside,
     near,
     nearest,
     path,
-    sampleFree,
+    sample_free,
     steer,
 )
 
@@ -70,9 +70,9 @@ class InformedRrtStar:
         self.env = Environment3D()
         self.xstart, self.xgoal = tuple(self.env.start), tuple(self.env.goal)
         self.x0, self.xt = tuple(self.env.start), tuple(self.env.goal)
-        self.Parent: dict[tuple[float, ...], tuple[float, ...]] = {}
-        self.Path: list[Any] = []
-        self.N = 10000
+        self.parent_by_node: dict[tuple[float, ...], tuple[float, ...]] = {}
+        self.path_edges: list[Any] = []
+        self.max_iterations = 10000
         self.ind = 0
         self.i = 0
 
@@ -82,8 +82,8 @@ class InformedRrtStar:
         self.rgoal = self.stepsize
         self.done = False
 
-        self.C = np.zeros((3, 3))
-        self.L = np.zeros((3, 3))
+        self.rotation_matrix_world = np.zeros((3, 3))
+        self.ellipse_scale = np.zeros((3, 3))
         self.xcenter = np.zeros(3)
         self.show_ellipse = show_ellipse
 
@@ -95,26 +95,26 @@ class InformedRrtStar:
         Returns:
             Tuple `(V, E)` with sampled vertices and edges.
         """
-        self.V = [self.xstart]
-        self.E: set[tuple[tuple[float, ...], tuple[float, ...]]] = set()
-        self.Xsoln: set[tuple[float, ...]] = set()
-        self.T = (self.V, self.E)
+        self.vertices = [self.xstart]
+        self.edges: set[tuple[tuple[float, ...], tuple[float, ...]]] = set()
+        self.solution_nodes: set[tuple[float, ...]] = set()
+        self.tree = (self.vertices, self.edges)
 
         edge_cost_weight = 1
-        while self.ind <= self.N:
+        while self.ind <= self.max_iterations:
             print(self.ind)
             cbest = (
                 np.inf
-                if len(self.Xsoln) == 0
-                else min({self.cost(x_solution) for x_solution in self.Xsoln})
+                if len(self.solution_nodes) == 0
+                else min({self.cost(x_solution) for x_solution in self.solution_nodes})
             )
 
             xrand = self.sample(self.xstart, self.xgoal, cbest)
             xnearest = nearest(self, xrand)
             xnew, dist = steer(self, xnearest, xrand)
-            collide, _ = isCollide(self, xnearest, xnew, dist=dist)
+            collide, _ = is_collide(self, xnearest, xnew, dist=dist)
             if not collide:
-                self.V.append(xnew)
+                self.vertices.append(xnew)
                 x_near_set = near(self, xnew)
                 xmin = xnearest
                 cmin = self.cost(xmin) + edge_cost_weight * self.line(xnearest, xnew)
@@ -122,35 +122,35 @@ class InformedRrtStar:
                     xnear = tuple(xnear)
                     cnew = self.cost(xnear) + edge_cost_weight * self.line(xnear, xnew)
                     if cnew < cmin:
-                        collide, _ = isCollide(self, xnear, xnew)
+                        collide, _ = is_collide(self, xnear, xnew)
                         if not collide:
                             xmin = xnear
                             cmin = cnew
-                self.E.add((xmin, xnew))
-                self.Parent[xnew] = xmin
+                self.edges.add((xmin, xnew))
+                self.parent_by_node[xnew] = xmin
 
                 for xnear in x_near_set:
                     xnear = tuple(xnear)
                     cnear = self.cost(xnear)
                     cnew = self.cost(xnew) + edge_cost_weight * self.line(xnew, xnear)
                     if cnew < cnear:
-                        collide, _ = isCollide(self, xnew, xnear)
+                        collide, _ = is_collide(self, xnew, xnear)
                         if not collide:
-                            xparent = self.Parent[xnear]
-                            self.E.difference_update((xparent, xnear))
-                            self.E.add((xnew, xnear))
-                            self.Parent[xnear] = xnew
+                            xparent = self.parent_by_node[xnear]
+                            self.edges.difference_update((xparent, xnear))
+                            self.edges.add((xnew, xnear))
+                            self.parent_by_node[xnear] = xnew
                 self.i += 1
                 if self.in_goal_region(xnew):
                     print("reached")
                     self.done = True
-                    self.Parent[self.xgoal] = xnew
-                    self.Path, _ = path(self)
-                    self.Xsoln.add(xnew)
+                    self.parent_by_node[self.xgoal] = xnew
+                    self.path_edges, _ = path(self)
+                    self.solution_nodes.add(xnew)
             if self.done:
-                self.Path, _ = path(self, Path=[])
+                self.path_edges, _ = path(self, path_edges=[])
             self.ind += 1
-        return self.T
+        return self.tree
 
     def sample(
         self,
@@ -171,7 +171,7 @@ class InformedRrtStar:
             Sampled state.
         """
         if cmax < np.inf:
-            cmin = getDist(xgoal, xstart)
+            cmin = get_dist(xgoal, xstart)
             xcenter = np.array(
                 [
                     (xgoal[0] + xstart[0]) / 2,
@@ -187,13 +187,13 @@ class InformedRrtStar:
             scale = np.diag(radius)
             xball = self.sample_unit_ball()
             xrand = rotation @ scale @ xball + xcenter
-            self.C = rotation
+            self.rotation_matrix_world = rotation
             self.xcenter = xcenter
-            self.L = scale
-            if isinside(self, xrand):
+            self.ellipse_scale = scale
+            if is_inside(self, xrand):
                 return self.sample(xstart, xgoal, cmax)
             return xrand
-        return sampleFree(self, bias=bias)
+        return sample_free(self, bias=bias)
 
     def sample_unit_ball(self) -> np.ndarray:
         """Sample a point in a 3D unit ball (spherical coordinates)."""
@@ -209,7 +209,7 @@ class InformedRrtStar:
         self, xstart: tuple[float, ...], xgoal: tuple[float, ...]
     ) -> np.ndarray:
         """Compute rotation that aligns x-axis with start-to-goal direction."""
-        distance = getDist(xstart, xgoal)
+        distance = get_dist(xstart, xgoal)
         xstart_arr, xgoal_arr = np.array(xstart), np.array(xgoal)
         a1 = (xgoal_arr - xstart_arr) / distance
         matrix = np.outer(a1, [1, 0, 0])
@@ -218,7 +218,7 @@ class InformedRrtStar:
 
     def in_goal_region(self, x: tuple[float, ...]) -> bool:
         """Check whether a state lies in the goal region."""
-        return getDist(x, self.xgoal) <= self.rgoal
+        return get_dist(x, self.xgoal) <= self.rgoal
 
     def cost(self, x: tuple[float, ...]) -> float:
         """Compute recursive cost-to-come for a state.
@@ -231,13 +231,13 @@ class InformedRrtStar:
         """
         if x == self.xstart:
             return 0.0
-        if x not in self.Parent:
+        if x not in self.parent_by_node:
             return np.inf
-        return self.cost(self.Parent[x]) + getDist(x, self.Parent[x])
+        return self.cost(self.parent_by_node[x]) + get_dist(x, self.parent_by_node[x])
 
     def line(self, x: tuple[float, ...], y: tuple[float, ...]) -> float:
         """Return edge metric used by the planner."""
-        return getDist(x, y)
+        return get_dist(x, y)
 
 
 if __name__ == "__main__":
