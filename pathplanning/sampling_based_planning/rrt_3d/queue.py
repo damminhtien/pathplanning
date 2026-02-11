@@ -1,6 +1,5 @@
 # min heap used in the FMT*
 
-import collections
 import heapq
 import itertools
 
@@ -28,7 +27,7 @@ class MinheapPQ:
 
     def put_set(self, dictin):
         """add a new dict into the priority queue"""
-        for item, priority in enumerate(dictin):
+        for item, priority in dictin.items():
             self.put(item, priority)
 
     def check_remove(self, item):
@@ -70,7 +69,7 @@ class MinheapPQ:
         """Remove and return the lowest priority task. Raise KeyError if empty."""
         while self.pq:
             priority, count, item = heapq.heappop(self.pq)
-            if item is not self.REMOVED:
+            if item != self.REMOVED:
                 del self.entry_finder[item]
                 self.nodes.remove(item)
                 return item
