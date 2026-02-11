@@ -36,7 +36,9 @@ def test_pathplanning_directories_are_snake_case() -> None:
         if _contains_uppercase(directory.name):
             violations.append(str(directory.relative_to(PACKAGE_ROOT)))
 
-    assert not violations, "Uppercase directories are not allowed:\n" + "\n".join(sorted(violations))
+    assert not violations, "Uppercase directories are not allowed:\n" + "\n".join(
+        sorted(violations)
+    )
 
 
 def test_pathplanning_module_files_are_snake_case() -> None:
