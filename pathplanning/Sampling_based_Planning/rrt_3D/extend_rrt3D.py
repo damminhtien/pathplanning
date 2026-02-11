@@ -4,7 +4,6 @@ This is rrt extend code for 3D
 @author: yue qi
 """
 import numpy as np
-from numpy.matlib import repmat
 from collections import defaultdict
 import time
 from pathplanning.viz import lazy_import

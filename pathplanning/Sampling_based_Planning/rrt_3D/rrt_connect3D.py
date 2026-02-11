@@ -4,7 +4,6 @@ This is rrt connect implementation for 3D
 @author: yue qi
 """
 import numpy as np
-from numpy.matlib import repmat
 from collections import defaultdict
 import time
 from pathplanning.viz import lazy_import
@@ -82,7 +81,7 @@ class rrt_connect():
         V = np.array(tree.V)
         if len(V) == 1:
             return V[0]
-        xr = repmat(q, len(V), 1)
+        xr = np.tile(q, (len(V), 1))
         dists = np.linalg.norm(xr - V, axis=1)
         return tuple(tree.V[np.argmin(dists)])
 

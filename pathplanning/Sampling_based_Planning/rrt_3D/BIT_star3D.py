@@ -17,7 +17,6 @@ import numpy as np
 from pathplanning.viz import lazy_import
 
 plt = lazy_import("matplotlib.pyplot")
-from numpy.matlib import repmat
 import time
 import copy
 
@@ -160,7 +159,7 @@ class BIT_star:
                 r[i] = np.sqrt(cmax**2 - cmin**2) / 2
             L = np.diag(r) # R3*3 
             xball = self.SampleUnitBall(m) # np.array
-            x =  (C@L@xball).T + repmat(xcenter, len(xball.T), 1)
+            x = (C @ L @ xball).T + np.tile(xcenter, (len(xball.T), 1))
             # x2 = set(map(tuple, x))
             self.C = C # save to global var
             self.xcenter = xcenter
