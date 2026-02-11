@@ -22,7 +22,8 @@ def getAABB(blocks):
 
 def getDist(pos1, pos2):
     return np.sqrt(
-        sum([(pos1[0] - pos2[0]) ** 2, (pos1[1] - pos2[1]) ** 2, (pos1[2] - pos2[2]) ** 2])
+        sum([(pos1[0] - pos2[0]) ** 2, (pos1[1] - pos2[1])
+            ** 2, (pos1[2] - pos2[2]) ** 2])
     )
 
 
@@ -45,18 +46,22 @@ def visualization(initparams):
     return _visualization(initparams)
 
 
-def sampleFree(initparams, bias=0.1):
-    """biased sampling"""
-    x = np.random.uniform(initparams.env.boundary[0:3], initparams.env.boundary[3:6])
-    i = np.random.random()
-    if isinside(initparams, x):
-        return sampleFree(initparams, bias=bias)
-    else:
-        if i < bias:
-            return np.array(initparams.xt)
-        else:
+def sampleFree(initparams, bias=0.1, max_tries=1000):
+    """biased sampling with bounded resampling."""
+    if np.random.random() < bias:
+        return np.array(initparams.xt)
+
+    last_sample = None
+    for _ in range(max_tries):
+        x = np.random.uniform(initparams.env.boundary[0:3], initparams.env.boundary[3:6])
+        last_sample = x
+        if not isinside(initparams, x):
             return x
-        return x
+
+    # Fallback to a uniform sample even if it collides.
+    if last_sample is None:
+        return np.random.uniform(initparams.env.boundary[0:3], initparams.env.boundary[3:6])
+    return last_sample
 
 
 # ---------------------- Collision checking algorithms
@@ -134,8 +139,10 @@ def lineSphere(p0, p1, ball):
 def lineAABB(p0, p1, dist, aabb):
     # https://www.gamasutra.com/view/feature/131790/simple_intersection_tests_for_games.php?print=1
     # aabb should have the attributes of P, E as center point and extents
-    mid = [(p0[0] + p1[0]) / 2, (p0[1] + p1[1]) / 2, (p0[2] + p1[2]) / 2]  # mid point
-    I = [(p1[0] - p0[0]) / dist, (p1[1] - p0[1]) / dist, (p1[2] - p0[2]) / dist]  # unit direction
+    mid = [(p0[0] + p1[0]) / 2, (p0[1] + p1[1]) /
+           2, (p0[2] + p1[2]) / 2]  # mid point
+    I = [(p1[0] - p0[0]) / dist, (p1[1] - p0[1]) / dist,
+         (p1[2] - p0[2]) / dist]  # unit direction
     hl = dist / 2  # radius
     T = [aabb.P[0] - mid[0], aabb.P[1] - mid[1], aabb.P[2] - mid[2]]
     # do any of the principal axis form a separting axis?
@@ -406,7 +413,8 @@ class kdTree:
         q1, q2, q3 = q
         p1, p2, p3 = p
         d1 = np.sqrt((q1 - p1) ** 2 + (q2 - p2) ** 2 + (q3 - p3) ** 2)
-        d2 = np.sqrt((1 - abs(q1 - p1)) ** 2 + (1 - abs(q2 - p2)) ** 2 + (1 - abs(q3 - p3)) ** 2)
+        d2 = np.sqrt((1 - abs(q1 - p1)) ** 2 + (1 - abs(q2 - p2))
+                     ** 2 + (1 - abs(q3 - p3)) ** 2)
         d3 = np.sqrt((-q1 - p1) ** 2 + (-q2 - p2) ** 2 + (q3 + 1 - p3) ** 2)
         d4 = np.sqrt((-q1 - p1) ** 2 + (-q2 - p2) ** 2 + (q3 - 1 - p3) ** 2)
         d5 = np.sqrt((-q1 - p1) ** 2 + (q2 + 1 - p2) ** 2 + (-q3 - p3) ** 2)
@@ -439,7 +447,8 @@ if __name__ == "__main__":
                 xrand = sampleFree(self)  # O(1)
                 nearest_node = tree_nearest(self.head, xrand)  # O(N)
                 xnew = tree_steer(self, nearest_node, xrand)  # O(1)
-                collide, _ = isCollide(self, nearest_node.pos, xnew)  # O(num obs)
+                collide, _ = isCollide(
+                    self, nearest_node.pos, xnew)  # O(num obs)
                 if not collide:
                     new_node = tree_add_edge(nearest_node, xnew)  # O(1)
                     # if the path is found
