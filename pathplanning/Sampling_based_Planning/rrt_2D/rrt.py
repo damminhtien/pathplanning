@@ -51,8 +51,10 @@ class Rrt:
                 dist, _ = self.get_distance_and_angle(node_new, self.s_goal)
 
                 if dist <= self.step_len and not self.utils.is_collision(node_new, self.s_goal):
-                    self.new_state(node_new, self.s_goal)
-                    return self.extract_path(node_new)
+                    goal_node = Node((self.s_goal.x, self.s_goal.y))
+                    goal_node.parent = node_new
+                    self.vertex.append(goal_node)
+                    return self.extract_path(goal_node)
 
         return None
 
