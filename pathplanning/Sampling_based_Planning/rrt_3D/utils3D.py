@@ -1,5 +1,4 @@
 import numpy as np
-from numpy.matlib import repmat
 import pyrr as pyrr
 from collections import deque
 
@@ -170,7 +169,7 @@ def nearest(initparams, x, isset=False):
     V = np.array(initparams.V)
     if initparams.i == 0:
         return initparams.V[0]
-    xr = repmat(x, len(V), 1)
+    xr = np.tile(x, (len(V), 1))
     dists = np.linalg.norm(xr - V, axis=1)
     return tuple(initparams.V[np.argmin(dists)])
 
@@ -186,7 +185,7 @@ def near(initparams, x):
     r = min(gamma * ((np.log(cardV) / cardV) ** (1/3)), eta)
     if initparams.done: 
         r = 1
-    xr = repmat(x, len(V), 1)
+    xr = np.tile(x, (len(V), 1))
     inside = np.linalg.norm(xr - V, axis=1) < r
     nearpoints = V[inside]
     return np.array(nearpoints)
