@@ -94,7 +94,8 @@ class RrtStarPlanner:
 
         goal_state = _as_state(goal_region, "goal_state", dim=self.space.dim)
         return GoalSpec(
-            predicate=lambda state: self.space.distance(state, goal_state) <= 1e-9,
+            predicate=lambda state: self.space.distance(state, goal_state)
+            <= self.params.goal_reach_tolerance,
             target_state=goal_state,
         )
 
@@ -148,6 +149,7 @@ class RrtStarPlanner:
 
     def plan(self, start: Sequence[float] | State, goal_region: GoalRegion) -> PlanResult:
         """Compute a collision-free path from ``start`` into ``goal_region``."""
+        self.params.validate()
         start_state = _as_state(start, "start", dim=self.space.dim)
         if not self.space.is_free(start_state):
             raise ValueError("start must be collision free")
@@ -198,8 +200,14 @@ class RrtStarPlanner:
                 near_indices = [0]
             else:
                 dim = float(self.space.dim)
-                dynamic_radius = self.params.step_size * (2.0 * (np.log(card_v) / card_v) ** (1.0 / dim) + 1.0)
-                near_radius = min(self.params.step_size * 6.0, dynamic_radius)
+                dynamic_radius = self.params.step_size * (
+                    self.params.rrt_star_radius_gamma
+                    * (np.log(card_v) / card_v) ** (1.0 / dim)
+                    + self.params.rrt_star_radius_bias
+                )
+                near_radius = min(
+                    self.params.step_size * self.params.rrt_star_radius_max_factor, dynamic_radius
+                )
                 near_indices = self._near_indices(index, candidate, near_radius)
 
             parent_index = nearest_index

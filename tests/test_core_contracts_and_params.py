@@ -29,6 +29,10 @@ def test_rrt_params_validate_accepts_valid_values() -> None:
         time_budget_s=2.0,
         max_sample_tries=20,
         collision_step=0.05,
+        goal_reach_tolerance=1e-6,
+        rrt_star_radius_gamma=1.5,
+        rrt_star_radius_bias=0.5,
+        rrt_star_radius_max_factor=3.0,
     )
     assert params.validate() is params
 
@@ -49,6 +53,14 @@ def test_rrt_params_validate_accepts_valid_values() -> None:
         ({"max_sample_tries": 1.2}, TypeError),
         ({"collision_step": 0.0}, ValueError),
         ({"collision_step": "bad"}, TypeError),
+        ({"goal_reach_tolerance": -0.1}, ValueError),
+        ({"goal_reach_tolerance": "bad"}, TypeError),
+        ({"rrt_star_radius_gamma": 0.0}, ValueError),
+        ({"rrt_star_radius_gamma": "bad"}, TypeError),
+        ({"rrt_star_radius_bias": -0.1}, ValueError),
+        ({"rrt_star_radius_bias": "bad"}, TypeError),
+        ({"rrt_star_radius_max_factor": 0.0}, ValueError),
+        ({"rrt_star_radius_max_factor": "bad"}, TypeError),
     ],
 )
 def test_rrt_params_validate_rejects_invalid_values(
