@@ -12,8 +12,15 @@ This document defines enforceable rules for this repository. Keywords use RFC 21
 ## Naming
 
 - Modules and packages MUST be `lower_snake_case`.
-- Existing CamelCase packages (`Search_based_Planning`, `Sampling_based_Planning`, `CurvesGenerator`) are LEGACY; no new CamelCase modules/packages MAY be added, and new code MUST live under snake_case packages (e.g., `pathplanning`).
+- Outside `pathplanning/_legacy/**`, directories and `.py` module filenames MUST NOT contain uppercase letters.
+- Existing CamelCase/mixed-case compatibility shims are LEGACY and MUST stay only under `pathplanning/_legacy/**` during migration.
 - Classes MUST use `CapWords`; functions, variables, and attributes MUST use `lower_snake_case`; constants MUST use `UPPER_SNAKE_CASE`.
+
+## Shim Migration Timeline
+
+- Phase 1 (current): keep compatibility shims under `pathplanning/_legacy/**` with `DeprecationWarning`; no new direct imports of `_legacy` code.
+- Phase 2 (next minor release): remove `_legacy` imports from tests/docs/examples and keep only `pathplanning.*` snake_case paths.
+- Phase 3 (next major release): delete `_legacy/**` shims after one full minor-release deprecation window.
 
 ## Imports
 
