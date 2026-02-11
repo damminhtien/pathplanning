@@ -10,10 +10,12 @@ from typing import TypeAlias
 import numpy as np
 
 from pathplanning.core.contracts import ConfigurationSpace, PlanResult, State
+from pathplanning.core.nn_index import NaiveIndex, NearestNeighborIndex
 from pathplanning.core.params import RrtParams
 
 GoalPredicate: TypeAlias = Callable[[State], bool]
 GoalRegion: TypeAlias = GoalPredicate | tuple[Sequence[float], float] | Sequence[float] | State
+IndexFactory: TypeAlias = Callable[[int], NearestNeighborIndex]
 
 
 def _as_state(value: Sequence[float] | State, name: str, *, dim: int) -> State:
@@ -52,6 +54,7 @@ class RrtStarPlanner:
         space: ConfigurationSpace,
         params: RrtParams,
         rng: np.random.Generator,
+        nn_index_factory: IndexFactory | None = None,
     ) -> None:
         """Initialize a contract-based RRT* planner.
 
@@ -63,6 +66,7 @@ class RrtStarPlanner:
         self.space = space
         self.params = params.validate()
         self.rng = rng
+        self._nn_index_factory = nn_index_factory or (lambda dim: NaiveIndex(dim=dim))
 
     def _goal_spec(self, goal_region: GoalRegion) -> GoalSpec:
         """Build an internal goal specification from supported goal inputs."""
@@ -111,25 +115,15 @@ class RrtStarPlanner:
             "Adjust bounds/obstacles or increase max_sample_tries."
         )
 
-    def _nearest_index(self, nodes: list[State], target: State) -> int:
+    @staticmethod
+    def _nearest_index(index: NearestNeighborIndex, target: State) -> int:
         """Return the index of the nearest node to ``target``."""
-        distances = [self.space.distance(node, target) for node in nodes]
-        return int(np.argmin(np.asarray(distances, dtype=float)))
+        return index.nearest(target)
 
-    def _near_indices(self, nodes: list[State], target: State) -> list[int]:
+    @staticmethod
+    def _near_indices(index: NearestNeighborIndex, target: State, radius: float) -> list[int]:
         """Return neighbor indices around ``target`` using a dynamic RRT* radius."""
-        card_v = len(nodes)
-        if card_v <= 1:
-            return [0]
-
-        dim = float(self.space.dim)
-        dynamic_radius = self.params.step_size * (2.0 * (np.log(card_v) / card_v) ** (1.0 / dim) + 1.0)
-        near_radius = min(self.params.step_size * 6.0, dynamic_radius)
-        indices: list[int] = []
-        for index, node in enumerate(nodes):
-            if self.space.distance(node, target) <= near_radius:
-                indices.append(index)
-        return indices
+        return index.radius(target, radius)
 
     @staticmethod
     def _reconstruct_path(nodes: list[State], parents: list[int], last_index: int) -> list[State]:
@@ -176,6 +170,8 @@ class RrtStarPlanner:
         parents: list[int] = [-1]
         children: list[set[int]] = [set()]
         costs: list[float] = [0.0]
+        index = self._nn_index_factory(self.space.dim)
+        index.add(nodes[0])
 
         goal_indices: list[int] = []
         goal_checks = 0
@@ -191,7 +187,7 @@ class RrtStarPlanner:
             use_goal_sample = goal.target_state is not None and self.rng.random() < self.params.goal_sample_rate
             target = goal.target_state if use_goal_sample else self._sample_free()
 
-            nearest_index = self._nearest_index(nodes, target)
+            nearest_index = self._nearest_index(index, target)
             nearest = nodes[nearest_index]
             candidate = self.space.steer(nearest, target, self.params.step_size)
 
@@ -200,7 +196,14 @@ class RrtStarPlanner:
             if not self.space.segment_free(nearest, candidate, self.params.collision_step):
                 continue
 
-            near_indices = self._near_indices(nodes, candidate)
+            card_v = len(nodes)
+            if card_v <= 1:
+                near_indices = [0]
+            else:
+                dim = float(self.space.dim)
+                dynamic_radius = self.params.step_size * (2.0 * (np.log(card_v) / card_v) ** (1.0 / dim) + 1.0)
+                near_radius = min(self.params.step_size * 6.0, dynamic_radius)
+                near_indices = self._near_indices(index, candidate, near_radius)
 
             parent_index = nearest_index
             parent_cost = costs[parent_index] + self.space.distance(nearest, candidate)
@@ -218,6 +221,7 @@ class RrtStarPlanner:
             children.append(set())
             children[parent_index].add(len(nodes) - 1)
             costs.append(parent_cost)
+            index.add(nodes[-1])
             new_index = len(nodes) - 1
 
             for near_index in near_indices:

@@ -10,11 +10,13 @@ from typing import TypeAlias
 import numpy as np
 
 from pathplanning.core.contracts import ConfigurationSpace, PlanResult, State
+from pathplanning.core.nn_index import NaiveIndex, NearestNeighborIndex
 from pathplanning.core.params import RrtParams
 
 GoalPredicate: TypeAlias = Callable[[State], bool]
 GoalRegion: TypeAlias = GoalPredicate | tuple[Sequence[float],
                                               float] | Sequence[float] | State
+IndexFactory: TypeAlias = Callable[[int], NearestNeighborIndex]
 
 
 def _as_state(value: Sequence[float] | State, name: str, *, dim: int) -> State:
@@ -53,6 +55,7 @@ class RrtPlanner:
         space: ConfigurationSpace,
         params: RrtParams,
         rng: np.random.Generator,
+        nn_index_factory: IndexFactory | None = None,
     ) -> None:
         """Initialize a contract-based RRT planner.
 
@@ -64,6 +67,7 @@ class RrtPlanner:
         self.space = space
         self.params = params.validate()
         self.rng = rng
+        self._nn_index_factory = nn_index_factory or (lambda dim: NaiveIndex(dim=dim))
 
     def _goal_spec(self, goal_region: GoalRegion) -> GoalSpec:
         """Build an internal goal specification from supported goal inputs."""
@@ -116,10 +120,10 @@ class RrtPlanner:
             "Adjust bounds/obstacles or increase max_sample_tries."
         )
 
-    def _nearest_index(self, nodes: list[State], target: State) -> int:
+    @staticmethod
+    def _nearest_index(index: NearestNeighborIndex, target: State) -> int:
         """Return the index of the nearest node to ``target``."""
-        distances = [self.space.distance(node, target) for node in nodes]
-        return int(np.argmin(np.asarray(distances, dtype=float)))
+        return index.nearest(target)
 
     @staticmethod
     def _reconstruct_path(nodes: list[State], parents: list[int], last_index: int) -> list[State]:
@@ -152,6 +156,8 @@ class RrtPlanner:
         parents: list[int] = [-1]
         costs: list[float] = [0.0]
         goal_checks = 0
+        index = self._nn_index_factory(self.space.dim)
+        index.add(nodes[0])
 
         start_time = time.perf_counter()
         iters_run = 0
@@ -165,7 +171,7 @@ class RrtPlanner:
             ) < self.params.goal_sample_rate
             target = goal.target_state if use_goal_sample else self._sample_free()
 
-            nearest_index = self._nearest_index(nodes, target)
+            nearest_index = self._nearest_index(index, target)
             nearest = nodes[nearest_index]
             candidate = self.space.steer(
                 nearest, target, self.params.step_size)
@@ -179,6 +185,7 @@ class RrtPlanner:
             parents.append(nearest_index)
             costs.append(costs[nearest_index] +
                          self.space.distance(nearest, candidate))
+            index.add(nodes[-1])
             new_index = len(nodes) - 1
 
             goal_checks += 1
