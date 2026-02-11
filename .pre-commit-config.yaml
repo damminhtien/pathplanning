@@ -19,13 +19,13 @@ repos:
         entry: ruff format --check --diff --config pyproject.toml
         language: system
         types: [python]
-        files: ^(pathplanning/.*\.py|tests/.*\.py|scripts/.*\.py|examples/.*\.py|Search_based_Planning/.*\.py|Sampling_based_Planning/.*\.py|CurvesGenerator/.*\.py)$
+        files: ^(pathplanning/(core|env)/.*\.py|pathplanning/(__init__|api|registry)\.py|tests/.*\.py|scripts/.*\.py|examples/worlds/.*\.py)$
       - id: ruff-check
         name: ruff check
         entry: ruff check --config pyproject.toml
         language: system
         types: [python]
-        files: ^(pathplanning/.*\.py|tests/.*\.py|scripts/.*\.py|examples/.*\.py|Search_based_Planning/.*\.py|Sampling_based_Planning/.*\.py|CurvesGenerator/.*\.py)$
+        files: ^(pathplanning/(core|env)/.*\.py|pathplanning/(__init__|api|registry)\.py|tests/.*\.py|scripts/.*\.py|examples/worlds/.*\.py)$
       - id: pyright
         name: pyright
         entry: pyright --project pyrightconfig.json

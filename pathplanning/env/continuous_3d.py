@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass, field
-from typing import Sequence
 
 import numpy as np
 from numpy.typing import NDArray
@@ -83,9 +83,9 @@ class ContinuousSpace3D(ConfigurationSpace):
 
     lower_bound: Sequence[float] | NDArray[np.float64]
     upper_bound: Sequence[float] | NDArray[np.float64]
-    aabbs: list[AABB] = field(default_factory=list)
-    spheres: list[Sphere] = field(default_factory=list)
-    obbs: list[OBB] = field(default_factory=list)
+    aabbs: tuple[AABB, ...] = field(default_factory=tuple)
+    spheres: tuple[Sphere, ...] = field(default_factory=tuple)
+    obbs: tuple[OBB, ...] = field(default_factory=tuple)
     goal: Sequence[float] | NDArray[np.float64] | None = None
     goal_tolerance: float = 0.0
     rng: np.random.Generator = field(default_factory=np.random.default_rng, repr=False)
@@ -134,9 +134,7 @@ class ContinuousSpace3D(ConfigurationSpace):
             return False
         if any(obstacle.contains(point) for obstacle in self.spheres):
             return False
-        if any(obstacle.contains(point) for obstacle in self.obbs):
-            return False
-        return True
+        return not any(obstacle.contains(point) for obstacle in self.obbs)
 
     def segment_free(self, start: State, end: State, collision_step: float) -> bool:
         start_state = _as_state(start, "start")
@@ -176,8 +174,9 @@ class ContinuousSpace3D(ConfigurationSpace):
         return start_state + (direction / distance) * step
 
     def is_goal(self, state: State) -> bool:
-        if self.goal is None:
+        goal = self.goal
+        if goal is None:
             return False
         point = _as_state(state, "state")
-        return self.distance(point, self.goal) <= self.goal_tolerance
-
+        goal_state = _as_state(goal, "goal")
+        return self.distance(point, goal_state) <= self.goal_tolerance

@@ -27,7 +27,9 @@ class Tree:
         """Return number of nodes in the tree."""
         return int(self.parent.shape[0])
 
-    def append_node(self, x: Sequence[float] | NDArray[np.float64], parent_id: int, cost: float) -> int:
+    def append_node(
+        self, x: Sequence[float] | NDArray[np.float64], parent_id: int, cost: float
+    ) -> int:
         """Append a node and return its index id.
 
         Args:

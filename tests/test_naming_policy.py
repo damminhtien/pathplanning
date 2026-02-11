@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-
 PACKAGE_ROOT = Path(__file__).resolve().parents[1] / "pathplanning"
 LEGACY_ROOT = PACKAGE_ROOT / "_legacy"
 EXEMPT_MODULE_FILES = {"__init__.py", "__main__.py"}
