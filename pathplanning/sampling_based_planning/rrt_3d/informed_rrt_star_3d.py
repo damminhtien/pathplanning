@@ -7,9 +7,6 @@ source: J. D. Gammell, S. S. Srinivasa, and T. D. Barfoot, “Informed RRT*:
         an admissible ellipsoidal heuristic,” in IROS, 2997–3004, 2014.
 """
 import numpy as np
-from pathplanning.viz import lazy_import
-
-plt = lazy_import("matplotlib.pyplot")
 import time
 import copy
 
@@ -19,7 +16,6 @@ import sys
 
 from .env_3d import Environment3D
 from .utils_3d import getDist, sampleFree, nearest, steer, isCollide, isinside, near, nearest, path
-from .plot_util_3d import set_axes_equal, draw_block_list, draw_Spheres, draw_obb, draw_line, make_transparent
 from .queue import MinheapPQ
 
 
@@ -72,7 +68,6 @@ class IRRT:
         c = 1
         while self.ind <= self.N:
             print(self.ind)
-            self.visualization()
             # print(self.i)
             if len(self.Xsoln) == 0:
                 cbest = np.inf
@@ -187,48 +182,8 @@ class IRRT:
         return getDist(x, y)
 
     def visualization(self):
-        if self.ind % 500 == 0:
-            V = np.array(self.V)
-            edges = list(map(list, self.E))
-            Path = np.array(self.Path)
-            start = self.env.start
-            goal = self.env.goal
-            # edges = E.get_edge()
-            #----------- list structure
-            # edges = []
-            # for i in self.Parent:
-            #     edges.append([i,self.Parent[i]])
-            #----------- end
-            # generate axis objects
-            ax = plt.subplot(111, projection='3d')
-            
-            # ax.view_init(elev=0.+ 0.03*self.ind/(2*np.pi), azim=90 + 0.03*self.ind/(2*np.pi))
-            # ax.view_init(elev=0., azim=90.)
-            ax.view_init(elev=90., azim=0.)
-            # ax.view_init(elev=-8., azim=180)
-            ax.clear()
-            # drawing objects
-            draw_Spheres(ax, self.env.balls)
-            draw_block_list(ax, self.env.blocks)
-            if self.env.OBB is not None:
-                draw_obb(ax, self.env.OBB)
-            draw_block_list(ax, np.array([self.env.boundary]), alpha=0)
-            draw_line(ax, edges, visibility=0.75, color='g')
-            draw_line(ax, Path, color='r')
-            if self.show_ellipse:
-                draw_ellipsoid(ax, self.C, self.L, self.xcenter) # beware, depending on start and goal position, this might be bad for vis
-            if len(V) > 0:
-                ax.scatter3D(V[:, 0], V[:, 1], V[:, 2], s=2, color='g', )
-            ax.plot(start[0:1], start[1:2], start[2:], 'go', markersize=7, markeredgecolor='k')
-            ax.plot(goal[0:1], goal[1:2], goal[2:], 'ro', markersize=7, markeredgecolor='k')
-            # adjust the aspect ratio
-            ax.dist = 5
-            set_axes_equal(ax)
-            make_transparent(ax)
-            #plt.xlabel('s')
-            #plt.ylabel('y')
-            ax.set_axis_off()
-            plt.pause(0.0001)
+        """Deprecated no-op. Use plotting helpers from ``pathplanning.viz.rrt_3d``."""
+        return None
 
 if __name__ == '__main__':
     A = IRRT(show_ellipse=False)
