@@ -1,240 +1,337 @@
-"""
-This is dynamic rrt code for 3D
-@author: yue qi
-"""
+"""Dynamic RRT planner for 3D environments."""
+
+from __future__ import annotations
+
+from collections.abc import Sequence
+from typing import Any, Literal, TypeAlias, cast
+
 import numpy as np
-import time
+from numpy.typing import NDArray
 from pathplanning.viz import lazy_import
+
+from . import plot_util_3d, utils_3d
+from .env_3d import Environment3D
 
 plt = lazy_import("matplotlib.pyplot")
 
-import os
-import sys
-
-from .env_3d import env
-from .utils_3d import getDist, sampleFree, nearest, steer, isCollide
-from .plot_util_3d import set_axes_equal, draw_block_list, draw_Spheres, draw_obb, draw_line, make_transparent
+Node: TypeAlias = tuple[float, float, float]
+Edge: TypeAlias = tuple[Node, Node]
+PathEdge: TypeAlias = NDArray[np.float64]
+Obstacle: TypeAlias = Sequence[float] | NDArray[np.float64]
 
 
-class dynamic_rrt_3D:
+def _as_node(point: Sequence[float] | NDArray[Any]) -> Node:
+    """Convert a point-like object to an immutable 3D node tuple."""
+    return float(point[0]), float(point[1]), float(point[2])
 
-    def __init__(self):
-        self.env = env()
-        self.x0, self.xt = tuple(self.env.start), tuple(self.env.goal)
-        self.qrobot = self.x0
-        self.current = tuple(self.env.start)
+
+def get_dist(pos1: Node, pos2: Node) -> float:
+    """Typed wrapper around `utils_3d.getDist`."""
+    return float(utils_3d.getDist(pos1, pos2))
+
+
+def sample_free_state(initparams: Any, bias: float = 0.1) -> Node:
+    """Sample a collision-free state and convert to the `Node` type."""
+    sampled = cast(Sequence[float] | NDArray[Any], utils_3d.sampleFree(initparams, bias=bias))
+    return _as_node(sampled)
+
+
+def nearest_node(initparams: Any, target: Node) -> Node:
+    """Return the nearest node in the current tree."""
+    nearest = cast(Sequence[float] | NDArray[Any], utils_3d.nearest(initparams, target, isset=True))
+    return _as_node(nearest)
+
+
+def steer_node(initparams: Any, x: Node, y: Node) -> tuple[Node, float]:
+    """Steer from `x` toward `y` with planner step-size limits."""
+    child, dist = utils_3d.steer(initparams, x, y, DIST=True)
+    return _as_node(cast(Sequence[float] | NDArray[Any], child)), float(dist)
+
+
+def is_collide(
+    initparams: Any,
+    x: Node,
+    child: Node,
+    dist: float | None = None,
+) -> tuple[bool, float]:
+    """Typed wrapper around segment-obstacle collision checking."""
+    collide, actual_dist = utils_3d.isCollide(initparams, x, child, dist)
+    return bool(collide), float(actual_dist)
+
+
+def set_axes_equal_typed(ax: Any) -> None:
+    """Set equal aspect ratio for 3D axes."""
+    plot_util_3d.set_axes_equal(ax)
+
+
+def draw_block_list_typed(
+    ax: Any,
+    blocks: NDArray[np.float64],
+    color: Any | None = None,
+    alpha: float = 0.15,
+) -> Any:
+    """Typed wrapper for block rendering."""
+    return plot_util_3d.draw_block_list(ax, blocks, color=color, alpha=alpha)
+
+
+def draw_spheres_typed(ax: Any, balls: NDArray[np.float64]) -> None:
+    """Typed wrapper for sphere rendering."""
+    plot_util_3d.draw_Spheres(ax, balls)
+
+
+def draw_obb_typed(ax: Any, obb_items: Any, color: Any | None = None, alpha: float = 0.15) -> Any:
+    """Typed wrapper for OBB rendering."""
+    return plot_util_3d.draw_obb(ax, obb_items, color=color, alpha=alpha)
+
+
+def draw_line_typed(
+    ax: Any,
+    segments: NDArray[np.float64],
+    visibility: float = 1.0,
+    color: Any | None = None,
+) -> None:
+    """Typed wrapper for line rendering."""
+    plot_util_3d.draw_line(ax, segments, visibility=visibility, color=color)
+
+
+def make_transparent_typed(ax: Any) -> None:
+    """Apply transparent panes/grid style to a 3D axis."""
+    plot_util_3d.make_transparent(ax)
+
+
+class DynamicRRT3D:
+    """Dynamic RRT planner that regrows paths as obstacles move."""
+
+    def __init__(self) -> None:
+        """Initialize planner state and environment."""
+        self.env = Environment3D()
+        self.x0: Node = _as_node(self.env.start)
+        self.xt: Node = _as_node(self.env.goal)
+        self.qrobot: Node = self.x0
+        self.current: Node = _as_node(self.env.start)
         self.stepsize = 0.25
         self.maxiter = 10000
-        self.GoalProb = 0.05  # probability biased to the goal
-        self.WayPointProb = 0.02  # probability falls back on to the way points
+        self.GoalProb = 0.05  # legacy attribute used by older modules
+        self.WayPointProb = 0.02  # legacy attribute used by older modules
         self.done = False
         self.invalid = False
 
-        self.V = []  # vertices
-        self.Parent = {}  # parent child relation
-        self.Edge = set()  # edge relation (node, parent node) tuple
-        self.Path = []
-        self.flag = {}  # flag dictionary
+        # Legacy attribute names kept for compatibility with utility functions.
+        self.V: list[Node] = []
+        self.Parent: dict[Node, Node] = {}
+        self.Edge: set[Edge] = set()
+        self.Path: list[PathEdge] = []
+        self.flag: dict[Node, Literal["Valid", "Invalid"]] = {}
         self.ind = 0
         self.i = 0
 
-    # --------Dynamic RRT algorithm
-    def RegrowRRT(self):
-        self.TrimRRT()
-        self.GrowRRT()
+    def regrow_rrt(self) -> None:
+        """Trim invalid subtrees and regrow the tree."""
+        self.trim_rrt()
+        self.grow_rrt()
 
-    def TrimRRT(self):
-        S = []
+    def trim_rrt(self) -> None:
+        """Remove invalid nodes induced by dynamic obstacle updates."""
+        nodes_to_keep: list[Node] = []
         i = 1
-        print('trimming...')
+        print("trimming...")
         while i < len(self.V):
             qi = self.V[i]
             qp = self.Parent[qi]
-            if self.flag[qp] == 'Invalid':
-                self.flag[qi] = 'Invalid'
-            if self.flag[qi] != 'Invalid':
-                S.append(qi)
+            if self.flag.get(qp) == "Invalid":
+                self.flag[qi] = "Invalid"
+            if self.flag.get(qi) != "Invalid":
+                nodes_to_keep.append(qi)
             i += 1
-        self.CreateTreeFromNodes(S)
+        self.create_tree_from_nodes(nodes_to_keep)
 
-    def InvalidateNodes(self, obstacle):
-        Edges = self.FindAffectedEdges(obstacle)
-        for edge in Edges:
-            qe = self.ChildEndpointNode(edge)
-            self.flag[qe] = 'Invalid'
+    def invalidate_nodes(self, obstacle: Obstacle) -> None:
+        """Mark nodes invalid if their incoming edges now collide."""
+        edges = self.find_affected_edges(obstacle)
+        for edge in edges:
+            qe = self.child_endpoint_node(edge)
+            self.flag[qe] = "Invalid"
 
-    # --------Extend RRT algorithm-----
-    def initRRT(self):
+    def init_rrt(self) -> None:
+        """Initialize the tree with the root node."""
         self.V.append(self.x0)
-        self.flag[self.x0] = 'Valid'
+        self.flag[self.x0] = "Valid"
 
-    def GrowRRT(self):
-        print('growing...')
+    def grow_rrt(self) -> None:
+        """Grow the RRT until the goal is reached or iteration limit is hit."""
+        print("growing...")
         qnew = self.x0
         distance_threshold = self.stepsize
         self.ind = 0
         while self.ind <= self.maxiter:
-            qtarget = self.ChooseTarget()
-            qnearest = self.Nearest(qtarget)
-            qnew, collide = self.Extend(qnearest, qtarget)
+            qtarget = self.choose_target()
+            qnearest = self.nearest(qtarget)
+            qnew, collide = self.extend(qnearest, qtarget)
             if not collide:
-                self.AddNode(qnearest, qnew)
-                if getDist(qnew, self.xt) < distance_threshold:
-                    self.AddNode(qnearest, self.xt)
-                    self.flag[self.xt] = 'Valid'
+                self.add_node(qnearest, qnew)
+                if get_dist(qnew, self.xt) < distance_threshold:
+                    self.add_node(qnearest, self.xt)
+                    self.flag[self.xt] = "Valid"
                     break
                 self.i += 1
             self.ind += 1
-            # self.visualization()
 
-    def ChooseTarget(self):
-        # return the goal, or randomly choose a state in the waypoints based on probs
+    def choose_target(self) -> Node:
+        """Sample target node with goal and waypoint bias."""
         p = np.random.uniform()
-        if len(self.V) == 1:
+        if len(self.V) <= 1:
             i = 0
         else:
             i = np.random.randint(0, high=len(self.V) - 1)
-        if 0 < p < self.GoalProb:
+        if p < self.GoalProb:
             return self.xt
-        elif self.GoalProb < p < self.GoalProb + self.WayPointProb:
+        if self.V and p < self.GoalProb + self.WayPointProb:
             return self.V[i]
-        elif self.GoalProb + self.WayPointProb < p < 1:
-            return tuple(self.RandomState())
+        return self.random_state()
 
-    def RandomState(self):
-        # generate a random, obstacle free state
-        xrand = sampleFree(self, bias=0)
-        return xrand
+    def random_state(self) -> Node:
+        """Generate a random collision-free state."""
+        return sample_free_state(self, bias=0.0)
 
-    def AddNode(self, nearest, extended):
+    def add_node(self, parent_node: Node, extended: Node) -> None:
+        """Add a node and its parent-edge relation to the tree."""
         self.V.append(extended)
-        self.Parent[extended] = nearest
-        self.Edge.add((extended, nearest))
-        self.flag[extended] = 'Valid'
+        self.Parent[extended] = parent_node
+        self.Edge.add((extended, parent_node))
+        self.flag[extended] = "Valid"
 
-    def Nearest(self, target):
-        # TODO use kdTree to speed up search
-        return nearest(self, target, isset=True)
+    def nearest(self, target: Node) -> Node:
+        """Return nearest existing tree node to `target`."""
+        return nearest_node(self, target)
 
-    def Extend(self, nearest, target):
-        extended, dist = steer(self, nearest, target, DIST=True)
-        collide, _ = isCollide(self, nearest, target, dist)
+    def extend(self, parent_node: Node, target: Node) -> tuple[Node, bool]:
+        """Attempt one-step extension from `parent_node` toward `target`."""
+        extended, dist = steer_node(self, parent_node, target)
+        collide, _ = is_collide(self, parent_node, target, dist)
         return extended, collide
 
-    # --------Main function
-    def Main(self):
-        # qstart = qgoal
-        self.x0 = tuple(self.env.goal)
-        # qgoal = qrobot
-        self.xt = tuple(self.env.start)
-        self.initRRT()
-        self.GrowRRT()
-        self.Path, D = self.path()
+    def main(self) -> None:
+        """Run the dynamic planning demonstration loop."""
+        self.x0 = _as_node(self.env.goal)
+        self.xt = _as_node(self.env.start)
+        self.init_rrt()
+        self.grow_rrt()
+
+        path_result = self.path()
+        if path_result is None:
+            return
+        self.Path, _path_dist = path_result
+
         self.done = True
         self.visualization()
         t = 0
         while True:
-            # move the block while the robot is moving
-            new, _ = self.env.move_block(a=[0.2, 0, -0.2], mode='translation')
-            self.InvalidateNodes(new)
-            self.TrimRRT()
-            # if solution path contains invalid node
+            move_result = self.env.move_block(a=[0.2, 0, -0.2], mode="translation")
+            if move_result is None:
+                break
+            new, _ = move_result
+            self.invalidate_nodes(new)
+            self.trim_rrt()
+
             self.visualization()
-            self.invalid = self.PathisInvalid(self.Path)
+            self.invalid = self.path_is_invalid(self.Path)
             if self.invalid:
                 self.done = False
-                self.RegrowRRT()
+                self.regrow_rrt()
                 self.Path = []
-                self.Path, D = self.path()
+                path_result = self.path()
+                if path_result is None:
+                    continue
+                self.Path, _path_dist = path_result
                 self.done = True
                 self.visualization()
             if t == 8:
                 break
             t += 1
+
         self.visualization()
         plt.show()
 
-    # --------Additional utility functions
-    def FindAffectedEdges(self, obstacle):
-        # scan the graph for the changed edges in the tree.
-        # return the end point and the affected
-        print('finding affected edges...')
-        Affectededges = []
-        for e in self.Edge:
-            child, parent = e
-            collide, _ = isCollide(self, child, parent)
+    def find_affected_edges(self, obstacle: Obstacle) -> list[Edge]:
+        """Find edges that collide after obstacle motion."""
+        _ = obstacle
+        print("finding affected edges...")
+        affected_edges: list[Edge] = []
+        for edge in self.Edge:
+            child, parent = edge
+            collide, _ = is_collide(self, child, parent)
             if collide:
-                Affectededges.append(e)
-        return Affectededges
+                affected_edges.append(edge)
+        return affected_edges
 
-    def ChildEndpointNode(self, edge):
+    def child_endpoint_node(self, edge: Edge) -> Node:
+        """Return child endpoint of an edge tuple `(child, parent)`."""
         return edge[0]
 
-    def CreateTreeFromNodes(self, Nodes):
-        print('creating tree...')
-        # self.Parent = {node: self.Parent[node] for node in Nodes}
-        self.V = [node for node in Nodes]
-        self.Edge = {(node, self.Parent[node]) for node in Nodes}
-        # if self.invalid:
-        #     del self.Parent[self.xt]
+    def create_tree_from_nodes(self, nodes: list[Node]) -> None:
+        """Rebuild edge set from a filtered node list."""
+        print("creating tree...")
+        self.V = list(nodes)
+        self.Edge = {(node, self.Parent[node]) for node in nodes if node in self.Parent}
 
-    def PathisInvalid(self, path):
+    def path_is_invalid(self, path: list[PathEdge]) -> bool:
+        """Check whether any path segment includes an invalid endpoint."""
         for edge in path:
-            if self.flag[tuple(edge[0])] == 'Invalid' or self.flag[tuple(edge[1])] == 'Invalid':
+            start, end = _as_node(edge[0]), _as_node(edge[1])
+            if self.flag.get(start) == "Invalid" or self.flag.get(end) == "Invalid":
                 return True
+        return False
 
-    def path(self, dist=0):
-        Path=[]
+    def path(self, dist: float = 0.0) -> tuple[list[PathEdge], float] | None:
+        """Backtrack from goal to start and build edge list with total distance."""
+        path_edges: list[PathEdge] = []
         x = self.xt
         i = 0
         while x != self.x0:
-            x2 = self.Parent[x]
-            Path.append(np.array([x, x2]))
-            dist += getDist(x, x2)
+            x2 = self.Parent.get(x)
+            if x2 is None:
+                print("Path is not found")
+                return None
+            path_edges.append(np.array([x, x2], dtype=float))
+            dist += get_dist(x, x2)
             x = x2
             if i > 10000:
-                print('Path is not found')
-                return 
-            i+= 1
-        return Path, dist
+                print("Path is not found")
+                return None
+            i += 1
+        return path_edges, dist
 
-    # --------Visualization specialized for dynamic RRT
-    def visualization(self):
-        if self.ind % 100 == 0 or self.done:
-            V = np.array(self.V)
-            Path = np.array(self.Path)
-            start = self.env.start
-            goal = self.env.goal
-            # edges = []
-            # for i in self.Parent:
-            #     edges.append([i, self.Parent[i]])
-            edges = np.array([list(i) for i in self.Edge])
-            ax = plt.subplot(111, projection='3d')
-            # ax.view_init(elev=0.+ 0.03*initparams.ind/(2*np.pi), azim=90 + 0.03*initparams.ind/(2*np.pi))
-            # ax.view_init(elev=0., azim=90.)
-            ax.view_init(elev=90., azim=0.)
-            ax.clear()
-            # drawing objects
-            draw_Spheres(ax, self.env.balls)
-            draw_block_list(ax, self.env.blocks)
-            if self.env.OBB is not None:
-                draw_obb(ax, self.env.OBB)
-            draw_block_list(ax, np.array([self.env.boundary]), alpha=0)
-            draw_line(ax, edges, visibility=0.75, color='g')
-            draw_line(ax, Path, color='r')
-            # if len(V) > 0:
-            #     ax.scatter3D(V[:, 0], V[:, 1], V[:, 2], s=2, color='g', )
-            ax.plot(start[0:1], start[1:2], start[2:], 'go', markersize=7, markeredgecolor='k')
-            ax.plot(goal[0:1], goal[1:2], goal[2:], 'ro', markersize=7, markeredgecolor='k')
-            # adjust the aspect ratio
-            set_axes_equal(ax)
-            make_transparent(ax)
-            # plt.xlabel('s')
-            # plt.ylabel('y')
-            ax.set_axis_off()
-            plt.pause(0.0001)
+    def visualization(self) -> None:
+        """Render current environment, tree edges, and solution path."""
+        if self.ind % 100 != 0 and not self.done:
+            return
 
+        path = np.array(self.Path, dtype=float)
+        start = np.asarray(self.env.start, dtype=float)
+        goal = np.asarray(self.env.goal, dtype=float)
+        edges = np.array([list(i) for i in self.Edge], dtype=float)
 
-if __name__ == '__main__':
-    rrt = dynamic_rrt_3D()
-    rrt.Main()
+        ax = plt.subplot(111, projection="3d")
+        ax.view_init(elev=90.0, azim=0.0)
+        ax.clear()
+
+        draw_spheres_typed(ax, np.asarray(self.env.balls, dtype=float))
+        draw_block_list_typed(ax, np.asarray(self.env.blocks, dtype=float))
+        obb_items = getattr(self.env, "OBB", None)
+        if obb_items is not None:
+            draw_obb_typed(ax, obb_items)
+        draw_block_list_typed(ax, np.array([self.env.boundary], dtype=float), alpha=0.0)
+        draw_line_typed(ax, edges, visibility=0.75, color="g")
+        draw_line_typed(ax, path, color="r")
+
+        ax.plot(start[0:1], start[1:2], start[2:], "go", markersize=7, markeredgecolor="k")
+        ax.plot(goal[0:1], goal[1:2], goal[2:], "ro", markersize=7, markeredgecolor="k")
+
+        set_axes_equal_typed(ax)
+        make_transparent_typed(ax)
+        ax.set_axis_off()
+        plt.pause(0.0001)
+
+if __name__ == "__main__":
+    rrt = DynamicRRT3D()
+    rrt.main()

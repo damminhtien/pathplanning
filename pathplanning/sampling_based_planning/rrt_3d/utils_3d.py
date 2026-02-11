@@ -363,12 +363,12 @@ class kdTree:
 
 
 if __name__ == '__main__':
-    from .env_3d import env
+    from .env_3d import Environment3D
     import time
     import matplotlib.pyplot as plt
     class rrt_demo:
         def __init__(self):
-            self.env = env()
+            self.env = Environment3D()
             self.x0, self.xt = tuple(self.env.start), tuple(self.env.goal)
             self.stepsize = 0.5
             self.maxiter = 10000

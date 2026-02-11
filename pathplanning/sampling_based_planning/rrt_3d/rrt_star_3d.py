@@ -12,13 +12,13 @@ plt = lazy_import("matplotlib.pyplot")
 import os
 import sys
 
-from .env_3d import env
+from .env_3d import Environment3D
 from .utils_3d import getDist, sampleFree, nearest, steer, isCollide, near, visualization, cost, path
 
 
 class rrtstar():
     def __init__(self):
-        self.env = env()
+        self.env = Environment3D()
 
         self.Parent = {}
         self.V = []
