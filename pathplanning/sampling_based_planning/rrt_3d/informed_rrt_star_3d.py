@@ -1,84 +1,126 @@
-# informed RRT star in 3D
+"""Informed RRT* implementation for 3D planning.
+
+References:
+    J. D. Gammell, S. S. Srinivasa, and T. D. Barfoot, "Informed RRT*:
+    Optimal sampling-based path planning focused via direct sampling of an
+    admissible ellipsoidal heuristic," IROS, 2014.
 """
-This is IRRT* code for 3D
-@author: yue qi 
-source: J. D. Gammell, S. S. Srinivasa, and T. D. Barfoot, “Informed RRT*:
-        Optimal sampling-based path planning focused via direct sampling of
-        an admissible ellipsoidal heuristic,” in IROS, 2997–3004, 2014.
-"""
+
+from __future__ import annotations
+
+from typing import Any
+
 import numpy as np
 
 from .env_3d import Environment3D
-from .utils_3d import getDist, sampleFree, nearest, steer, isCollide, isinside, near, path
+from .utils_3d import (
+    getDist,
+    isCollide,
+    isinside,
+    near,
+    nearest,
+    path,
+    sampleFree,
+    steer,
+)
 
 
-def CreateUnitSphere(r = 1):
-    phi = np.linspace(0,2*np.pi, 256).reshape(256, 1) # the angle of the projection in the xy-plane
-    theta = np.linspace(0, np.pi, 256).reshape(-1, 256) # the angle from the polar axis, ie the polar angle
-    radius = r
+def create_unit_sphere(radius: float = 1.0) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Create a sampled unit sphere mesh in Cartesian coordinates.
 
-    # Transformation formulae for a spherical coordinate system.
-    x = radius*np.sin(theta)*np.cos(phi)
-    y = radius*np.sin(theta)*np.sin(phi)
-    z = radius*np.cos(theta)
-    return (x, y, z)
+    Args:
+        radius: Sphere radius.
 
-def draw_ellipsoid(ax, C, L, xcenter):
-    (xs, ys, zs) = CreateUnitSphere()
-    pts = np.array([xs, ys, zs])
-    pts_in_world_frame = C@L@pts + xcenter
-    ax.plot_surface(pts_in_world_frame[0], pts_in_world_frame[1], pts_in_world_frame[2], alpha=0.05, color="g")
+    Returns:
+        Tuple of `(x, y, z)` sampled mesh arrays.
+    """
+    phi = np.linspace(0, 2 * np.pi, 256).reshape(256, 1)
+    theta = np.linspace(0, np.pi, 256).reshape(-1, 256)
 
-class IRRT:
+    x = radius * np.sin(theta) * np.cos(phi)
+    y = radius * np.sin(theta) * np.sin(phi)
+    z = radius * np.cos(theta)
+    return x, y, z
 
-    def __init__(self,  show_ellipse = False):
+
+def draw_ellipsoid(ax: Any, rotation: np.ndarray, scale: np.ndarray, center: np.ndarray) -> None:
+    """Draw an ellipsoid in world coordinates.
+
+    Args:
+        ax: Matplotlib 3D axes.
+        rotation: 3x3 world-frame rotation matrix.
+        scale: 3x3 scaling matrix.
+        center: Ellipsoid center in world coordinates.
+    """
+    xs, ys, zs = create_unit_sphere()
+    points = np.array([xs, ys, zs])
+    world_points = rotation @ scale @ points + center
+    ax.plot_surface(world_points[0], world_points[1], world_points[2], alpha=0.05, color="g")
+
+
+class InformedRrtStar:
+    """Informed RRT* planner in 3D."""
+
+    def __init__(self, show_ellipse: bool = False) -> None:
+        """Initialize planner state.
+
+        Args:
+            show_ellipse: Whether to visualize the informed ellipsoid.
+        """
         self.env = Environment3D()
         self.xstart, self.xgoal = tuple(self.env.start), tuple(self.env.goal)
         self.x0, self.xt = tuple(self.env.start), tuple(self.env.goal)
-        self.Parent = {}
-        self.Path = []
-        self.N = 10000 # used for determining how many batches needed
+        self.Parent: dict[tuple[float, ...], tuple[float, ...]] = {}
+        self.Path: list[Any] = []
+        self.N = 10000
         self.ind = 0
         self.i = 0
-        # rrt* near and other utils
+
         self.stepsize = 1
         self.gamma = 500
         self.eta = self.stepsize
         self.rgoal = self.stepsize
         self.done = False
-        # for drawing the ellipse
-        self.C = np.zeros([3,3])
-        self.L = np.zeros([3,3])
+
+        self.C = np.zeros((3, 3))
+        self.L = np.zeros((3, 3))
         self.xcenter = np.zeros(3)
         self.show_ellipse = show_ellipse
 
-    def Informed_rrt(self):
+    def informed_rrt(
+        self,
+    ) -> tuple[list[tuple[float, ...]], set[tuple[tuple[float, ...], tuple[float, ...]]]]:
+        """Run Informed RRT* and return the tree.
+
+        Returns:
+            Tuple `(V, E)` with sampled vertices and edges.
+        """
         self.V = [self.xstart]
-        self.E = set()
-        self.Xsoln = set()
+        self.E: set[tuple[tuple[float, ...], tuple[float, ...]]] = set()
+        self.Xsoln: set[tuple[float, ...]] = set()
         self.T = (self.V, self.E)
-        
-        c = 1
+
+        edge_cost_weight = 1
         while self.ind <= self.N:
             print(self.ind)
-            # print(self.i)
-            if len(self.Xsoln) == 0:
-                cbest = np.inf
-            else:
-                cbest = min({self.cost(xsln) for xsln in self.Xsoln})
-            xrand = self.Sample(self.xstart, self.xgoal, cbest)
+            cbest = (
+                np.inf
+                if len(self.Xsoln) == 0
+                else min({self.cost(x_solution) for x_solution in self.Xsoln})
+            )
+
+            xrand = self.sample(self.xstart, self.xgoal, cbest)
             xnearest = nearest(self, xrand)
             xnew, dist = steer(self, xnearest, xrand)
-            # print(xnew)
             collide, _ = isCollide(self, xnearest, xnew, dist=dist)
             if not collide:
                 self.V.append(xnew)
-                Xnear = near(self, xnew)
+                x_near_set = near(self, xnew)
                 xmin = xnearest
-                cmin = self.cost(xmin) + c * self.line(xnearest, xnew)
-                for xnear in Xnear:
+                cmin = self.cost(xmin) + edge_cost_weight * self.line(xnearest, xnew)
+                for xnear in x_near_set:
                     xnear = tuple(xnear)
-                    cnew = self.cost(xnear) + c * self.line(xnear, xnew)
+                    cnew = self.cost(xnear) + edge_cost_weight * self.line(xnear, xnew)
                     if cnew < cmin:
                         collide, _ = isCollide(self, xnear, xnew)
                         if not collide:
@@ -86,12 +128,11 @@ class IRRT:
                             cmin = cnew
                 self.E.add((xmin, xnew))
                 self.Parent[xnew] = xmin
-                
-                for xnear in Xnear:
+
+                for xnear in x_near_set:
                     xnear = tuple(xnear)
                     cnear = self.cost(xnear)
-                    cnew = self.cost(xnew) + c * self.line(xnew, xnear)
-                    # rewire
+                    cnew = self.cost(xnew) + edge_cost_weight * self.line(xnew, xnear)
                     if cnew < cnear:
                         collide, _ = isCollide(self, xnew, xnear)
                         if not collide:
@@ -100,80 +141,105 @@ class IRRT:
                             self.E.add((xnew, xnear))
                             self.Parent[xnear] = xnew
                 self.i += 1
-                if self.InGoalRegion(xnew):
-                    print('reached')
+                if self.in_goal_region(xnew):
+                    print("reached")
                     self.done = True
                     self.Parent[self.xgoal] = xnew
                     self.Path, _ = path(self)
                     self.Xsoln.add(xnew)
-            # update path
             if self.done:
-                self.Path, _ = path(self, Path = [])
+                self.Path, _ = path(self, Path=[])
             self.ind += 1
-        # return tree
         return self.T
-                
-    def Sample(self, xstart, xgoal, cmax, bias = 0.05):
-        # sample within a eclipse 
+
+    def sample(
+        self,
+        xstart: tuple[float, ...],
+        xgoal: tuple[float, ...],
+        cmax: float,
+        bias: float = 0.05,
+    ) -> np.ndarray | tuple[float, ...]:
+        """Sample either informed ellipsoid or free space.
+
+        Args:
+            xstart: Start state.
+            xgoal: Goal state.
+            cmax: Current best path cost.
+            bias: Goal sampling bias used by fallback free sampling.
+
+        Returns:
+            Sampled state.
+        """
         if cmax < np.inf:
             cmin = getDist(xgoal, xstart)
-            xcenter = np.array([(xgoal[0] + xstart[0]) / 2, (xgoal[1] + xstart[1]) / 2, (xgoal[2] + xstart[2]) / 2])
-            C = self.RotationToWorldFrame(xstart, xgoal)
-            r = np.zeros(3)
-            r[0] = cmax /2
-            for i in range(1,3):
-                r[i] = np.sqrt(cmax**2 - cmin**2) / 2
-            L = np.diag(r) # R3*3 
-            xball = self.SampleUnitBall() # np.array
-            x =  C@L@xball + xcenter
-            self.C = C # save to global var
+            xcenter = np.array(
+                [
+                    (xgoal[0] + xstart[0]) / 2,
+                    (xgoal[1] + xstart[1]) / 2,
+                    (xgoal[2] + xstart[2]) / 2,
+                ]
+            )
+            rotation = self.rotation_to_world_frame(xstart, xgoal)
+            radius = np.zeros(3)
+            radius[0] = cmax / 2
+            for i in range(1, 3):
+                radius[i] = np.sqrt(cmax**2 - cmin**2) / 2
+            scale = np.diag(radius)
+            xball = self.sample_unit_ball()
+            xrand = rotation @ scale @ xball + xcenter
+            self.C = rotation
             self.xcenter = xcenter
-            self.L = L
-            if not isinside(self, x): # intersection with the state space
-                xrand = x
-            else:
-                return self.Sample(xstart, xgoal, cmax)
-        else:
-            xrand = sampleFree(self, bias = bias)
-        return xrand
+            self.L = scale
+            if isinside(self, xrand):
+                return self.sample(xstart, xgoal, cmax)
+            return xrand
+        return sampleFree(self, bias=bias)
 
-    def SampleUnitBall(self):
-        # uniform sampling in spherical coordinate system in 3D
-        # sample radius
-        r = np.random.uniform(0.0, 1.0)
+    def sample_unit_ball(self) -> np.ndarray:
+        """Sample a point in a 3D unit ball (spherical coordinates)."""
+        radius = np.random.uniform(0.0, 1.0)
         theta = np.random.uniform(0, np.pi)
         phi = np.random.uniform(0, 2 * np.pi)
-        x = r * np.sin(theta) * np.cos(phi)
-        y = r * np.sin(theta) * np.sin(phi)
-        z = r * np.cos(theta)
-        return np.array([x,y,z])
+        x = radius * np.sin(theta) * np.cos(phi)
+        y = radius * np.sin(theta) * np.sin(phi)
+        z = radius * np.cos(theta)
+        return np.array([x, y, z])
 
-    def RotationToWorldFrame(self, xstart, xgoal):
-        # S0(n): such that the xstart and xgoal are the center points
-        d = getDist(xstart, xgoal)
-        xstart, xgoal = np.array(xstart), np.array(xgoal)
-        a1 = (xgoal - xstart) / d
-        M = np.outer(a1,[1,0,0])
-        U, S, V = np.linalg.svd(M)
-        C = U@np.diag([1, 1, np.linalg.det(U)*np.linalg.det(V)])@V.T
-        return C
+    def rotation_to_world_frame(
+        self, xstart: tuple[float, ...], xgoal: tuple[float, ...]
+    ) -> np.ndarray:
+        """Compute rotation that aligns x-axis with start-to-goal direction."""
+        distance = getDist(xstart, xgoal)
+        xstart_arr, xgoal_arr = np.array(xstart), np.array(xgoal)
+        a1 = (xgoal_arr - xstart_arr) / distance
+        matrix = np.outer(a1, [1, 0, 0])
+        u, _, v = np.linalg.svd(matrix)
+        return u @ np.diag([1, 1, np.linalg.det(u) * np.linalg.det(v)]) @ v.T
 
-    def InGoalRegion(self, x):
-        # Xgoal = {x in Xfree | \\x-xgoal\\2 <= rgoal}
+    def in_goal_region(self, x: tuple[float, ...]) -> bool:
+        """Check whether a state lies in the goal region."""
         return getDist(x, self.xgoal) <= self.rgoal
 
-    def cost(self, x):
-        # actual cost 
-        """here use the additive recursive cost function"""
+    def cost(self, x: tuple[float, ...]) -> float:
+        """Compute recursive cost-to-come for a state.
+
+        Args:
+            x: Query state.
+
+        Returns:
+            Cost from start to `x`, or `np.inf` if not connected.
+        """
         if x == self.xstart:
             return 0.0
         if x not in self.Parent:
             return np.inf
         return self.cost(self.Parent[x]) + getDist(x, self.Parent[x])
 
-    def line(self, x, y):
+    def line(self, x: tuple[float, ...], y: tuple[float, ...]) -> float:
+        """Return edge metric used by the planner."""
         return getDist(x, y)
 
-if __name__ == '__main__':
-    A = IRRT(show_ellipse=False)
-    A.Informed_rrt()
+
+if __name__ == "__main__":
+    planner = InformedRrtStar(show_ellipse=False)
+    planner.informed_rrt()

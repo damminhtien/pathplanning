@@ -1,96 +1,107 @@
-# Real-Time Randomized Path Planning for Robot Navigation∗
-"""
-This is rrt extend code for 3D
-@author: yue qi
-"""
-import numpy as np
-from collections import defaultdict
-import time
+"""Extended RRT implementation for 3D planning."""
 
-import os
-import sys
+from __future__ import annotations
+
+import numpy as np
 
 from .env_3d import Environment3D
-from .utils_3d import getDist, sampleFree, nearest, steer, isCollide, near, cost, path
-
-# here attempt to use a KD tree for the data structure implementation
-import scipy.spatial.kdtree as KDtree
+from .utils_3d import getDist, isCollide, nearest, path, sampleFree, steer
 
 
-class extend_rrt(object):
-    def __init__(self):
+class ExtendRrt:
+    """Extended RRT planner with waypoint-biased target sampling."""
+
+    def __init__(self) -> None:
+        """Initialize planner state and parameters."""
         self.env = Environment3D()
         self.x0, self.xt = tuple(self.env.start), tuple(self.env.goal)
         self.current = tuple(self.env.start)
         self.stepsize = 0.5
         self.maxiter = 10000
-        self.goal_prob = 0.05 # probability biased to the goal
-        self.way_point_prob = 0.05 # probability falls back on to the way points
+        self.goal_prob = 0.05
+        self.way_point_prob = 0.05
 
         self.done = False
-        self.V = [] # vertices
-        self.Parent = {}
+        self.V: list[tuple[float, ...]] = []
+        self.Parent: dict[tuple[float, ...], tuple[float, ...]] = {}
         self.Path = []
         self.ind = 0
         self.i = 0
 
-    #--------- basic rrt algorithm----------
-    def RRTplan(self, env, initial, goal):
+    def rrt_plan(
+        self, env: Environment3D, initial: tuple[float, ...], goal: tuple[float, ...]
+    ) -> None:
+        """Run a basic extend-RRT planning loop.
+
+        Args:
+            env: Planning environment instance.
+            initial: Initial state.
+            goal: Goal state.
+        """
         threshold = self.stepsize
-        nearest = initial # state structure
+        nearest_node = initial
         self.V.append(initial)
-        rrt_tree = initial # TODO KDtree structure
+        rrt_tree = initial
         while self.ind <= self.maxiter:
-            target = self.ChooseTarget(goal)
-            nearest = self.Nearest(rrt_tree, target)
-            extended, collide = self.Extend(env, nearest, target)
+            target = self.choose_target(goal)
+            nearest_node = self.nearest_node(rrt_tree, target)
+            extended, collide = self.extend_toward(env, nearest_node, target)
             if not collide:
-                self.AddNode(rrt_tree, nearest, extended)
-                if getDist(nearest, goal) <= threshold:
-                    self.AddNode(rrt_tree, nearest, self.xt)
+                self.add_node(rrt_tree, nearest_node, extended)
+                if getDist(nearest_node, goal) <= threshold:
+                    self.add_node(rrt_tree, nearest_node, self.xt)
                     break
                 self.i += 1
             self.ind += 1
-            
-        # return rrt_tree
+
         self.done = True
         self.Path, _ = path(self)
-        
 
-    def Nearest(self, tree, target):
-        # TODO use kdTree to speed up search
+    def nearest_node(
+        self, _tree: tuple[float, ...], target: tuple[float, ...]
+    ) -> tuple[float, ...]:
+        """Return nearest node in the current tree."""
         return nearest(self, target, isset=True)
 
-    def Extend(self, env, nearest, target):
-        extended, dist = steer(self, nearest, target, DIST = True)
-        collide, _ = isCollide(self, nearest, target, dist)
+    def extend_toward(
+        self,
+        _env: Environment3D,
+        nearest_state: tuple[float, ...],
+        target: tuple[float, ...],
+    ) -> tuple[tuple[float, ...], bool]:
+        """Steer from nearest state toward target and collision-check edge."""
+        extended, dist = steer(self, nearest_state, target, DIST=True)
+        collide, _ = isCollide(self, nearest_state, target, dist)
         return extended, collide
 
-    def AddNode(self, tree, nearest, extended):
-        # TODO use a kdtree
+    def add_node(
+        self,
+        _tree: tuple[float, ...],
+        nearest_state: tuple[float, ...],
+        extended: tuple[float, ...],
+    ) -> None:
+        """Add a node and parent relation to the planner tree."""
         self.V.append(extended)
-        self.Parent[extended] = nearest
+        self.Parent[extended] = nearest_state
 
-    def RandomState(self):
-        # generate a random, obstacle free state
-        xrand = sampleFree(self, bias=0)
-        return xrand
+    def random_state(self) -> np.ndarray | tuple[float, ...]:
+        """Sample a random collision-free state."""
+        return sampleFree(self, bias=0)
 
-    #--------- insight to the rrt_extend
-    def ChooseTarget(self, state):
-        # return the goal, or randomly choose a state in the waypoints based on probs
+    def choose_target(self, _state: tuple[float, ...]) -> tuple[float, ...]:
+        """Choose goal, waypoint, or random state using configured probabilities."""
         p = np.random.uniform()
         if len(self.V) == 1:
-            i = 0
+            index = 0
         else:
-            i = np.random.randint(0, high = len(self.V) - 1)
+            index = np.random.randint(0, high=len(self.V) - 1)
         if 0 < p < self.goal_prob:
             return self.xt
-        elif self.goal_prob < p < self.goal_prob + self.way_point_prob:
-            return self.V[i]
-        elif self.goal_prob + self.way_point_prob < p < 1:
-            return tuple(self.RandomState())
-        
-if __name__ == '__main__':
-    t = extend_rrt()
-    _ = t.RRTplan(t.env, t.x0, t.xt)
+        if self.goal_prob < p < self.goal_prob + self.way_point_prob:
+            return self.V[index]
+        return tuple(self.random_state())
+
+
+if __name__ == "__main__":
+    planner = ExtendRrt()
+    planner.rrt_plan(planner.env, planner.x0, planner.xt)

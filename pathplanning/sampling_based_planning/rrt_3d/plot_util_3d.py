@@ -19,18 +19,23 @@ from pathplanning.viz.rrt_3d import (
 )
 
 
-def visualization(initparams: Any) -> None:
-    """Render planner state in 3D."""
-    if initparams.ind % 100 != 0 and not initparams.done:
+def visualization(init_params: Any) -> None:
+    """Render planner state in 3D.
+
+    Args:
+        init_params: Planner-like object that contains the current tree/path
+            state and environment references.
+    """
+    if init_params.ind % 100 != 0 and not init_params.done:
         return
 
-    edges = [[child, parent] for child, parent in initparams.Parent.items()]
+    edges = [[child, parent] for child, parent in init_params.Parent.items()]
     render_tree_state(
-        env=initparams.env,
+        env=init_params.env,
         parent_edges=edges,
-        path_edges=np.asarray(initparams.Path, dtype=float),
-        start=initparams.env.start,
-        goal=initparams.env.goal,
+        path_edges=np.asarray(init_params.Path, dtype=float),
+        start=init_params.env.start,
+        goal=init_params.env.goal,
     )
 
 
