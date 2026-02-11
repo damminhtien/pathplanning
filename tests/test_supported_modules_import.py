@@ -51,9 +51,10 @@ def _is_stub_node(node: ast.AST) -> bool:
 def _entrypoint_is_stubbed(source_text: str, entrypoint_name: str) -> bool:
     tree = ast.parse(source_text)
     for node in tree.body:
-        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
-            if node.name == entrypoint_name:
-                return _is_stub_node(node)
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)) and (
+            node.name == entrypoint_name
+        ):
+            return _is_stub_node(node)
     return False
 
 
@@ -72,7 +73,11 @@ def test_import_supported_modules_does_not_load_matplotlib() -> None:
             f"before = set(sys.modules)\n"
             f"importlib.import_module({module_name!r})\n"
             "loaded = set(sys.modules) - before\n"
-            "bad = sorted(name for name in loaded if name == 'matplotlib' or name.startswith('matplotlib.'))\n"
+            "bad = sorted(\n"
+            "    name\n"
+            "    for name in loaded\n"
+            "    if name == 'matplotlib' or name.startswith('matplotlib.')\n"
+            ")\n"
             "if bad:\n"
             "    raise SystemExit('\\n'.join(bad))\n"
         )
@@ -95,7 +100,11 @@ def test_import_all_supported_modules_together_does_not_load_matplotlib() -> Non
         "for module_name in modules:\n"
         "    importlib.import_module(module_name)\n"
         "loaded = set(sys.modules) - before\n"
-        "bad = sorted(name for name in loaded if name == 'matplotlib' or name.startswith('matplotlib.'))\n"
+        "bad = sorted(\n"
+        "    name\n"
+        "    for name in loaded\n"
+        "    if name == 'matplotlib' or name.startswith('matplotlib.')\n"
+        ")\n"
         "if bad:\n"
         "    raise SystemExit('\\n'.join(bad))\n"
     )

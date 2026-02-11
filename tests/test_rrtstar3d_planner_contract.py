@@ -76,6 +76,6 @@ def test_rrtstar_planner_path_collision_free_and_cost_monotonic() -> None:
         cumulative += edge_cost
         cumulative_costs.append(cumulative)
 
-    for previous, current in zip(cumulative_costs[:-1], cumulative_costs[1:]):
+    for previous, current in zip(cumulative_costs[:-1], cumulative_costs[1:], strict=True):
         assert current > previous
     assert np.isclose(cumulative_costs[-1], float(result.stats["path_cost"]))

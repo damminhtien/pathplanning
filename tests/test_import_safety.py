@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 import importlib
 import sys
-from typing import Iterable
 
 from pathplanning.registry import list_supported_algorithms
 
@@ -16,9 +16,7 @@ def _import_modules(modules: Iterable[str]) -> None:
 
 def _assert_no_new_prefix(prefix: str, before: set[str], after: set[str]) -> None:
     newly_loaded = {
-        name
-        for name in after - before
-        if name == prefix or name.startswith(f"{prefix}.")
+        name for name in after - before if name == prefix or name.startswith(f"{prefix}.")
     }
     assert not newly_loaded, f"Unexpected import of {prefix}: {sorted(newly_loaded)}"
 

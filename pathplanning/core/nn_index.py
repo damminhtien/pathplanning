@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable, Sequence
-from typing import Protocol
+from typing import Protocol, cast
 
 import numpy as np
 from numpy.typing import NDArray
@@ -23,14 +23,29 @@ class NearestNeighborIndex(Protocol):
 
     def add(self, point: Sequence[float] | NDArray[np.float64]) -> int:
         """Insert ``point`` and return its index id."""
+        ...
 
     def nearest(self, query: Sequence[float] | NDArray[np.float64]) -> int:
         """Return the id of the nearest stored point to ``query``."""
+        ...
 
-    def radius(
-        self, query: Sequence[float] | NDArray[np.float64], radius: float
-    ) -> list[int]:
+    def radius(self, query: Sequence[float] | NDArray[np.float64], radius: float) -> list[int]:
         """Return ids of points within ``radius`` of ``query``."""
+        ...
+
+
+class _KDTreeBackend(Protocol):
+    """Typed subset of ``scipy.spatial.cKDTree`` used by this module."""
+
+    def query(
+        self, x: NDArray[np.float64], k: int = 1
+    ) -> tuple[float | NDArray[np.float64], int | NDArray[np.int64]]:
+        """Return nearest-neighbor distance and index."""
+        ...
+
+    def query_ball_point(self, x: NDArray[np.float64], r: float) -> list[int]:
+        """Return indices inside the search radius."""
+        ...
 
 
 class NaiveIndex:
@@ -97,20 +112,20 @@ class NaiveIndex:
 
 
 try:  # Optional SciPy backend.
-    from scipy.spatial import cKDTree  # type: ignore
+    from scipy.spatial import cKDTree as _cKDTree  # type: ignore[import-not-found]
 except Exception:  # pragma: no cover - optional dependency
-    cKDTree = None
+    _cKDTree = None
 
 
 class KDTreeIndex:
     """Nearest-neighbor index backed by ``scipy.spatial.cKDTree``."""
 
     def __init__(self, dim: int) -> None:
-        if cKDTree is None:
+        if _cKDTree is None:
             raise ImportError("scipy is required for KDTreeIndex")
         self._dim = dim
         self._points: list[NDArray[np.float64]] = []
-        self._tree: cKDTree | None = None
+        self._tree: _KDTreeBackend | None = None
         self._dirty = False
 
     def add(self, point: Sequence[float] | NDArray[np.float64]) -> int:
@@ -119,10 +134,12 @@ class KDTreeIndex:
         self._dirty = True
         return len(self._points) - 1
 
-    def _ensure_tree(self) -> cKDTree:
+    def _ensure_tree(self) -> _KDTreeBackend:
+        if _cKDTree is None:
+            raise ImportError("scipy is required for KDTreeIndex")
         if self._tree is None or self._dirty:
             matrix = np.vstack(self._points).astype(float, copy=False)
-            self._tree = cKDTree(matrix)
+            self._tree = cast(_KDTreeBackend, _cKDTree(matrix))
             self._dirty = False
         return self._tree
 

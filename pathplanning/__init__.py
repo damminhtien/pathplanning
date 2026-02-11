@@ -10,7 +10,7 @@ from .registry import (
     list_dropped_algorithms,
     list_supported_algorithms,
 )
-from .search2d import Heuristic, PlanConfig, PlanResult, Planner, Search2D
+from .search2d import Heuristic, PlanConfig, Planner, PlanResult, Search2D
 
 __all__ = [
     "SUPPORTED",

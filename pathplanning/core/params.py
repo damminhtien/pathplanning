@@ -6,8 +6,12 @@ from dataclasses import dataclass
 import math
 
 
-def _is_valid_real(value: float) -> bool:
-    return not isinstance(value, bool) and isinstance(value, (int, float)) and math.isfinite(value)
+def _is_valid_real(value: object) -> bool:
+    if isinstance(value, bool):
+        return False
+    if not isinstance(value, (int, float)):
+        return False
+    return math.isfinite(float(value))
 
 
 @dataclass(slots=True)
@@ -30,7 +34,7 @@ class RrtParams:
 
     def validate(self) -> RrtParams:
         """Validate parameter values and return ``self`` for chaining."""
-        if isinstance(self.max_iters, bool) or not isinstance(self.max_iters, int):
+        if isinstance(self.max_iters, bool) or type(self.max_iters) is not int:
             raise TypeError("max_iters must be an integer")
         if self.max_iters <= 0:
             raise ValueError("max_iters must be > 0")
@@ -51,7 +55,7 @@ class RrtParams:
             if float(self.time_budget_s) <= 0.0:
                 raise ValueError("time_budget_s must be > 0 when provided")
 
-        if isinstance(self.max_sample_tries, bool) or not isinstance(self.max_sample_tries, int):
+        if isinstance(self.max_sample_tries, bool) or type(self.max_sample_tries) is not int:
             raise TypeError("max_sample_tries must be an integer")
         if self.max_sample_tries <= 0:
             raise ValueError("max_sample_tries must be > 0")
