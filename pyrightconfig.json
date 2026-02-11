@@ -4,9 +4,17 @@
     "pathplanning/api.py",
     "pathplanning/registry.py",
     "pathplanning/search2d.py",
-    "pathplanning/viz"
+    "pathplanning/search_based_planning/__init__.py",
+    "pathplanning/sampling_based_planning/__init__.py",
+    "pathplanning/curves/__init__.py"
   ],
   "exclude": [
+    "pathplanning/_legacy",
+    "pathplanning/viz",
+    "pathplanning/search_based_planning/search_3d",
+    "pathplanning/sampling_based_planning/rrt_2d",
+    "pathplanning/sampling_based_planning/rrt_3d",
+    "pathplanning/curves",
     "pathplanning/Sampling_based_Planning",
     "pathplanning/Search_based_Planning",
     "pathplanning/CurvesGenerator",
