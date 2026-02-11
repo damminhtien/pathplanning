@@ -1,11 +1,13 @@
 # Project State
 
-Last updated: 2026-02-10
-Branch: `main`
+Last updated: 2026-02-11
+Branch: `refactor/naming`
 
 ## Current Snapshot
 
-- Project: `PathPlanningV2`
+- Project: `PathPlanning`
+- Package version: `0.1.1`
+- Canonical repository: `https://github.com/damminhtien/pathplanning`
 - Language: Python
 - Runtime deps: `requirements.txt`
 - Dev deps: `requirements-dev.txt`
@@ -38,6 +40,9 @@ Branch: `main`
 12. Fixed 3D package-mode/runtime issues:
    - local queue import resolution in 3D search modules
    - numpy-safe emptiness check in 3D plot line drawing utilities
+13. Standardized naming and Google-style docstrings for 3D RRT modules.
+14. Fixed local/CI pre-commit formatting drift and restored green CI lint pipeline.
+15. Updated package metadata and documentation for `0.1.1` patch release.
 
 ## Current Production Blockers
 
@@ -53,7 +58,7 @@ Branch: `main`
 
 ## Environment Notes
 
-Recommended Python: `>=3.9`
+Recommended Python: `>=3.10`
 
 Useful commands:
 
@@ -72,6 +77,7 @@ Recent observed behavior:
 3. Package import works from repo root: `import pathplanning`.
 4. Representative 3D script run works headless (`MPLBACKEND=Agg python Search_based_Planning/Search_3D/Astar3D.py`).
 5. Smoke tests pass: `pytest -q`.
+6. CI lint workflow passes for latest branch commit (`pre-commit` green on push + pull_request events).
 
 ## Update Protocol
 

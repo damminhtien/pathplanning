@@ -8,6 +8,12 @@ The repository is organized for practical use:
 - runnable demo scripts
 - production-oriented linting and pre-commit checks
 
+## Release
+
+- Package: `pathplanning`
+- Version: `0.1.1`
+- Canonical repository: `https://github.com/damminhtien/pathplanning`
+
 ## Contents
 
 - [Overview](#overview)
@@ -33,11 +39,11 @@ This codebase is useful for:
 - extending planners while keeping plotting and environment code decoupled
 
 Primary modules:
-- `Search_based_Planning/plan2d`: 2D grid search planners
-- `Search_based_Planning/Search_3D`: 3D search planners
-- `Sampling_based_Planning/rrt_2D`: 2D sampling-based planners
-- `Sampling_based_Planning/rrt_3D`: 3D sampling-based planners
-- `CurvesGenerator`: curve generation utilities (Bezier, spline, Dubins, Reeds-Shepp)
+- `pathplanning/search_based_planning/plan2d`: 2D grid search planners
+- `pathplanning/search_based_planning/search_3d`: 3D search planners
+- `pathplanning/sampling_based_planning/rrt_2d`: 2D sampling-based planners
+- `pathplanning/sampling_based_planning/rrt_3d`: 3D sampling-based planners
+- `pathplanning/curves`: curve generation utilities (Bezier, spline, Dubins, Reeds-Shepp)
 
 ## Visual Preview
 
@@ -71,16 +77,23 @@ A small gallery from the built-in animations:
 .
 ├── .github/workflows/
 │   └── pylint.yml
-├── CurvesGenerator/
-├── Sampling_based_Planning/
-│   ├── gif/
-│   ├── rrt_2D/
-│   └── rrt_3D/
-├── Search_based_Planning/
-│   ├── gif/
-│   ├── plan2d/
-│   └── Search_3D/
-├── .pre-commit-config.yaml
+├── docs/
+├── examples/
+│   └── worlds/
+├── pathplanning/
+│   ├── core/
+│   ├── curves/
+│   ├── env/
+│   ├── sampling_based_planning/
+│   │   ├── rrt_2d/
+│   │   └── rrt_3d/
+│   ├── search_based_planning/
+│   │   ├── plan2d/
+│   │   └── search_3d/
+│   └── viz/
+├── scripts/
+├── tests/
+├── SUPPORTED_ALGORITHMS.md
 ├── pyproject.toml
 ├── requirements.txt
 ├── requirements-dev.txt
@@ -120,8 +133,8 @@ Sampling-based (2D/3D):
 ## Installation
 
 ```bash
-git clone https://github.com/damminhtien/PathPlanningV2.git
-cd PathPlanningV2
+git clone https://github.com/damminhtien/pathplanning.git
+cd pathplanning
 
 python -m venv .venv
 source .venv/bin/activate
