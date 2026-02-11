@@ -9,14 +9,13 @@ from typing import TypeAlias
 
 import numpy as np
 
-from pathplanning.core.contracts import ConfigurationSpace, PlanResult, State
+from pathplanning.core.contracts import ConfigurationSpace, PlanResult, State, StopReason
 from pathplanning.core.nn_index import NaiveIndex, NearestNeighborIndex
 from pathplanning.core.tree import Tree
 from pathplanning.core.params import RrtParams
 
 GoalPredicate: TypeAlias = Callable[[State], bool]
-GoalRegion: TypeAlias = GoalPredicate | tuple[Sequence[float],
-                                              float] | Sequence[float] | State
+GoalRegion: TypeAlias = GoalPredicate | tuple[Sequence[float], float] | Sequence[float] | State
 IndexFactory: TypeAlias = Callable[[int], NearestNeighborIndex]
 
 
@@ -76,8 +75,7 @@ class RrtPlanner:
             target = getattr(self.space, "goal", None)
             target_state: State | None = None
             if target is not None:
-                target_state = _as_state(
-                    target, "space.goal", dim=self.space.dim)
+                target_state = _as_state(target, "space.goal", dim=self.space.dim)
             return GoalSpec(predicate=goal_region, target_state=target_state)
 
         if (
@@ -85,21 +83,19 @@ class RrtPlanner:
             and len(goal_region) == 2
             and not isinstance(goal_region[1], (Sequence, np.ndarray))
         ):
-            center = _as_state(
-                goal_region[0], "goal_center", dim=self.space.dim)
+            center = _as_state(goal_region[0], "goal_center", dim=self.space.dim)
             tolerance = float(goal_region[1])
             if tolerance < 0.0:
                 raise ValueError("goal tolerance must be >= 0")
             return GoalSpec(
-                predicate=lambda state: self.space.distance(
-                    state, center) <= tolerance,
+                predicate=lambda state: self.space.distance(state, center) <= tolerance,
                 target_state=center,
             )
 
         goal_state = _as_state(goal_region, "goal_state", dim=self.space.dim)
         return GoalSpec(
-            predicate=lambda state: self.space.distance(
-                state, goal_state) <= self.params.goal_reach_tolerance,
+            predicate=lambda state: self.space.distance(state, goal_state)
+            <= self.params.goal_reach_tolerance,
             target_state=goal_state,
         )
 
@@ -146,7 +142,7 @@ class RrtPlanner:
                 path=[np.asarray(start_state, dtype=float)],
                 iters=0,
                 nodes=1,
-                stats={"reason": "start_in_goal", "goal_checks": 1},
+                stats={"reason": StopReason.START_IN_GOAL.value, "goal_checks": 1},
             )
 
         tree = Tree(self.space.dim)
@@ -157,22 +153,22 @@ class RrtPlanner:
 
         start_time = time.perf_counter()
         iters_run = 0
-        stop_reason: str | None = None
+        stop_reason: StopReason | None = None
         for iters_run in range(1, self.params.max_iters + 1):
             if self.params.time_budget_s is not None:
                 elapsed = time.perf_counter() - start_time
                 if elapsed >= self.params.time_budget_s:
-                    stop_reason = "time_budget"
+                    stop_reason = StopReason.TIME_BUDGET
                     break
 
-            use_goal_sample = goal.target_state is not None and self.rng.random(
-            ) < self.params.goal_sample_rate
+            use_goal_sample = (
+                goal.target_state is not None and self.rng.random() < self.params.goal_sample_rate
+            )
             target = goal.target_state if use_goal_sample else self._sample_free()
 
             nearest_index = self._nearest_index(index, target)
             nearest = tree.nodes[nearest_index]
-            candidate = self.space.steer(
-                nearest, target, self.params.step_size)
+            candidate = self.space.steer(nearest, target, self.params.step_size)
 
             if not self.space.is_free(candidate):
                 continue
@@ -195,14 +191,14 @@ class RrtPlanner:
                     stats={
                         "goal_checks": goal_checks,
                         "path_cost": float(tree.cost[new_index]),
-                        "stopped_reason": "goal_reached",
+                        "stopped_reason": StopReason.GOAL_REACHED.value,
                         "elapsed_s": elapsed,
                         "time_budget_s": self.params.time_budget_s,
                     },
                 )
 
         if stop_reason is None:
-            stop_reason = "max_iters"
+            stop_reason = StopReason.MAX_ITERS
         elapsed = time.perf_counter() - start_time
         return PlanResult(
             success=False,
@@ -211,7 +207,7 @@ class RrtPlanner:
             nodes=tree.size,
             stats={
                 "goal_checks": goal_checks,
-                "stopped_reason": stop_reason,
+                "stopped_reason": stop_reason.value,
                 "elapsed_s": elapsed,
                 "time_budget_s": self.params.time_budget_s,
             },

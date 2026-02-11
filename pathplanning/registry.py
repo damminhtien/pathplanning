@@ -37,6 +37,46 @@ _ALGORITHMS: List[AlgorithmSpec] = [
         "pathplanning.sampling_based_planning.rrt_3d.rrt_star",
         SUPPORTED,
     ),
+    AlgorithmSpec(
+        "sampling2d.advanced_batch_informed_trees",
+        "sampling",
+        "2d",
+        "pathplanning.sampling_based_planning.rrt_2d.advanced_batch_informed_trees",
+        DROPPED_INCOMPLETE,
+        "incomplete",
+    ),
+    AlgorithmSpec(
+        "sampling2d.adaptively_informed_trees",
+        "sampling",
+        "2d",
+        "pathplanning.sampling_based_planning.rrt_2d.adaptively_informed_trees",
+        DROPPED_INCOMPLETE,
+        "incomplete",
+    ),
+    AlgorithmSpec(
+        "sampling2d.rrt_sharp",
+        "sampling",
+        "2d",
+        "pathplanning.sampling_based_planning.rrt_2d.rrt_sharp",
+        DROPPED_INCOMPLETE,
+        "incomplete",
+    ),
+    AlgorithmSpec(
+        "sampling3d.abit_star",
+        "sampling",
+        "3d",
+        "pathplanning.sampling_based_planning.rrt_3d.abit_star_3d",
+        DROPPED_INCOMPLETE,
+        "incomplete",
+    ),
+    AlgorithmSpec(
+        "sampling3d.rrt_star_smart",
+        "sampling",
+        "3d",
+        "pathplanning.sampling_based_planning.rrt_3d.rrt_star_smart_3d",
+        DROPPED_INCOMPLETE,
+        "incomplete",
+    ),
 ]
 
 

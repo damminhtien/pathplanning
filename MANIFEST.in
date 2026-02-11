@@ -1,1 +1,2 @@
+include pathplanning/py.typed
 recursive-exclude * __pycache__ *.pyc *.pyo *.pyd

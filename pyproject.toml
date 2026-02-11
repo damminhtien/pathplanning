@@ -82,3 +82,6 @@ ban-relative-imports = "parents"
 quote-style = "double"
 indent-style = "space"
 line-ending = "lf"
+
+[tool.setuptools.package-data]
+pathplanning = ["py.typed"]

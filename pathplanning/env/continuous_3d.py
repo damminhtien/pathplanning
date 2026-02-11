@@ -83,9 +83,9 @@ class ContinuousSpace3D(ConfigurationSpace):
 
     lower_bound: Sequence[float] | NDArray[np.float64]
     upper_bound: Sequence[float] | NDArray[np.float64]
-    aabbs: list[AABB] = field(default_factory=list)
-    spheres: list[Sphere] = field(default_factory=list)
-    obbs: list[OBB] = field(default_factory=list)
+    aabbs: list[AABB] = field(default_factory=lambda: [])
+    spheres: list[Sphere] = field(default_factory=lambda: [])
+    obbs: list[OBB] = field(default_factory=lambda: [])
     goal: Sequence[float] | NDArray[np.float64] | None = None
     goal_tolerance: float = 0.0
     rng: np.random.Generator = field(default_factory=np.random.default_rng, repr=False)
@@ -179,5 +179,5 @@ class ContinuousSpace3D(ConfigurationSpace):
         if self.goal is None:
             return False
         point = _as_state(state, "state")
-        return self.distance(point, self.goal) <= self.goal_tolerance
-
+        goal_state = _as_state(self.goal, "goal")
+        return self.distance(point, goal_state) <= self.goal_tolerance

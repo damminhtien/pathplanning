@@ -9,7 +9,7 @@ from typing import TypeAlias
 
 import numpy as np
 
-from pathplanning.core.contracts import ConfigurationSpace, PlanResult, State
+from pathplanning.core.contracts import ConfigurationSpace, PlanResult, State, StopReason
 from pathplanning.core.nn_index import NaiveIndex, NearestNeighborIndex
 from pathplanning.core.tree import Tree
 from pathplanning.core.params import RrtParams
@@ -161,7 +161,7 @@ class RrtStarPlanner:
                 path=[np.asarray(start_state, dtype=float)],
                 iters=0,
                 nodes=1,
-                stats={"reason": "start_in_goal", "goal_checks": 1},
+                stats={"reason": StopReason.START_IN_GOAL.value, "goal_checks": 1},
             )
 
         tree = Tree(self.space.dim)
@@ -174,16 +174,18 @@ class RrtStarPlanner:
         goal_checks = 0
         start_time = time.perf_counter()
         iters_run = 0
-        stop_reason: str | None = None
+        stop_reason: StopReason | None = None
 
         for iters_run in range(1, self.params.max_iters + 1):
             if self.params.time_budget_s is not None:
                 elapsed = time.perf_counter() - start_time
                 if elapsed >= self.params.time_budget_s:
-                    stop_reason = "time_budget"
+                    stop_reason = StopReason.TIME_BUDGET
                     break
 
-            use_goal_sample = goal.target_state is not None and self.rng.random() < self.params.goal_sample_rate
+            use_goal_sample = (
+                goal.target_state is not None and self.rng.random() < self.params.goal_sample_rate
+            )
             target = goal.target_state if use_goal_sample else self._sample_free()
 
             nearest_index = self._nearest_index(index, target)
@@ -201,8 +203,7 @@ class RrtStarPlanner:
             else:
                 dim = float(self.space.dim)
                 dynamic_radius = self.params.step_size * (
-                    self.params.rrt_star_radius_gamma
-                    * (np.log(card_v) / card_v) ** (1.0 / dim)
+                    self.params.rrt_star_radius_gamma * (np.log(card_v) / card_v) ** (1.0 / dim)
                     + self.params.rrt_star_radius_bias
                 )
                 near_radius = min(
@@ -216,7 +217,9 @@ class RrtStarPlanner:
                 near_node = tree.nodes[near_index]
                 if not self.space.segment_free(near_node, candidate, self.params.collision_step):
                     continue
-                candidate_cost = float(tree.cost[near_index] + self.space.distance(near_node, candidate))
+                candidate_cost = float(
+                    tree.cost[near_index] + self.space.distance(near_node, candidate)
+                )
                 if candidate_cost < parent_cost:
                     parent_index = near_index
                     parent_cost = candidate_cost
@@ -232,7 +235,9 @@ class RrtStarPlanner:
                 near_node = tree.nodes[near_index]
                 if not self.space.segment_free(candidate, near_node, self.params.collision_step):
                     continue
-                rewired_cost = float(tree.cost[new_index] + self.space.distance(candidate, near_node))
+                rewired_cost = float(
+                    tree.cost[new_index] + self.space.distance(candidate, near_node)
+                )
                 if rewired_cost < tree.cost[near_index]:
                     old_parent = int(tree.parent[near_index])
                     if old_parent != -1:
@@ -251,7 +256,7 @@ class RrtStarPlanner:
             path = self._path_from_tree(tree, best_goal_index)
             elapsed = time.perf_counter() - start_time
             if stop_reason is None:
-                stop_reason = "goal_reached"
+                stop_reason = StopReason.GOAL_REACHED
             return PlanResult(
                 success=True,
                 path=path,
@@ -261,14 +266,14 @@ class RrtStarPlanner:
                     "goal_checks": goal_checks,
                     "path_cost": float(tree.cost[best_goal_index]),
                     "goal_nodes": len(goal_indices),
-                    "stopped_reason": stop_reason,
+                    "stopped_reason": stop_reason.value,
                     "elapsed_s": elapsed,
                     "time_budget_s": self.params.time_budget_s,
                 },
             )
 
         if stop_reason is None:
-            stop_reason = "max_iters"
+            stop_reason = StopReason.MAX_ITERS
         elapsed = time.perf_counter() - start_time
         return PlanResult(
             success=False,
@@ -277,7 +282,7 @@ class RrtStarPlanner:
             nodes=tree.size,
             stats={
                 "goal_checks": goal_checks,
-                "stopped_reason": stop_reason,
+                "stopped_reason": stop_reason.value,
                 "elapsed_s": elapsed,
                 "time_budget_s": self.params.time_budget_s,
             },
