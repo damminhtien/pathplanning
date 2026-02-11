@@ -3,21 +3,143 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
-from typing import Any, Literal, TypeAlias, cast
+from dataclasses import dataclass
+from typing import Any, Literal, Protocol, TypeAlias, cast
 
 import numpy as np
 from numpy.typing import NDArray
-from pathplanning.viz import lazy_import
+from scipy.spatial import cKDTree
 
-from . import plot_util_3d, utils_3d
+from . import utils_3d
 from .env_3d import Environment3D
-
-plt = lazy_import("matplotlib.pyplot")
 
 Node: TypeAlias = tuple[float, float, float]
 Edge: TypeAlias = tuple[Node, Node]
 PathEdge: TypeAlias = NDArray[np.float64]
 Obstacle: TypeAlias = Sequence[float] | NDArray[np.float64]
+
+
+@dataclass(frozen=True)
+class DynamicRRT3DConfig:
+    """Runtime configuration for :class:`DynamicRRT3D`."""
+
+    step_size: float = 0.25
+    max_iterations: int = 10000
+    goal_sample_probability: float = 0.05
+    way_point_sample_probability: float = 0.02
+    dynamic_step_limit: int = 8
+    nearest_rebuild_threshold: int = 64
+
+
+class NearestNodeIndex(Protocol):
+    """Contract for nearest-neighbor implementations used by the planner."""
+
+    def reset(self, nodes: Sequence[Node]) -> None:
+        """Reset index state from the full current node set."""
+
+    def add(self, node: Node) -> None:
+        """Add one newly inserted node to the index."""
+
+    def nearest(self, target: Node) -> Node:
+        """Return nearest indexed node to ``target``."""
+
+
+class BruteForceNearestNodeIndex:
+    """Simple exact nearest-neighbor index based on vectorized NumPy distance."""
+
+    def __init__(self) -> None:
+        self._nodes: list[Node] = []
+
+    def reset(self, nodes: Sequence[Node]) -> None:
+        self._nodes = list(nodes)
+
+    def add(self, node: Node) -> None:
+        self._nodes.append(node)
+
+    def nearest(self, target: Node) -> Node:
+        if not self._nodes:
+            raise ValueError("nearest called with an empty node set")
+        if len(self._nodes) == 1:
+            return self._nodes[0]
+        node_matrix = np.asarray(self._nodes, dtype=float)
+        target_repeated = np.tile(target, (len(node_matrix), 1))
+        distances = np.linalg.norm(target_repeated - node_matrix, axis=1)
+        return _as_node(node_matrix[int(np.argmin(distances))])
+
+
+class KDTreeNearestNodeIndex:
+    """Exact nearest-neighbor index with batched cKDTree rebuilds.
+
+    New nodes are buffered and checked via brute force until the pending batch size
+    reaches ``rebuild_threshold``. Then the tree is rebuilt, keeping exact results
+    while reducing full rebuild frequency.
+    """
+
+    def __init__(self, rebuild_threshold: int = 64) -> None:
+        self._rebuild_threshold = max(1, rebuild_threshold)
+        self._indexed_points: NDArray[np.float64] = np.empty((0, 3), dtype=float)
+        self._pending_nodes: list[Node] = []
+        self._tree: cKDTree | None = None
+
+    def reset(self, nodes: Sequence[Node]) -> None:
+        points = np.asarray(nodes, dtype=float)
+        if points.size == 0:
+            self._indexed_points = np.empty((0, 3), dtype=float)
+            self._tree = None
+            self._pending_nodes = []
+            return
+        self._indexed_points = points
+        self._tree = cKDTree(self._indexed_points)
+        self._pending_nodes = []
+
+    def add(self, node: Node) -> None:
+        self._pending_nodes.append(node)
+
+    def _rebuild_if_needed(self) -> None:
+        if self._tree is None and self._pending_nodes:
+            points = np.asarray(self._pending_nodes, dtype=float)
+            self._indexed_points = points
+            self._tree = cKDTree(self._indexed_points)
+            self._pending_nodes = []
+            return
+
+        if len(self._pending_nodes) >= self._rebuild_threshold:
+            pending_points = np.asarray(self._pending_nodes, dtype=float)
+            if self._indexed_points.size == 0:
+                self._indexed_points = pending_points
+            else:
+                self._indexed_points = np.vstack([self._indexed_points, pending_points])
+            self._tree = cKDTree(self._indexed_points)
+            self._pending_nodes = []
+
+    def nearest(self, target: Node) -> Node:
+        self._rebuild_if_needed()
+
+        best_node: Node | None = None
+        best_distance = np.inf
+
+        if self._tree is not None and self._indexed_points.size > 0:
+            _, index = self._tree.query(np.asarray(target, dtype=float), k=1)
+            candidate = _as_node(self._indexed_points[int(index)])
+            candidate_distance = get_dist(candidate, target)
+            best_node = candidate
+            best_distance = candidate_distance
+
+        if self._pending_nodes:
+            pending_points = np.asarray(self._pending_nodes, dtype=float)
+            target_repeated = np.tile(target, (len(pending_points), 1))
+            pending_distances = np.linalg.norm(target_repeated - pending_points, axis=1)
+            pending_index = int(np.argmin(pending_distances))
+            pending_distance = float(pending_distances[pending_index])
+            pending_candidate = _as_node(pending_points[pending_index])
+            if pending_distance < best_distance:
+                best_node = pending_candidate
+                best_distance = pending_distance
+
+        if best_node is None:
+            raise ValueError("nearest called with an empty node set")
+
+        return best_node
 
 
 def _as_node(point: Sequence[float] | NDArray[Any]) -> Node:
@@ -26,30 +148,12 @@ def _as_node(point: Sequence[float] | NDArray[Any]) -> Node:
 
 
 def get_dist(pos1: Node, pos2: Node) -> float:
-    """Typed wrapper around `utils_3d.getDist`."""
+    """Typed wrapper around ``utils_3d.getDist``."""
     return float(utils_3d.getDist(pos1, pos2))
 
 
-def sample_free_state(initparams: Any, bias: float = 0.1) -> Node:
-    """Sample a collision-free state and convert to the `Node` type."""
-    sampled = cast(Sequence[float] | NDArray[Any], utils_3d.sampleFree(initparams, bias=bias))
-    return _as_node(sampled)
-
-
-def nearest_node(initparams: Any, target: Node) -> Node:
-    """Return the nearest node in the current tree."""
-    if not initparams.nodes:
-        raise ValueError("nearest_node called with an empty node set")
-    if initparams.i == 0:
-        return initparams.nodes[0]
-    nodes = np.asarray(initparams.nodes, dtype=float)
-    target_repeated = np.tile(target, (len(nodes), 1))
-    dists = np.linalg.norm(target_repeated - nodes, axis=1)
-    return _as_node(nodes[int(np.argmin(dists))])
-
-
 def steer_node(initparams: Any, x: Node, y: Node) -> tuple[Node, float]:
-    """Steer from `x` toward `y` with planner step-size limits."""
+    """Steer from ``x`` toward ``y`` with planner step-size limits."""
     child, dist = utils_3d.steer(initparams, x, y, DIST=True)
     return _as_node(cast(Sequence[float] | NDArray[Any], child)), float(dist)
 
@@ -65,60 +169,39 @@ def is_collide(
     return bool(collide), float(actual_dist)
 
 
-def set_axes_equal_typed(ax: Any) -> None:
-    """Set equal aspect ratio for 3D axes."""
-    plot_util_3d.set_axes_equal(ax)
-
-
-def draw_block_list_typed(
-    ax: Any,
-    blocks: NDArray[np.float64],
-    color: Any | None = None,
-    alpha: float = 0.15,
-) -> Any:
-    """Typed wrapper for block rendering."""
-    return plot_util_3d.draw_block_list(ax, blocks, color=color, alpha=alpha)
-
-
-def draw_spheres_typed(ax: Any, balls: NDArray[np.float64]) -> None:
-    """Typed wrapper for sphere rendering."""
-    plot_util_3d.draw_Spheres(ax, balls)
-
-
-def draw_obb_typed(ax: Any, obb_items: Any, color: Any | None = None, alpha: float = 0.15) -> Any:
-    """Typed wrapper for OBB rendering."""
-    return plot_util_3d.draw_obb(ax, obb_items, color=color, alpha=alpha)
-
-
-def draw_line_typed(
-    ax: Any,
-    segments: NDArray[np.float64],
-    visibility: float = 1.0,
-    color: Any | None = None,
-) -> None:
-    """Typed wrapper for line rendering."""
-    plot_util_3d.draw_line(ax, segments, visibility=visibility, color=color)
-
-
-def make_transparent_typed(ax: Any) -> None:
-    """Apply transparent panes/grid style to a 3D axis."""
-    plot_util_3d.make_transparent(ax)
-
-
 class DynamicRRT3D:
     """Dynamic RRT planner that regrows paths as obstacles move."""
 
-    def __init__(self) -> None:
-        """Initialize planner state and environment."""
-        self.env = Environment3D()
+    def __init__(
+        self,
+        environment: Environment3D | None = None,
+        *,
+        config: DynamicRRT3DConfig | None = None,
+        rng: np.random.Generator | None = None,
+        nearest_index: NearestNodeIndex | None = None,
+    ) -> None:
+        """Initialize planner state.
+
+        Args:
+            environment: Optional preconfigured environment instance.
+            config: Optional runtime configuration.
+            rng: Optional random number generator for deterministic sampling.
+            nearest_index: Optional nearest-neighbor backend.
+        """
+        self.env = environment if environment is not None else Environment3D()
+        self.config = config if config is not None else DynamicRRT3DConfig()
+        self.rng = rng if rng is not None else np.random.default_rng()
+
         self.x0: Node = _as_node(self.env.start)
         self.xt: Node = _as_node(self.env.goal)
         self.qrobot: Node = self.x0
         self.current: Node = _as_node(self.env.start)
-        self.stepsize = 0.25
-        self.maxiter = 10000
-        self.goal_prob = 0.05
-        self.way_point_prob = 0.02
+
+        self.stepsize = self.config.step_size
+        self.maxiter = self.config.max_iterations
+        self.goal_prob = self.config.goal_sample_probability
+        self.way_point_prob = self.config.way_point_sample_probability
+
         self.done = False
         self.invalid = False
 
@@ -129,6 +212,30 @@ class DynamicRRT3D:
         self.node_state: dict[Node, Literal["valid", "invalid"]] = {}
         self.ind = 0
         self.i = 0
+
+        if nearest_index is not None:
+            self._nearest_index = nearest_index
+        else:
+            self._nearest_index = KDTreeNearestNodeIndex(
+                rebuild_threshold=self.config.nearest_rebuild_threshold
+            )
+
+    @classmethod
+    def with_seed(
+        cls,
+        seed: int,
+        environment: Environment3D | None = None,
+        *,
+        config: DynamicRRT3DConfig | None = None,
+        nearest_index: NearestNodeIndex | None = None,
+    ) -> DynamicRRT3D:
+        """Create a planner with a deterministic seeded RNG."""
+        return cls(
+            environment=environment,
+            config=config,
+            rng=np.random.default_rng(seed),
+            nearest_index=nearest_index,
+        )
 
     def regrow_rrt(self) -> None:
         """Trim invalid subtrees and regrow the tree."""
@@ -161,6 +268,7 @@ class DynamicRRT3D:
         """Initialize the tree with the root node."""
         self.nodes.append(self.x0)
         self.node_state[self.x0] = "valid"
+        self._nearest_index.reset(self.nodes)
 
     def grow_rrt(self) -> None:
         """Grow the RRT until the goal is reached or iteration limit is hit."""
@@ -183,11 +291,11 @@ class DynamicRRT3D:
 
     def choose_target(self) -> Node:
         """Sample target node with goal and waypoint bias."""
-        p = np.random.uniform()
+        p = float(self.rng.random())
         if len(self.nodes) <= 1:
             i = 0
         else:
-            i = np.random.randint(0, high=len(self.nodes) - 1)
+            i = int(self.rng.integers(0, high=len(self.nodes) - 1))
         if p < self.goal_prob:
             return self.xt
         if self.nodes and p < self.goal_prob + self.way_point_prob:
@@ -195,8 +303,15 @@ class DynamicRRT3D:
         return self.random_state()
 
     def random_state(self) -> Node:
-        """Generate a random collision-free state."""
-        return sample_free_state(self, bias=0.0)
+        """Generate a random collision-free state using planner RNG."""
+        lower = np.asarray(self.env.boundary[0:3], dtype=float)
+        upper = np.asarray(self.env.boundary[3:6], dtype=float)
+
+        while True:
+            xrand = self.rng.uniform(lower, upper)
+            candidate = _as_node(xrand)
+            if not utils_3d.isinside(self, candidate):
+                return candidate
 
     def add_node(self, parent_node: Node, extended: Node) -> None:
         """Add a node and its parent-edge relation to the tree."""
@@ -204,13 +319,14 @@ class DynamicRRT3D:
         self.parent_by_node[extended] = parent_node
         self.edges.add((extended, parent_node))
         self.node_state[extended] = "valid"
+        self._nearest_index.add(extended)
 
     def nearest(self, target: Node) -> Node:
-        """Return nearest existing tree node to `target`."""
-        return nearest_node(self, target)
+        """Return nearest existing tree node to ``target``."""
+        return self._nearest_index.nearest(target)
 
     def extend(self, parent_node: Node, target: Node) -> tuple[Node, bool]:
-        """Attempt one-step extension from `parent_node` toward `target`."""
+        """Attempt one-step extension from ``parent_node`` toward ``target``."""
         extended, dist = steer_node(self, parent_node, target)
         collide, _ = is_collide(self, parent_node, target, dist)
         return extended, collide
@@ -230,7 +346,7 @@ class DynamicRRT3D:
         self.done = True
         self.visualization()
         t = 0
-        while True:
+        while t < self.config.dynamic_step_limit:
             move_result = self.env.move_block(a=[0.2, 0, -0.2], mode="translation")
             if move_result is None:
                 break
@@ -246,15 +362,17 @@ class DynamicRRT3D:
                 self.path_segments = []
                 path_result = self.path()
                 if path_result is None:
+                    t += 1
                     continue
                 self.path_segments, _path_dist = path_result
                 self.done = True
                 self.visualization()
-            if t == 8:
-                break
             t += 1
 
         self.visualization()
+        from pathplanning.viz import lazy_import
+
+        plt = lazy_import("matplotlib.pyplot")
         plt.show()
 
     def find_affected_edges(self, obstacle: Obstacle) -> list[Edge]:
@@ -270,7 +388,7 @@ class DynamicRRT3D:
         return affected_edges
 
     def child_endpoint_node(self, edge: Edge) -> Node:
-        """Return child endpoint of an edge tuple `(child, parent)`."""
+        """Return child endpoint of an edge tuple ``(child, parent)``."""
         return edge[0]
 
     def create_tree_from_nodes(self, nodes: list[Node]) -> None:
@@ -280,6 +398,7 @@ class DynamicRRT3D:
         self.edges = {
             (node, self.parent_by_node[node]) for node in nodes if node in self.parent_by_node
         }
+        self._nearest_index.reset(self.nodes)
 
     def path_is_invalid(self, path: list[PathEdge]) -> bool:
         """Check whether any path segment includes an invalid endpoint."""
@@ -313,6 +432,13 @@ class DynamicRRT3D:
         if self.ind % 100 != 0 and not self.done:
             return
 
+        # Keep plotting imports out of module import-time to remain headless-safe.
+        from pathplanning.viz import lazy_import
+
+        from . import plot_util_3d
+
+        plt = lazy_import("matplotlib.pyplot")
+
         path = np.array(self.path_segments, dtype=float)
         start = np.asarray(self.env.start, dtype=float)
         goal = np.asarray(self.env.goal, dtype=float)
@@ -322,22 +448,23 @@ class DynamicRRT3D:
         ax.view_init(elev=90.0, azim=0.0)
         ax.clear()
 
-        draw_spheres_typed(ax, np.asarray(self.env.balls, dtype=float))
-        draw_block_list_typed(ax, np.asarray(self.env.blocks, dtype=float))
+        plot_util_3d.draw_Spheres(ax, np.asarray(self.env.balls, dtype=float))
+        plot_util_3d.draw_block_list(ax, np.asarray(self.env.blocks, dtype=float))
         obb_items = getattr(self.env, "OBB", None)
         if obb_items is not None:
-            draw_obb_typed(ax, obb_items)
-        draw_block_list_typed(ax, np.array([self.env.boundary], dtype=float), alpha=0.0)
-        draw_line_typed(ax, edges, visibility=0.75, color="g")
-        draw_line_typed(ax, path, color="r")
+            plot_util_3d.draw_obb(ax, obb_items)
+        plot_util_3d.draw_block_list(ax, np.array([self.env.boundary], dtype=float), alpha=0.0)
+        plot_util_3d.draw_line(ax, edges, visibility=0.75, color="g")
+        plot_util_3d.draw_line(ax, path, color="r")
 
         ax.plot(start[0:1], start[1:2], start[2:], "go", markersize=7, markeredgecolor="k")
         ax.plot(goal[0:1], goal[1:2], goal[2:], "ro", markersize=7, markeredgecolor="k")
 
-        set_axes_equal_typed(ax)
-        make_transparent_typed(ax)
+        plot_util_3d.set_axes_equal(ax)
+        plot_util_3d.make_transparent(ax)
         ax.set_axis_off()
         plt.pause(0.0001)
+
 
 if __name__ == "__main__":
     rrt = DynamicRRT3D()
