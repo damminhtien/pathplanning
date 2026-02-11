@@ -66,6 +66,10 @@ Track durable decisions so future agents do not re-litigate baseline choices.
 - Decision: Every version bump must update `pyproject.toml`, `README.md`, and agentic state files (`state.md`, `tasks.md`, `decisions.md`, `handoff.md`) in the same change.
 - Consequence: Release context remains auditable and reduces onboarding friction for subsequent agents and reviewers.
 
+## Update Log
+
+- 2026-02-11: Synced release metadata and agentic files for version `0.1.2`.
+
 ## Decision Template
 
 Use this template for future entries:

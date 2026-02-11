@@ -1,5 +1,7 @@
 # AI Agent Operating Manual
 
+Last updated: 2026-02-11 (version `0.1.2`)
+
 This document defines how AI agents should operate in `PathPlanning`.
 
 ## Objective
@@ -98,6 +100,7 @@ For any version bump, update these files in the same change:
   - `<type>: <short summary>`
 
 Examples:
+
 - `fix: correct A* neighbor expansion boundary check`
 - `docs: add visual preview section to readme`
 - `chore: tighten pre-commit lint pipeline`

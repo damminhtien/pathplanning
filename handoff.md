@@ -9,24 +9,18 @@ Author: AI Agent
 
 ### Scope Completed
 
-1. Bumped package metadata to `0.1.1` in `pyproject.toml`.
-2. Updated `README.md` release section and canonical repository URL.
+1. Bumped package metadata to `0.1.2` in `pyproject.toml`.
+2. Updated `README.md` release version.
 3. Updated agentic operating files:
    - `agent.md`
    - `state.md`
    - `tasks.md`
    - `decisions.md`
    - `handoff.md`
-4. Fixed local CI mismatch by applying `ruff format` changes and pushed commit `a07d7d9`.
-5. Verified GitHub Actions `Lint` workflow passes for both push and pull_request events on `refactor/naming`.
 
 ### Validation Performed
 
-1. `pre-commit run --all-files --show-diff-on-failure`
-2. `python -m ruff check .`
-3. GitHub Actions API poll for latest workflow runs on `head_sha=a07d7d9`:
-   - push run `21904048656` -> success
-   - pull_request run `21904049892` -> success
+1. Not run (documentation-only sync).
 
 ### Open Items
 
