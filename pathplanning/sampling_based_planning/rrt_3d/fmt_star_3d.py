@@ -6,15 +6,10 @@ source: Janson, Lucas, et al. "Fast marching tree: A fast marching sampling-base
         The International journal of robotics research 34.7 (2015): 883-921.
 """
 import numpy as np
-import time
 import copy
 
-
-import os
-import sys
-
 from .env_3d import Environment3D
-from .utils_3d import getDist, sampleFree, nearest, steer, isCollide
+from .utils_3d import getDist, sampleFree, isCollide
 from .queue import MinheapPQ
 
 class FMT_star:
@@ -135,12 +130,6 @@ class FMT_star:
         self.Path = self.path(z, T)
         # return self.path(z, T)
 
-    def visualization(self, ind, E):
-        _ = ind, E
-        return None
-
 if __name__ == '__main__':
     A = FMT_star(radius = 1, n = 3000)
     A.FMTrun()
-
-
