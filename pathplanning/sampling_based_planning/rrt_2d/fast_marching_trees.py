@@ -6,7 +6,6 @@ Fast Marching Trees (FMT*)
 import os
 import sys
 import math
-import random
 import numpy as np
 from pathplanning.viz import lazy_import
 
@@ -25,10 +24,11 @@ class Node:
 
 
 class FMT:
-    def __init__(self, x_start, x_goal, search_radius):
+    def __init__(self, x_start, x_goal, search_radius, rng=None):
         self.x_init = Node(x_start)
         self.x_goal = Node(x_goal)
         self.search_radius = search_radius
+        self.rng = rng if rng is not None else np.random.default_rng()
 
         self.env = env.Env()
         self.plotting = plotting.Plotting(x_start, x_goal)
@@ -138,8 +138,8 @@ class FMT:
 
         ind = 0
         while ind < n:
-            node = Node((random.uniform(self.x_range[0] + delta, self.x_range[1] - delta),
-                         random.uniform(self.y_range[0] + delta, self.y_range[1] - delta)))
+            node = Node((self.rng.uniform(self.x_range[0] + delta, self.x_range[1] - delta),
+                         self.rng.uniform(self.y_range[0] + delta, self.y_range[1] - delta)))
             if self.utils.is_inside_obs(node):
                 continue
             else:

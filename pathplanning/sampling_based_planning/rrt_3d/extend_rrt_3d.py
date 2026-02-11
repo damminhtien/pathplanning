@@ -11,7 +11,7 @@ from .utils_3d import get_dist, is_collide, nearest, path, sample_free, steer
 class ExtendRrt:
     """Extended RRT planner with waypoint-biased target sampling."""
 
-    def __init__(self) -> None:
+    def __init__(self, rng: np.random.Generator | None = None) -> None:
         """Initialize planner state and parameters."""
         self.env = Environment3D()
         self.x0, self.xt = tuple(self.env.start), tuple(self.env.goal)
@@ -27,6 +27,7 @@ class ExtendRrt:
         self.path_edges: list[np.ndarray] = []
         self.ind = 0
         self.i = 0
+        self.rng = rng if rng is not None else np.random.default_rng()
 
     def plan(
         self, env: Environment3D, initial: tuple[float, ...], goal: tuple[float, ...]
@@ -86,15 +87,15 @@ class ExtendRrt:
 
     def random_state(self) -> np.ndarray | tuple[float, ...]:
         """Sample a random collision-free state."""
-        return sample_free(self, bias=0)
+        return sample_free(self, bias=0, rng=self.rng)
 
     def choose_target(self, _state: tuple[float, ...]) -> tuple[float, ...]:
         """Choose goal, waypoint, or random state using configured probabilities."""
-        p = np.random.uniform()
+        p = self.rng.uniform()
         if len(self.vertices) == 1:
             index = 0
         else:
-            index = np.random.randint(0, high=len(self.vertices) - 1)
+            index = int(self.rng.integers(0, high=len(self.vertices) - 1))
         if 0 < p < self.goal_prob:
             return self.xt
         if self.goal_prob < p < self.goal_prob + self.way_point_prob:

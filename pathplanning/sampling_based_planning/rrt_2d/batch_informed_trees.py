@@ -6,7 +6,6 @@ Batch Informed Trees (BIT*)
 import os
 import sys
 import math
-import random
 import numpy as np
 from pathplanning.viz import lazy_import
 
@@ -39,11 +38,12 @@ class Tree:
 
 
 class BITStar:
-    def __init__(self, x_start, x_goal, eta, iter_max):
+    def __init__(self, x_start, x_goal, eta, iter_max, rng=None):
         self.x_start = Node(x_start[0], x_start[1])
         self.x_goal = Node(x_goal[0], x_goal[1])
         self.eta = eta
         self.iter_max = iter_max
+        self.rng = rng if rng is not None else np.random.default_rng()
 
         self.env = env.Env()
         self.plotting = plotting.Plotting(x_start, x_goal)
@@ -215,8 +215,8 @@ class BITStar:
 
         ind = 0
         while ind < m:
-            node = Node(random.uniform(self.x_range[0] + delta, self.x_range[1] - delta),
-                        random.uniform(self.y_range[0] + delta, self.y_range[1] - delta))
+            node = Node(self.rng.uniform(self.x_range[0] + delta, self.x_range[1] - delta),
+                        self.rng.uniform(self.y_range[0] + delta, self.y_range[1] - delta))
             if self.utils.is_inside_obs(node):
                 continue
             else:
@@ -284,10 +284,9 @@ class BITStar:
 
         return min(e_value, key=e_value.get)
 
-    @staticmethod
-    def SampleUnitNBall():
+    def SampleUnitNBall(self):
         while True:
-            x, y = random.uniform(-1, 1), random.uniform(-1, 1)
+            x, y = self.rng.uniform(-1, 1), self.rng.uniform(-1, 1)
             if x ** 2 + y ** 2 < 1:
                 return np.array([[x], [y], [0.0]])
 

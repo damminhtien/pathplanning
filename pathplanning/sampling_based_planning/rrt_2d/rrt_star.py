@@ -20,7 +20,7 @@ class Node:
 
 class RrtStar:
     def __init__(self, x_start, x_goal, step_len,
-                 goal_sample_rate, search_radius, iter_max):
+                 goal_sample_rate, search_radius, iter_max, rng=None):
         self.s_start = Node(x_start)
         self.s_goal = Node(x_goal)
         self.step_len = step_len
@@ -29,6 +29,7 @@ class RrtStar:
         self.iter_max = iter_max
         self.vertex = [self.s_start]
         self.path = []
+        self.rng = rng if rng is not None else np.random.default_rng()
 
         self.env = env.Env()
         self.plotting = plotting.Plotting(x_start, x_goal)
@@ -105,9 +106,9 @@ class RrtStar:
     def generate_random_node(self, goal_sample_rate):
         delta = self.utils.delta
 
-        if np.random.random() > goal_sample_rate:
-            return Node((np.random.uniform(self.x_range[0] + delta, self.x_range[1] - delta),
-                         np.random.uniform(self.y_range[0] + delta, self.y_range[1] - delta)))
+        if self.rng.random() > goal_sample_rate:
+            return Node((self.rng.uniform(self.x_range[0] + delta, self.x_range[1] - delta),
+                         self.rng.uniform(self.y_range[0] + delta, self.y_range[1] - delta)))
 
         return self.s_goal
 

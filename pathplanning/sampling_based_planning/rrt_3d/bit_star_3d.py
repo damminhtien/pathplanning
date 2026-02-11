@@ -51,7 +51,7 @@ def draw_ellipsoid(
 class BitStar:
     """BIT* planner over the legacy ``Environment3D`` obstacle model."""
 
-    def __init__(self, show_ellipse: bool = False) -> None:
+    def __init__(self, show_ellipse: bool = False, rng: np.random.Generator | None = None) -> None:
         """Initialize planner state and default tuning parameters.
 
         Args:
@@ -76,6 +76,7 @@ class BitStar:
         self.ellipse_scale = np.zeros([3, 3])
         self.xcenter = np.zeros(3)
         self.iteration_index = 0
+        self.rng = rng if rng is not None else np.random.default_rng()
 
     def run(self) -> None:
         """Execute BIT* iterations until reaching iteration budget."""
@@ -193,14 +194,14 @@ class BitStar:
                 return self.sample(sample_count - len(x2), cmax, bias=bias, xrand=xrand)
         else:
             for _ in range(sample_count):
-                xrand.add(tuple(sample_free(self, bias=bias)))
+                xrand.add(tuple(sample_free(self, bias=bias, rng=self.rng)))
         return xrand
 
     def sample_unit_ball(self, n: int) -> np.ndarray:
         """Sample ``n`` points in a unit ball using spherical coordinates."""
-        r = np.random.uniform(0.0, 1.0, size=n)
-        theta = np.random.uniform(0, np.pi, size=n)
-        phi = np.random.uniform(0, 2 * np.pi, size=n)
+        r = self.rng.uniform(0.0, 1.0, size=n)
+        theta = self.rng.uniform(0, np.pi, size=n)
+        phi = self.rng.uniform(0, 2 * np.pi, size=n)
         x = r * np.sin(theta) * np.cos(phi)
         y = r * np.sin(theta) * np.sin(phi)
         z = r * np.cos(theta)

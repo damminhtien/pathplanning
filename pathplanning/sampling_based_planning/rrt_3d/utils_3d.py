@@ -42,21 +42,28 @@ def visualization(initparams: Any) -> None:
     return _visualization(initparams)
 
 
-def sample_free(initparams: Any, bias: float = 0.1, max_tries: int = 1000) -> np.ndarray:
+def sample_free(
+    initparams: Any,
+    bias: float = 0.1,
+    max_tries: int = 1000,
+    rng: np.random.Generator | None = None,
+) -> np.ndarray:
     """Sample collision-free states with bounded rejection sampling."""
-    if np.random.random() < bias:
+    rng = rng if rng is not None else np.random.default_rng()
+
+    if rng.random() < bias:
         return np.array(initparams.xt)
 
     last_sample = None
     for _ in range(max_tries):
-        x = np.random.uniform(initparams.env.boundary[0:3], initparams.env.boundary[3:6])
+        x = rng.uniform(initparams.env.boundary[0:3], initparams.env.boundary[3:6])
         last_sample = x
         if not is_inside(initparams, x):
             return x
 
     # Fallback to a uniform sample even if it collides.
     if last_sample is None:
-        return np.random.uniform(initparams.env.boundary[0:3], initparams.env.boundary[3:6])
+        return rng.uniform(initparams.env.boundary[0:3], initparams.env.boundary[3:6])
     return last_sample
 
 
