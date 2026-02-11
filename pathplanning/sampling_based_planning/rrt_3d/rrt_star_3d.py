@@ -69,7 +69,7 @@ class rrtstar:
         self.Path, self.D = path(self)
 
     def run(self):
-        starttime = time.time()
+        self.start_time = time.time()
         xnew = self.x0
         print("start rrt*... ")
         self.fig = plt.figure(figsize=(10, 8))
@@ -107,7 +107,7 @@ class rrtstar:
             self.ind += 1
         # max sample reached
         self.reached()
-        print("time used = " + str(time.time() - starttime))
+        print("time used = " + str(time.time() - self.start_time))
         print("Total distance = " + str(self.D))
         visualization(self)
         plt.show()
@@ -115,5 +115,4 @@ class rrtstar:
 
 if __name__ == "__main__":
     p = rrtstar()
-    starttime = time.time()
     p.run()
