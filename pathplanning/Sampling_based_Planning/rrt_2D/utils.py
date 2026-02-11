@@ -57,7 +57,7 @@ class Utils:
         if div == 0:
             return False
 
-        t1 = np.linalg.norm(np.cross(v2, v1)) / div
+        t1 = abs(v2[0] * v1[1] - v2[1] * v1[0]) / div
         t2 = np.dot(v1, v3) / div
 
         if t1 >= 0 and 0 <= t2 <= 1:
