@@ -12,10 +12,10 @@ plt = lazy_import("matplotlib.pyplot")
 import os
 import sys
 
-from .env3D import env
-from .utils3D import getDist, getRay, g_Space, Heuristic, getNearest, isCollide, \
+from .env_3d import env
+from .utils_3d import getDist, getRay, g_Space, Heuristic, getNearest, isCollide, \
     cost, children, StateSpace, heuristic_fun
-from .plot_util3D import visualization
+from .plot_util_3d import visualization
 try:
     from . import queue
 except ImportError:  # pragma: no cover - script execution fallback

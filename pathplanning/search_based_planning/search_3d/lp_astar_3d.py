@@ -6,11 +6,11 @@ plt = lazy_import("matplotlib.pyplot")
 import os
 import sys
 
-from .env3D import env
-from . import Astar3D
-from .utils3D import getDist, getRay, g_Space, Heuristic, getNearest, isinbound, isinball, \
+from .env_3d import env
+from . import astar_3d
+from .utils_3d import getDist, getRay, g_Space, Heuristic, getNearest, isinbound, isinball, \
     cost, obstacleFree, isCollide
-from .plot_util3D import visualization
+from .plot_util_3d import visualization
 try:
     from . import queue
 except ImportError:  # pragma: no cover - script execution fallback
