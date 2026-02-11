@@ -61,7 +61,9 @@ def draw_ellipsoid(ax: Any, rotation: np.ndarray, scale: np.ndarray, center: np.
 class InformedRrtStar:
     """Informed RRT* planner in 3D."""
 
-    def __init__(self, show_ellipse: bool = False) -> None:
+    def __init__(
+        self, show_ellipse: bool = False, rng: np.random.Generator | None = None
+    ) -> None:
         """Initialize planner state.
 
         Args:
@@ -86,6 +88,7 @@ class InformedRrtStar:
         self.ellipse_scale = np.zeros((3, 3))
         self.xcenter = np.zeros(3)
         self.show_ellipse = show_ellipse
+        self.rng = rng if rng is not None else np.random.default_rng()
 
     def informed_rrt(
         self,
@@ -193,13 +196,13 @@ class InformedRrtStar:
             if is_inside(self, xrand):
                 return self.sample(xstart, xgoal, cmax)
             return xrand
-        return sample_free(self, bias=bias)
+        return sample_free(self, bias=bias, rng=self.rng)
 
     def sample_unit_ball(self) -> np.ndarray:
         """Sample a point in a 3D unit ball (spherical coordinates)."""
-        radius = np.random.uniform(0.0, 1.0)
-        theta = np.random.uniform(0, np.pi)
-        phi = np.random.uniform(0, 2 * np.pi)
+        radius = self.rng.uniform(0.0, 1.0)
+        theta = self.rng.uniform(0, np.pi)
+        phi = self.rng.uniform(0, 2 * np.pi)
         x = radius * np.sin(theta) * np.cos(phi)
         y = radius * np.sin(theta) * np.sin(phi)
         z = radius * np.cos(theta)

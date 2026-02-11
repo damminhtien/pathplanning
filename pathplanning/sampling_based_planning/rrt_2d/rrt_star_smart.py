@@ -6,7 +6,6 @@ RRT_STAR_SMART 2D
 import os
 import sys
 import math
-import random
 import numpy as np
 from pathplanning.viz import lazy_import
 
@@ -26,13 +25,14 @@ class Node:
 
 class RrtStarSmart:
     def __init__(self, x_start, x_goal, step_len,
-                 goal_sample_rate, search_radius, iter_max):
+                 goal_sample_rate, search_radius, iter_max, rng=None):
         self.x_start = Node(x_start)
         self.x_goal = Node(x_goal)
         self.step_len = step_len
         self.goal_sample_rate = goal_sample_rate
         self.search_radius = search_radius
         self.iter_max = iter_max
+        self.rng = rng if rng is not None else np.random.default_rng()
 
         self.env = env.Env()
         self.plotting = plotting.Plotting(x_start, x_goal)
@@ -169,16 +169,16 @@ class RrtStarSmart:
             delta = self.utils.delta
             goal_sample_rate = self.goal_sample_rate
 
-            if np.random.random() > goal_sample_rate:
-                return Node((np.random.uniform(self.x_range[0] + delta, self.x_range[1] - delta),
-                             np.random.uniform(self.y_range[0] + delta, self.y_range[1] - delta)))
+            if self.rng.random() > goal_sample_rate:
+                return Node((self.rng.uniform(self.x_range[0] + delta, self.x_range[1] - delta),
+                             self.rng.uniform(self.y_range[0] + delta, self.y_range[1] - delta)))
 
             return self.x_goal
         else:
             R = self.beacons_radius
-            r = random.uniform(0, R)
-            theta = random.uniform(0, 2 * math.pi)
-            ind = random.randint(0, len(goal) - 1)
+            r = self.rng.uniform(0, R)
+            theta = self.rng.uniform(0, 2 * math.pi)
+            ind = int(self.rng.integers(0, len(goal) - 1))
 
             return Node((goal[ind][0] + r * math.cos(theta),
                          goal[ind][1] + r * math.sin(theta)))
@@ -186,9 +186,9 @@ class RrtStarSmart:
     def SampleFreeSpace(self):
         delta = self.delta
 
-        if np.random.random() > self.goal_sample_rate:
-            return Node((np.random.uniform(self.x_range[0] + delta, self.x_range[1] - delta),
-                         np.random.uniform(self.y_range[0] + delta, self.y_range[1] - delta)))
+        if self.rng.random() > self.goal_sample_rate:
+            return Node((self.rng.uniform(self.x_range[0] + delta, self.x_range[1] - delta),
+                         self.rng.uniform(self.y_range[0] + delta, self.y_range[1] - delta)))
 
         return self.x_goal
 

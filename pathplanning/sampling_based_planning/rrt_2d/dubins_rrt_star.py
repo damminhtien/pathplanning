@@ -6,7 +6,6 @@ DUBINS_RRT_STAR 2D
 import os
 import sys
 import math
-import random
 import numpy as np
 from pathplanning.viz import lazy_import
 
@@ -33,7 +32,7 @@ class Node:
 
 class DubinsRRTStar:
     def __init__(self, sx, sy, syaw, gx, gy, gyaw, vehicle_radius, step_len,
-                 goal_sample_rate, search_radius, iter_max):
+                 goal_sample_rate, search_radius, iter_max, rng=None):
         self.s_start = Node(sx, sy, syaw)
         self.s_goal = Node(gx, gy, gyaw)
         self.vr = vehicle_radius
@@ -42,6 +41,7 @@ class DubinsRRTStar:
         self.search_radius = search_radius
         self.iter_max = iter_max
         self.curv = 1
+        self.rng = rng if rng is not None else np.random.default_rng()
 
         self.env = env.Env()
         self.utils = utils.Utils()
@@ -227,10 +227,10 @@ class DubinsRRTStar:
     def Sample(self):
         delta = self.utils.delta
 
-        if random.random() > self.goal_sample_rate:
-            return Node(random.uniform(self.x_range[0] + delta, self.x_range[1] - delta),
-                        random.uniform(self.y_range[0] + delta, self.y_range[1] - delta),
-                        random.uniform(-math.pi, math.pi))
+        if self.rng.random() > self.goal_sample_rate:
+            return Node(self.rng.uniform(self.x_range[0] + delta, self.x_range[1] - delta),
+                        self.rng.uniform(self.y_range[0] + delta, self.y_range[1] - delta),
+                        self.rng.uniform(-math.pi, math.pi))
         else:
             return self.s_goal
 

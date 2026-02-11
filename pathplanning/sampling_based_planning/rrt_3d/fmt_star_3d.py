@@ -21,7 +21,7 @@ from .utils_3d import get_dist, is_collide, sample_free
 class FmtStar:
     """Fast Marching Tree* planner for 3D environments."""
 
-    def __init__(self, radius: float = 1, n: int = 1000) -> None:
+    def __init__(self, radius: float = 1, n: int = 1000, rng: np.random.Generator | None = None) -> None:
         """Initialize planner state.
 
         Args:
@@ -45,6 +45,7 @@ class FmtStar:
         self.done = True
         self.path_edges: list[Any] = []
         self.parent_by_node: dict[tuple[float, ...], tuple[float, ...]] = {}
+        self.rng = rng if rng is not None else np.random.default_rng()
 
     def generate_sample_set(self, n: int) -> set[tuple[float, ...]]:
         """Generate collision-free sample set.
@@ -57,7 +58,7 @@ class FmtStar:
         """
         vertices: set[tuple[float, ...]] = set()
         for _ in range(n):
-            vertices.add(tuple(sample_free(self, bias=0.0)))
+            vertices.add(tuple(sample_free(self, bias=0.0, rng=self.rng)))
         return vertices
 
     def init_node_sets(

@@ -36,7 +36,7 @@ class Tree:
 class RrtConnect:
     """Bidirectional RRT-Connect planner in 3D."""
 
-    def __init__(self) -> None:
+    def __init__(self, rng: np.random.Generator | None = None) -> None:
         """Initialize planner state and parameters."""
         self.env = Environment3D()
         self.parent_by_node: dict[tuple[float, ...], tuple[float, ...]] = {}
@@ -52,6 +52,7 @@ class RrtConnect:
         self.x0, self.xt = tuple(self.env.start), tuple(self.env.goal)
         self.qnew: tuple[float, ...] | None = None
         self.ind = 0
+        self.rng = rng if rng is not None else np.random.default_rng()
 
     def build_rrt(self, qinit: tuple[float, ...]) -> Tree:
         """Build a single RRT tree from an initial state.
@@ -100,7 +101,7 @@ class RrtConnect:
 
     def random_config(self) -> tuple[float, ...]:
         """Sample a random free configuration."""
-        return tuple(sample_free(self))
+        return tuple(sample_free(self, rng=self.rng))
 
     def new_config(
         self,
