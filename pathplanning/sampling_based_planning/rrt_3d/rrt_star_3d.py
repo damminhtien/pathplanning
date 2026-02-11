@@ -1,118 +1,108 @@
-"""
-This is rrt star code for 3D
-@author: yue qi
-"""
+"""Legacy wrapper for 3D RRT* that delegates to the contract-based planner."""
+
+from __future__ import annotations
+
+import time
+import warnings
 
 import numpy as np
-from collections import defaultdict
-import time
-from pathplanning.viz import lazy_import
 
-plt = lazy_import("matplotlib.pyplot")
+from examples.worlds.demo_3d_world import build_demo_3d_world
+from pathplanning.core.contracts import PlanResult
+from pathplanning.core.params import RrtParams
+from .rrt_star import RrtStarPlanner
 
-import os
-import sys
-
-from .env_3d import Environment3D
-from .utils_3d import (
-    getDist,
-    sampleFree,
-    nearest,
-    steer,
-    isCollide,
-    near,
-    visualization,
-    cost,
-    path,
-)
+# Backward compatibility for tests and legacy monkeypatching.
+plt = None
 
 
-class rrtstar:
-    def __init__(self):
-        self.env = Environment3D()
+def visualization(*_args, **_kwargs) -> None:
+    """Legacy no-op visualization hook."""
 
-        self.Parent = {}
-        self.V = []
-        # self.E = edgeset()
-        self.COST = {}
 
-        self.i = 0
-        self.maxiter = 4000  # at least 2000 in this env
-        self.stepsize = 2
-        self.gamma = 7
+class rrtstar:  # pylint: disable=invalid-name
+    """Compatibility wrapper for the legacy 3D RRT* entrypoint."""
+
+    def __init__(self) -> None:
+        warnings.warn(
+            "pathplanning.sampling_based_planning.rrt_3d.rrt_star_3d.rrtstar is deprecated. "
+            "Use pathplanning.sampling_based_planning.rrt_3d.rrt_star.RrtStarPlanner instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        self.space, start, goal = build_demo_3d_world()
+        self.env = self.space
+        self.x0 = tuple(float(v) for v in start)
+        self.xt = tuple(float(v) for v in goal)
+
+        self.maxiter = 4_000
+        self.stepsize = 2.0
+        self.gamma = 7.0
         self.eta = self.stepsize
-        self.Path = []
-        self.done = False
-        self.x0 = tuple(self.env.start)
-        self.xt = tuple(self.env.goal)
 
-        self.V.append(self.x0)
         self.ind = 0
+        self.i = 0
+        self.done = False
+        self.V: list[tuple[float, float, float]] = [self.x0]
+        self.Parent: dict[tuple[float, float, float], tuple[float, float, float]] = {}
+        self.COST: dict[tuple[float, float, float], float] = {self.x0: 0.0}
+        self.Path: list[np.ndarray] = []
+        self.D = 0.0
+        self.result: PlanResult | None = None
 
-    def wireup(self, x, y):
-        # self.E.add_edge([s,y]) # add edge
+    def wireup(self, x, y) -> None:
+        """Legacy compatibility method retained for API stability."""
         self.Parent[x] = y
 
-    def removewire(self, xnear):
-        xparent = self.Parent[xnear]
-        a = [xnear, xparent]
-        # self.E.remove_edge(a) # remove and replace old the connection
+    def run(self) -> PlanResult:  # noqa: D401 - keep legacy public API
+        """Run the planner once and populate legacy fields."""
+        start_time = time.time()
 
-    def reached(self):
+        if self.maxiter <= 0:
+            self.done = True
+            self.ind = int(self.maxiter)
+            self.result = PlanResult(success=False, path=[], iters=0, nodes=1, stats={"goal_checks": 0})
+            return self.result
+
+        params = RrtParams(
+            max_iters=int(self.maxiter),
+            step_size=float(self.stepsize),
+            goal_sample_rate=0.05,
+            max_sample_tries=1_000,
+            collision_step=0.1,
+        )
+        planner = RrtStarPlanner(self.space, params, rng=np.random.default_rng())
+        result = planner.plan(np.asarray(self.x0, dtype=float), (np.asarray(self.xt, dtype=float), self.stepsize))
+        self.result = result
+
         self.done = True
-        goal = self.xt
-        xn = near(self, self.env.goal)
-        c = [cost(self, tuple(x)) for x in xn]
-        xncmin = xn[np.argmin(c)]
-        self.wireup(goal, tuple(xncmin))
-        self.V.append(goal)
-        self.Path, self.D = path(self)
+        self.ind = int(result.iters)
+        self.i = max(result.nodes - 1, 0)
 
-    def run(self):
-        self.start_time = time.time()
-        xnew = self.x0
-        print("start rrt*... ")
-        self.fig = plt.figure(figsize=(10, 8))
-        while self.ind < self.maxiter:
-            xrand = sampleFree(self)
-            xnearest = nearest(self, xrand)
-            xnew, dist = steer(self, xnearest, xrand)
-            collide, _ = isCollide(self, xnearest, xnew, dist=dist)
-            if not collide:
-                Xnear = near(self, xnew)
-                self.V.append(xnew)  # add point
-                visualization(self)
-                plt.title("rrt*")
-                # minimal path and minimal cost
-                xmin, cmin = xnearest, cost(self, xnearest) + getDist(xnearest, xnew)
-                # connecting along minimal cost path
-                Collide = []
-                for xnear in Xnear:
-                    xnear = tuple(xnear)
-                    c1 = cost(self, xnear) + getDist(xnew, xnear)
-                    collide, _ = isCollide(self, xnew, xnear)
-                    Collide.append(collide)
-                    if not collide and c1 < cmin:
-                        xmin, cmin = xnear, c1
-                self.wireup(xnew, xmin)
-                # rewire
-                for i in range(len(Xnear)):
-                    collide = Collide[i]
-                    xnear = tuple(Xnear[i])
-                    c2 = cost(self, xnew) + getDist(xnew, xnear)
-                    if not collide and c2 < cost(self, xnear):
-                        # self.removewire(xnear)
-                        self.wireup(xnear, xnew)
-                self.i += 1
-            self.ind += 1
-        # max sample reached
-        self.reached()
-        print("time used = " + str(time.time() - self.start_time))
-        print("Total distance = " + str(self.D))
-        visualization(self)
-        plt.show()
+        if result.path:
+            tuples_path = [tuple(float(v) for v in state) for state in result.path]
+            self.V = tuples_path
+            self.Parent = {child: parent for parent, child in zip(tuples_path[:-1], tuples_path[1:])}
+            self.COST = {tuples_path[0]: 0.0}
+            self.Path = []
+            cumulative = 0.0
+            for parent, child in zip(tuples_path[:-1], tuples_path[1:]):
+                cumulative += self.space.distance(np.asarray(parent, dtype=float), np.asarray(child, dtype=float))
+                self.COST[child] = cumulative
+                self.Path.append(np.array([child, parent], dtype=float))
+            self.D = cumulative
+            print("Total distance = " + str(self.D))
+        else:
+            self.V = [self.x0]
+            self.Parent = {}
+            self.COST = {self.x0: 0.0}
+            self.Path = []
+            self.D = 0.0
+
+        print("time used = " + str(time.time() - start_time))
+        return result
 
 
 if __name__ == "__main__":
-    p = rrtstar()
-    p.run()
+    planner = rrtstar()
+    planner.run()
