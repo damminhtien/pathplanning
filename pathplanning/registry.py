@@ -1,4 +1,4 @@
-"""Production algorithm registry for PathPlanningV2."""
+"""Production algorithm registry for PathPlanning."""
 
 from __future__ import annotations
 
@@ -390,11 +390,17 @@ _INDEX: Dict[str, AlgorithmSpec] = {spec.algorithm_id: spec for spec in _ALGORIT
 _SUPPORTED_IDS = {spec.algorithm_id for spec in _ALGORITHMS if spec.status == SUPPORTED}
 _MISSING_ENTRYPOINTS = sorted(_SUPPORTED_IDS - set(_EXPECTED_ENTRYPOINTS))
 _EXTRA_ENTRYPOINTS = sorted(set(_EXPECTED_ENTRYPOINTS) - _SUPPORTED_IDS)
+_INVALID_ENTRYPOINT_NAMES = sorted(
+    algorithm_id
+    for algorithm_id, entrypoint in _EXPECTED_ENTRYPOINTS.items()
+    if not entrypoint or not entrypoint[0].isupper()
+)
 
-if _MISSING_ENTRYPOINTS or _EXTRA_ENTRYPOINTS:
+if _MISSING_ENTRYPOINTS or _EXTRA_ENTRYPOINTS or _INVALID_ENTRYPOINT_NAMES:
     raise RuntimeError(
         "Registry entrypoint contract mismatch. "
-        f"missing={_MISSING_ENTRYPOINTS}, extra={_EXTRA_ENTRYPOINTS}"
+        f"missing={_MISSING_ENTRYPOINTS}, extra={_EXTRA_ENTRYPOINTS}, "
+        f"invalid_entrypoint_names={_INVALID_ENTRYPOINT_NAMES}"
     )
 
 
@@ -404,7 +410,7 @@ def list_algorithms() -> List[AlgorithmSpec]:
 
 
 def list_supported_algorithms() -> List[AlgorithmSpec]:
-    """Return production-supported algorithms."""
+    """Return production-supported algorithms with planner entrypoint contracts."""
     return [spec for spec in _ALGORITHMS if spec.status == SUPPORTED]
 
 
