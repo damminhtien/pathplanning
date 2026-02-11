@@ -15,8 +15,8 @@ patches = lazy_import("matplotlib.patches")
 from scipy.spatial.transform import Rotation as Rot
 
 from . import env, plotting, utils
-from pathplanning.CurvesGenerator import dubins_path as dubins
-from pathplanning.CurvesGenerator import draw
+from pathplanning.curves import dubins_path as dubins
+from pathplanning.curves import draw
 
 
 class Node:
