@@ -450,7 +450,7 @@ class DynamicRRT3D:
 
         plot_util_3d.draw_Spheres(ax, np.asarray(self.env.balls, dtype=float))
         plot_util_3d.draw_block_list(ax, np.asarray(self.env.blocks, dtype=float))
-        obb_items = getattr(self.env, "OBB", None)
+        obb_items = getattr(self.env, "obb", None)
         if obb_items is not None:
             plot_util_3d.draw_obb(ax, obb_items)
         plot_util_3d.draw_block_list(ax, np.array([self.env.boundary], dtype=float), alpha=0.0)
