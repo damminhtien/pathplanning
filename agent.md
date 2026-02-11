@@ -1,6 +1,6 @@
 # AI Agent Operating Manual
 
-This document defines how AI agents should operate in `PathPlanningV2`.
+This document defines how AI agents should operate in `PathPlanning`.
 
 ## Objective
 
