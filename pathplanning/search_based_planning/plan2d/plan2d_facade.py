@@ -195,15 +195,20 @@ def _parse_planner(algo: Planner | str) -> Planner:
 def _import_local(module_name: str):
     """
     Import a sibling module under plan2d with support for:
-    1) package imports (`Search_based_Planning.plan2d...`)
+    1) package imports (`pathplanning.search_based_planning.plan2d...`)
     2) script execution from this folder (`python run.py`)
     """
     if __package__:
         return importlib.import_module(f"{__package__}.{module_name}")
     try:
-        return importlib.import_module(f"Search_based_Planning.plan2d.{module_name}")
+        return importlib.import_module(
+            f"pathplanning.search_based_planning.plan2d.{module_name}"
+        )
     except ModuleNotFoundError:
-        return importlib.import_module(module_name)
+        try:
+            return importlib.import_module(f"Search_based_Planning.plan2d.{module_name}")
+        except ModuleNotFoundError:
+            return importlib.import_module(module_name)
 
 
 # -- Core interface ------------------------------------------------------------
