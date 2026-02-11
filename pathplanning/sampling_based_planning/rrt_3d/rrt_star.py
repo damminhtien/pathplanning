@@ -11,6 +11,7 @@ import numpy as np
 
 from pathplanning.core.contracts import ConfigurationSpace, PlanResult, State
 from pathplanning.core.nn_index import NaiveIndex, NearestNeighborIndex
+from pathplanning.core.tree import Tree
 from pathplanning.core.params import RrtParams
 
 GoalPredicate: TypeAlias = Callable[[State], bool]
@@ -126,21 +127,16 @@ class RrtStarPlanner:
         return index.radius(target, radius)
 
     @staticmethod
-    def _reconstruct_path(nodes: list[State], parents: list[int], last_index: int) -> list[State]:
-        """Backtrack parent pointers to reconstruct a root-to-leaf path."""
-        path_reversed: list[State] = []
-        index = last_index
-        while index != -1:
-            path_reversed.append(np.asarray(nodes[index], dtype=float))
-            index = parents[index]
-        path_reversed.reverse()
-        return path_reversed
+    def _path_from_tree(tree: Tree, node_id: int) -> list[State]:
+        """Return root-to-node path as a list of states."""
+        path = tree.extract_path(node_id)
+        return [np.asarray(state, dtype=float) for state in path]
 
     @staticmethod
     def _propagate_cost_delta(
         root_index: int,
         delta: float,
-        costs: list[float],
+        costs: NDArray[np.float64],
         children: list[set[int]],
     ) -> None:
         """Apply a cost delta to one subtree after rewiring."""
@@ -166,12 +162,11 @@ class RrtStarPlanner:
                 stats={"reason": "start_in_goal", "goal_checks": 1},
             )
 
-        nodes: list[State] = [np.asarray(start_state, dtype=float)]
-        parents: list[int] = [-1]
+        tree = Tree(self.space.dim)
+        root_id = tree.append_node(start_state, -1, 0.0)
         children: list[set[int]] = [set()]
-        costs: list[float] = [0.0]
         index = self._nn_index_factory(self.space.dim)
-        index.add(nodes[0])
+        index.add(tree.nodes[root_id])
 
         goal_indices: list[int] = []
         goal_checks = 0
@@ -188,7 +183,7 @@ class RrtStarPlanner:
             target = goal.target_state if use_goal_sample else self._sample_free()
 
             nearest_index = self._nearest_index(index, target)
-            nearest = nodes[nearest_index]
+            nearest = tree.nodes[nearest_index]
             candidate = self.space.steer(nearest, target, self.params.step_size)
 
             if not self.space.is_free(candidate):
@@ -196,7 +191,7 @@ class RrtStarPlanner:
             if not self.space.segment_free(nearest, candidate, self.params.collision_step):
                 continue
 
-            card_v = len(nodes)
+            card_v = tree.size
             if card_v <= 1:
                 near_indices = [0]
             else:
@@ -206,55 +201,52 @@ class RrtStarPlanner:
                 near_indices = self._near_indices(index, candidate, near_radius)
 
             parent_index = nearest_index
-            parent_cost = costs[parent_index] + self.space.distance(nearest, candidate)
+            parent_cost = float(tree.cost[parent_index] + self.space.distance(nearest, candidate))
             for near_index in near_indices:
-                near_node = nodes[near_index]
+                near_node = tree.nodes[near_index]
                 if not self.space.segment_free(near_node, candidate, self.params.collision_step):
                     continue
-                candidate_cost = costs[near_index] + self.space.distance(near_node, candidate)
+                candidate_cost = float(tree.cost[near_index] + self.space.distance(near_node, candidate))
                 if candidate_cost < parent_cost:
                     parent_index = near_index
                     parent_cost = candidate_cost
 
-            nodes.append(np.asarray(candidate, dtype=float))
-            parents.append(parent_index)
+            new_index = tree.append_node(candidate, parent_index, parent_cost)
             children.append(set())
-            children[parent_index].add(len(nodes) - 1)
-            costs.append(parent_cost)
-            index.add(nodes[-1])
-            new_index = len(nodes) - 1
+            children[parent_index].add(new_index)
+            index.add(tree.nodes[new_index])
 
             for near_index in near_indices:
                 if near_index == parent_index or near_index == new_index:
                     continue
-                near_node = nodes[near_index]
+                near_node = tree.nodes[near_index]
                 if not self.space.segment_free(candidate, near_node, self.params.collision_step):
                     continue
-                rewired_cost = costs[new_index] + self.space.distance(candidate, near_node)
-                if rewired_cost < costs[near_index]:
-                    old_parent = parents[near_index]
+                rewired_cost = float(tree.cost[new_index] + self.space.distance(candidate, near_node))
+                if rewired_cost < tree.cost[near_index]:
+                    old_parent = int(tree.parent[near_index])
                     if old_parent != -1:
                         children[old_parent].remove(near_index)
-                    parents[near_index] = new_index
+                    tree.parent[near_index] = new_index
                     children[new_index].add(near_index)
-                    delta = rewired_cost - costs[near_index]
-                    self._propagate_cost_delta(near_index, delta, costs, children)
+                    delta = float(rewired_cost - tree.cost[near_index])
+                    self._propagate_cost_delta(near_index, delta, tree.cost, children)
 
             goal_checks += 1
-            if goal.predicate(nodes[new_index]):
+            if goal.predicate(tree.nodes[new_index]):
                 goal_indices.append(new_index)
 
         if goal_indices:
-            best_goal_index = min(goal_indices, key=lambda idx: costs[idx])
-            path = self._reconstruct_path(nodes, parents, best_goal_index)
+            best_goal_index = min(goal_indices, key=lambda idx: tree.cost[idx])
+            path = self._path_from_tree(tree, best_goal_index)
             return PlanResult(
                 success=True,
                 path=path,
                 iters=iters_run,
-                nodes=len(nodes),
+                nodes=tree.size,
                 stats={
                     "goal_checks": goal_checks,
-                    "path_cost": float(costs[best_goal_index]),
+                    "path_cost": float(tree.cost[best_goal_index]),
                     "goal_nodes": len(goal_indices),
                 },
             )
@@ -263,6 +255,6 @@ class RrtStarPlanner:
             success=False,
             path=[],
             iters=iters_run,
-            nodes=len(nodes),
+            nodes=tree.size,
             stats={"goal_checks": goal_checks},
         )
