@@ -3,17 +3,14 @@ DUBINS_RRT_STAR 2D
 @author: damminhtien
 """
 
-import os
-import sys
 import math
 import numpy as np
 from pathplanning.viz import lazy_import
 
 plt = lazy_import("matplotlib.pyplot")
 patches = lazy_import("matplotlib.patches")
-from scipy.spatial.transform import Rotation as Rot
 
-from . import env, plotting, utils
+from . import env, utils
 from pathplanning.curves import dubins_path as dubins
 from pathplanning.curves import draw
 

@@ -1,4 +1,4 @@
-"""Top-level reusable API helpers for PathPlanningV2."""
+"""Top-level reusable API helpers for PathPlanning."""
 
 from __future__ import annotations
 
