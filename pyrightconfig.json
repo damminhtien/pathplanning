@@ -1,7 +1,15 @@
 {
-  "$schema": "https://raw.githubusercontent.com/microsoft/pyright/main/packages/pyright-schemas/pyrightconfig.schema.json",
-  "include": ["pathplanning"],
+  "include": [
+    "pathplanning/__init__.py",
+    "pathplanning/api.py",
+    "pathplanning/registry.py",
+    "pathplanning/search2d.py",
+    "pathplanning/viz"
+  ],
   "exclude": [
+    "pathplanning/Sampling_based_Planning",
+    "pathplanning/Search_based_Planning",
+    "pathplanning/CurvesGenerator",
     "Sampling_based_Planning",
     "Search_based_Planning",
     "CurvesGenerator",
