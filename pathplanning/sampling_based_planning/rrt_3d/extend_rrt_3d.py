@@ -6,15 +6,12 @@ This is rrt extend code for 3D
 import numpy as np
 from collections import defaultdict
 import time
-from pathplanning.viz import lazy_import
-
-plt = lazy_import("matplotlib.pyplot")
 
 import os
 import sys
 
 from .env_3d import Environment3D
-from .utils_3d import getDist, sampleFree, nearest, steer, isCollide, near, visualization, cost, path
+from .utils_3d import getDist, sampleFree, nearest, steer, isCollide, near, cost, path
 
 # here attempt to use a KD tree for the data structure implementation
 import scipy.spatial.kdtree as KDtree
@@ -54,13 +51,10 @@ class extend_rrt(object):
                     break
                 self.i += 1
             self.ind += 1
-            visualization(self)
             
         # return rrt_tree
         self.done = True
         self.Path, _ = path(self)
-        visualization(self)
-        plt.show()
         
 
     def Nearest(self, tree, target):

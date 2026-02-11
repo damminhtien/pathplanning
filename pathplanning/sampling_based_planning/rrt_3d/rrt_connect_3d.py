@@ -6,16 +6,12 @@ This is rrt connect implementation for 3D
 import numpy as np
 from collections import defaultdict
 import time
-from pathplanning.viz import lazy_import
-
-plt = lazy_import("matplotlib.pyplot")
 
 import os
 import sys
 
 from .env_3d import Environment3D
 from .utils_3d import getDist, sampleFree, nearest, steer, isCollide, near, visualization, cost, path, edgeset
-from .plot_util_3d import set_axes_equal, draw_block_list, draw_Spheres, draw_obb, draw_line, make_transparent
 
 
 class Tree():
@@ -52,7 +48,6 @@ class rrt_connect():
         self.done = False
         
         self.ind = 0
-        self.fig = plt.figure(figsize=(10, 8))
 
 
 #----------Normal RRT algorithm
@@ -116,12 +111,9 @@ class rrt_connect():
                     print('reached')
                     self.done = True
                     self.Path = self.PATH(Tree_A, Tree_B)
-                    self.visualization(Tree_A, Tree_B, k)
-                    plt.show()
                     return
                     # return
             Tree_A, Tree_B = self.SWAP(Tree_A, Tree_B)
-            self.visualization(Tree_A, Tree_B, k)
         return 'Failure'
 
     # def PATH(self, tree_a, tree_b):
@@ -148,34 +140,8 @@ class rrt_connect():
 
 #----------RRT connect algorithm        
     def visualization(self, tree_a, tree_b, index):
-        if (index % 20 == 0 and index != 0) or self.done:
-            # a_V = np.array(tree_a.V)
-            # b_V = np.array(tree_b.V)
-            Path = self.Path
-            start = self.env.start
-            goal = self.env.goal
-            a_edges, b_edges = [], []
-            for i in tree_a.Parent:
-                a_edges.append([i,tree_a.Parent[i]])
-            for i in tree_b.Parent:
-                b_edges.append([i,tree_b.Parent[i]])
-            ax = plt.subplot(111, projection='3d')
-            ax.view_init(elev=90., azim=0.)
-            ax.clear()
-            draw_Spheres(ax, self.env.balls)
-            draw_block_list(ax, self.env.blocks)
-            if self.env.OBB is not None:
-                draw_obb(ax, self.env.OBB)
-            draw_block_list(ax, np.array([self.env.boundary]), alpha=0)
-            draw_line(ax, a_edges, visibility=0.75, color='g')
-            draw_line(ax, b_edges, visibility=0.75, color='y')
-            draw_line(ax, Path, color='r')
-            ax.plot(start[0:1], start[1:2], start[2:], 'go', markersize=7, markeredgecolor='k')
-            ax.plot(goal[0:1], goal[1:2], goal[2:], 'ro', markersize=7, markeredgecolor='k')
-            set_axes_equal(ax)
-            make_transparent(ax)
-            ax.set_axis_off()
-            plt.pause(0.0001)
+        _ = tree_a, tree_b, index
+        return None
 
 
 

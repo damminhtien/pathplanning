@@ -6,9 +6,6 @@ source: Janson, Lucas, et al. "Fast marching tree: A fast marching sampling-base
         The International journal of robotics research 34.7 (2015): 883-921.
 """
 import numpy as np
-from pathplanning.viz import lazy_import
-
-plt = lazy_import("matplotlib.pyplot")
 import time
 import copy
 
@@ -18,7 +15,6 @@ import sys
 
 from .env_3d import Environment3D
 from .utils_3d import getDist, sampleFree, nearest, steer, isCollide
-from .plot_util_3d import set_axes_equal, draw_block_list, draw_Spheres, draw_obb, draw_line, make_transparent
 from .queue import MinheapPQ
 
 class FMT_star:
@@ -130,7 +126,6 @@ class FMT_star:
                 return 
             ind += 1
             print(str(ind) + ' node expanded')
-            self.visualization(ind, E)
             # update current node
             Vopenlist = list(self.Vopen)
             z = Vopenlist[np.argmin([self.c[y] for y in self.Vopen])]
@@ -138,56 +133,14 @@ class FMT_star:
         T = (self.Vopen.union(self.Vclosed), E)
         self.done = True
         self.Path = self.path(z, T)
-        self.visualization(ind, E)
-        plt.show()
         # return self.path(z, T)
 
     def visualization(self, ind, E):
-        if ind % 100 == 0 or self.done:
-            #----------- list structure
-            # V = np.array(list(initparams.V))
-            # E = initparams.E
-            #----------- end
-            # edges = initparams.E
-            Path = np.array(self.Path)
-            start = self.env.start
-            goal = self.env.goal
-            # edges = E.get_edge()
-            #----------- list structure
-            edges = np.array(list(E))
-            #----------- end
-            # generate axis objects
-            ax = plt.subplot(111, projection='3d')
-            
-            # ax.view_init(elev=0.+ 0.03*initparams.ind/(2*np.pi), azim=90 + 0.03*initparams.ind/(2*np.pi))
-            # ax.view_init(elev=0., azim=90.)
-            ax.view_init(elev=65., azim=60.)
-            ax.dist = 15
-            # ax.view_init(elev=-8., azim=180)
-            ax.clear()
-            # drawing objects
-            draw_Spheres(ax, self.env.balls)
-            draw_block_list(ax, self.env.blocks)
-            if self.env.OBB is not None:
-                draw_obb(ax, self.env.OBB)
-            draw_block_list(ax, np.array([self.env.boundary]), alpha=0)
-            draw_line(ax, edges, visibility=0.75, color='g')
-            draw_line(ax, Path, color='r')
-            # if len(V) > 0:
-            #     ax.scatter3D(V[:, 0], V[:, 1], V[:, 2], s=2, color='g', )
-            ax.plot(start[0:1], start[1:2], start[2:], 'go', markersize=7, markeredgecolor='k')
-            ax.plot(goal[0:1], goal[1:2], goal[2:], 'ro', markersize=7, markeredgecolor='k')
-            # adjust the aspect ratio
-            set_axes_equal(ax)
-            make_transparent(ax)
-            #plt.xlabel('x')
-            #plt.ylabel('y')
-            ax.set_axis_off()
-            plt.pause(0.0001)
+        _ = ind, E
+        return None
 
 if __name__ == '__main__':
     A = FMT_star(radius = 1, n = 3000)
     A.FMTrun()
-
 
 

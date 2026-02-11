@@ -344,7 +344,6 @@ class DynamicRRT3D:
         self.path_segments, _path_dist = path_result
 
         self.done = True
-        self.visualization()
         t = 0
         while t < self.config.dynamic_step_limit:
             move_result = self.env.move_block(a=[0.2, 0, -0.2], mode="translation")
@@ -354,7 +353,6 @@ class DynamicRRT3D:
             self.invalidate_nodes(new)
             self.trim_rrt()
 
-            self.visualization()
             self.invalid = self.path_is_invalid(self.path_segments)
             if self.invalid:
                 self.done = False
@@ -366,14 +364,9 @@ class DynamicRRT3D:
                     continue
                 self.path_segments, _path_dist = path_result
                 self.done = True
-                self.visualization()
             t += 1
 
-        self.visualization()
-        from pathplanning.viz import lazy_import
-
-        plt = lazy_import("matplotlib.pyplot")
-        plt.show()
+        return None
 
     def find_affected_edges(self, obstacle: Obstacle) -> list[Edge]:
         """Find edges that collide after obstacle motion."""
@@ -428,42 +421,8 @@ class DynamicRRT3D:
         return path_edges, dist
 
     def visualization(self) -> None:
-        """Render current environment, tree edges, and solution path."""
-        if self.ind % 100 != 0 and not self.done:
-            return
-
-        # Keep plotting imports out of module import-time to remain headless-safe.
-        from pathplanning.viz import lazy_import
-
-        from . import plot_util_3d
-
-        plt = lazy_import("matplotlib.pyplot")
-
-        path = np.array(self.path_segments, dtype=float)
-        start = np.asarray(self.env.start, dtype=float)
-        goal = np.asarray(self.env.goal, dtype=float)
-        edges = np.array([list(i) for i in self.edges], dtype=float)
-
-        ax = plt.subplot(111, projection="3d")
-        ax.view_init(elev=90.0, azim=0.0)
-        ax.clear()
-
-        plot_util_3d.draw_Spheres(ax, np.asarray(self.env.balls, dtype=float))
-        plot_util_3d.draw_block_list(ax, np.asarray(self.env.blocks, dtype=float))
-        obb_items = getattr(self.env, "obb", None)
-        if obb_items is not None:
-            plot_util_3d.draw_obb(ax, obb_items)
-        plot_util_3d.draw_block_list(ax, np.array([self.env.boundary], dtype=float), alpha=0.0)
-        plot_util_3d.draw_line(ax, edges, visibility=0.75, color="g")
-        plot_util_3d.draw_line(ax, path, color="r")
-
-        ax.plot(start[0:1], start[1:2], start[2:], "go", markersize=7, markeredgecolor="k")
-        ax.plot(goal[0:1], goal[1:2], goal[2:], "ro", markersize=7, markeredgecolor="k")
-
-        plot_util_3d.set_axes_equal(ax)
-        plot_util_3d.make_transparent(ax)
-        ax.set_axis_off()
-        plt.pause(0.0001)
+        """Deprecated no-op. Use plotting helpers from ``pathplanning.viz.rrt_3d``."""
+        return None
 
 
 if __name__ == "__main__":

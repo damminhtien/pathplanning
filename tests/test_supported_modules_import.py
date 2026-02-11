@@ -84,6 +84,29 @@ def test_import_supported_modules_does_not_load_matplotlib() -> None:
         )
 
 
+def test_import_all_supported_modules_together_does_not_load_matplotlib() -> None:
+    """Importing all supported planners in one process must stay headless-safe."""
+    modules = sorted({spec.module for spec in list_supported_algorithms()})
+    code = (
+        "import importlib\n"
+        "import sys\n"
+        f"modules = {modules!r}\n"
+        "before = set(sys.modules)\n"
+        "for module_name in modules:\n"
+        "    importlib.import_module(module_name)\n"
+        "loaded = set(sys.modules) - before\n"
+        "bad = sorted(name for name in loaded if name == 'matplotlib' or name.startswith('matplotlib.'))\n"
+        "if bad:\n"
+        "    raise SystemExit('\\n'.join(bad))\n"
+    )
+    result = subprocess.run(
+        [sys.executable, "-c", code], capture_output=True, text=True, check=False
+    )
+    assert result.returncode == 0, (
+        f"Batch import of supported modules loads matplotlib:\\n{result.stdout}{result.stderr}"
+    )
+
+
 def test_supported_modules_have_non_empty_source_and_expected_entrypoint() -> None:
     """
     Expected entrypoint contract:
