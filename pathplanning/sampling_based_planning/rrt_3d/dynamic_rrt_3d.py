@@ -38,8 +38,14 @@ def sample_free_state(initparams: Any, bias: float = 0.1) -> Node:
 
 def nearest_node(initparams: Any, target: Node) -> Node:
     """Return the nearest node in the current tree."""
-    nearest = cast(Sequence[float] | NDArray[Any], utils_3d.nearest(initparams, target, isset=True))
-    return _as_node(nearest)
+    if not initparams.nodes:
+        raise ValueError("nearest_node called with an empty node set")
+    if initparams.i == 0:
+        return initparams.nodes[0]
+    nodes = np.asarray(initparams.nodes, dtype=float)
+    target_repeated = np.tile(target, (len(nodes), 1))
+    dists = np.linalg.norm(target_repeated - nodes, axis=1)
+    return _as_node(nodes[int(np.argmin(dists))])
 
 
 def steer_node(initparams: Any, x: Node, y: Node) -> tuple[Node, float]:
@@ -111,17 +117,16 @@ class DynamicRRT3D:
         self.current: Node = _as_node(self.env.start)
         self.stepsize = 0.25
         self.maxiter = 10000
-        self.GoalProb = 0.05  # legacy attribute used by older modules
-        self.WayPointProb = 0.02  # legacy attribute used by older modules
+        self.goal_prob = 0.05
+        self.way_point_prob = 0.02
         self.done = False
         self.invalid = False
 
-        # Legacy attribute names kept for compatibility with utility functions.
-        self.V: list[Node] = []
-        self.Parent: dict[Node, Node] = {}
-        self.Edge: set[Edge] = set()
-        self.Path: list[PathEdge] = []
-        self.flag: dict[Node, Literal["Valid", "Invalid"]] = {}
+        self.nodes: list[Node] = []
+        self.parent_by_node: dict[Node, Node] = {}
+        self.edges: set[Edge] = set()
+        self.path_segments: list[PathEdge] = []
+        self.node_state: dict[Node, Literal["valid", "invalid"]] = {}
         self.ind = 0
         self.i = 0
 
@@ -135,12 +140,12 @@ class DynamicRRT3D:
         nodes_to_keep: list[Node] = []
         i = 1
         print("trimming...")
-        while i < len(self.V):
-            qi = self.V[i]
-            qp = self.Parent[qi]
-            if self.flag.get(qp) == "Invalid":
-                self.flag[qi] = "Invalid"
-            if self.flag.get(qi) != "Invalid":
+        while i < len(self.nodes):
+            qi = self.nodes[i]
+            qp = self.parent_by_node[qi]
+            if self.node_state.get(qp) == "invalid":
+                self.node_state[qi] = "invalid"
+            if self.node_state.get(qi) != "invalid":
                 nodes_to_keep.append(qi)
             i += 1
         self.create_tree_from_nodes(nodes_to_keep)
@@ -150,12 +155,12 @@ class DynamicRRT3D:
         edges = self.find_affected_edges(obstacle)
         for edge in edges:
             qe = self.child_endpoint_node(edge)
-            self.flag[qe] = "Invalid"
+            self.node_state[qe] = "invalid"
 
     def init_rrt(self) -> None:
         """Initialize the tree with the root node."""
-        self.V.append(self.x0)
-        self.flag[self.x0] = "Valid"
+        self.nodes.append(self.x0)
+        self.node_state[self.x0] = "valid"
 
     def grow_rrt(self) -> None:
         """Grow the RRT until the goal is reached or iteration limit is hit."""
@@ -171,7 +176,7 @@ class DynamicRRT3D:
                 self.add_node(qnearest, qnew)
                 if get_dist(qnew, self.xt) < distance_threshold:
                     self.add_node(qnearest, self.xt)
-                    self.flag[self.xt] = "Valid"
+                    self.node_state[self.xt] = "valid"
                     break
                 self.i += 1
             self.ind += 1
@@ -179,14 +184,14 @@ class DynamicRRT3D:
     def choose_target(self) -> Node:
         """Sample target node with goal and waypoint bias."""
         p = np.random.uniform()
-        if len(self.V) <= 1:
+        if len(self.nodes) <= 1:
             i = 0
         else:
-            i = np.random.randint(0, high=len(self.V) - 1)
-        if p < self.GoalProb:
+            i = np.random.randint(0, high=len(self.nodes) - 1)
+        if p < self.goal_prob:
             return self.xt
-        if self.V and p < self.GoalProb + self.WayPointProb:
-            return self.V[i]
+        if self.nodes and p < self.goal_prob + self.way_point_prob:
+            return self.nodes[i]
         return self.random_state()
 
     def random_state(self) -> Node:
@@ -195,10 +200,10 @@ class DynamicRRT3D:
 
     def add_node(self, parent_node: Node, extended: Node) -> None:
         """Add a node and its parent-edge relation to the tree."""
-        self.V.append(extended)
-        self.Parent[extended] = parent_node
-        self.Edge.add((extended, parent_node))
-        self.flag[extended] = "Valid"
+        self.nodes.append(extended)
+        self.parent_by_node[extended] = parent_node
+        self.edges.add((extended, parent_node))
+        self.node_state[extended] = "valid"
 
     def nearest(self, target: Node) -> Node:
         """Return nearest existing tree node to `target`."""
@@ -220,7 +225,7 @@ class DynamicRRT3D:
         path_result = self.path()
         if path_result is None:
             return
-        self.Path, _path_dist = path_result
+        self.path_segments, _path_dist = path_result
 
         self.done = True
         self.visualization()
@@ -234,15 +239,15 @@ class DynamicRRT3D:
             self.trim_rrt()
 
             self.visualization()
-            self.invalid = self.path_is_invalid(self.Path)
+            self.invalid = self.path_is_invalid(self.path_segments)
             if self.invalid:
                 self.done = False
                 self.regrow_rrt()
-                self.Path = []
+                self.path_segments = []
                 path_result = self.path()
                 if path_result is None:
                     continue
-                self.Path, _path_dist = path_result
+                self.path_segments, _path_dist = path_result
                 self.done = True
                 self.visualization()
             if t == 8:
@@ -257,7 +262,7 @@ class DynamicRRT3D:
         _ = obstacle
         print("finding affected edges...")
         affected_edges: list[Edge] = []
-        for edge in self.Edge:
+        for edge in self.edges:
             child, parent = edge
             collide, _ = is_collide(self, child, parent)
             if collide:
@@ -271,14 +276,16 @@ class DynamicRRT3D:
     def create_tree_from_nodes(self, nodes: list[Node]) -> None:
         """Rebuild edge set from a filtered node list."""
         print("creating tree...")
-        self.V = list(nodes)
-        self.Edge = {(node, self.Parent[node]) for node in nodes if node in self.Parent}
+        self.nodes = list(nodes)
+        self.edges = {
+            (node, self.parent_by_node[node]) for node in nodes if node in self.parent_by_node
+        }
 
     def path_is_invalid(self, path: list[PathEdge]) -> bool:
         """Check whether any path segment includes an invalid endpoint."""
         for edge in path:
             start, end = _as_node(edge[0]), _as_node(edge[1])
-            if self.flag.get(start) == "Invalid" or self.flag.get(end) == "Invalid":
+            if self.node_state.get(start) == "invalid" or self.node_state.get(end) == "invalid":
                 return True
         return False
 
@@ -288,7 +295,7 @@ class DynamicRRT3D:
         x = self.xt
         i = 0
         while x != self.x0:
-            x2 = self.Parent.get(x)
+            x2 = self.parent_by_node.get(x)
             if x2 is None:
                 print("Path is not found")
                 return None
@@ -306,10 +313,10 @@ class DynamicRRT3D:
         if self.ind % 100 != 0 and not self.done:
             return
 
-        path = np.array(self.Path, dtype=float)
+        path = np.array(self.path_segments, dtype=float)
         start = np.asarray(self.env.start, dtype=float)
         goal = np.asarray(self.env.goal, dtype=float)
-        edges = np.array([list(i) for i in self.Edge], dtype=float)
+        edges = np.array([list(i) for i in self.edges], dtype=float)
 
         ax = plt.subplot(111, projection="3d")
         ax.view_init(elev=90.0, azim=0.0)
