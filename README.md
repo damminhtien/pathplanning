@@ -1,8 +1,9 @@
-# PathPlanningV2
+# PathPlanning
 
 PathPlanning is a curated collection of search-based and sampling-based path planning algorithms for robotics, with built-in visualizations for 2D and 3D demos.
 
 The repository is organized for practical use:
+
 - algorithm implementations grouped by planning family
 - reusable environment and plotting utilities
 - runnable demo scripts
@@ -34,11 +35,13 @@ The repository is organized for practical use:
 ## Overview
 
 This codebase is useful for:
+
 - learning classic planning algorithms
 - comparing planners on shared map/obstacle settings
 - extending planners while keeping plotting and environment code decoupled
 
 Primary modules:
+
 - `pathplanning/search_based_planning/plan2d`: 2D grid search planners
 - `pathplanning/search_based_planning/search_3d`: 3D search planners
 - `pathplanning/sampling_based_planning/rrt_2d`: 2D sampling-based planners
@@ -104,31 +107,33 @@ A small gallery from the built-in animations:
 ## Implemented Algorithms
 
 Search-based (2D/3D):
+
 - Breadth-First Search (BFS)
 - Depth-First Search (DFS)
 - Best-First Search
 - Dijkstra
-- A*
-- Bidirectional A*
+- A\*
+- Bidirectional A\*
 - Lifelong Planning A* (LPA*)
 - Learning Real-Time A* (LRTA*)
 - Real-Time Adaptive A* (RTAA*)
-- D*
-- D* Lite
-- Anytime D*
+- D\*
+- D\* Lite
+- Anytime D\*
 - Anytime Repairing A* (ARA*)
 
 Sampling-based (2D/3D):
+
 - RRT
 - RRT-Connect
 - Extended-RRT
 - Dynamic-RRT
-- RRT*
-- Informed RRT*
-- RRT* Smart
-- FMT*
-- BIT*
-- AIT*
+- RRT\*
+- Informed RRT\*
+- RRT\* Smart
+- FMT\*
+- BIT\*
+- AIT\*
 
 ## Installation
 
@@ -177,9 +182,11 @@ The 3D sampling stack includes a production refactor for deterministic execution
 headless-safe imports, and clearer environment contracts.
 
 See:
+
 - `docs/rrt3d_refactor.md`
 
 Highlights:
+
 - `DynamicRRT3DConfig` and seeded constructor support (`DynamicRRT3D.with_seed`)
 - pluggable nearest-neighbor backends (`BruteForceNearestNodeIndex`, `KDTreeNearestNodeIndex`)
 - canonical `Environment3D` snake_case fields (`aabb`, `aabb_pyrr`, `obb`)
@@ -244,6 +251,7 @@ python Search_based_Planning/Search_3D/Astar3D.py
 ```
 
 Generated animations are available under:
+
 - `Search_based_Planning/gif`
 - `Sampling_based_Planning/gif`
 
