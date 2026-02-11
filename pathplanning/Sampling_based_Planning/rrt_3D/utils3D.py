@@ -6,8 +6,7 @@ from collections import deque
 import os
 import sys
 
-sys.path.append(os.path.dirname(os.path.abspath(__file__)) + "/../../Sampling_based_Planning/")
-from rrt_3D.plot_util3D import visualization
+from .plot_util3D import visualization
 
 
 def getRay(x, y):
@@ -365,7 +364,7 @@ class kdTree:
 
 
 if __name__ == '__main__':
-    from rrt_3D.env3D import env
+    from .env3D import env
     import time
     import matplotlib.pyplot as plt
     class rrt_demo:

@@ -1,6 +1,8 @@
 import math
 import numpy as np
-import matplotlib.pyplot as plt
+from pathplanning.viz import lazy_import
+
+plt = lazy_import("matplotlib.pyplot")
 
 import draw
 

@@ -1,4 +1,6 @@
-import matplotlib.pyplot as plt
+from pathplanning.viz import lazy_import
+
+plt = lazy_import("matplotlib.pyplot")
 import numpy as np
 PI = np.pi
 

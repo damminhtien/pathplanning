@@ -8,14 +8,13 @@ import sys
 import math
 import random
 import numpy as np
-import matplotlib.pyplot as plt
+from pathplanning.viz import lazy_import
+
+plt = lazy_import("matplotlib.pyplot")
 from scipy.spatial.transform import Rotation as Rot
-import matplotlib.patches as patches
+patches = lazy_import("matplotlib.patches")
 
-sys.path.append(os.path.dirname(os.path.abspath(__file__)) +
-                "/../../Sampling_based_Planning/")
-
-from Sampling_based_Planning.rrt_2D import env, plotting, utils
+from . import env, plotting, utils
 
 
 class Node:

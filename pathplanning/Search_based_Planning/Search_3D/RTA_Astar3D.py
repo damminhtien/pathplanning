@@ -5,21 +5,22 @@
 @author: yue qi
 """
 import numpy as np
-import matplotlib.pyplot as plt
+from pathplanning.viz import lazy_import
+
+plt = lazy_import("matplotlib.pyplot")
 
 import os
 import sys
 
-sys.path.append(os.path.dirname(os.path.abspath(__file__)) + "/../../Search_based_Planning/")
-from Search_3D.env3D import env
-from Search_3D import Astar3D
-from Search_3D.utils3D import getDist, getRay, g_Space, Heuristic, getNearest, isCollide, \
+from .env3D import env
+from . import Astar3D
+from .utils3D import getDist, getRay, g_Space, Heuristic, getNearest, isCollide, \
     cost, obstacleFree, children
-from Search_3D.plot_util3D import visualization
+from .plot_util3D import visualization
 try:
     from . import queue
 except ImportError:  # pragma: no cover - script execution fallback
-    from Search_3D import queue
+    from . import queue
 
 class RTA_A_star:
     def __init__(self, resolution=0.5, N=7):

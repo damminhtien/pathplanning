@@ -4,7 +4,9 @@ Anytime_D_star 2D
 """
 
 import math
-import matplotlib.pyplot as plt
+from pathplanning.viz import lazy_import
+
+plt = lazy_import("matplotlib.pyplot")
 
 try:
     from .utils import plotting, env
