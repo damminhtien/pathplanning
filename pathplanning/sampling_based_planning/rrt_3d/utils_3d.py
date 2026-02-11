@@ -5,7 +5,7 @@ from collections import deque
 import os
 import sys
 
-from .plot_util3D import visualization
+from .plot_util_3d import visualization
 
 
 def getRay(x, y):
@@ -363,7 +363,7 @@ class kdTree:
 
 
 if __name__ == '__main__':
-    from .env3D import env
+    from .env_3d import env
     import time
     import matplotlib.pyplot as plt
     class rrt_demo:

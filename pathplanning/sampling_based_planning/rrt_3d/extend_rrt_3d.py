@@ -13,8 +13,8 @@ plt = lazy_import("matplotlib.pyplot")
 import os
 import sys
 
-from .env3D import env
-from .utils3D import getDist, sampleFree, nearest, steer, isCollide, near, visualization, cost, path
+from .env_3d import env
+from .utils_3d import getDist, sampleFree, nearest, steer, isCollide, near, visualization, cost, path
 
 # here attempt to use a KD tree for the data structure implementation
 import scipy.spatial.kdtree as KDtree

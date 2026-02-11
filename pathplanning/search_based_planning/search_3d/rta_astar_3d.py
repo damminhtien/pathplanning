@@ -12,11 +12,11 @@ plt = lazy_import("matplotlib.pyplot")
 import os
 import sys
 
-from .env3D import env
-from . import Astar3D
-from .utils3D import getDist, getRay, g_Space, Heuristic, getNearest, isCollide, \
+from .env_3d import env
+from . import astar_3d
+from .utils_3d import getDist, getRay, g_Space, Heuristic, getNearest, isCollide, \
     cost, obstacleFree, children
-from .plot_util3D import visualization
+from .plot_util_3d import visualization
 try:
     from . import queue
 except ImportError:  # pragma: no cover - script execution fallback
@@ -25,7 +25,7 @@ except ImportError:  # pragma: no cover - script execution fallback
 class RTA_A_star:
     def __init__(self, resolution=0.5, N=7):
         self.N = N # node to expand 
-        self.Astar = Astar3D.Weighted_A_star(resolution=resolution) # initialize A star
+        self.Astar = astar_3d.Weighted_A_star(resolution=resolution) # initialize A star
         self.path = [] # empty path
         self.st = []
         self.localhvals = []

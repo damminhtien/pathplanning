@@ -7,11 +7,11 @@ import os
 import sys
 from collections import defaultdict
 
-from .env3D import env
-from . import Astar3D
-from .utils3D import StateSpace, getDist, getNearest, getRay, isinbound, isinball, isCollide, children, cost, \
+from .env_3d import env
+from . import astar_3d
+from .utils_3d import StateSpace, getDist, getNearest, getRay, isinbound, isinball, isCollide, children, cost, \
     initcost
-from .plot_util3D import visualization
+from .plot_util_3d import visualization
 
 
 class D_star(object):

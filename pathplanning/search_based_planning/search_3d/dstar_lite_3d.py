@@ -7,10 +7,10 @@ import os
 import sys
 from collections import defaultdict
 
-from .env3D import env
-from .utils3D import getDist, heuristic_fun, getNearest, isinbound, \
+from .env_3d import env
+from .utils_3d import getDist, heuristic_fun, getNearest, isinbound, \
      cost, children, StateSpace
-from .plot_util3D import visualization
+from .plot_util_3d import visualization
 from . import queue
 import time
 

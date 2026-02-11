@@ -18,9 +18,9 @@ import copy
 import os
 import sys
 
-from .env3D import env
-from .utils3D import getDist, sampleFree, nearest, steer, isCollide
-from .plot_util3D import make_get_proj, draw_block_list, draw_Spheres, draw_obb, draw_line, make_transparent
+from .env_3d import env
+from .utils_3d import getDist, sampleFree, nearest, steer, isCollide
+from .plot_util_3d import make_get_proj, draw_block_list, draw_Spheres, draw_obb, draw_line, make_transparent
 from .queue import MinheapPQ
 
 class ABIT_star:

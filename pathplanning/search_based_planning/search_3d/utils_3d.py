@@ -346,7 +346,7 @@ def initcost(initparams):
 
 if __name__ == "__main__":
     import time
-    from env3D import R_matrix, obb
+    from env_3d import R_matrix, obb
     obb1 = obb([2.6,2.5,1],[0.2,2,2],R_matrix(0,0,45))
     # obb2 = obb([1,1,0],[1,1,1],[[1/np.sqrt(3)*1,1/np.sqrt(3)*1,1/np.sqrt(3)*1],[np.sqrt(3/2)*(-1/3),np.sqrt(3/2)*2/3,np.sqrt(3/2)*(-1/3)],[np.sqrt(1/8)*(-2),0,np.sqrt(1/8)*2]])
     p0, p1 = [2.9,2.5,1],[1.9,2.5,1]

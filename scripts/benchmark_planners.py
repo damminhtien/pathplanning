@@ -21,8 +21,8 @@ if REPO_ROOT not in sys.path:
     sys.path.insert(0, REPO_ROOT)
 
 from pathplanning import PlanConfig, Planner, Search2D
-from pathplanning.Sampling_based_Planning.rrt_2D.rrt import Rrt
-from pathplanning.Search_based_Planning.Search_3D.Astar3D import Weighted_A_star
+from pathplanning.sampling_based_planning.rrt_2d.rrt import Rrt
+from pathplanning.search_based_planning.search_3d.astar_3d import Weighted_A_star
 
 
 @dataclass

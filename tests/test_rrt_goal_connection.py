@@ -6,7 +6,7 @@ import math
 
 import numpy as np
 
-from pathplanning.Sampling_based_Planning.rrt_2D.rrt import Rrt
+from pathplanning.sampling_based_planning.rrt_2d.rrt import Rrt
 
 
 def test_rrt_goal_connection_returns_valid_path() -> None:
