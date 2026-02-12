@@ -6,73 +6,63 @@ Track durable decisions so future agents do not re-litigate baseline choices.
 
 - Date: 2026-02-10
 - Status: accepted
-- Context: Repository has legacy Python modules; strict lint immediately produces many unrelated failures.
-- Decision: Start with conservative correctness-focused `ruff` rules and expand gradually.
-- Consequence: Fast adoption now, incremental hardening over time.
+- Decision: Use `ruff` as the primary lint/format tool, with pragmatic gradual tightening.
 
-## DEC-002: Use `pre-commit` as local and CI lint entrypoint
+## DEC-002: Use `pre-commit` as local + CI lint entrypoint
 
 - Date: 2026-02-10
 - Status: accepted
-- Context: Developers need one command path for local and CI consistency.
-- Decision: Run lint through `.pre-commit-config.yaml` and invoke it in GitHub Actions.
-- Consequence: Uniform checks and fewer CI/local mismatches.
+- Decision: Keep checks runnable through a single pre-commit pipeline for local consistency.
 
-## DEC-003: Keep runtime and dev dependencies split
+## DEC-003: Keep runtime and development dependencies split
 
 - Date: 2026-02-10
 - Status: accepted
-- Context: Users running demos should not need dev tooling.
-- Decision: Keep runtime deps in `requirements.txt` and dev tooling in `requirements-dev.txt`.
-- Consequence: Cleaner onboarding and smaller production runtime environment.
+- Decision: Runtime deps in `requirements.txt`; dev tooling in `requirements-dev.txt`.
 
-## DEC-004: Production scope covers all supported algorithms
+## DEC-004: Keep a registry-backed production API surface
 
 - Date: 2026-02-10
 - Status: accepted
-- Context: Product requirement is broad algorithm coverage, not a small subset.
-- Decision: Maintain production support across all algorithms that pass packaging, runtime smoke checks, and quality gates.
-- Consequence: Higher maintenance cost, but complete capability coverage.
+- Decision: Production-supported algorithms are explicitly declared in `pathplanning.registry`.
+- Consequence: Algorithm exposure changes require explicit metadata + tests.
 
-## DEC-005: Provide a reusable Python package API
-
-- Date: 2026-02-10
-- Status: accepted
-- Context: Script-only execution is insufficient for integration use cases.
-- Decision: Standardize imports and expose stable package-level APIs for planner execution.
-- Consequence: Requires import refactor away from path hacks and stronger API compatibility discipline.
-
-## DEC-006: Drop incomplete algorithms from production surface
+## DEC-005: Keep root package imports lightweight
 
 - Date: 2026-02-10
 - Status: accepted
-- Context: Incomplete modules create runtime failures and erode reliability.
-- Decision: Mark incomplete algorithms as unsupported and remove them from package exports, CI gates, and production docs until implemented.
-- Consequence: Reduced immediate algorithm count in production, increased reliability and clarity.
+- Decision: `pathplanning/__init__.py` must avoid heavy runtime imports and side effects.
 
-## DEC-007: Use explicit algorithm registry as production contract
+## DEC-006: Separate runtime math/logic from visualization
 
-- Date: 2026-02-10
+- Date: 2026-02-12
 - Status: accepted
-- Context: Production scope needs an auditable list of supported vs dropped algorithms.
-- Decision: Define algorithm metadata in `pathplanning.registry` and publish matrix in `SUPPORTED_ALGORITHMS.md`.
-- Consequence: Changes to production support now require explicit registry updates and become easier to review.
+- Decision: Plotting helpers stay in `pathplanning/viz`; runtime modules must not import matplotlib at module import time.
 
-## DEC-008: Keep release metadata and agentic context synchronized
+## DEC-007: Use canonical reusable layers across planners
 
-- Date: 2026-02-11
+- Date: 2026-02-12
 - Status: accepted
-- Context: Version bumps without synchronized docs/agent files cause drift between package metadata, README, and operating context.
-- Decision: Every version bump must update `pyproject.toml`, `README.md`, and agentic state files (`state.md`, `tasks.md`, `decisions.md`, `handoff.md`) in the same change.
-- Consequence: Release context remains auditable and reduces onboarding friction for subsequent agents and reviewers.
+- Decision: Shared components belong in dedicated layers (`spaces`, `nn`, `data_structures`, `utils`, `geometry`) rather than per-algorithm copies.
+
+## DEC-008: Exclude heavy GIF assets from runtime package
+
+- Date: 2026-02-12
+- Status: accepted
+- Decision: GIF assets live under `assets/gif/*` and are excluded from runtime wheel payload.
+
+## DEC-009: Keep release metadata synchronized
+
+- Date: 2026-02-12
+- Status: accepted
+- Decision: Any version bump updates `pyproject.toml`, `README.md`, `CHANGELOG.md`, and agentic state files in the same change.
 
 ## Update Log
 
 - 2026-02-11: Synced release metadata and agentic files for version `0.1.2`.
+- 2026-02-12: Completed `0.2.0` metadata/docs sync and architecture doc refresh.
 
 ## Decision Template
-
-Use this template for future entries:
 
 ```text
 ## DEC-XXX: <title>

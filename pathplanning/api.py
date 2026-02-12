@@ -31,9 +31,7 @@ def _resolve_planner_class(algorithm_id: str) -> type[Any]:
     entrypoint = expected_entrypoint_for_algorithm(algorithm_id)
     planner_class = getattr(module, entrypoint, None)
     if not isinstance(planner_class, type):
-        raise TypeError(
-            f"Registry entrypoint '{entrypoint}' for '{algorithm_id}' is not a class"
-        )
+        raise TypeError(f"Registry entrypoint '{entrypoint}' for '{algorithm_id}' is not a class")
     return planner_class
 
 

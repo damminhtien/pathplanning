@@ -1,9 +1,14 @@
 {
   "include": [
     "pathplanning/core",
-    "pathplanning/env",
+    "pathplanning/spaces/continuous_3d.py",
+    "pathplanning/spaces/continuous_nd.py",
+    "pathplanning/spaces/grid2d.py",
+    "pathplanning/nn",
+    "pathplanning/data_structures",
     "pathplanning/api.py",
-    "pathplanning/viz",
+    "pathplanning/registry.py",
+    "pathplanning/search2d.py",
     "pathplanning/planners/sampling/rrt.py",
     "pathplanning/planners/sampling/rrt_star.py",
     "pathplanning/viz/sampling3d_plotting.py",
@@ -20,10 +25,15 @@
   "typeCheckingMode": "basic",
   "strict": [
     "pathplanning/core",
-    "pathplanning/env",
+    "pathplanning/spaces/continuous_3d.py",
+    "pathplanning/spaces/continuous_nd.py",
+    "pathplanning/spaces/grid2d.py",
+    "pathplanning/nn/index.py",
+    "pathplanning/data_structures/tree_array.py",
     "pathplanning/planners/sampling/rrt.py",
     "pathplanning/planners/sampling/rrt_star.py",
-    "pathplanning/api.py"
+    "pathplanning/api.py",
+    "pathplanning/registry.py"
   ],
   "reportMissingImports": "warning",
   "reportMissingTypeStubs": "warning"

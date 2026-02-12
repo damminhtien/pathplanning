@@ -90,9 +90,7 @@ class Grid2DSearchSpace:
         self.motions: list[Motion2D] = list(
             _DEFAULT_8_CONNECTED_MOTIONS if motions is None else motions
         )
-        self.obs: set[Point2D] = (
-            self.obs_map() if obstacles is None else set(obstacles)
-        )
+        self.obs: set[Point2D] = self.obs_map() if obstacles is None else set(obstacles)
 
     def update_obs(self, obs: Iterable[Point2D]) -> None:
         self.obs = set(obs)
