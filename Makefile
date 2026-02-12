@@ -1,7 +1,5 @@
 .PHONY: install install-dev lint format precommit test typecheck benchmark
 
-LINT_PATHS := pathplanning/api.py pathplanning/registry.py pathplanning/search2d.py pathplanning/viz tests scripts
-
 install:
 	pip install -r requirements.txt
 
@@ -9,7 +7,8 @@ install-dev:
 	pip install -r requirements-dev.txt
 
 lint:
-	ruff check $(LINT_PATHS)
+	ruff check .
+	ruff format .
 
 lint-google:
 	pylint --rcfile .pylintrc pathplanning/api.py pathplanning/registry.py pathplanning/search2d.py
@@ -25,7 +24,7 @@ precommit:
 
 typecheck:
 	@command -v pyright >/dev/null || (echo "pyright not found. Run: make install-dev" && exit 1)
-	pyright --project pyrightconfig.json
+	pyright
 
 test:
 	pytest -q

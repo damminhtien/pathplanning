@@ -29,6 +29,12 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+dev = [
+  "pyright",
+  "ruff",
+  "pytest",
+  "typing-extensions; python_version<'3.11'",
+]
 pyrr = ["pyrr>=0.10,<1.0"]
 scipy = ["scipy>=1.9,<2.0"]
 viz = ["matplotlib>=3.7,<4.0"]

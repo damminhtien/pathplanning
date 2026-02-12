@@ -1,6 +1,7 @@
 # Typing Policy
 
 This repository enforces typing incrementally with `pyright` as the primary checker.
+`pyright` is the authoritative type checker for merge decisions.
 
 ## Goals
 
@@ -16,9 +17,15 @@ This repository enforces typing incrementally with `pyright` as the primary chec
 - Strict scope:
   - `pathplanning/core`
   - `pathplanning/env`
+  - `pathplanning/sampling_based_planning`
   - `pathplanning/registry.py`
   - `pathplanning/api.py`
   - `pathplanning/__init__.py`
+- Basic scope:
+  - `pathplanning/viz`
+  - `examples`
+  - `pathplanning/_legacy`
+  - wrapper/demo-heavy modules while they are being migrated
 
 This model gives full-repo signal without blocking progress on legacy code.
 
@@ -28,6 +35,13 @@ This model gives full-repo signal without blocking progress on legacy code.
 - `pathplanning/api.py` must avoid unbounded `Any` for return values.
 - Type-only regressions are guarded by tests:
   - `tests/test_typing_contracts.py`
+
+## Typing Rules
+
+- No implicit `Optional` in public APIs.
+- Prefer `Protocol` over concrete inheritance when defining planner contracts.
+- Avoid `Any`; if unavoidable, isolate and document the boundary.
+- Prefer `numpy.typing` (`NDArray`, typed aliases) for array-facing APIs.
 
 ## Distribution Requirements (PEP 561)
 
