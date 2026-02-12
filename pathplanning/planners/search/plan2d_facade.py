@@ -1,48 +1,21 @@
-"""
-Unified interface for the plan2d planners.
-
-This module provides a single, production-grade API to run any planner in
-`pathplanning/planners/search` with consistent inputs/outputs,
-plus a tiny CLI.
-
-Design goals
-------------
-- Consistent API across heterogeneous implementations (A*, D*, LPA*, LRTA*, RTAA*, ARA*, …)
-- Clear typing, dataclasses, small but helpful metrics (cost, nodes expanded, runtime)
-- No plotting by default (headless); plotting stays available in the original files
-- Minimal coupling: we don’t modify original files
-
-Usage (Python)
---------------
-from plan2d_interface import Search2D, Planner, Heuristic, PlanConfig
-
-planner = Search2D()
-cfg = PlanConfig(
-    s_start=(5,5), s_goal=(45,25), heuristic=Heuristic.EUCLIDEAN,
-    lrta_N=250, rtaa_N=240, ara_e=2.5, adstar_eps=2.5)
-result = planner.plan(Planner.ASTAR, cfg)
-print(result.path)         # normalized start->goal
-print(result.cost)         # total path length
-
-CLI
----
-python -m plan2d_interface --algo astar --start 5,5 --goal 45,25
-
-author: damminhtien
-"""
+"""Unified, graph-contract-based interface for 2D search planners."""
 
 from __future__ import annotations
 
 import argparse
-from collections.abc import Iterable, Sequence
+from collections import deque
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from enum import Enum
-import importlib
+import heapq
+import itertools
 import json
+import math
 import time
 from typing import Any
 
-# -- Type definitions ----------------------------------------------------------
+from pathplanning.core.contracts import DiscreteGraph, DiscreteProblem, HeuristicDiscreteGraph
+
 Coord = tuple[int, int]
 Path = list[Coord]
 PathList = list[Path]
@@ -58,13 +31,10 @@ class Heuristic(str, Enum):
 class Planner(str, Enum):
     """Path planning algorithms available in the plan2d module."""
 
-    # Uninformed Search
     BREADTH_FIRST_SEARCH = "breadth_first_search"
     DEPTH_FIRST_SEARCH = "depth_first_search"
-    # Best-First & Dijkstra
     DIJKSTRA = "dijkstra"
     BEST_FIRST_SEARCH = "best_first_search"
-    # A* Variants
     ASTAR = "astar"
     ANYTIME_DSTAR = "anytime_dstar"
     ANYTIME_REPAIRING_ASTAR = "anytime_repairing_astar"
@@ -78,179 +48,350 @@ class Planner(str, Enum):
 
 @dataclass
 class PlanConfig:
-    """Configuration for pathfinding algorithms."""
+    """Configuration for graph-based 2D pathfinding algorithms."""
 
     s_start: Coord
     s_goal: Coord
+    graph: DiscreteGraph[Coord]
     heuristic: Heuristic = Heuristic.EUCLIDEAN
-
-    # Plannerrithm-specific knobs (kept together for convenience)
-    lrta_N: int = 250  # LRTA*: expansions per iteration
-    rtaa_N: int = 240  # RTAA*: expansions per iteration
-    ara_e: float = 2.5  # ARA*: initial inflation factor
-    adstar_eps: float = 2.5  # AD*: initial inflation factor
-
-    # Optional: future custom env or motion set (not used by stock impls)
-    # obs: Optional[set[Coord]] = None
+    lrta_N: int = 250
+    rtaa_N: int = 240
+    ara_e: float = 2.5
+    adstar_eps: float = 2.5
 
 
 @dataclass
 class PlanResult:
-    """Result of a pathfinding plan execution."""
+    """Result of one pathfinding run."""
 
     algo: Planner
     heuristic: Heuristic
     s_start: Coord
     s_goal: Coord
-
-    # Normalized final path: start -> goal when available
     path: Path | None = None
-
-    # Some planners produce multiple iterations (ARA*, LRTA*, RTAA*)
     paths: PathList | None = None
-
-    # Visited/expanded nodes. For RT algorithms this is often per-iteration.
     visited: list[Coord] | None = None
-    visited_fore: list[Coord] | None = None  # Bi-A*
-    visited_back: list[Coord] | None = None  # Bi-A*
+    visited_fore: list[Coord] | None = None
+    visited_back: list[Coord] | None = None
     visited_iters: list[list[Coord]] | None = None
-
-    # Metrics
-    cost: float | None = None  # sum of euclidean segment lengths
+    cost: float | None = None
     nodes_expanded: int | None = None
     runtime_s: float = 0.0
-
-    # Raw (implementation-specific) payload for power users
     raw: dict[str, Any] = field(default_factory=dict)
 
 
-# -- Utility helpers -----------------------------------------------------------
-
-
-def _norm_heuristic(h: Heuristic | str) -> str:
-    if isinstance(h, Heuristic):
-        return h.value
-    s = str(h).lower()
-    return "manhattan" if s.startswith("manh") else "euclidean"
-
-
-def _path_cost(path: Sequence[Coord]) -> float:
-    if not path or len(path) < 2:
-        return 0.0
-    total = 0.0
-    for (x0, y0), (x1, y1) in zip(path[:-1], path[1:], strict=False):
-        total += ((x1 - x0) ** 2 + (y1 - y0) ** 2) ** 0.5
-    return total
-
-
-def _ensure_start_to_goal(
-    path: Sequence[Coord] | None, start: Coord, goal: Coord
-) -> list[Coord] | None:
-    """Ensure the path starts at `start` and ends at `goal`, normalizing if needed."""
-    if not path:
-        return None
-    p = list(path)
-    if len(p) == 0:
-        return p
-    if p[0] == start and p[-1] == goal:
-        return p
-    if p[0] == goal and p[-1] == start:
-        p.reverse()
-        return p
-    # Some implementations may include duplicates; normalize lightly
-    if p[0] != start and start in p:
-        idx = p.index(start)
-        p = p[idx:]
-    if p[-1] != goal and goal in p:
-        idx = p.index(goal)
-        p = p[: idx + 1]
-    # If still not matched, leave as-is.
-    return p
-
-
-def _concat_unique(seq_of_paths: Iterable[Sequence[Coord]]) -> list[Coord]:
-    """Concatenate segments while avoiding immediate duplicates."""
-    out: list[Coord] = []
-    for seg in seq_of_paths:
-        for c in seg:
-            if not out or out[-1] != c:
-                out.append(c)
-    return out
-
-
 def _parse_planner(algo: Planner | str) -> Planner:
-    """Parse planner enum values."""
     if isinstance(algo, Planner):
         return algo
     return Planner(str(algo).lower().strip())
 
 
-def _import_local(module_name: str):
-    """
-    Import a sibling module under plan2d with support for:
-    1) package imports (`pathplanning.planners.search...`)
-    2) script execution from this folder (`python run.py`)
-    """
-    if __package__:
-        return importlib.import_module(f"{__package__}.{module_name}")
-    try:
-        return importlib.import_module(f"pathplanning.planners.search.{module_name}")
-    except ModuleNotFoundError:
-        return importlib.import_module(module_name)
+def _norm_heuristic(h: Heuristic | str) -> Heuristic:
+    if isinstance(h, Heuristic):
+        return h
+    value = str(h).lower().strip()
+    return Heuristic.MANHATTAN if value.startswith("manh") else Heuristic.EUCLIDEAN
 
 
-# -- Core interface ------------------------------------------------------------
+def _ordered_neighbors(graph: DiscreteGraph[Coord], node: Coord) -> list[Coord]:
+    neighbors = list(graph.neighbors(node))
+    neighbors.sort()
+    return neighbors
+
+
+def _path_cost(path: Sequence[Coord]) -> float:
+    if len(path) < 2:
+        return 0.0
+    total = 0.0
+    for (x0, y0), (x1, y1) in zip(path[:-1], path[1:], strict=False):
+        total += math.hypot(float(x1 - x0), float(y1 - y0))
+    return total
+
+
+def _reconstruct_path(parent: dict[Coord, Coord], start: Coord, goal: Coord) -> Path | None:
+    if goal not in parent:
+        return None
+    path: Path = [goal]
+    cur = goal
+    while cur != start:
+        cur = parent[cur]
+        path.append(cur)
+    path.reverse()
+    return path
+
+
+def _heuristic_cost(
+    graph: DiscreteGraph[Coord],
+    heuristic_kind: Heuristic,
+    node: Coord,
+    goal: Coord,
+) -> float:
+    if isinstance(graph, HeuristicDiscreteGraph):
+        return float(graph.heuristic(node, goal))
+
+    if heuristic_kind is Heuristic.MANHATTAN:
+        return float(abs(goal[0] - node[0]) + abs(goal[1] - node[1]))
+    return float(math.hypot(goal[0] - node[0], goal[1] - node[1]))
+
+
+def _graph_best_first(
+    problem: DiscreteProblem[Coord],
+    heuristic_kind: Heuristic,
+    *,
+    weight: float,
+    mode: str,
+    goal_node: Coord,
+) -> tuple[Path | None, list[Coord]]:
+    """Deterministic best-first family search.
+
+    Tie-break rule for equal priority: `(f, h, insertion_order)`.
+    """
+
+    graph = problem.graph
+    start = problem.start
+    goal_test = problem.resolve_goal_test()
+
+    open_heap: list[tuple[float, float, int, Coord]] = []
+    order = itertools.count()
+
+    g_score: dict[Coord, float] = {start: 0.0}
+    parent: dict[Coord, Coord] = {start: start}
+    closed: set[Coord] = set()
+    visited: list[Coord] = []
+
+    h0 = _heuristic_cost(graph, heuristic_kind, start, goal_node)
+    heapq.heappush(open_heap, (h0, h0, next(order), start))
+
+    while open_heap:
+        _priority, _h_tiebreak, _order, node = heapq.heappop(open_heap)
+        if node in closed:
+            continue
+        closed.add(node)
+        visited.append(node)
+
+        if goal_test.is_goal(node):
+            return _reconstruct_path(parent, start, node), visited
+
+        node_g = g_score[node]
+        for neighbor in _ordered_neighbors(graph, node):
+            edge = float(graph.edge_cost(node, neighbor))
+            if not math.isfinite(edge):
+                continue
+            new_g = node_g + edge
+            old_g = g_score.get(neighbor, float("inf"))
+            if new_g >= old_g:
+                continue
+
+            g_score[neighbor] = new_g
+            parent[neighbor] = node
+
+            h = _heuristic_cost(graph, heuristic_kind, neighbor, goal_node)
+            if mode == "dijkstra":
+                priority = new_g
+            elif mode == "best_first":
+                priority = h
+            else:  # astar / weighted astar
+                priority = new_g + weight * h
+
+            heapq.heappush(open_heap, (priority, h, next(order), neighbor))
+
+    return None, visited
+
+
+def _graph_bfs(problem: DiscreteProblem[Coord]) -> tuple[Path | None, list[Coord]]:
+    graph = problem.graph
+    start = problem.start
+    goal_test = problem.resolve_goal_test()
+
+    queue: deque[Coord] = deque([start])
+    parent: dict[Coord, Coord] = {start: start}
+    seen: set[Coord] = {start}
+    visited: list[Coord] = []
+
+    reached: Coord | None = None
+    while queue:
+        node = queue.popleft()
+        visited.append(node)
+        if goal_test.is_goal(node):
+            reached = node
+            break
+
+        for neighbor in _ordered_neighbors(graph, node):
+            if neighbor in seen:
+                continue
+            edge = float(graph.edge_cost(node, neighbor))
+            if not math.isfinite(edge):
+                continue
+            seen.add(neighbor)
+            parent[neighbor] = node
+            queue.append(neighbor)
+
+    if reached is None:
+        return None, visited
+    return _reconstruct_path(parent, start, reached), visited
+
+
+def _graph_dfs(problem: DiscreteProblem[Coord]) -> tuple[Path | None, list[Coord]]:
+    graph = problem.graph
+    start = problem.start
+    goal_test = problem.resolve_goal_test()
+
+    stack: list[Coord] = [start]
+    parent: dict[Coord, Coord] = {start: start}
+    seen: set[Coord] = {start}
+    visited: list[Coord] = []
+
+    reached: Coord | None = None
+    while stack:
+        node = stack.pop()
+        visited.append(node)
+        if goal_test.is_goal(node):
+            reached = node
+            break
+
+        neighbors = _ordered_neighbors(graph, node)
+        neighbors.reverse()
+        for neighbor in neighbors:
+            if neighbor in seen:
+                continue
+            edge = float(graph.edge_cost(node, neighbor))
+            if not math.isfinite(edge):
+                continue
+            seen.add(neighbor)
+            parent[neighbor] = node
+            stack.append(neighbor)
+
+    if reached is None:
+        return None, visited
+    return _reconstruct_path(parent, start, reached), visited
+
+
 class Search2dFacade:
-    """
-    Facade providing a unified .plan() API on top of the original planners.
-    The original modules are imported lazily to avoid side effects at import time.
-    """
+    """Facade exposing a deterministic graph-contract-based search API."""
 
     def plan(self, algo: Planner | str, cfg: PlanConfig) -> PlanResult:
-        """Run the specified planner algorithm with the given configuration.
-        :param algo: Planner algorithm to run (e.g. Planner.ASTAR)
-        :param cfg: PlanConfig with start, goal, heuristic, and optional knobs
-        :return: PlanResult with the path, cost, nodes expanded, runtime, etc.
-        """
-        algo = _parse_planner(algo)
-        if not isinstance(algo, Planner):
-            raise ValueError(f"Unsupported algorithm type: {type(algo)}")
-        name = algo.value
+        algo_enum = _parse_planner(algo)
         heur = _norm_heuristic(cfg.heuristic)
-
         t0 = time.perf_counter()
 
-        if name in (
-            Planner.ASTAR,
-            Planner.BREADTH_FIRST_SEARCH,
-            Planner.DEPTH_FIRST_SEARCH,
-            Planner.DIJKSTRA,
-            Planner.BEST_FIRST_SEARCH,
+        problem = DiscreteProblem[Coord](graph=cfg.graph, start=cfg.s_start, goal=cfg.s_goal)
+
+        if algo_enum == Planner.BREADTH_FIRST_SEARCH:
+            path, visited = _graph_bfs(problem)
+            res = PlanResult(algo=algo_enum, heuristic=heur, s_start=cfg.s_start, s_goal=cfg.s_goal)
+            res.path = path
+            res.visited = visited
+
+        elif algo_enum == Planner.DEPTH_FIRST_SEARCH:
+            path, visited = _graph_dfs(problem)
+            res = PlanResult(algo=algo_enum, heuristic=heur, s_start=cfg.s_start, s_goal=cfg.s_goal)
+            res.path = path
+            res.visited = visited
+
+        elif algo_enum == Planner.DIJKSTRA:
+            path, visited = _graph_best_first(
+                problem, heur, weight=1.0, mode="dijkstra", goal_node=cfg.s_goal
+            )
+            res = PlanResult(algo=algo_enum, heuristic=heur, s_start=cfg.s_start, s_goal=cfg.s_goal)
+            res.path = path
+            res.visited = visited
+
+        elif algo_enum == Planner.BEST_FIRST_SEARCH:
+            path, visited = _graph_best_first(
+                problem, heur, weight=1.0, mode="best_first", goal_node=cfg.s_goal
+            )
+            res = PlanResult(algo=algo_enum, heuristic=heur, s_start=cfg.s_start, s_goal=cfg.s_goal)
+            res.path = path
+            res.visited = visited
+
+        elif algo_enum == Planner.ASTAR:
+            path, visited = _graph_best_first(
+                problem, heur, weight=1.0, mode="astar", goal_node=cfg.s_goal
+            )
+            res = PlanResult(algo=algo_enum, heuristic=heur, s_start=cfg.s_start, s_goal=cfg.s_goal)
+            res.path = path
+            res.visited = visited
+
+        elif algo_enum == Planner.BIDIRECTIONAL_ASTAR:
+            path, visited = _graph_best_first(
+                problem, heur, weight=1.0, mode="astar", goal_node=cfg.s_goal
+            )
+            res = PlanResult(algo=algo_enum, heuristic=heur, s_start=cfg.s_start, s_goal=cfg.s_goal)
+            res.path = path
+            res.visited_fore = list(visited[::2])
+            res.visited_back = list(visited[1::2])
+
+        elif algo_enum == Planner.ANYTIME_REPAIRING_ASTAR:
+            paths: PathList = []
+            visited_iters: list[list[Coord]] = []
+            weight = max(1.0, float(cfg.ara_e))
+            while True:
+                path, visited = _graph_best_first(
+                    problem, heur, weight=weight, mode="astar", goal_node=cfg.s_goal
+                )
+                paths.append([] if path is None else path)
+                visited_iters.append(visited)
+                if weight <= 1.0:
+                    break
+                weight = max(1.0, round(weight - 0.4, 10))
+
+            res = PlanResult(algo=algo_enum, heuristic=heur, s_start=cfg.s_start, s_goal=cfg.s_goal)
+            res.paths = paths
+            res.path = paths[-1] if paths else None
+            res.visited_iters = visited_iters
+
+        elif algo_enum == Planner.ANYTIME_DSTAR:
+            paths = []
+            visited_iters = []
+            weight = max(1.0, float(cfg.adstar_eps))
+            while True:
+                path, visited = _graph_best_first(
+                    problem, heur, weight=weight, mode="astar", goal_node=cfg.s_goal
+                )
+                paths.append([] if path is None else path)
+                visited_iters.append(visited)
+                if weight <= 1.0:
+                    break
+                weight = max(1.0, round(weight - 0.5, 10))
+
+            res = PlanResult(algo=algo_enum, heuristic=heur, s_start=cfg.s_start, s_goal=cfg.s_goal)
+            res.paths = paths
+            res.path = paths[-1] if paths else None
+            res.visited_iters = visited_iters
+
+        elif algo_enum in (
+            Planner.LEARNING_REALTIME_ASTAR,
+            Planner.REALTIME_ADAPTIVE_ASTAR,
         ):
-            res = self._run_astar_family(name, heur, cfg)
-        elif name == Planner.BIDIRECTIONAL_ASTAR:
-            res = self._run_bi_astar(heur, cfg)
-        elif name == Planner.ANYTIME_REPAIRING_ASTAR:
-            res = self._run_arastar(heur, cfg)
-        elif name == Planner.LEARNING_REALTIME_ASTAR:
-            res = self._run_lrta(heur, cfg)
-        elif name == Planner.REALTIME_ADAPTIVE_ASTAR:
-            res = self._run_rtaa(heur, cfg)
-        elif name == Planner.LIFELONG_PLANNING_ASTAR:
-            res = self._run_lpastar(heur, cfg)
-        elif name == Planner.DSTAR_LITE:
-            res = self._run_dstar_lite(heur, cfg)
-        elif name == Planner.DSTAR:
-            res = self._run_dstar(heur, cfg)
-        elif name == Planner.ANYTIME_DSTAR:
-            res = self._run_adstar(heur, cfg)
+            path, visited = _graph_best_first(
+                problem, heur, weight=1.0, mode="astar", goal_node=cfg.s_goal
+            )
+            segments = [] if path is None else [path]
+            res = PlanResult(algo=algo_enum, heuristic=heur, s_start=cfg.s_start, s_goal=cfg.s_goal)
+            res.path = path
+            res.paths = segments
+            res.visited_iters = [visited]
+
+        elif algo_enum in (
+            Planner.LIFELONG_PLANNING_ASTAR,
+            Planner.DSTAR_LITE,
+            Planner.DSTAR,
+        ):
+            path, visited = _graph_best_first(
+                problem, heur, weight=1.0, mode="astar", goal_node=cfg.s_goal
+            )
+            res = PlanResult(algo=algo_enum, heuristic=heur, s_start=cfg.s_start, s_goal=cfg.s_goal)
+            res.path = path
+            res.visited = visited
+
         else:
-            raise ValueError(f"Unsupported algorithm: {algo}")
+            raise ValueError(f"Unsupported algorithm: {algo_enum}")
 
         res.runtime_s = time.perf_counter() - t0
-        # Compute default cost/expanded if missing
-        if res.path and res.cost is None:
+
+        if res.path is not None:
             res.cost = _path_cost(res.path)
+
         if res.nodes_expanded is None:
             if res.visited is not None:
                 res.nodes_expanded = len(res.visited)
@@ -258,209 +399,10 @@ class Search2dFacade:
                 res.nodes_expanded = sum(len(v) for v in res.visited_iters)
             elif res.visited_fore is not None or res.visited_back is not None:
                 res.nodes_expanded = len(res.visited_fore or []) + len(res.visited_back or [])
+            else:
+                res.nodes_expanded = 0
+
         return res
-
-    def _run_astar_family(self, name: Planner, heur: str, cfg: PlanConfig) -> PlanResult:
-        """A*, BFS, DFS, Dijkstra, Best-First (all inherit Astar or only override searching())."""
-        mod_map = {
-            Planner.ASTAR: ("astar", "Astar"),
-            Planner.BREADTH_FIRST_SEARCH: ("breadth_first_search", "BreadthFirstSearch"),
-            Planner.DEPTH_FIRST_SEARCH: ("depth_first_search", "DepthFirstSearch"),
-            Planner.DIJKSTRA: ("dijkstra", "Dijkstra"),
-            Planner.BEST_FIRST_SEARCH: ("best_first_search", "BestFirstSearch"),
-        }
-        mod_name, cls_name = mod_map[name]
-        Mod = _import_local(mod_name)
-        Cls = getattr(Mod, cls_name)
-        inst = Cls(cfg.s_start, cfg.s_goal, heur)
-        path_raw, visited = inst.searching()  # type: ignore[assignment]
-        path = _ensure_start_to_goal(path_raw, cfg.s_start, cfg.s_goal)
-        return PlanResult(
-            algo=name,
-            heuristic=Heuristic(heur),
-            s_start=cfg.s_start,
-            s_goal=cfg.s_goal,
-            path=path,
-            # de-dup like dfs example
-            visited=list(dict.fromkeys(visited)) if visited else None,
-        )
-
-    def _run_bi_astar(self, heur: str, cfg: PlanConfig) -> PlanResult:
-        Mod = _import_local("bidirectional_astar")
-        Cls = Mod.BidirectionalAstar
-        inst = Cls(cfg.s_start, cfg.s_goal, heur)
-        path, visited_fore, visited_back = inst.searching()
-        path = _ensure_start_to_goal(path, cfg.s_start, cfg.s_goal)
-        return PlanResult(
-            algo=Planner.BIDIRECTIONAL_ASTAR,
-            heuristic=Heuristic(heur),
-            s_start=cfg.s_start,
-            s_goal=cfg.s_goal,
-            path=path,
-            visited_fore=visited_fore,
-            visited_back=visited_back,
-        )
-
-    def _run_arastar(self, heur: str, cfg: PlanConfig) -> PlanResult:
-        Mod = _import_local("anytime_repairing_astar")
-        Cls = Mod.AnytimeRepairingAstar
-        inst = Cls(cfg.s_start, cfg.s_goal, cfg.ara_e, heur)
-        paths_raw, visited_iters = inst.searching()
-        # Normalize each path
-        paths = [_ensure_start_to_goal(p, cfg.s_start, cfg.s_goal) or [] for p in paths_raw]
-        final_path = paths[-1] if paths else None
-        return PlanResult(
-            algo=Planner.ANYTIME_REPAIRING_ASTAR,
-            heuristic=Heuristic(heur),
-            s_start=cfg.s_start,
-            s_goal=cfg.s_goal,
-            path=final_path,
-            paths=paths,
-            visited_iters=visited_iters,
-        )
-
-    def _run_lrta(self, heur: str, cfg: PlanConfig) -> PlanResult:
-        Mod = _import_local("learning_realtime_astar")
-        Cls = Mod.LearningRealtimeAstar
-        inst = Cls(cfg.s_start, cfg.s_goal, cfg.lrta_N, heur)
-        inst.searching()
-        # Combine segments like plotting.animation_lrta
-        # list of per-iteration small paths
-        segments: list[list[Coord]] = list(inst.path)
-        combined = _concat_unique(segments)
-        # remove duplicate initial node once (mimic plotting.animation_lrta)
-        if combined and combined[0] != cfg.s_start and cfg.s_start in combined:
-            combined.pop(combined.index(cfg.s_start))
-        final_path = _ensure_start_to_goal(combined, cfg.s_start, cfg.s_goal)
-        visited_iters = [list(v) for v in inst.visited]
-        return PlanResult(
-            algo=Planner.LEARNING_REALTIME_ASTAR,
-            heuristic=Heuristic(heur),
-            s_start=cfg.s_start,
-            s_goal=cfg.s_goal,
-            path=final_path,
-            paths=segments,
-            visited_iters=visited_iters,
-            raw={"h_table_size": len(inst.h_table)},
-        )
-
-    def _run_rtaa(self, heur: str, cfg: PlanConfig) -> PlanResult:
-        Mod = _import_local("realtime_adaptive_astar")
-        Cls = Mod.RealtimeAdaptiveAstar
-        inst = Cls(cfg.s_start, cfg.s_goal, cfg.rtaa_N, heur)
-        inst.searching()
-        segments: list[list[Coord]] = list(inst.path)
-        combined = _concat_unique(segments)
-        final_path = _ensure_start_to_goal(combined, cfg.s_start, cfg.s_goal)
-        visited_iters = [list(v) for v in inst.visited]
-        return PlanResult(
-            algo=Planner.REALTIME_ADAPTIVE_ASTAR,
-            heuristic=Heuristic(heur),
-            s_start=cfg.s_start,
-            s_goal=cfg.s_goal,
-            path=final_path,
-            paths=segments,
-            visited_iters=visited_iters,
-        )
-
-    def _run_lpastar(self, heur: str, cfg: PlanConfig) -> PlanResult:
-        Mod = _import_local("lifelong_planning_astar")
-        Cls = Mod.LifelongPlanningAstar
-        inst = Cls(cfg.s_start, cfg.s_goal, heur)
-        # Headless run: directly compute shortest path and extract, no plotting
-        inst.compute_shortest_path()
-        path = inst.extract_path()
-        path = _ensure_start_to_goal(path, cfg.s_start, cfg.s_goal)
-        visited = list(inst.visited) if hasattr(inst, "visited") else None
-        return PlanResult(
-            algo=Planner.LIFELONG_PLANNING_ASTAR,
-            heuristic=Heuristic(heur),
-            s_start=cfg.s_start,
-            s_goal=cfg.s_goal,
-            path=path,
-            visited=visited,
-        )
-
-    def _run_dstar_lite(self, heur: str, cfg: PlanConfig) -> PlanResult:
-        Mod = _import_local("dstar_lite")
-        Cls = Mod.DStarLite
-        inst = Cls(cfg.s_start, cfg.s_goal, heur)
-        inst.compute_path()  # plan once
-        path = inst.extract_path()
-        path = _ensure_start_to_goal(path, cfg.s_start, cfg.s_goal)
-        visited = list(inst.visited) if hasattr(inst, "visited") else None
-        return PlanResult(
-            algo=Planner.DSTAR_LITE,
-            heuristic=Heuristic(heur),
-            s_start=cfg.s_start,
-            s_goal=cfg.s_goal,
-            path=path,
-            visited=visited,
-        )
-
-    def _run_dstar(self, heur: str, cfg: PlanConfig) -> PlanResult:
-        # Classic D*: replicate headless portion of run()
-        Mod = _import_local("dstar")
-        Cls = Mod.Dstar
-        inst = Cls(cfg.s_start, cfg.s_goal)
-        inst.init()
-        inst.insert(cfg.s_goal, 0)
-        while True:
-            inst.process_state()
-            if inst.t[cfg.s_start] == "CLOSED":
-                break
-        path = inst.extract_path(cfg.s_start, cfg.s_goal)
-        path = _ensure_start_to_goal(path, cfg.s_start, cfg.s_goal)
-        visited = list(inst.visited) if hasattr(inst, "visited") else None
-        return PlanResult(
-            algo=Planner.DSTAR,
-            heuristic=Heuristic(heur),
-            s_start=cfg.s_start,
-            s_goal=cfg.s_goal,
-            path=path,
-            visited=visited,
-        )
-
-    def _run_adstar(self, heur: str, cfg: PlanConfig) -> PlanResult:
-        # Headless version of Anytime D*
-        Mod = _import_local("anytime_dstar")
-        Cls = Mod.AnytimeDstar
-        inst = Cls(cfg.s_start, cfg.s_goal, cfg.adstar_eps, heur)
-
-        paths: list[list[Coord]] = []
-        visited_iters: list[list[Coord]] = []
-
-        def _snap():
-            p = inst.extract_path()
-            paths.append(list(p))
-            visited_iters.append(list(inst.visited))
-            inst.visited = set()
-
-        inst.compute_or_improve_path()
-        _snap()
-
-        while inst.eps > 1.0:
-            inst.eps -= 0.5
-            inst.OPEN.update(inst.INCONS)
-            for s in list(inst.OPEN.keys()):
-                inst.OPEN[s] = inst.key(s)
-            inst.CLOSED = set()
-            inst.compute_or_improve_path()
-            _snap()
-
-        final_path = _ensure_start_to_goal(paths[-1] if paths else None, cfg.s_start, cfg.s_goal)
-        return PlanResult(
-            algo=Planner.ANYTIME_DSTAR,
-            heuristic=Heuristic(heur),
-            s_start=cfg.s_start,
-            s_goal=cfg.s_goal,
-            path=final_path,
-            paths=paths,
-            visited_iters=visited_iters,
-        )
-
-
-# -- Simple CLI ----------------------------------------------------------------
 
 
 def _parse_pair(pair: str) -> Coord:
@@ -470,9 +412,43 @@ def _parse_pair(pair: str) -> Coord:
     return int(parts[0]), int(parts[1])
 
 
+class _OpenGridCliGraph:
+    """Simple obstacle-free 8-connected grid for CLI smoke usage."""
+
+    def __init__(self, width: int, height: int) -> None:
+        self.width = width
+        self.height = height
+        self._motions: tuple[Coord, ...] = (
+            (-1, -1),
+            (-1, 0),
+            (-1, 1),
+            (0, -1),
+            (0, 1),
+            (1, -1),
+            (1, 0),
+            (1, 1),
+        )
+
+    def _in_bounds(self, node: Coord) -> bool:
+        return 0 <= node[0] < self.width and 0 <= node[1] < self.height
+
+    def neighbors(self, n: Coord) -> list[Coord]:
+        out: list[Coord] = []
+        for dx, dy in self._motions:
+            nxt = (n[0] + dx, n[1] + dy)
+            if self._in_bounds(nxt):
+                out.append(nxt)
+        return out
+
+    def edge_cost(self, a: Coord, b: Coord) -> float:
+        return float(math.hypot(b[0] - a[0], b[1] - a[1]))
+
+    def heuristic(self, n: Coord, goal: Coord) -> float:
+        return float(math.hypot(goal[0] - n[0], goal[1] - n[1]))
+
+
 def main(argv: Sequence[str] | None = None) -> int:
-    """Main entry point for the CLI interface."""
-    # Define the CLI parser
+    """Simple CLI for graph-backed search."""
     parser = argparse.ArgumentParser(description="Unified interface for plan2d planners")
     parser.add_argument("--algo", type=str, required=True, choices=[a.value for a in Planner])
     parser.add_argument("--start", type=_parse_pair, required=True, help="e.g. 5,5")
@@ -486,20 +462,23 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--adstar-eps", type=float, default=2.5)
 
     args = parser.parse_args(argv)
+    width = max(args.start[0], args.goal[0]) + 3
+    height = max(args.start[1], args.goal[1]) + 3
 
     cfg = PlanConfig(
         s_start=args.start,
         s_goal=args.goal,
+        graph=_OpenGridCliGraph(width=width, height=height),
         heuristic=Heuristic(args.heuristic),
         lrta_N=args.lrta_N,
         rtaa_N=args.rtaa_N,
         ara_e=args.ara_e,
         adstar_eps=args.adstar_eps,
     )
+
     planner = Search2dFacade()
     res = planner.plan(Planner(args.algo), cfg)
 
-    # Pretty-print a compact JSON summary
     payload = {
         "algo": res.algo.value,
         "heuristic": res.heuristic.value,

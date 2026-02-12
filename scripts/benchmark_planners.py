@@ -15,6 +15,7 @@ import numpy as np
 from pathplanning.planners.sampling.rrt_grid2d import Rrt
 from pathplanning.planners.search.astar_3d import Weighted_A_star
 from pathplanning.search2d import PlanConfig, Planner, Search2D
+from pathplanning.spaces.grid2d import Grid2DSearchSpace
 
 
 @dataclass
@@ -29,7 +30,7 @@ class BenchmarkRow:
 
 def _benchmark_search2d() -> BenchmarkRow:
     planner = Search2D()
-    cfg = PlanConfig(s_start=(5, 5), s_goal=(45, 25))
+    cfg = PlanConfig(start=(5, 5), goal=(45, 25), graph=Grid2DSearchSpace())
 
     start = time.perf_counter()
     result = planner.plan(Planner.ASTAR, cfg)

@@ -1,12 +1,6 @@
-"""
-Run a demo of the Search2D planner with all algorithms.
+"""Run a headless demo of all legacy 2D search algorithms."""
 
-This script imports the necessary classes and functions from the `plan2d_facade` module,
-defines a list of all algorithms available for pathfinding, and runs a demo that executes
-each algorithm, printing the results including nodes expanded, cost, path length, and runtime.
-
-author: damminhtien
-"""
+from __future__ import annotations
 
 from pathplanning.planners.search.plan2d_facade import (
     Heuristic,
@@ -15,14 +9,13 @@ from pathplanning.planners.search.plan2d_facade import (
     Search2dFacade,
 )
 
+from ._legacy2d_common import OpenGridLegacyGraph
+
 ALL_ALGORITHMS = [
-    # Uninformed Search
     Planner.BREADTH_FIRST_SEARCH,
     Planner.DEPTH_FIRST_SEARCH,
-    # Best-First & Dijkstra
     Planner.BEST_FIRST_SEARCH,
     Planner.DIJKSTRA,
-    # A* Variants
     Planner.ASTAR,
     Planner.BIDIRECTIONAL_ASTAR,
     Planner.ANYTIME_DSTAR,
@@ -35,17 +28,22 @@ ALL_ALGORITHMS = [
 ]
 
 
-def demo():
-    """Run a demo of the Search2D planner with all algorithms."""
+def demo() -> None:
     planner = Search2dFacade()
-    cfg = PlanConfig(s_start=(5, 5), s_goal=(45, 25), heuristic=Heuristic.EUCLIDEAN)
+    cfg = PlanConfig(
+        s_start=(5, 5),
+        s_goal=(45, 25),
+        graph=OpenGridLegacyGraph(),
+        heuristic=Heuristic.EUCLIDEAN,
+    )
 
     for algo in ALL_ALGORITHMS:
         res = planner.plan(algo, cfg)
+        cost = f"{res.cost:.3f}" if res.cost is not None else "None"
         print(
-            f"{algo.value:>18} | "
+            f"{algo.value:>24} | "
             f"nodes={res.nodes_expanded:>4} | "
-            f"cost={res.cost:.3f} | "
+            f"cost={cost:>8} | "
             f"path_len={len(res.path) if res.path else 0} | "
             f"{res.runtime_s:.4f}s"
         )
