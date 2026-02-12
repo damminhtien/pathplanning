@@ -2,27 +2,14 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 import importlib
-from typing import TYPE_CHECKING, Protocol, cast
+from typing import Protocol, cast
 
 import numpy as np
 from numpy.typing import NDArray
 
 from pathplanning.core.types import Mat, NodeId, Vec
-
-if TYPE_CHECKING:  # pragma: no cover - typing-only optional import
-    try:
-        from scipy.spatial import cKDTree as _ScipyKDTree  # pyright: ignore[reportMissingTypeStubs, reportAttributeAccessIssue, reportUnknownVariableType]
-    except Exception:  # pragma: no cover - scipy optional for typing
-
-        class _ScipyKDTree:  # noqa: D101
-            def __init__(self, *_args: object, **_kwargs: object) -> None:
-                pass
-else:  # pragma: no cover - runtime placeholder for optional dependency type
-
-    class _ScipyKDTree:  # noqa: D101
-        def __init__(self, *_args: object, **_kwargs: object) -> None:
-            pass
 
 
 def _as_point(point: Vec, dim: int) -> Vec:
@@ -99,11 +86,14 @@ class _KDTreeBackend(Protocol):
         ...
 
 
+_KDTreeFactory = Callable[[Mat], _KDTreeBackend]
+
+
 try:  # pragma: no cover - optional runtime dependency
     _scipy_spatial = importlib.import_module("scipy.spatial")
-    _cKDTree_runtime = cast(type[_ScipyKDTree], _scipy_spatial.cKDTree)
+    _cKDTree_runtime = cast(_KDTreeFactory, _scipy_spatial.cKDTree)
 except Exception:  # pragma: no cover - scipy optional
-    _cKDTree_runtime: type[_ScipyKDTree] | None = None
+    _cKDTree_runtime: _KDTreeFactory | None = None
 
 
 class KDTreeNnIndex:
@@ -114,22 +104,22 @@ class KDTreeNnIndex:
         self._points: Mat = np.empty((0, dim), dtype=np.float64)
         self._tree: _KDTreeBackend | None = None
 
-    def _runtime_kdtree_class(self) -> type[_ScipyKDTree]:
-        runtime_kdtree = _cKDTree_runtime
-        if runtime_kdtree is None:
+    def _runtime_kdtree_factory(self) -> _KDTreeFactory:
+        runtime_factory = _cKDTree_runtime
+        if runtime_factory is None:
             raise RuntimeError("scipy is required for KDTreeNnIndex")
-        return runtime_kdtree
+        return runtime_factory
 
     def build(self, points: Mat) -> None:
-        runtime_kdtree = self._runtime_kdtree_class()
+        runtime_kdtree = self._runtime_kdtree_factory()
         self._points = _as_matrix(points, self._dim).copy()
         if self._points.shape[0] == 0:
             self._tree = None
             return
-        self._tree = cast(_KDTreeBackend, runtime_kdtree(self._points))
+        self._tree = runtime_kdtree(self._points)
 
     def nearest(self, q: Vec) -> NodeId:
-        self._runtime_kdtree_class()
+        self._runtime_kdtree_factory()
         if self._tree is None:
             raise ValueError("nearest() called on empty index")
         query = _as_point(q, self._dim)
@@ -139,7 +129,7 @@ class KDTreeNnIndex:
         return int(index)
 
     def radius(self, q: Vec, r: float) -> NDArray[np.int64]:
-        self._runtime_kdtree_class()
+        self._runtime_kdtree_factory()
         if r < 0:
             raise ValueError("radius must be non-negative")
         if self._tree is None:
