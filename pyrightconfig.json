@@ -1,21 +1,9 @@
 {
   "include": [
-    "pathplanning"
+    "pathplanning",
+    "examples"
   ],
   "exclude": [
-    "pathplanning/_legacy",
-    "pathplanning/viz",
-    "pathplanning/search_based_planning",
-    "pathplanning/sampling_based_planning/rrt_2d",
-    "pathplanning/sampling_based_planning/rrt_3d",
-    "pathplanning/curves",
-    "pathplanning/Sampling_based_Planning",
-    "pathplanning/Search_based_Planning",
-    "pathplanning/CurvesGenerator",
-    "Sampling_based_Planning",
-    "Search_based_Planning",
-    "CurvesGenerator",
-    "examples",
     "tests",
     "dist",
     "build",
@@ -27,6 +15,7 @@
   "strict": [
     "pathplanning/core",
     "pathplanning/env",
+    "pathplanning/sampling_based_planning",
     "pathplanning/registry.py",
     "pathplanning/api.py",
     "pathplanning/__init__.py"
