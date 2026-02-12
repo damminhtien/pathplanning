@@ -7,11 +7,8 @@ author: Atsushi Sakai (@Atsushi_twi)
 """
 
 import numpy as np
-from pathplanning.viz import lazy_import
-
-plt = lazy_import("matplotlib.pyplot")
 import scipy.interpolate as scipy_interpolate
-import cubic_spline as cs
+from pathplanning.geometry import cubic_spline as cs
 
 
 def approximate_b_spline_path(x, y, n_path_points, degree=3):
@@ -42,6 +39,10 @@ def interpolate_b_spline_path(x, y, n_path_points, degree=3):
 
 
 def main():
+    from pathplanning.viz import lazy_import
+
+    plt = lazy_import("matplotlib.pyplot")
+
     print(__file__ + " start!!")
     # way points
     # way_point_x = [-1.0, 3.0, 4.0, 2.0, 1.0]

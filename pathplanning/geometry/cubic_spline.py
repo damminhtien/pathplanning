@@ -199,7 +199,9 @@ def calc_spline_course(x, y, ds=0.1):
 
 def test_spline2d():
     print("Spline 2D test")
-    import matplotlib.pyplot as plt
+    from pathplanning.viz import lazy_import
+
+    plt = lazy_import("matplotlib.pyplot")
     x = [-2.5, 0.0, 2.5, 5.0, 7.5, 3.0, -1.0]
     y = [0.7, -6, 5, 6.5, 0.0, 5.0, -2.0]
 
@@ -242,7 +244,9 @@ def test_spline2d():
 
 def test_spline():
     print("Spline test")
-    import matplotlib.pyplot as plt
+    from pathplanning.viz import lazy_import
+
+    plt = lazy_import("matplotlib.pyplot")
     x = [-0.5, 0.0, 0.5, 1.0, 1.5]
     y = [3.2, 2.7, 6, 5, 6.5]
 

@@ -4,11 +4,6 @@ Quintic Polynomial
 
 import math
 import numpy as np
-from pathplanning.viz import lazy_import
-
-plt = lazy_import("matplotlib.pyplot")
-
-import draw
 
 
 class QuinticPolynomial:
@@ -63,6 +58,11 @@ class Trajectory:
 
 
 def simulation():
+    from pathplanning.viz import lazy_import
+    from pathplanning.viz import geometry_draw as draw
+
+    plt = lazy_import("matplotlib.pyplot")
+
     sx, sy, syaw, sv, sa = 10.0, 10.0, np.deg2rad(10.0), 1.0, 0.1
     gx, gy, gyaw, gv, ga = 30.0, -10.0, np.deg2rad(180.0), 1.0, 0.1
 
