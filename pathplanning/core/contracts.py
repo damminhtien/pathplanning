@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
 from typing import Protocol, TypeAlias, runtime_checkable
 
 import numpy as np
@@ -65,24 +64,3 @@ class BatchConfigurationSpace(ConfigurationSpace, Protocol):
     def segment_free_batch(self, a: Mat, b: Mat) -> BoolArray:
         """Return segment-validity flags for each start/end pair."""
         ...
-
-
-def _default_path() -> list[Vec]:
-    """Provide a typed default path container for ``PlanResult``."""
-    return []
-
-
-def _default_stats() -> dict[str, object]:
-    """Provide a typed default stats container for ``PlanResult``."""
-    return {}
-
-
-@dataclass(slots=True)
-class PlanResult:
-    """Planner output in a stable, reusable shape."""
-
-    success: bool
-    path: list[Vec] = field(default_factory=_default_path)
-    iters: int = 0
-    nodes: int = 0
-    stats: dict[str, object] = field(default_factory=_default_stats)

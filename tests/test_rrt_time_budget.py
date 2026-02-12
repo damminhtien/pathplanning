@@ -5,6 +5,7 @@ from __future__ import annotations
 import numpy as np
 
 from pathplanning.core.params import RrtParams
+from pathplanning.core.results import StopReason
 from pathplanning.env.continuous_3d import AABB, ContinuousSpace3D
 from pathplanning.sampling_based_planning.rrt_3d.rrt import RrtPlanner
 from pathplanning.sampling_based_planning.rrt_3d.rrt_star import RrtStarPlanner
@@ -34,7 +35,7 @@ def test_rrt_time_budget_stops_early() -> None:
         start, (goal_center, 0.25)
     )
 
-    assert result.stats.get("stopped_reason") == "time_budget"
+    assert result.stop_reason is StopReason.TIME_BUDGET
     assert result.iters < params.max_iters
     assert result.nodes >= 1
 
@@ -55,6 +56,6 @@ def test_rrt_star_time_budget_stops_early() -> None:
         start, (goal_center, 0.25)
     )
 
-    assert result.stats.get("stopped_reason") == "time_budget"
+    assert result.stop_reason is StopReason.TIME_BUDGET
     assert result.iters < params.max_iters
     assert result.nodes >= 1

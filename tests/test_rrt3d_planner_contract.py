@@ -37,6 +37,8 @@ def test_rrt_planner_is_deterministic_for_fixed_seed() -> None:
     )
 
     assert first.success and second.success
+    assert first.path is not None
+    assert second.path is not None
     assert first.nodes == second.nodes
     assert first.iters == second.iters
     assert len(first.path) == len(second.path)
@@ -61,7 +63,7 @@ def test_rrt_planner_path_is_collision_free_and_reaches_goal() -> None:
     )
 
     assert result.success
-    assert result.path
+    assert result.path is not None
     assert np.allclose(result.path[0], start)
     assert space.distance(result.path[-1], goal_center) <= goal_tolerance
 

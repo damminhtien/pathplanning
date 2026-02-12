@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
-from enum import Enum
 from numbers import Real
 import time
 from typing import TypeAlias, cast
@@ -15,13 +14,13 @@ from numpy.typing import NDArray
 from pathplanning.core.contracts import (
     BatchConfigurationSpace,
     ConfigurationSpace,
-    PlanResult,
     State,
 )
 from pathplanning.core.nn_index import NaiveNnIndex, NearestNeighborIndex
 from pathplanning.core.params import RrtParams
+from pathplanning.core.results import PlanResult, StopReason
 from pathplanning.core.tree import ArrayTree
-from pathplanning.core.types import NodeId
+from pathplanning.core.types import Mat, NodeId
 
 GoalPredicate: TypeAlias = Callable[[State], bool]
 GoalRegion: TypeAlias = GoalPredicate | tuple[Sequence[float], float] | Sequence[float] | State
@@ -58,14 +57,6 @@ class GoalSpec:
 
     predicate: GoalPredicate
     target_state: State | None
-
-
-class StopReason(str, Enum):
-    """Planner stop reason values."""
-
-    GOAL_REACHED = "goal_reached"
-    TIME_BUDGET = "time_budget"
-    MAX_ITERS = "max_iters"
 
 
 class RrtStarPlanner:
@@ -168,10 +159,9 @@ class RrtStarPlanner:
         return index.radius(target, radius)
 
     @staticmethod
-    def _path_from_tree(tree: ArrayTree, node_id: int) -> list[State]:
-        """Return root-to-node path as a list of states."""
-        path = tree.extract_path(node_id)
-        return [np.asarray(state, dtype=float) for state in path]
+    def _path_from_tree(tree: ArrayTree, node_id: int) -> Mat:
+        """Return root-to-node path as a state matrix."""
+        return tree.extract_path(node_id)
 
     def _is_free(self, state: State) -> bool:
         if self._batch_space is not None:
@@ -280,10 +270,12 @@ class RrtStarPlanner:
         if goal.predicate(start_state):
             return PlanResult(
                 success=True,
-                path=[np.asarray(start_state, dtype=float)],
+                path=np.asarray([start_state], dtype=float),
+                best_path=np.asarray([start_state], dtype=float),
+                stop_reason=StopReason.SUCCESS,
                 iters=0,
                 nodes=1,
-                stats={"reason": "start_in_goal", "goal_checks": 1},
+                stats={"goal_checks": 1.0},
             )
 
         tree = ArrayTree(self.space.dim)
@@ -350,35 +342,39 @@ class RrtStarPlanner:
             best_goal_index = min(goal_indices, key=lambda idx: tree.cost[idx])
             path = self._path_from_tree(tree, best_goal_index)
             elapsed = time.perf_counter() - start_time
-            if stop_reason is None:
-                stop_reason = StopReason.GOAL_REACHED
+            stats: dict[str, float] = {
+                "goal_checks": float(goal_checks),
+                "path_cost": float(tree.cost[best_goal_index]),
+                "goal_nodes": float(len(goal_indices)),
+                "elapsed_s": elapsed,
+            }
+            if self.params.time_budget_s is not None:
+                stats["time_budget_s"] = self.params.time_budget_s
             return PlanResult(
                 success=True,
                 path=path,
+                best_path=path,
+                stop_reason=StopReason.SUCCESS,
                 iters=iters_run,
                 nodes=tree.size,
-                stats={
-                    "goal_checks": goal_checks,
-                    "path_cost": float(tree.cost[best_goal_index]),
-                    "goal_nodes": len(goal_indices),
-                    "stopped_reason": stop_reason.value,
-                    "elapsed_s": elapsed,
-                    "time_budget_s": self.params.time_budget_s,
-                },
+                stats=stats,
             )
 
         if stop_reason is None:
-            stop_reason = StopReason.MAX_ITERS
+            stop_reason = StopReason.NO_PROGRESS if tree.size <= 1 else StopReason.MAX_ITERS
         elapsed = time.perf_counter() - start_time
+        stats: dict[str, float] = {
+            "goal_checks": float(goal_checks),
+            "elapsed_s": elapsed,
+        }
+        if self.params.time_budget_s is not None:
+            stats["time_budget_s"] = self.params.time_budget_s
         return PlanResult(
             success=False,
-            path=[],
+            path=None,
+            best_path=None,
+            stop_reason=stop_reason,
             iters=iters_run,
             nodes=tree.size,
-            stats={
-                "goal_checks": goal_checks,
-                "stopped_reason": stop_reason.value,
-                "elapsed_s": elapsed,
-                "time_budget_s": self.params.time_budget_s,
-            },
+            stats=stats,
         )
