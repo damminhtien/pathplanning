@@ -13,10 +13,13 @@ def calc_4points_bezier_path(sx, sy, syaw, gx, gy, gyaw, offset):
 
     dist = np.hypot(sx - gx, sy - gy) / offset
     control_points = np.array(
-        [[sx, sy],
-         [sx + dist * np.cos(syaw), sy + dist * np.sin(syaw)],
-         [gx - dist * np.cos(gyaw), gy - dist * np.sin(gyaw)],
-         [gx, gy]])
+        [
+            [sx, sy],
+            [sx + dist * np.cos(syaw), sy + dist * np.sin(syaw)],
+            [gx - dist * np.cos(gyaw), gy - dist * np.sin(gyaw)],
+            [gx, gy],
+        ]
+    )
 
     path = calc_bezier_path(control_points, n_points=100)
 
@@ -33,7 +36,7 @@ def calc_bezier_path(control_points, n_points=100):
 
 
 def Comb(n, i, t):
-    return comb(n, i) * t ** i * (1 - t) ** (n - i)
+    return comb(n, i) * t**i * (1 - t) ** (n - i)
 
 
 def bezier(t, control_points):
@@ -46,14 +49,13 @@ def bezier_derivatives_control_points(control_points, n_derivatives):
 
     for i in range(n_derivatives):
         n = len(w[i])
-        w[i + 1] = np.array([(n - 1) * (w[i][j + 1] - w[i][j])
-                             for j in range(n - 1)])
+        w[i + 1] = np.array([(n - 1) * (w[i][j + 1] - w[i][j]) for j in range(n - 1)])
 
     return w
 
 
 def curvature(dx, dy, ddx, ddy):
-    return (dx * ddy - dy * ddx) / (dx ** 2 + dy ** 2) ** (3 / 2)
+    return (dx * ddy - dy * ddx) / (dx**2 + dy**2) ** (3 / 2)
 
 
 def simulation():
@@ -84,11 +86,11 @@ def simulation():
         pathy.append(py)
 
         plt.cla()
-        plt.plot(sx, sy, linestyle='-', marker='o', color='dimgray', label="Control Points")
-        plt.plot(x, y, color='dodgerblue')
-        plt.plot(xx, yy, color='cyan')
-        plt.plot(pathx, pathy, color='darkorange', linewidth=2, label="Bezier Path")
-        plt.plot(px, py, marker='o')
+        plt.plot(sx, sy, linestyle="-", marker="o", color="dimgray", label="Control Points")
+        plt.plot(x, y, color="dodgerblue")
+        plt.plot(xx, yy, color="cyan")
+        plt.plot(pathx, pathy, color="darkorange", linewidth=2, label="Bezier Path")
+        plt.plot(px, py, marker="o")
         plt.axis("equal")
         plt.legend()
         plt.title("Cubic Bezier Curve demo")
@@ -99,8 +101,8 @@ def simulation():
 
 
 def main():
-    from pathplanning.viz import lazy_import
     from pathplanning.viz import geometry_draw as draw
+    from pathplanning.viz import lazy_import
 
     plt = lazy_import("matplotlib.pyplot")
 
@@ -121,10 +123,11 @@ def main():
     # Normalize derivative
     dt /= np.linalg.norm(dt, 2)
     tangent = np.array([point, point + dt])
-    normal = np.array([point, point + [- dt[1], dt[0]]])
-    curvature_center = point + np.array([- dt[1], dt[0]]) * radius
-    circle = plt.Circle(tuple(curvature_center), radius,
-                        color=(0, 0.8, 0.8), fill=False, linewidth=1)
+    normal = np.array([point, point + [-dt[1], dt[0]]])
+    curvature_center = point + np.array([-dt[1], dt[0]]) * radius
+    circle = plt.Circle(
+        tuple(curvature_center), radius, color=(0, 0.8, 0.8), fill=False, linewidth=1
+    )
 
     assert path.T[0][0] == sx, "path is invalid"
     assert path.T[1][0] == sy, "path is invalid"
@@ -133,8 +136,7 @@ def main():
 
     fig, ax = plt.subplots()
     ax.plot(path.T[0], path.T[1], label="Bezier Path")
-    ax.plot(control_points.T[0], control_points.T[1],
-            '--o', label="Control Points")
+    ax.plot(control_points.T[0], control_points.T[1], "--o", label="Control Points")
     ax.plot(x_target, y_target)
     ax.plot(tangent[:, 0], tangent[:, 1], label="Tangent")
     ax.plot(normal[:, 0], normal[:, 1], label="Normal")
@@ -147,6 +149,6 @@ def main():
     plt.show()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()
     # simulation()

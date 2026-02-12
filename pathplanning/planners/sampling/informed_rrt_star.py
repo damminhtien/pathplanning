@@ -61,9 +61,7 @@ def draw_ellipsoid(ax: Any, rotation: np.ndarray, scale: np.ndarray, center: np.
 class InformedRrtStar:
     """Informed RRT* planner in 3D."""
 
-    def __init__(
-        self, show_ellipse: bool = False, rng: np.random.Generator | None = None
-    ) -> None:
+    def __init__(self, show_ellipse: bool = False, rng: np.random.Generator | None = None) -> None:
         """Initialize planner state.
 
         Args:

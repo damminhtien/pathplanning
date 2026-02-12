@@ -9,9 +9,8 @@ g(s) decreased introduces a local inconsistency between s and its successors.
 
 import math
 
-from pathplanning.viz import search2d_plotting as plotting
-
 from pathplanning.spaces.grid2d import Grid2DSearchSpace
+from pathplanning.viz import search2d_plotting as plotting
 
 
 class AnytimeRepairingAstar:
@@ -19,19 +18,19 @@ class AnytimeRepairingAstar:
         self.s_start, self.s_goal = s_start, s_goal
         self.heuristic_type = heuristic_type
 
-        self.Env = Grid2DSearchSpace()                                      # class Env
+        self.Env = Grid2DSearchSpace()  # class Env
 
-        self.u_set = self.Env.motions                                       # feasible input set
-        self.obs = self.Env.obs                                             # position of obstacles
-        self.e = e                                                          # weight
+        self.u_set = self.Env.motions  # feasible input set
+        self.obs = self.Env.obs  # position of obstacles
+        self.e = e  # weight
 
-        self.g = dict()                                                     # Cost to come
-        self.OPEN = dict()                                                  # priority queue / OPEN set
-        self.CLOSED = set()                                                 # CLOSED set
-        self.INCONS = {}                                                    # INCONSISTENT set
-        self.PARENT = dict()                                                # relations
-        self.path = []                                                      # planning path
-        self.visited = []                                                   # order of visited nodes
+        self.g = dict()  # Cost to come
+        self.OPEN = dict()  # priority queue / OPEN set
+        self.CLOSED = set()  # CLOSED set
+        self.INCONS = {}  # INCONSISTENT set
+        self.PARENT = dict()  # relations
+        self.path = []  # planning path
+        self.visited = []  # order of visited nodes
 
     def init(self):
         """
@@ -48,14 +47,14 @@ class AnytimeRepairingAstar:
         self.ImprovePath()
         self.path.append(self.extract_path())
 
-        while self.update_e() > 1:                                          # continue condition
-            self.e -= 0.4                                                   # increase weight
+        while self.update_e() > 1:  # continue condition
+            self.e -= 0.4  # increase weight
             self.OPEN.update(self.INCONS)
-            self.OPEN = {s: self.f_value(s) for s in self.OPEN}             # update f_value of OPEN set
+            self.OPEN = {s: self.f_value(s) for s in self.OPEN}  # update f_value of OPEN set
 
             self.INCONS = dict()
             self.CLOSED = set()
-            self.ImprovePath()                                              # improve path
+            self.ImprovePath()  # improve path
             self.path.append(self.extract_path())
 
         return self.path, self.visited
@@ -157,8 +156,8 @@ class AnytimeRepairingAstar:
         :return: heuristic function value
         """
 
-        heuristic_type = self.heuristic_type                                # heuristic type
-        goal = self.s_goal                                                  # goal node
+        heuristic_type = self.heuristic_type  # heuristic type
+        goal = self.s_goal  # goal node
 
         if heuristic_type == "manhattan":
             return abs(goal[0] - s[0]) + abs(goal[1] - s[1])
@@ -215,5 +214,5 @@ def main():
     plot.animate_ara_star(path, visited, "Anytime Repairing A* (ARA*)")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

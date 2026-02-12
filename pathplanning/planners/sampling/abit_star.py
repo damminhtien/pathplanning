@@ -62,7 +62,10 @@ class AbitStar:
                 state_tuple = list(edge_queue)
                 (xp, xc) = state_tuple[
                     np.argmin(
-                        [self.g_t(xi) + self.c_hat(xi, xj) + eps_infl * self.h_hat(xj) for (xi, xj) in edge_queue]
+                        [
+                            self.g_t(xi) + self.c_hat(xi, xj) + eps_infl * self.h_hat(xj)
+                            for (xi, xj) in edge_queue
+                        ]
                     )
                 ]
                 edge_queue = edge_queue.difference({(xp, xc)})
@@ -72,16 +75,19 @@ class AbitStar:
                     else:
                         edge_queue.update(self.expand({xc}, tree, unconnected_states, self.r(q)))
                         closed_vertices.add(xc)
-                elif (
-                    eps_trunc * (self.g_t(xp) + self.c_hat(xp, xc) + self.h_hat(xc))
-                    <= self.g_t(self.xgoal)
+                elif eps_trunc * (self.g_t(xp) + self.c_hat(xp, xc) + self.h_hat(xc)) <= self.g_t(
+                    self.xgoal
                 ):
                     if self.g_t(xp) + self.c_hat(xp, xc) < self.g_t(xc):
                         if self.g_t(xp) + self.c(xp, xc) + self.h_hat(xc) < self.g_t(self.xgoal):
                             if self.g_t(xp) + self.c(xp, xc) < self.g_t(xc):
                                 if xc in vertices:
                                     edges = edges.difference(
-                                        {(x_parent, x_child) for (x_parent, x_child) in edges if x_child == xc}
+                                        {
+                                            (x_parent, x_child)
+                                            for (x_parent, x_child) in edges
+                                            if x_child == xc
+                                        }
                                     )
                                 else:
                                     unconnected_states.difference_update({xc})
@@ -90,7 +96,9 @@ class AbitStar:
                                 if xc in closed_vertices:
                                     inconsistent_vertices.add(xc)
                                 else:
-                                    edge_queue.update(self.expand({xc}, tree, unconnected_states, self.r(q)))
+                                    edge_queue.update(
+                                        self.expand({xc}, tree, unconnected_states, self.r(q))
+                                    )
                                     closed_vertices.add(xc)
                 else:
                     self.mark_search_finished()
@@ -128,13 +136,23 @@ class AbitStar:
     ):
         """Prune vertices/edges that cannot improve current best solution."""
         vertices, edges = tree
-        unconnected_states.difference_update({x for x in unconnected_states if self.f_hat(x) >= self.g_t(xgoal)})
+        unconnected_states.difference_update(
+            {x for x in unconnected_states if self.f_hat(x) >= self.g_t(xgoal)}
+        )
         vertices.difference_update({x for x in vertices if self.f_hat(x) > self.g_t(xgoal)})
         edges.difference_update(
-            {(xp, xc) for (xp, xc) in edges if self.f_hat(xp) > self.g_t(xgoal) or self.f_hat(xc) > self.g_t(xgoal)}
+            {
+                (xp, xc)
+                for (xp, xc) in edges
+                if self.f_hat(xp) > self.g_t(xgoal) or self.f_hat(xc) > self.g_t(xgoal)
+            }
         )
-        unconnected_states.update({xc for (xp, xc) in edges if (xp not in vertices) and (xc in vertices)})
-        vertices.difference_update({xc for (xp, xc) in edges if (xp not in vertices) and (xc in vertices)})
+        unconnected_states.update(
+            {xc for (xp, xc) in edges if (xp not in vertices) and (xc in vertices)}
+        )
+        vertices.difference_update(
+            {xc for (xp, xc) in edges if (xp not in vertices) and (xc in vertices)}
+        )
         tree = (vertices, edges)
         return tree, unconnected_states
 

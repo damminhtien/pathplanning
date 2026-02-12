@@ -1,6 +1,6 @@
 #! /usr/bin/python
 # -*- coding: utf-8 -*-
-u"""
+"""
 Cubic Spline library on python
 
 author Atsushi Sakai
@@ -9,13 +9,15 @@ usage: see test codes as below
 
 license: MIT
 """
-import math
-import numpy as np
+
 import bisect
+import math
+
+import numpy as np
 
 
 class Spline:
-    u"""
+    """
     Cubic Spline class
     """
 
@@ -40,12 +42,11 @@ class Spline:
         # calc spline coefficient b and d
         for i in range(self.nx - 1):
             self.d.append((self.c[i + 1] - self.c[i]) / (3.0 * h[i]))
-            tb = (self.a[i + 1] - self.a[i]) / h[i] - h[i] * \
-                (self.c[i + 1] + 2.0 * self.c[i]) / 3.0
+            tb = (self.a[i + 1] - self.a[i]) / h[i] - h[i] * (self.c[i + 1] + 2.0 * self.c[i]) / 3.0
             self.b.append(tb)
 
     def calc(self, t):
-        u"""
+        """
         Calc position
 
         if t is outside of the input s, return None
@@ -59,13 +60,12 @@ class Spline:
 
         i = self.__search_index(t)
         dx = t - self.x[i]
-        result = self.a[i] + self.b[i] * dx + \
-            self.c[i] * dx ** 2.0 + self.d[i] * dx ** 3.0
+        result = self.a[i] + self.b[i] * dx + self.c[i] * dx**2.0 + self.d[i] * dx**3.0
 
         return result
 
     def calcd(self, t):
-        u"""
+        """
         Calc first derivative
 
         if t is outside of the input s, return None
@@ -78,11 +78,11 @@ class Spline:
 
         i = self.__search_index(t)
         dx = t - self.x[i]
-        result = self.b[i] + 2.0 * self.c[i] * dx + 3.0 * self.d[i] * dx ** 2.0
+        result = self.b[i] + 2.0 * self.c[i] * dx + 3.0 * self.d[i] * dx**2.0
         return result
 
     def calcdd(self, t):
-        u"""
+        """
         Calc second derivative
         """
 
@@ -97,13 +97,13 @@ class Spline:
         return result
 
     def __search_index(self, x):
-        u"""
+        """
         search data segment index
         """
         return bisect.bisect(self.x, x) - 1
 
     def __calc_A(self, h):
-        u"""
+        """
         calc matrix A for spline coefficient cBest
         """
         A = np.zeros((self.nx, self.nx))
@@ -121,19 +121,21 @@ class Spline:
         return A
 
     def __calc_B(self, h):
-        u"""
+        """
         calc matrix B for spline coefficient cBest
         """
         B = np.zeros(self.nx)
         for i in range(self.nx - 2):
-            B[i + 1] = 3.0 * (self.a[i + 2] - self.a[i + 1]) / \
-                h[i + 1] - 3.0 * (self.a[i + 1] - self.a[i]) / h[i]
+            B[i + 1] = (
+                3.0 * (self.a[i + 2] - self.a[i + 1]) / h[i + 1]
+                - 3.0 * (self.a[i + 1] - self.a[i]) / h[i]
+            )
         #  print(B)
         return B
 
 
 class Spline2D:
-    u"""
+    """
     2D Cubic Spline class
 
     """
@@ -146,14 +148,13 @@ class Spline2D:
     def __calc_s(self, x, y):
         dx = np.diff(x)
         dy = np.diff(y)
-        self.ds = [math.sqrt(idx ** 2 + idy ** 2)
-                   for (idx, idy) in zip(dx, dy)]
+        self.ds = [math.sqrt(idx**2 + idy**2) for (idx, idy) in zip(dx, dy)]
         s = [0]
         s.extend(np.cumsum(self.ds))
         return s
 
     def calc_position(self, s):
-        u"""
+        """
         calc position
         """
         x = self.sx.calc(s)
@@ -162,18 +163,18 @@ class Spline2D:
         return x, y
 
     def calc_curvature(self, s):
-        u"""
+        """
         calc curvature
         """
         dx = self.sx.calcd(s)
         ddx = self.sx.calcdd(s)
         dy = self.sy.calcd(s)
         ddy = self.sy.calcdd(s)
-        k = (ddy * dx - ddx * dy) / (dx ** 2 + dy ** 2)
+        k = (ddy * dx - ddx * dy) / (dx**2 + dy**2)
         return k
 
     def calc_yaw(self, s):
-        u"""
+        """
         calc yaw
         """
         dx = self.sx.calcd(s)
@@ -261,6 +262,6 @@ def test_spline():
     plt.show()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     test_spline()
     # test_spline2d()

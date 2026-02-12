@@ -25,8 +25,7 @@ def get_aabb(blocks: Sequence[Sequence[float]]) -> list[np.ndarray]:
 def get_dist(pos1: Sequence[float], pos2: Sequence[float]) -> float:
     """Compute Euclidean distance between two 3D positions."""
     return np.sqrt(
-        sum([(pos1[0] - pos2[0]) ** 2, (pos1[1] - pos2[1])
-            ** 2, (pos1[2] - pos2[2]) ** 2])
+        sum([(pos1[0] - pos2[0]) ** 2, (pos1[1] - pos2[1]) ** 2, (pos1[2] - pos2[2]) ** 2])
     )
 
 
@@ -138,9 +137,7 @@ def is_in_ball(i: Sequence[float], x: Sequence[float], factor: float = 0.0) -> b
     return False
 
 
-def line_sphere(
-    p0: Sequence[float], p1: Sequence[float], ball: Sequence[float]
-) -> bool:
+def line_sphere(p0: Sequence[float], p1: Sequence[float], ball: Sequence[float]) -> bool:
     """Check whether a line segment intersects a sphere obstacle."""
     # https://cseweb.ucsd.edu/classes/sp19/cse291-d/Files/CSE291_13_CollisionDetection.pdf
     c, r = ball[0:3], ball[-1]
@@ -164,16 +161,12 @@ def line_sphere(
     return False
 
 
-def line_aabb(
-    p0: Sequence[float], p1: Sequence[float], dist: float, aabb: Any
-) -> bool:
+def line_aabb(p0: Sequence[float], p1: Sequence[float], dist: float, aabb: Any) -> bool:
     """Check whether a line segment intersects an axis-aligned bounding box."""
     # https://www.gamasutra.com/view/feature/131790/simple_intersection_tests_for_games.php?print=1
     # aabb should have the attributes of P, E as center point and extents
-    mid = [(p0[0] + p1[0]) / 2, (p0[1] + p1[1]) /
-           2, (p0[2] + p1[2]) / 2]  # mid point
-    I = [(p1[0] - p0[0]) / dist, (p1[1] - p0[1]) / dist,
-         (p1[2] - p0[2]) / dist]  # unit direction
+    mid = [(p0[0] + p1[0]) / 2, (p0[1] + p1[1]) / 2, (p0[2] + p1[2]) / 2]  # mid point
+    I = [(p1[0] - p0[0]) / dist, (p1[1] - p0[1]) / dist, (p1[2] - p0[2]) / dist]  # unit direction
     hl = dist / 2  # radius
     t = [aabb.center[0] - mid[0], aabb.center[1] - mid[1], aabb.center[2] - mid[2]]
     # do any of the principal axis form a separting axis?
@@ -199,9 +192,7 @@ def line_aabb(
     return True
 
 
-def line_obb(
-    p0: Sequence[float], p1: Sequence[float], dist: float, obb: Any
-) -> bool:
+def line_obb(p0: Sequence[float], p1: Sequence[float], dist: float, obb: Any) -> bool:
     """Check whether a line segment intersects an oriented bounding box."""
     # transform points to obb frame
     res = obb.transform @ np.column_stack([np.array([p0, p1]), [1, 1]]).T
@@ -299,7 +290,9 @@ def cost(initparams: Any, x: tuple[float, ...]) -> float:
     """here use the additive recursive cost function"""
     if x == initparams.x0:
         return 0
-    return cost(initparams, initparams.parent_by_node[x]) + get_dist(x, initparams.parent_by_node[x])
+    return cost(initparams, initparams.parent_by_node[x]) + get_dist(
+        x, initparams.parent_by_node[x]
+    )
 
 
 def cost_from_set(initparams: Any, x: tuple[float, ...]) -> float:
@@ -486,8 +479,7 @@ class KdTree:
         q1, q2, q3 = q
         p1, p2, p3 = p
         d1 = np.sqrt((q1 - p1) ** 2 + (q2 - p2) ** 2 + (q3 - p3) ** 2)
-        d2 = np.sqrt((1 - abs(q1 - p1)) ** 2 + (1 - abs(q2 - p2))
-                     ** 2 + (1 - abs(q3 - p3)) ** 2)
+        d2 = np.sqrt((1 - abs(q1 - p1)) ** 2 + (1 - abs(q2 - p2)) ** 2 + (1 - abs(q3 - p3)) ** 2)
         d3 = np.sqrt((-q1 - p1) ** 2 + (-q2 - p2) ** 2 + (q3 + 1 - p3) ** 2)
         d4 = np.sqrt((-q1 - p1) ** 2 + (-q2 - p2) ** 2 + (q3 - 1 - p3) ** 2)
         d5 = np.sqrt((-q1 - p1) ** 2 + (q2 + 1 - p2) ** 2 + (-q3 - p3) ** 2)
@@ -498,9 +490,11 @@ class KdTree:
 
 
 if __name__ == "__main__":
-    from pathplanning.spaces.environment3d import Environment3D
     import time
+
     import matplotlib.pyplot as plt
+
+    from pathplanning.spaces.environment3d import Environment3D
 
     class RrtDemo:
         """Minimal demo for linked-tree utilities."""
@@ -523,8 +517,7 @@ if __name__ == "__main__":
                 xrand = sample_free(self)  # O(1)
                 nearest_node = tree_nearest(self.head, xrand)  # O(N)
                 xnew = tree_steer(self, nearest_node, xrand)  # O(1)
-                collide, _ = is_collide(
-                    self, nearest_node.pos, xnew)  # O(num obs)
+                collide, _ = is_collide(self, nearest_node.pos, xnew)  # O(num obs)
                 if not collide:
                     new_node = tree_add_edge(nearest_node, xnew)  # O(1)
                     # if the path is found

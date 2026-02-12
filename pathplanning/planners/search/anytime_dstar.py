@@ -4,13 +4,13 @@ Anytime_D_star 2D
 """
 
 import math
+
 from pathplanning.viz import lazy_import
 
 plt = lazy_import("matplotlib.pyplot")
 
-from pathplanning.viz import search2d_plotting as plotting
-
 from pathplanning.spaces.grid2d import Grid2DSearchSpace
+from pathplanning.viz import search2d_plotting as plotting
 
 
 class AnytimeDstar:
@@ -67,7 +67,7 @@ class AnytimeDstar:
             self.visited = set()
             plt.pause(0.5)
 
-        self.fig.canvas.mpl_connect('button_press_event', self.on_press)
+        self.fig.canvas.mpl_connect("button_press_event", self.on_press)
         plt.show()
 
     def on_press(self, event):
@@ -117,13 +117,13 @@ class AnytimeDstar:
                 if (x, y) not in self.obs:
                     self.obs.add((x, y))
                     self.obs_add.add((x, y))
-                    plt.plot(x, y, 'sk')
+                    plt.plot(x, y, "sk")
                     if (x, y) in self.obs_remove:
                         self.obs_remove.remove((x, y))
                 else:
                     self.obs.remove((x, y))
                     self.obs_remove.add((x, y))
-                    plt.plot(x, y, marker='s', color='white')
+                    plt.plot(x, y, marker="s", color="white")
                     if (x, y) in self.obs_add:
                         self.obs_add.remove((x, y))
 
@@ -167,8 +167,7 @@ class AnytimeDstar:
     def ComputeOrImprovePath(self):
         while True:
             s, v = self.TopKey()
-            if v >= self.Key(self.s_start) and \
-                    self.rhs[self.s_start] == self.g[self.s_start]:
+            if v >= self.Key(self.s_start) and self.rhs[self.s_start] == self.g[self.s_start]:
                 break
 
             self.OPEN.pop(s)
@@ -292,15 +291,26 @@ class AnytimeDstar:
     def plot_visited(self):
         self.count += 1
 
-        color = ['gainsboro', 'lightgray', 'silver', 'darkgray',
-                 'bisque', 'navajowhite', 'moccasin', 'wheat',
-                 'powderblue', 'skyblue', 'lightskyblue', 'cornflowerblue']
+        color = [
+            "gainsboro",
+            "lightgray",
+            "silver",
+            "darkgray",
+            "bisque",
+            "navajowhite",
+            "moccasin",
+            "wheat",
+            "powderblue",
+            "skyblue",
+            "lightskyblue",
+            "cornflowerblue",
+        ]
 
         if self.count >= len(color) - 1:
             self.count = 0
 
         for x in self.visited:
-            plt.plot(x[0], x[1], marker='s', color=color[self.count])
+            plt.plot(x[0], x[1], marker="s", color=color[self.count])
 
 
 def main():
@@ -311,5 +321,5 @@ def main():
     dstar.run()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

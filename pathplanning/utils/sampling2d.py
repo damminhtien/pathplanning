@@ -4,7 +4,9 @@ utils for collision check
 """
 
 import math
+
 import numpy as np
+
 from pathplanning.spaces.grid2d import Grid2DSamplingSpace
 
 
@@ -34,11 +36,13 @@ class Utils:
         delta = self.delta
         obs_list = []
 
-        for (ox, oy, w, h) in self.obs_rectangle:
-            vertex_list = [[ox - delta, oy - delta],
-                           [ox + w + delta, oy - delta],
-                           [ox + w + delta, oy + h + delta],
-                           [ox - delta, oy + h + delta]]
+        for ox, oy, w, h in self.obs_rectangle:
+            vertex_list = [
+                [ox - delta, oy - delta],
+                [ox + w + delta, oy - delta],
+                [ox + w + delta, oy + h + delta],
+                [ox - delta, oy + h + delta],
+            ]
             obs_list.append(vertex_list)
 
         return obs_list
@@ -88,7 +92,7 @@ class Utils:
         o, d = self.get_ray(start, end)
         obs_vertex = self.get_obs_vertex()
 
-        for (v1, v2, v3, v4) in obs_vertex:
+        for v1, v2, v3, v4 in obs_vertex:
             if self.is_intersect_rec(start, end, o, d, v1, v2):
                 return True
             if self.is_intersect_rec(start, end, o, d, v2, v3):
@@ -98,7 +102,7 @@ class Utils:
             if self.is_intersect_rec(start, end, o, d, v4, v1):
                 return True
 
-        for (x, y, r) in self.obs_circle:
+        for x, y, r in self.obs_circle:
             if self.is_intersect_circle(o, d, [x, y], r):
                 return True
 
@@ -107,18 +111,22 @@ class Utils:
     def is_inside_obs(self, node):
         delta = self.delta
 
-        for (x, y, r) in self.obs_circle:
+        for x, y, r in self.obs_circle:
             if math.hypot(node.x - x, node.y - y) <= r + delta:
                 return True
 
-        for (x, y, w, h) in self.obs_rectangle:
-            if 0 <= node.x - (x - delta) <= w + 2 * delta \
-                    and 0 <= node.y - (y - delta) <= h + 2 * delta:
+        for x, y, w, h in self.obs_rectangle:
+            if (
+                0 <= node.x - (x - delta) <= w + 2 * delta
+                and 0 <= node.y - (y - delta) <= h + 2 * delta
+            ):
                 return True
 
-        for (x, y, w, h) in self.obs_boundary:
-            if 0 <= node.x - (x - delta) <= w + 2 * delta \
-                    and 0 <= node.y - (y - delta) <= h + 2 * delta:
+        for x, y, w, h in self.obs_boundary:
+            if (
+                0 <= node.x - (x - delta) <= w + 2 * delta
+                and 0 <= node.y - (y - delta) <= h + 2 * delta
+            ):
                 return True
 
         return False

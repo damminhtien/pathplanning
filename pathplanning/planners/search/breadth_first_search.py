@@ -11,8 +11,8 @@ from pathplanning.viz import search2d_plotting as plotting
 
 
 class BreadthFirstSearch(Astar):
-    """BFS add the new visited node in the end of the openset
-    """
+    """BFS add the new visited node in the end of the openset"""
+
     def searching(self):
         """
         Breadth-first Searching.
@@ -22,8 +22,7 @@ class BreadthFirstSearch(Astar):
         self.PARENT[self.s_start] = self.s_start
         self.g[self.s_start] = 0
         self.g[self.s_goal] = math.inf
-        heapq.heappush(self.OPEN,
-                       (0, self.s_start))
+        heapq.heappush(self.OPEN, (0, self.s_start))
 
         while self.OPEN:
             _, s = heapq.heappop(self.OPEN)
@@ -43,23 +42,23 @@ class BreadthFirstSearch(Astar):
                     self.PARENT[s_n] = s
 
                     # bfs, add new node to the end of the openset
-                    prior = self.OPEN[-1][0]+1 if len(self.OPEN)>0 else 0
+                    prior = self.OPEN[-1][0] + 1 if len(self.OPEN) > 0 else 0
                     heapq.heappush(self.OPEN, (prior, s_n))
 
         return self.extract_path(self.PARENT), self.CLOSED
 
 
 def main():
-    """ Run a demo of the Breadth-first Search planner."""
+    """Run a demo of the Breadth-first Search planner."""
     s_start = (5, 5)
     s_goal = (45, 25)
 
-    bfs = BreadthFirstSearch(s_start, s_goal, 'None')
+    bfs = BreadthFirstSearch(s_start, s_goal, "None")
     plot = plotting.Plotting(s_start, s_goal)
 
     path, visited = bfs.searching()
     plot.animate(path, visited, "Breadth-first Searching (BFS)")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

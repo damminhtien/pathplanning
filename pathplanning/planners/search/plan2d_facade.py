@@ -34,11 +34,11 @@ author: damminhtien
 from __future__ import annotations
 
 import argparse
+from dataclasses import dataclass, field
+from enum import Enum
 import importlib
 import json
 import time
-from dataclasses import dataclass, field
-from enum import Enum
 from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple
 
 # -- Type definitions ----------------------------------------------------------
@@ -49,12 +49,14 @@ PathList = List[Path]
 
 class Heuristic(str, Enum):
     """Heuristic types for pathfinding algorithms."""
+
     EUCLIDEAN = "euclidean"
     MANHATTAN = "manhattan"
 
 
 class Planner(str, Enum):
     """Path planning algorithms available in the plan2d module."""
+
     # Uninformed Search
     BREADTH_FIRST_SEARCH = "breadth_first_search"
     DEPTH_FIRST_SEARCH = "depth_first_search"
@@ -76,15 +78,16 @@ class Planner(str, Enum):
 @dataclass
 class PlanConfig:
     """Configuration for pathfinding algorithms."""
+
     s_start: Coord
     s_goal: Coord
     heuristic: Heuristic = Heuristic.EUCLIDEAN
 
     # Plannerrithm-specific knobs (kept together for convenience)
-    lrta_N: int = 250           # LRTA*: expansions per iteration
-    rtaa_N: int = 240           # RTAA*: expansions per iteration
-    ara_e: float = 2.5          # ARA*: initial inflation factor
-    adstar_eps: float = 2.5     # AD*: initial inflation factor
+    lrta_N: int = 250  # LRTA*: expansions per iteration
+    rtaa_N: int = 240  # RTAA*: expansions per iteration
+    ara_e: float = 2.5  # ARA*: initial inflation factor
+    adstar_eps: float = 2.5  # AD*: initial inflation factor
 
     # Optional: future custom env or motion set (not used by stock impls)
     # obs: Optional[set[Coord]] = None
@@ -93,6 +96,7 @@ class PlanConfig:
 @dataclass
 class PlanResult:
     """Result of a pathfinding plan execution."""
+
     algo: Planner
     heuristic: Heuristic
     s_start: Coord
@@ -106,12 +110,12 @@ class PlanResult:
 
     # Visited/expanded nodes. For RT algorithms this is often per-iteration.
     visited: Optional[List[Coord]] = None
-    visited_fore: Optional[List[Coord]] = None   # Bi-A*
-    visited_back: Optional[List[Coord]] = None   # Bi-A*
+    visited_fore: Optional[List[Coord]] = None  # Bi-A*
+    visited_back: Optional[List[Coord]] = None  # Bi-A*
     visited_iters: Optional[List[List[Coord]]] = None
 
     # Metrics
-    cost: Optional[float] = None         # sum of euclidean segment lengths
+    cost: Optional[float] = None  # sum of euclidean segment lengths
     nodes_expanded: Optional[int] = None
     runtime_s: float = 0.0
 
@@ -120,6 +124,7 @@ class PlanResult:
 
 
 # -- Utility helpers -----------------------------------------------------------
+
 
 def _norm_heuristic(h: Heuristic | str) -> str:
     if isinstance(h, Heuristic):
@@ -133,11 +138,13 @@ def _path_cost(path: Sequence[Coord]) -> float:
         return 0.0
     total = 0.0
     for (x0, y0), (x1, y1) in zip(path[:-1], path[1:]):
-        total += ((x1 - x0)**2 + (y1 - y0)**2) ** 0.5
+        total += ((x1 - x0) ** 2 + (y1 - y0) ** 2) ** 0.5
     return total
 
 
-def _ensure_start_to_goal(path: Optional[Sequence[Coord]], start: Coord, goal: Coord) -> Optional[List[Coord]]:
+def _ensure_start_to_goal(
+    path: Optional[Sequence[Coord]], start: Coord, goal: Coord
+) -> Optional[List[Coord]]:
     """Ensure the path starts at `start` and ends at `goal`, normalizing if needed."""
     if not path:
         return None
@@ -186,9 +193,7 @@ def _import_local(module_name: str):
     if __package__:
         return importlib.import_module(f"{__package__}.{module_name}")
     try:
-        return importlib.import_module(
-            f"pathplanning.planners.search.{module_name}"
-        )
+        return importlib.import_module(f"pathplanning.planners.search.{module_name}")
     except ModuleNotFoundError:
         return importlib.import_module(module_name)
 
@@ -201,7 +206,7 @@ class Search2dFacade:
     """
 
     def plan(self, algo: Planner | str, cfg: PlanConfig) -> PlanResult:
-        """ Run the specified planner algorithm with the given configuration.
+        """Run the specified planner algorithm with the given configuration.
         :param algo: Planner algorithm to run (e.g. Planner.ASTAR)
         :param cfg: PlanConfig with start, goal, heuristic, and optional knobs
         :return: PlanResult with the path, cost, nodes expanded, runtime, etc.
@@ -215,9 +220,12 @@ class Search2dFacade:
         t0 = time.perf_counter()
 
         if name in (
-                Planner.ASTAR,
-                Planner.BREADTH_FIRST_SEARCH, Planner.DEPTH_FIRST_SEARCH,
-                Planner.DIJKSTRA, Planner.BEST_FIRST_SEARCH):
+            Planner.ASTAR,
+            Planner.BREADTH_FIRST_SEARCH,
+            Planner.DEPTH_FIRST_SEARCH,
+            Planner.DIJKSTRA,
+            Planner.BEST_FIRST_SEARCH,
+        ):
             res = self._run_astar_family(name, heur, cfg)
         elif name == Planner.BIDIRECTIONAL_ASTAR:
             res = self._run_bi_astar(heur, cfg)
@@ -248,18 +256,17 @@ class Search2dFacade:
             elif res.visited_iters is not None:
                 res.nodes_expanded = sum(len(v) for v in res.visited_iters)
             elif res.visited_fore is not None or res.visited_back is not None:
-                res.nodes_expanded = (
-                    len(res.visited_fore or []) + len(res.visited_back or []))
+                res.nodes_expanded = len(res.visited_fore or []) + len(res.visited_back or [])
         return res
 
     def _run_astar_family(self, name: Planner, heur: str, cfg: PlanConfig) -> PlanResult:
         """A*, BFS, DFS, Dijkstra, Best-First (all inherit Astar or only override searching())."""
         mod_map = {
-            Planner.ASTAR:                          ("astar", "Astar"),
-            Planner.BREADTH_FIRST_SEARCH:           ("breadth_first_search", "BreadthFirstSearch"),
-            Planner.DEPTH_FIRST_SEARCH:             ("depth_first_search", "DepthFirstSearch"),
-            Planner.DIJKSTRA:                       ("dijkstra", "Dijkstra"),
-            Planner.BEST_FIRST_SEARCH:              ("best_first_search", "BestFirstSearch"),
+            Planner.ASTAR: ("astar", "Astar"),
+            Planner.BREADTH_FIRST_SEARCH: ("breadth_first_search", "BreadthFirstSearch"),
+            Planner.DEPTH_FIRST_SEARCH: ("depth_first_search", "DepthFirstSearch"),
+            Planner.DIJKSTRA: ("dijkstra", "Dijkstra"),
+            Planner.BEST_FIRST_SEARCH: ("best_first_search", "BestFirstSearch"),
         }
         mod_name, cls_name = mod_map[name]
         Mod = _import_local(mod_name)
@@ -268,7 +275,10 @@ class Search2dFacade:
         path_raw, visited = inst.searching()  # type: ignore[assignment]
         path = _ensure_start_to_goal(path_raw, cfg.s_start, cfg.s_goal)
         return PlanResult(
-            algo=name, heuristic=Heuristic(heur), s_start=cfg.s_start, s_goal=cfg.s_goal,
+            algo=name,
+            heuristic=Heuristic(heur),
+            s_start=cfg.s_start,
+            s_goal=cfg.s_goal,
             path=path,
             # de-dup like dfs example
             visited=list(dict.fromkeys(visited)) if visited else None,
@@ -281,9 +291,13 @@ class Search2dFacade:
         path, visited_fore, visited_back = inst.searching()
         path = _ensure_start_to_goal(path, cfg.s_start, cfg.s_goal)
         return PlanResult(
-            algo=Planner.BIDIRECTIONAL_ASTAR, heuristic=Heuristic(heur),
-            s_start=cfg.s_start, s_goal=cfg.s_goal,
-            path=path, visited_fore=visited_fore, visited_back=visited_back
+            algo=Planner.BIDIRECTIONAL_ASTAR,
+            heuristic=Heuristic(heur),
+            s_start=cfg.s_start,
+            s_goal=cfg.s_goal,
+            path=path,
+            visited_fore=visited_fore,
+            visited_back=visited_back,
         )
 
     def _run_arastar(self, heur: str, cfg: PlanConfig) -> PlanResult:
@@ -292,13 +306,16 @@ class Search2dFacade:
         inst = Cls(cfg.s_start, cfg.s_goal, cfg.ara_e, heur)
         paths_raw, visited_iters = inst.searching()
         # Normalize each path
-        paths = [_ensure_start_to_goal(
-            p, cfg.s_start, cfg.s_goal) or [] for p in paths_raw]
+        paths = [_ensure_start_to_goal(p, cfg.s_start, cfg.s_goal) or [] for p in paths_raw]
         final_path = paths[-1] if paths else None
         return PlanResult(
-            algo=Planner.ANYTIME_REPAIRING_ASTAR, heuristic=Heuristic(heur),
-            s_start=cfg.s_start, s_goal=cfg.s_goal,
-            path=final_path, paths=paths, visited_iters=visited_iters
+            algo=Planner.ANYTIME_REPAIRING_ASTAR,
+            heuristic=Heuristic(heur),
+            s_start=cfg.s_start,
+            s_goal=cfg.s_goal,
+            path=final_path,
+            paths=paths,
+            visited_iters=visited_iters,
         )
 
     def _run_lrta(self, heur: str, cfg: PlanConfig) -> PlanResult:
@@ -316,10 +333,14 @@ class Search2dFacade:
         final_path = _ensure_start_to_goal(combined, cfg.s_start, cfg.s_goal)
         visited_iters = [list(v) for v in inst.visited]
         return PlanResult(
-            algo=Planner.LEARNING_REALTIME_ASTAR, heuristic=Heuristic(heur),
-            s_start=cfg.s_start, s_goal=cfg.s_goal,
-            path=final_path, paths=segments, visited_iters=visited_iters,
-            raw={"h_table_size": len(inst.h_table)}
+            algo=Planner.LEARNING_REALTIME_ASTAR,
+            heuristic=Heuristic(heur),
+            s_start=cfg.s_start,
+            s_goal=cfg.s_goal,
+            path=final_path,
+            paths=segments,
+            visited_iters=visited_iters,
+            raw={"h_table_size": len(inst.h_table)},
         )
 
     def _run_rtaa(self, heur: str, cfg: PlanConfig) -> PlanResult:
@@ -332,9 +353,13 @@ class Search2dFacade:
         final_path = _ensure_start_to_goal(combined, cfg.s_start, cfg.s_goal)
         visited_iters = [list(v) for v in inst.visited]
         return PlanResult(
-            algo=Planner.REALTIME_ADAPTIVE_ASTAR, heuristic=Heuristic(heur),
-            s_start=cfg.s_start, s_goal=cfg.s_goal,
-            path=final_path, paths=segments, visited_iters=visited_iters
+            algo=Planner.REALTIME_ADAPTIVE_ASTAR,
+            heuristic=Heuristic(heur),
+            s_start=cfg.s_start,
+            s_goal=cfg.s_goal,
+            path=final_path,
+            paths=segments,
+            visited_iters=visited_iters,
         )
 
     def _run_lpastar(self, heur: str, cfg: PlanConfig) -> PlanResult:
@@ -347,23 +372,29 @@ class Search2dFacade:
         path = _ensure_start_to_goal(path, cfg.s_start, cfg.s_goal)
         visited = list(inst.visited) if hasattr(inst, "visited") else None
         return PlanResult(
-            algo=Planner.LIFELONG_PLANNING_ASTAR, heuristic=Heuristic(heur),
-            s_start=cfg.s_start, s_goal=cfg.s_goal,
-            path=path, visited=visited
+            algo=Planner.LIFELONG_PLANNING_ASTAR,
+            heuristic=Heuristic(heur),
+            s_start=cfg.s_start,
+            s_goal=cfg.s_goal,
+            path=path,
+            visited=visited,
         )
 
     def _run_dstar_lite(self, heur: str, cfg: PlanConfig) -> PlanResult:
         Mod = _import_local("dstar_lite")
         Cls = getattr(Mod, "DStarLite")
         inst = Cls(cfg.s_start, cfg.s_goal, heur)
-        inst.ComputePath()               # plan once
+        inst.ComputePath()  # plan once
         path = inst.extract_path()
         path = _ensure_start_to_goal(path, cfg.s_start, cfg.s_goal)
         visited = list(inst.visited) if hasattr(inst, "visited") else None
         return PlanResult(
-            algo=Planner.DSTAR_LITE, heuristic=Heuristic(heur),
-            s_start=cfg.s_start, s_goal=cfg.s_goal,
-            path=path, visited=visited
+            algo=Planner.DSTAR_LITE,
+            heuristic=Heuristic(heur),
+            s_start=cfg.s_start,
+            s_goal=cfg.s_goal,
+            path=path,
+            visited=visited,
         )
 
     def _run_dstar(self, heur: str, cfg: PlanConfig) -> PlanResult:
@@ -375,15 +406,18 @@ class Search2dFacade:
         inst.insert(cfg.s_goal, 0)
         while True:
             inst.process_state()
-            if inst.t[cfg.s_start] == 'CLOSED':
+            if inst.t[cfg.s_start] == "CLOSED":
                 break
         path = inst.extract_path(cfg.s_start, cfg.s_goal)
         path = _ensure_start_to_goal(path, cfg.s_start, cfg.s_goal)
         visited = list(inst.visited) if hasattr(inst, "visited") else None
         return PlanResult(
-            algo=Planner.DSTAR, heuristic=Heuristic(heur),
-            s_start=cfg.s_start, s_goal=cfg.s_goal,
-            path=path, visited=visited
+            algo=Planner.DSTAR,
+            heuristic=Heuristic(heur),
+            s_start=cfg.s_start,
+            s_goal=cfg.s_goal,
+            path=path,
+            visited=visited,
         )
 
     def _run_adstar(self, heur: str, cfg: PlanConfig) -> PlanResult:
@@ -413,16 +447,20 @@ class Search2dFacade:
             inst.ComputeOrImprovePath()
             _snap()
 
-        final_path = _ensure_start_to_goal(
-            paths[-1] if paths else None, cfg.s_start, cfg.s_goal)
+        final_path = _ensure_start_to_goal(paths[-1] if paths else None, cfg.s_start, cfg.s_goal)
         return PlanResult(
-            algo=Planner.ANYTIME_DSTAR, heuristic=Heuristic(heur),
-            s_start=cfg.s_start, s_goal=cfg.s_goal,
-            path=final_path, paths=paths, visited_iters=visited_iters
+            algo=Planner.ANYTIME_DSTAR,
+            heuristic=Heuristic(heur),
+            s_start=cfg.s_start,
+            s_goal=cfg.s_goal,
+            path=final_path,
+            paths=paths,
+            visited_iters=visited_iters,
         )
 
 
 # -- Simple CLI ----------------------------------------------------------------
+
 
 def _parse_pair(pair: str) -> Coord:
     parts = pair.split(",")
@@ -434,16 +472,13 @@ def _parse_pair(pair: str) -> Coord:
 def main(argv: Optional[Sequence[str]] = None) -> int:
     """Main entry point for the CLI interface."""
     # Define the CLI parser
-    parser = argparse.ArgumentParser(
-        description="Unified interface for plan2d planners")
-    parser.add_argument("--algo", type=str, required=True,
-                        choices=[a.value for a in Planner])
-    parser.add_argument("--start", type=_parse_pair,
-                        required=True, help="e.g. 5,5")
-    parser.add_argument("--goal", type=_parse_pair,
-                        required=True, help="e.g. 45,25")
-    parser.add_argument("--heuristic", type=str,
-                        default="euclidean", choices=[h.value for h in Heuristic])
+    parser = argparse.ArgumentParser(description="Unified interface for plan2d planners")
+    parser.add_argument("--algo", type=str, required=True, choices=[a.value for a in Planner])
+    parser.add_argument("--start", type=_parse_pair, required=True, help="e.g. 5,5")
+    parser.add_argument("--goal", type=_parse_pair, required=True, help="e.g. 45,25")
+    parser.add_argument(
+        "--heuristic", type=str, default="euclidean", choices=[h.value for h in Heuristic]
+    )
     parser.add_argument("--lrta-N", type=int, default=250)
     parser.add_argument("--rtaa-N", type=int, default=240)
     parser.add_argument("--ara-e", type=float, default=2.5)
@@ -467,7 +502,8 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     payload = {
         "algo": res.algo.value,
         "heuristic": res.heuristic.value,
-        "start": res.s_start, "goal": res.s_goal,
+        "start": res.s_start,
+        "goal": res.s_goal,
         "len_path": len(res.path) if res.path else 0,
         "cost": round(res.cost or 0.0, 3) if res.cost is not None else None,
         "nodes_expanded": res.nodes_expanded,

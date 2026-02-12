@@ -1,8 +1,8 @@
 """Shared utility helpers."""
 
 from pathplanning.utils.priority_queue import (
-    MinHeapPriorityQueue,
     MinheapPQ,
+    MinHeapPriorityQueue,
     QueueFIFO,
     QueueLIFO,
     QueuePrior,

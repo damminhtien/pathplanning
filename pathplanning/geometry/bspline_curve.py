@@ -8,6 +8,7 @@ author: Atsushi Sakai (@Atsushi_twi)
 
 import numpy as np
 import scipy.interpolate as scipy_interpolate
+
 from pathplanning.geometry import cubic_spline as cs
 
 
@@ -62,16 +63,14 @@ def main():
         rk.append(sp.calc_curvature(i_s))
 
     n_course_point = 100  # sampling number
-    rax, ray = approximate_b_spline_path(way_point_x, way_point_y,
-                                         n_course_point)
-    rix, riy = interpolate_b_spline_path(way_point_x, way_point_y,
-                                         n_course_point)
+    rax, ray = approximate_b_spline_path(way_point_x, way_point_y, n_course_point)
+    rix, riy = interpolate_b_spline_path(way_point_x, way_point_y, n_course_point)
 
     # show results
-    plt.plot(way_point_x, way_point_y, '-og', label="Control Points")
-    plt.plot(rax, ray, '-r', label="Approximated B-Spline path")
-    plt.plot(rix, riy, '-b', label="Interpolated B-Spline path")
-    plt.plot(rx, ry, color='dimgray', label="Cubic Spline")
+    plt.plot(way_point_x, way_point_y, "-og", label="Control Points")
+    plt.plot(rax, ray, "-r", label="Approximated B-Spline path")
+    plt.plot(rix, riy, "-b", label="Interpolated B-Spline path")
+    plt.plot(rx, ry, color="dimgray", label="Cubic Spline")
     plt.grid(True)
     plt.title("Curves Comparison")
     plt.legend()
@@ -79,5 +78,5 @@ def main():
     plt.show()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

@@ -31,34 +31,19 @@ class Plotting:
     def plot_grid(self, name):
         fig, ax = plt.subplots()
 
-        for (ox, oy, w, h) in self.obs_bound:
+        for ox, oy, w, h in self.obs_bound:
             ax.add_patch(
-                patches.Rectangle(
-                    (ox, oy), w, h,
-                    edgecolor='black',
-                    facecolor='black',
-                    fill=True
-                )
+                patches.Rectangle((ox, oy), w, h, edgecolor="black", facecolor="black", fill=True)
             )
 
-        for (ox, oy, w, h) in self.obs_rectangle:
+        for ox, oy, w, h in self.obs_rectangle:
             ax.add_patch(
-                patches.Rectangle(
-                    (ox, oy), w, h,
-                    edgecolor='black',
-                    facecolor='gray',
-                    fill=True
-                )
+                patches.Rectangle((ox, oy), w, h, edgecolor="black", facecolor="gray", fill=True)
             )
 
-        for (ox, oy, r) in self.obs_circle:
+        for ox, oy, r in self.obs_circle:
             ax.add_patch(
-                patches.Circle(
-                    (ox, oy), r,
-                    edgecolor='black',
-                    facecolor='gray',
-                    fill=True
-                )
+                patches.Circle((ox, oy), r, edgecolor="black", facecolor="gray", fill=True)
             )
 
         plt.plot(self.xI[0], self.xI[1], "bs", linewidth=3)
@@ -75,9 +60,10 @@ class Plotting:
                 count += 1
                 if node.parent:
                     plt.plot([node.parent.x, node.x], [node.parent.y, node.y], "-g")
-                    plt.gcf().canvas.mpl_connect('key_release_event',
-                                                 lambda event:
-                                                 [exit(0) if event.key == 'escape' else None])
+                    plt.gcf().canvas.mpl_connect(
+                        "key_release_event",
+                        lambda event: [exit(0) if event.key == "escape" else None],
+                    )
                     if count % 10 == 0:
                         plt.pause(0.001)
         else:
@@ -97,8 +83,9 @@ class Plotting:
                 if V2[k].parent:
                     plt.plot([V2[k].x, V2[k].parent.x], [V2[k].y, V2[k].parent.y], "-g")
 
-            plt.gcf().canvas.mpl_connect('key_release_event',
-                                         lambda event: [exit(0) if event.key == 'escape' else None])
+            plt.gcf().canvas.mpl_connect(
+                "key_release_event", lambda event: [exit(0) if event.key == "escape" else None]
+            )
 
             if k % 2 == 0:
                 plt.pause(0.001)
@@ -108,6 +95,6 @@ class Plotting:
     @staticmethod
     def plot_path(path):
         if len(path) != 0:
-            plt.plot([x[0] for x in path], [x[1] for x in path], '-r', linewidth=2)
+            plt.plot([x[0] for x in path], [x[1] for x in path], "-r", linewidth=2)
             plt.pause(0.01)
         plt.show()

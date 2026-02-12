@@ -3,14 +3,11 @@ Bidirectional_a_star 2D
 @author: damminhtien
 """
 
-import os
-import sys
-import math
 import heapq
-
-from pathplanning.viz import search2d_plotting as plotting
+import math
 
 from pathplanning.spaces.grid2d import Grid2DSearchSpace
+from pathplanning.viz import search2d_plotting as plotting
 
 
 class BidirectionalAstar:
@@ -44,10 +41,8 @@ class BidirectionalAstar:
         self.g_back[self.s_start] = math.inf
         self.PARENT_fore[self.s_start] = self.s_start
         self.PARENT_back[self.s_goal] = self.s_goal
-        heapq.heappush(self.OPEN_fore,
-                       (self.f_value_fore(self.s_start), self.s_start))
-        heapq.heappush(self.OPEN_back,
-                       (self.f_value_back(self.s_goal), self.s_goal))
+        heapq.heappush(self.OPEN_fore, (self.f_value_fore(self.s_start), self.s_start))
+        heapq.heappush(self.OPEN_back, (self.f_value_back(self.s_goal), self.s_goal))
 
     def searching(self):
         """
@@ -77,8 +72,7 @@ class BidirectionalAstar:
                 if new_cost < self.g_fore[s_n]:
                     self.g_fore[s_n] = new_cost
                     self.PARENT_fore[s_n] = s_fore
-                    heapq.heappush(self.OPEN_fore,
-                                   (self.f_value_fore(s_n), s_n))
+                    heapq.heappush(self.OPEN_fore, (self.f_value_fore(s_n), s_n))
 
             # solve backward-search
             _, s_back = heapq.heappop(self.OPEN_back)
@@ -98,8 +92,7 @@ class BidirectionalAstar:
                 if new_cost < self.g_back[s_n]:
                     self.g_back[s_n] = new_cost
                     self.PARENT_back[s_n] = s_back
-                    heapq.heappush(self.OPEN_back,
-                                   (self.f_value_back(s_n), s_n))
+                    heapq.heappush(self.OPEN_back, (self.f_value_back(s_n), s_n))
 
         return self.extract_path(s_meet), self.CLOSED_fore, self.CLOSED_back
 
@@ -224,5 +217,5 @@ def main():
     plot.animate_bi_astar(path, visited_fore, visited_back, "Bidirectional-A*")  # animation
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

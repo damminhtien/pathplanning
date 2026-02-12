@@ -2,13 +2,13 @@
 RTAAstar 2D (Real-time Adaptive A*)
 @author: damminhtien
 """
+
 import copy
 import math
 
-from pathplanning.viz import search2d_plotting as plotting
-
 from pathplanning.spaces.grid2d import Grid2DSearchSpace
 from pathplanning.utils import priority_queue as queue
+from pathplanning.viz import search2d_plotting as plotting
 
 
 class RealtimeAdaptiveAstar:
@@ -41,8 +41,7 @@ class RealtimeAdaptiveAstar:
         s_start = self.s_start  # initialize start node
 
         while True:
-            OPEN, CLOSED, g_table, PARENT = \
-                self.Astar(s_start, self.N)
+            OPEN, CLOSED, g_table, PARENT = self.Astar(s_start, self.N)
 
             if OPEN == "FOUND":  # reach the goal node
                 self.path.append(CLOSED)
@@ -59,7 +58,7 @@ class RealtimeAdaptiveAstar:
     def cal_h_value(self, OPEN, CLOSED, g_table, PARENT):
         v_open = {}
         h_value = {}
-        for (_, x) in OPEN.enumerate():
+        for _, x in OPEN.enumerate():
             v_open[x] = g_table[PARENT[x]] + 1 + self.h_table[x]
         s_open = min(v_open, key=v_open.get)
         f_min = v_open[s_open]
@@ -226,9 +225,8 @@ def main():
     plot = plotting.Plotting(s_start, s_goal)
 
     rtaa.searching()
-    plot.animate_lrta(rtaa.path, rtaa.visited,
-                        "Real-time Adaptive A* (RTAA*)")
+    plot.animate_lrta(rtaa.path, rtaa.visited, "Real-time Adaptive A* (RTAA*)")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

@@ -6,10 +6,9 @@ LRTA_star 2D (Learning Real-time A*)
 import copy
 import math
 
-from pathplanning.viz import search2d_plotting as plotting
-
 from pathplanning.spaces.grid2d import Grid2DSearchSpace
 from pathplanning.utils import priority_queue as queue
+from pathplanning.viz import search2d_plotting as plotting
 
 
 class LearningRealtimeAstar:
@@ -53,7 +52,9 @@ class LearningRealtimeAstar:
             for x in h_value:
                 self.h_table[x] = h_value[x]
 
-            s_start, path_k = self.extract_path_in_CLOSE(s_start, h_value)  # x_init -> expected node in OPEN set
+            s_start, path_k = self.extract_path_in_CLOSE(
+                s_start, h_value
+            )  # x_init -> expected node in OPEN set
             self.path.append(path_k)
 
     def extract_path_in_CLOSE(self, s_start, h_value):
@@ -220,9 +221,8 @@ def main():
     plot = plotting.Plotting(s_start, s_goal)
 
     lrta.searching()
-    plot.animate_lrta(lrta.path, lrta.visited,
-                        "Learning Real-time A* (LRTA*)")
+    plot.animate_lrta(lrta.path, lrta.visited, "Learning Real-time A* (LRTA*)")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()
