@@ -4,18 +4,28 @@ from __future__ import annotations
 
 import pytest
 
-from pathplanning.core.contracts import BatchConfigurationSpace, ConfigurationSpace, PlanResult
+from pathplanning.core.contracts import BatchConfigurationSpace, ConfigurationSpace
 from pathplanning.core.params import RrtParams
+from pathplanning.core.results import PlanResult, StopReason
 
 
 def test_core_contracts_importable() -> None:
-    """Core contracts should be importable and have usable defaults."""
+    """Core contracts should be importable and expose typed result models."""
     assert ConfigurationSpace is not None
     assert BatchConfigurationSpace is not None
 
-    result = PlanResult(success=True)
+    result = PlanResult(
+        success=True,
+        path=None,
+        best_path=None,
+        stop_reason=StopReason.SUCCESS,
+        iters=0,
+        nodes=0,
+    )
     assert result.success is True
-    assert result.path == []
+    assert result.path is None
+    assert result.best_path is None
+    assert result.stop_reason is StopReason.SUCCESS
     assert result.iters == 0
     assert result.nodes == 0
     assert result.stats == {}
