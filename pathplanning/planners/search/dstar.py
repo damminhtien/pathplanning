@@ -10,10 +10,7 @@ from pathplanning.viz import lazy_import
 
 plt = lazy_import("matplotlib.pyplot")
 
-try:
-    from .utils import plotting
-except ImportError:  # pragma: no cover - script execution fallback
-    from utils import plotting
+from pathplanning.viz import search2d_plotting as plotting
 
 from pathplanning.spaces.grid2d import Grid2DSearchSpace
 

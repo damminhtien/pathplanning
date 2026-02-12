@@ -73,8 +73,7 @@ force-sort-within-sections = true
 
 [tool.ruff.lint.per-file-ignores]
 # Keep legacy script-style modules runnable while preserving stricter checks elsewhere.
-"pathplanning/search_based_planning/plan2d/*.py" = ["E402"]
-"pathplanning/search_based_planning/search_3d/*.py" = ["E402"]
+"pathplanning/planners/search/*.py" = ["E402"]
 "pathplanning/sampling_based_planning/rrt_2d/*.py" = ["E402"]
 "pathplanning/sampling_based_planning/rrt_3d/*.py" = ["E402"]
 

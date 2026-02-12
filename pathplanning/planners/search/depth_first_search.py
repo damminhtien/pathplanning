@@ -6,12 +6,8 @@ author: damminhtien
 import math
 import heapq
 
-try:
-    from .utils import plotting
-    from .astar import Astar
-except ImportError:  # pragma: no cover - script execution fallback
-    from utils import plotting
-    from astar import Astar
+from pathplanning.planners.search.astar import Astar
+from pathplanning.viz import search2d_plotting as plotting
 
 class DepthFirstSearch(Astar):
     """DFS add the new visited node in the front of the openset

@@ -14,7 +14,7 @@ import numpy as np
 
 from pathplanning import PlanConfig, Planner, Search2D
 from pathplanning.sampling_based_planning.rrt_2d.rrt import Rrt
-from pathplanning.search_based_planning.search_3d.astar_3d import Weighted_A_star
+from pathplanning.planners.search.astar_3d import Weighted_A_star
 
 
 @dataclass

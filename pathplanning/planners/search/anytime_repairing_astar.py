@@ -9,10 +9,7 @@ g(s) decreased introduces a local inconsistency between s and its successors.
 
 import math
 
-try:
-    from .utils import plotting
-except ImportError:  # pragma: no cover - script execution fallback
-    from utils import plotting
+from pathplanning.viz import search2d_plotting as plotting
 
 from pathplanning.spaces.grid2d import Grid2DSearchSpace
 
