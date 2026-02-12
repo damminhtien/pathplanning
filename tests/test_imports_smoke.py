@@ -10,7 +10,7 @@ def test_core_package_imports_smoke() -> None:
         "pathplanning",
         "pathplanning.planners.search",
         "pathplanning.planners.sampling",
-        "pathplanning.curves",
+        "pathplanning.geometry",
     ]
 
     failures: list[str] = []
