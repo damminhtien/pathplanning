@@ -202,9 +202,9 @@ Production algorithm support is documented in:
 
 Policy:
 
-1. All complete algorithms are included in production scope.
-2. Incomplete algorithms are explicitly marked as dropped.
-3. `sampling3d.abit_star` is currently dropped as incomplete and excluded from production API surface.
+1. Only production-ready algorithms are registered in the package API.
+2. The active production scope is intentionally small and contract-driven.
+3. Current supported planners: `sampling3d.rrt` and `sampling3d.rrt_star`.
 
 ## Publish to PyPI
 

@@ -2,7 +2,8 @@
 Unified interface for the plan2d planners.
 
 This module provides a single, production-grade API to run any planner in
-`Search_based_Planning/plan2d` with consistent inputs/outputs, plus a tiny CLI.
+`pathplanning/search_based_planning/plan2d` with consistent inputs/outputs,
+plus a tiny CLI.
 
 Design goals
 ------------
@@ -64,18 +65,12 @@ class Planner(str, Enum):
     ASTAR = "astar"
     ANYTIME_DSTAR = "anytime_dstar"
     ANYTIME_REPAIRING_ASTAR = "anytime_repairing_astar"
-    # Backward-compatible alias.
-    ANYTIME_REPARING_ASTAR = ANYTIME_REPAIRING_ASTAR
     BIDIRECTIONAL_ASTAR = "bidirectional_astar"
     DSTAR_LITE = "dstar_lite"
     DSTAR = "dstar"
     LEARNING_REALTIME_ASTAR = "learning_realtime_astar"
     LIFELONG_PLANNING_ASTAR = "lifelong_planning_astar"
-    # Backward-compatible alias.
-    LIFELONG_REPAIRING_ASTAR = LIFELONG_PLANNING_ASTAR
     REALTIME_ADAPTIVE_ASTAR = "realtime_adaptive_astar"
-    # Backward-compatible alias.
-    REALTIME_ADPTIVE_ASTAR = REALTIME_ADAPTIVE_ASTAR
 
 
 @dataclass
@@ -175,21 +170,11 @@ def _concat_unique(seq_of_paths: Iterable[Sequence[Coord]]) -> List[Coord]:
     return out
 
 
-_LEGACY_PLANNER_NAMES = {
-    "anytime_replanning_astar": Planner.ANYTIME_REPAIRING_ASTAR,
-    "lifelong_repairing_astar": Planner.LIFELONG_PLANNING_ASTAR,
-    "realtime_adptive_astar": Planner.REALTIME_ADAPTIVE_ASTAR,
-}
-
-
 def _parse_planner(algo: Planner | str) -> Planner:
-    """Parse planner enums and backward-compatible string aliases."""
+    """Parse planner enum values."""
     if isinstance(algo, Planner):
         return algo
-    name = str(algo).lower().strip()
-    if name in _LEGACY_PLANNER_NAMES:
-        return _LEGACY_PLANNER_NAMES[name]
-    return Planner(name)
+    return Planner(str(algo).lower().strip())
 
 
 def _import_local(module_name: str):
@@ -205,10 +190,7 @@ def _import_local(module_name: str):
             f"pathplanning.search_based_planning.plan2d.{module_name}"
         )
     except ModuleNotFoundError:
-        try:
-            return importlib.import_module(f"Search_based_Planning.plan2d.{module_name}")
-        except ModuleNotFoundError:
-            return importlib.import_module(module_name)
+        return importlib.import_module(module_name)
 
 
 # -- Core interface ------------------------------------------------------------

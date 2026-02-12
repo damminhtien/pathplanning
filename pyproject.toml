@@ -49,9 +49,6 @@ Issues = "https://github.com/damminhtien/pathplanning/issues"
 [tool.setuptools.packages.find]
 include = [
   "pathplanning*",
-  "Search_based_Planning",
-  "Sampling_based_Planning",
-  "CurvesGenerator",
 ]
 
 [tool.setuptools]
@@ -71,9 +68,6 @@ select = ["E", "F", "I", "B", "UP", "SIM"]
 [tool.ruff.lint.isort]
 known-first-party = [
   "pathplanning",
-  "Search_based_Planning",
-  "Sampling_based_Planning",
-  "CurvesGenerator",
 ]
 force-sort-within-sections = true
 
@@ -83,9 +77,6 @@ force-sort-within-sections = true
 "pathplanning/search_based_planning/search_3d/*.py" = ["E402"]
 "pathplanning/sampling_based_planning/rrt_2d/*.py" = ["E402"]
 "pathplanning/sampling_based_planning/rrt_3d/*.py" = ["E402"]
-"Search_based_Planning/**/*.py" = ["E402"]
-"Sampling_based_Planning/**/*.py" = ["E402"]
-"CurvesGenerator/**/*.py" = ["E402"]
 
 [tool.ruff.lint.flake8-tidy-imports]
 ban-relative-imports = "parents"
