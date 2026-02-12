@@ -118,6 +118,10 @@ class ContinuousSpace3D(BatchConfigurationSpace):
     def dim(self) -> int:
         return 3
 
+    @property
+    def dimension(self) -> int:
+        return self.dim
+
     def in_bounds(self, point: Sequence[Float] | FloatArray) -> bool:
         return in_bounds_nd(point, self.lower_bound, self.upper_bound, dim=self.dim)
 
@@ -141,6 +145,9 @@ class ContinuousSpace3D(BatchConfigurationSpace):
             return False
         return not any(obstacle.contains(point) for obstacle in self.obbs)
 
+    def is_state_valid(self, x: Vec) -> bool:
+        return self.is_free(x)
+
     def segment_free(self, a: Vec, b: Vec, collision_step: Float | None = None) -> bool:
         start_state = as_state_nd(a, "a", self.dim)
         end_state = as_state_nd(b, "b", self.dim)
@@ -160,11 +167,25 @@ class ContinuousSpace3D(BatchConfigurationSpace):
                 return False
         return True
 
+    def is_motion_valid(self, a: Vec, b: Vec) -> bool:
+        return self.segment_free(a, b)
+
+    def is_motion_valid_batch(self, edges: list[tuple[Vec, Vec]]) -> list[bool]:
+        return [self.is_motion_valid(start, end) for start, end in edges]
+
     def distance(self, a: Vec, b: Vec) -> Float:
         return euclidean_distance_nd(a, b, dim=self.dim)
 
     def steer(self, a: Vec, b: Vec, step: Float) -> Vec:
         return steer_towards_nd(a, b, step, dim=self.dim)
+
+    def interpolate(self, a: Vec, b: Vec, t: Float) -> Vec:
+        start_state = as_state_nd(a, "a", self.dim)
+        end_state = as_state_nd(b, "b", self.dim)
+        alpha = float(t)
+        if alpha < 0.0 or alpha > 1.0:
+            raise ValueError("t must be in [0, 1]")
+        return start_state + alpha * (end_state - start_state)
 
     def is_goal(self, x: Vec) -> bool:
         goal = self.goal

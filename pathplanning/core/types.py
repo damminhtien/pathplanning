@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TypeAlias
+from typing import TypeAlias, TypeVar
 
 import numpy as np
 from numpy.typing import NDArray
@@ -18,3 +18,13 @@ BoolArray: TypeAlias = NDArray[np.bool_]
 # - Mat: (n, dim)
 Vec: TypeAlias = FloatArray
 Mat: TypeAlias = FloatArray
+
+# Generic state/node variables for planner contracts.
+S = TypeVar("S")  # Continuous state type
+N = TypeVar("N")  # Discrete graph node type
+
+# RNG policy:
+# - Core contracts accept an explicit RNG value.
+# - Callers/planners should pass a local ``np.random.Generator`` instance.
+# - Avoid module-level ``np.random.*`` helpers for planner randomness.
+RNG: TypeAlias = np.random.Generator

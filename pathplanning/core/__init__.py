@@ -11,12 +11,46 @@ from pathplanning.nn.index import (
     NearestNeighborIndex,
 )
 
-from .contracts import BatchConfigurationSpace, ConfigurationSpace, State
+from .contracts import (
+    BatchConfigurationSpace,
+    ConfigurationSpace,
+    ContinuousProblem,
+    ContinuousSpace,
+    ContinuousSpaceMetadata,
+    DistanceAwareGoalRegion,
+    DiscreteGraph,
+    DiscreteProblem,
+    ExactGoalTest,
+    GoalRegion,
+    GoalState,
+    GoalTest,
+    HeuristicDiscreteGraph,
+    InterpolatingContinuousSpace,
+    Objective,
+    SupportsBatchMotionCheck,
+    State,
+    ValidatingDiscreteGraph,
+)
 from .params import RrtParams
 from .results import PlanResult, StopReason
-from .types import BoolArray, Float, FloatArray, Mat, NodeId, Vec
+from .types import BoolArray, Float, FloatArray, Mat, N, NodeId, RNG, S, Vec
 
 __all__ = [
+    "DiscreteGraph",
+    "HeuristicDiscreteGraph",
+    "ValidatingDiscreteGraph",
+    "GoalTest",
+    "ExactGoalTest",
+    "DiscreteProblem",
+    "ContinuousSpace",
+    "InterpolatingContinuousSpace",
+    "ContinuousSpaceMetadata",
+    "GoalRegion",
+    "DistanceAwareGoalRegion",
+    "GoalState",
+    "SupportsBatchMotionCheck",
+    "Objective",
+    "ContinuousProblem",
     "ConfigurationSpace",
     "BatchConfigurationSpace",
     "PlanResult",
@@ -34,6 +68,9 @@ __all__ = [
     "Float",
     "FloatArray",
     "BoolArray",
+    "S",
+    "N",
+    "RNG",
     "Vec",
     "Mat",
 ]
