@@ -21,14 +21,14 @@ from .plot_util_3d import visualization
 from .utils_3d import (
     children,
     cost,
-    g_Space,
-    getDist,
-    getNearest,
+    g_space,
+    get_dist,
+    get_nearest,
     heuristic_fun,
 )
 
 
-class Weighted_A_star(object):
+class Weighted_A_star:
     def __init__(self, resolution=0.5):
         self.Alldirec = {
             (1, 0, 0): 1,
@@ -83,7 +83,7 @@ class Weighted_A_star(object):
             if xi not in self.CLOSED:
                 self.V.append(np.array(xi))
             self.CLOSED.add(xi)  # add the point in CLOSED set
-            if getDist(xi, xt) < self.env.resolution:
+            if get_dist(xi, xt) < self.env.resolution:
                 break
             # visualization(self)
             for xj in children(self, xi):
@@ -99,9 +99,8 @@ class Weighted_A_star(object):
                     # assign or update the priority in the open
                     self.OPEN.put(xj, a + 1 * heuristic_fun(self, xj))
             # For specified expanded nodes, used primarily in LRTA*
-            if N:
-                if len(self.CLOSED) % N == 0:
-                    break
+            if N and len(self.CLOSED) % N == 0:
+                break
             if self.ind % 100 == 0:
                 print("number node expanded = " + str(len(self.V)))
             self.ind += 1
@@ -130,9 +129,9 @@ class Weighted_A_star(object):
 
     # utility used in LRTA*
     def reset(self, xj):
-        self.g = g_Space(self)  # key is the point, store g value
+        self.g = g_space(self)  # key is the point, store g value
         self.start = xj
-        self.g[getNearest(self.g, self.start)] = 0  # set g(x0) = 0
+        self.g[get_nearest(self.g, self.start)] = 0  # set g(x0) = 0
         self.x0 = xj
         self.OPEN.put(
             self.x0, self.g[self.x0] + heuristic_fun(self, self.x0)

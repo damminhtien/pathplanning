@@ -28,7 +28,7 @@ class RTA_A_star:
         self.st = []
         self.localhvals = []
 
-    def updateHeuristic(self):
+    def update_heuristic(self):
         # Initialize hvalues at infinity
         self.localhvals = []
         nodeset, vals = [], []
@@ -68,7 +68,7 @@ class RTA_A_star:
                 visualization(self.Astar)
                 plt.show()
                 break
-            self.updateHeuristic()
+            self.update_heuristic()
             self.move()
 
 

@@ -1,23 +1,23 @@
+from collections import defaultdict
+
 import numpy as np
 
 from pathplanning.viz import lazy_import
 
 plt = lazy_import("matplotlib.pyplot")
 
-from collections import defaultdict
-
 from pathplanning.spaces.environment3d import env
 
 from .plot_util_3d import visualization
 from .utils_3d import (
-    StateSpace,
     children,
     cost,
-    getNearest,
+    get_nearest,
+    state_space,
 )
 
 
-class D_star(object):
+class D_star:
     def __init__(self, resolution=1):
         self.Alldirec = {
             (1, 0, 0): 1,
@@ -49,8 +49,8 @@ class D_star(object):
         }
         self.settings = "CollisionChecking"
         self.env = env(resolution=resolution)
-        self.X = StateSpace(self.env)
-        self.x0, self.xt = getNearest(self.X, self.env.start), getNearest(self.X, self.env.goal)
+        self.X = state_space(self.env)
+        self.x0, self.xt = get_nearest(self.X, self.env.start), get_nearest(self.X, self.env.goal)
         # self.x0, self.xt = tuple(self.env.start), tuple(self.env.goal)
         self.b = defaultdict(
             lambda: defaultdict(dict)
@@ -84,7 +84,7 @@ class D_star(object):
         # it also removes this min value form the OPEN set.
         if self.OPEN:
             minvalue = min(self.OPEN.values())
-            for k in self.OPEN.keys():
+            for k in self.OPEN:
                 if self.OPEN[k] == minvalue:
                     return k, self.OPEN.pop(k)
         return None, -1
@@ -166,10 +166,7 @@ class D_star(object):
 
     def path(self, goal=None):
         path = []
-        if not goal:
-            x = self.x0
-        else:
-            x = goal
+        x = goal if goal else self.x0
         start = self.xt
         while x != start:
             path.append([np.array(x), np.array(self.b[x])])
@@ -195,17 +192,14 @@ class D_star(object):
         # plt.show()
         # when the environemnt changes over time
 
-        for i in range(5):
+        for _i in range(5):
             self.env.move_block(a=[0, -0.50, 0], s=0.5, block_to_move=1, mode="translation")
             self.env.move_block(a=[-0.25, 0, 0], s=0.5, block_to_move=0, mode="translation")
             # travel from end to start
             s = tuple(self.env.start)
             # self.V = set()
             while s != self.xt:
-                if s == tuple(self.env.start):
-                    sparent = self.b[self.x0]
-                else:
-                    sparent = self.b[s]
+                sparent = self.b[self.x0] if s == tuple(self.env.start) else self.b[s]
                 # if there is a change of Cost, or a collision.
                 if cost(self, s, sparent) == np.inf:
                     self.modify(s)

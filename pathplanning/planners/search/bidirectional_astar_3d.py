@@ -23,7 +23,7 @@ from .utils_3d import (
 )
 
 
-class Weighted_A_star(object):
+class Weighted_A_star:
     def __init__(self, resolution=0.5):
         self.Alldirec = {
             (1, 0, 0): 1,
@@ -93,30 +93,28 @@ class Weighted_A_star(object):
 
     def evaluation(self, allchild, xi, conf):
         for xj in allchild:
-            if conf == 1:
-                if xj not in self.CLOSED1:
-                    if xj not in self.g:
-                        self.g[xj] = np.inf
-                    else:
-                        pass
-                    gi = self.g[xi]
-                    a = gi + cost(self, xi, xj)
-                    if a < self.g[xj]:
-                        self.g[xj] = a
-                        self.Parent1[xj] = xi
-                        self.OPEN1.put(xj, a + 1 * heuristic_fun(self, xj, self.goal))
-            if conf == 2:
-                if xj not in self.CLOSED2:
-                    if xj not in self.g:
-                        self.g[xj] = np.inf
-                    else:
-                        pass
-                    gi = self.g[xi]
-                    a = gi + cost(self, xi, xj)
-                    if a < self.g[xj]:
-                        self.g[xj] = a
-                        self.Parent2[xj] = xi
-                        self.OPEN2.put(xj, a + 1 * heuristic_fun(self, xj, self.start))
+            if conf == 1 and xj not in self.CLOSED1:
+                if xj not in self.g:
+                    self.g[xj] = np.inf
+                else:
+                    pass
+                gi = self.g[xi]
+                a = gi + cost(self, xi, xj)
+                if a < self.g[xj]:
+                    self.g[xj] = a
+                    self.Parent1[xj] = xi
+                    self.OPEN1.put(xj, a + 1 * heuristic_fun(self, xj, self.goal))
+            if conf == 2 and xj not in self.CLOSED2:
+                if xj not in self.g:
+                    self.g[xj] = np.inf
+                else:
+                    pass
+                gi = self.g[xi]
+                a = gi + cost(self, xi, xj)
+                if a < self.g[xj]:
+                    self.g[xj] = a
+                    self.Parent2[xj] = xi
+                    self.OPEN2.put(xj, a + 1 * heuristic_fun(self, xj, self.start))
 
     def path(self):
         # TODO: fix path

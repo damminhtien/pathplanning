@@ -109,26 +109,25 @@ class BitStar:
             self.edge_queue.remove((vm, xm))
             if self.g_t(vm) + self.c_hat(vm, xm) + self.h_hat(xm) < self.g_t(self.xgoal):
                 cost = self.c(vm, xm)
-                if self.g_hat(vm) + cost + self.h_hat(xm) < self.g_t(self.xgoal):
-                    if self.g_t(vm) + cost < self.g_t(xm):
-                        if xm in self.vertices:
-                            self.edges.difference_update(
-                                {(v, x) for (v, x) in self.edges if x == xm}
-                            )
-                        else:
-                            self.samples.remove(xm)
-                            self.vertices.add(xm)
-                            self.vertex_queue.add(xm)
-                        self.g[xm] = self.g[vm] + cost
-                        self.edges.add((vm, xm))
-                        self.parent_by_node[xm] = vm
-                        self.edge_queue.difference_update(
-                            {
-                                (v, x)
-                                for (v, x) in self.edge_queue
-                                if x == xm and (self.g_t(v) + self.c_hat(v, xm)) >= self.g_t(xm)
-                            }
-                        )
+                if self.g_hat(vm) + cost + self.h_hat(xm) < self.g_t(self.xgoal) and self.g_t(
+                    vm
+                ) + cost < self.g_t(xm):
+                    if xm in self.vertices:
+                        self.edges.difference_update({(v, x) for (v, x) in self.edges if x == xm})
+                    else:
+                        self.samples.remove(xm)
+                        self.vertices.add(xm)
+                        self.vertex_queue.add(xm)
+                    self.g[xm] = self.g[vm] + cost
+                    self.edges.add((vm, xm))
+                    self.parent_by_node[xm] = vm
+                    self.edge_queue.difference_update(
+                        {
+                            (v, x)
+                            for (v, x) in self.edge_queue
+                            if x == xm and (self.g_t(v) + self.c_hat(v, xm)) >= self.g_t(xm)
+                        }
+                    )
             else:
                 self.edge_queue = set()
                 self.vertex_queue = set()

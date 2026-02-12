@@ -1,5 +1,4 @@
 #! /usr/bin/python
-# -*- coding: utf-8 -*-
 """
 Cubic Spline library on python
 
@@ -53,9 +52,7 @@ class Spline:
 
         """
 
-        if t < self.x[0]:
-            return None
-        elif t > self.x[-1]:
+        if t < self.x[0] or t > self.x[-1]:
             return None
 
         i = self.__search_index(t)
@@ -71,9 +68,7 @@ class Spline:
         if t is outside of the input s, return None
         """
 
-        if t < self.x[0]:
-            return None
-        elif t > self.x[-1]:
+        if t < self.x[0] or t > self.x[-1]:
             return None
 
         i = self.__search_index(t)
@@ -86,9 +81,7 @@ class Spline:
         Calc second derivative
         """
 
-        if t < self.x[0]:
-            return None
-        elif t > self.x[-1]:
+        if t < self.x[0] or t > self.x[-1]:
             return None
 
         i = self.__search_index(t)
@@ -148,7 +141,7 @@ class Spline2D:
     def __calc_s(self, x, y):
         dx = np.diff(x)
         dy = np.diff(y)
-        self.ds = [math.sqrt(idx**2 + idy**2) for (idx, idy) in zip(dx, dy)]
+        self.ds = [math.sqrt(idx**2 + idy**2) for (idx, idy) in zip(dx, dy, strict=False)]
         s = [0]
         s.extend(np.cumsum(self.ds))
         return s

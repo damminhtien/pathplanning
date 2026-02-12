@@ -18,7 +18,7 @@ from .plot_util_3d import visualization
 from .utils_3d import (
     children,
     cost,
-    isCollide,
+    is_collide,
 )
 
 
@@ -28,7 +28,7 @@ class LRT_A_star2:
         self.Astar = astar_3d.Weighted_A_star(resolution=resolution)
         self.path = []
 
-    def updateHeuristic(self):
+    def update_heuristic(self):
         # Initialize hvalues at infinity
         for xi in self.Astar.CLOSED:
             self.Astar.h[xi] = np.inf
@@ -60,7 +60,7 @@ class LRT_A_star2:
             minh, minchild = np.inf, None
             for child in Children:
                 # check collision here, not a supper efficient
-                collide, _ = isCollide(self.Astar, st, child)
+                collide, _ = is_collide(self.Astar, st, child)
                 if collide:
                     continue
                 h = self.Astar.h[child]
@@ -84,7 +84,7 @@ class LRT_A_star2:
                 visualization(self.Astar)
                 plt.show()
                 break
-            self.updateHeuristic()
+            self.update_heuristic()
             self.move()
 
 

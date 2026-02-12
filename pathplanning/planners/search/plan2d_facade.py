@@ -34,17 +34,18 @@ author: damminhtien
 from __future__ import annotations
 
 import argparse
+from collections.abc import Iterable, Sequence
 from dataclasses import dataclass, field
 from enum import Enum
 import importlib
 import json
 import time
-from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple
+from typing import Any
 
 # -- Type definitions ----------------------------------------------------------
-Coord = Tuple[int, int]
-Path = List[Coord]
-PathList = List[Path]
+Coord = tuple[int, int]
+Path = list[Coord]
+PathList = list[Path]
 
 
 class Heuristic(str, Enum):
@@ -103,24 +104,24 @@ class PlanResult:
     s_goal: Coord
 
     # Normalized final path: start -> goal when available
-    path: Optional[Path] = None
+    path: Path | None = None
 
     # Some planners produce multiple iterations (ARA*, LRTA*, RTAA*)
-    paths: Optional[PathList] = None
+    paths: PathList | None = None
 
     # Visited/expanded nodes. For RT algorithms this is often per-iteration.
-    visited: Optional[List[Coord]] = None
-    visited_fore: Optional[List[Coord]] = None  # Bi-A*
-    visited_back: Optional[List[Coord]] = None  # Bi-A*
-    visited_iters: Optional[List[List[Coord]]] = None
+    visited: list[Coord] | None = None
+    visited_fore: list[Coord] | None = None  # Bi-A*
+    visited_back: list[Coord] | None = None  # Bi-A*
+    visited_iters: list[list[Coord]] | None = None
 
     # Metrics
-    cost: Optional[float] = None  # sum of euclidean segment lengths
-    nodes_expanded: Optional[int] = None
+    cost: float | None = None  # sum of euclidean segment lengths
+    nodes_expanded: int | None = None
     runtime_s: float = 0.0
 
     # Raw (implementation-specific) payload for power users
-    raw: Dict[str, Any] = field(default_factory=dict)
+    raw: dict[str, Any] = field(default_factory=dict)
 
 
 # -- Utility helpers -----------------------------------------------------------
@@ -137,14 +138,14 @@ def _path_cost(path: Sequence[Coord]) -> float:
     if not path or len(path) < 2:
         return 0.0
     total = 0.0
-    for (x0, y0), (x1, y1) in zip(path[:-1], path[1:]):
+    for (x0, y0), (x1, y1) in zip(path[:-1], path[1:], strict=False):
         total += ((x1 - x0) ** 2 + (y1 - y0) ** 2) ** 0.5
     return total
 
 
 def _ensure_start_to_goal(
-    path: Optional[Sequence[Coord]], start: Coord, goal: Coord
-) -> Optional[List[Coord]]:
+    path: Sequence[Coord] | None, start: Coord, goal: Coord
+) -> list[Coord] | None:
     """Ensure the path starts at `start` and ends at `goal`, normalizing if needed."""
     if not path:
         return None
@@ -167,9 +168,9 @@ def _ensure_start_to_goal(
     return p
 
 
-def _concat_unique(seq_of_paths: Iterable[Sequence[Coord]]) -> List[Coord]:
+def _concat_unique(seq_of_paths: Iterable[Sequence[Coord]]) -> list[Coord]:
     """Concatenate segments while avoiding immediate duplicates."""
-    out: List[Coord] = []
+    out: list[Coord] = []
     for seg in seq_of_paths:
         for c in seg:
             if not out or out[-1] != c:
@@ -286,7 +287,7 @@ class Search2dFacade:
 
     def _run_bi_astar(self, heur: str, cfg: PlanConfig) -> PlanResult:
         Mod = _import_local("bidirectional_astar")
-        Cls = getattr(Mod, "BidirectionalAstar")
+        Cls = Mod.BidirectionalAstar
         inst = Cls(cfg.s_start, cfg.s_goal, heur)
         path, visited_fore, visited_back = inst.searching()
         path = _ensure_start_to_goal(path, cfg.s_start, cfg.s_goal)
@@ -302,7 +303,7 @@ class Search2dFacade:
 
     def _run_arastar(self, heur: str, cfg: PlanConfig) -> PlanResult:
         Mod = _import_local("anytime_repairing_astar")
-        Cls = getattr(Mod, "AnytimeRepairingAstar")
+        Cls = Mod.AnytimeRepairingAstar
         inst = Cls(cfg.s_start, cfg.s_goal, cfg.ara_e, heur)
         paths_raw, visited_iters = inst.searching()
         # Normalize each path
@@ -320,12 +321,12 @@ class Search2dFacade:
 
     def _run_lrta(self, heur: str, cfg: PlanConfig) -> PlanResult:
         Mod = _import_local("learning_realtime_astar")
-        Cls = getattr(Mod, "LearningRealtimeAstar")
+        Cls = Mod.LearningRealtimeAstar
         inst = Cls(cfg.s_start, cfg.s_goal, cfg.lrta_N, heur)
         inst.searching()
         # Combine segments like plotting.animation_lrta
         # list of per-iteration small paths
-        segments: List[List[Coord]] = list(inst.path)
+        segments: list[list[Coord]] = list(inst.path)
         combined = _concat_unique(segments)
         # remove duplicate initial node once (mimic plotting.animation_lrta)
         if combined and combined[0] != cfg.s_start and cfg.s_start in combined:
@@ -345,10 +346,10 @@ class Search2dFacade:
 
     def _run_rtaa(self, heur: str, cfg: PlanConfig) -> PlanResult:
         Mod = _import_local("realtime_adaptive_astar")
-        Cls = getattr(Mod, "RealtimeAdaptiveAstar")
+        Cls = Mod.RealtimeAdaptiveAstar
         inst = Cls(cfg.s_start, cfg.s_goal, cfg.rtaa_N, heur)
         inst.searching()
-        segments: List[List[Coord]] = list(inst.path)
+        segments: list[list[Coord]] = list(inst.path)
         combined = _concat_unique(segments)
         final_path = _ensure_start_to_goal(combined, cfg.s_start, cfg.s_goal)
         visited_iters = [list(v) for v in inst.visited]
@@ -364,10 +365,10 @@ class Search2dFacade:
 
     def _run_lpastar(self, heur: str, cfg: PlanConfig) -> PlanResult:
         Mod = _import_local("lifelong_planning_astar")
-        Cls = getattr(Mod, "LifelongPlanningAstar")
+        Cls = Mod.LifelongPlanningAstar
         inst = Cls(cfg.s_start, cfg.s_goal, heur)
         # Headless run: directly compute shortest path and extract, no plotting
-        inst.ComputeShortestPath()
+        inst.compute_shortest_path()
         path = inst.extract_path()
         path = _ensure_start_to_goal(path, cfg.s_start, cfg.s_goal)
         visited = list(inst.visited) if hasattr(inst, "visited") else None
@@ -382,9 +383,9 @@ class Search2dFacade:
 
     def _run_dstar_lite(self, heur: str, cfg: PlanConfig) -> PlanResult:
         Mod = _import_local("dstar_lite")
-        Cls = getattr(Mod, "DStarLite")
+        Cls = Mod.DStarLite
         inst = Cls(cfg.s_start, cfg.s_goal, heur)
-        inst.ComputePath()  # plan once
+        inst.compute_path()  # plan once
         path = inst.extract_path()
         path = _ensure_start_to_goal(path, cfg.s_start, cfg.s_goal)
         visited = list(inst.visited) if hasattr(inst, "visited") else None
@@ -400,7 +401,7 @@ class Search2dFacade:
     def _run_dstar(self, heur: str, cfg: PlanConfig) -> PlanResult:
         # Classic D*: replicate headless portion of run()
         Mod = _import_local("dstar")
-        Cls = getattr(Mod, "Dstar")
+        Cls = Mod.Dstar
         inst = Cls(cfg.s_start, cfg.s_goal)
         inst.init()
         inst.insert(cfg.s_goal, 0)
@@ -423,11 +424,11 @@ class Search2dFacade:
     def _run_adstar(self, heur: str, cfg: PlanConfig) -> PlanResult:
         # Headless version of Anytime D*
         Mod = _import_local("anytime_dstar")
-        Cls = getattr(Mod, "AnytimeDstar")
+        Cls = Mod.AnytimeDstar
         inst = Cls(cfg.s_start, cfg.s_goal, cfg.adstar_eps, heur)
 
-        paths: List[List[Coord]] = []
-        visited_iters: List[List[Coord]] = []
+        paths: list[list[Coord]] = []
+        visited_iters: list[list[Coord]] = []
 
         def _snap():
             p = inst.extract_path()
@@ -435,16 +436,16 @@ class Search2dFacade:
             visited_iters.append(list(inst.visited))
             inst.visited = set()
 
-        inst.ComputeOrImprovePath()
+        inst.compute_or_improve_path()
         _snap()
 
         while inst.eps > 1.0:
             inst.eps -= 0.5
             inst.OPEN.update(inst.INCONS)
             for s in list(inst.OPEN.keys()):
-                inst.OPEN[s] = inst.Key(s)
+                inst.OPEN[s] = inst.key(s)
             inst.CLOSED = set()
-            inst.ComputeOrImprovePath()
+            inst.compute_or_improve_path()
             _snap()
 
         final_path = _ensure_start_to_goal(paths[-1] if paths else None, cfg.s_start, cfg.s_goal)
@@ -469,7 +470,7 @@ def _parse_pair(pair: str) -> Coord:
     return int(parts[0]), int(parts[1])
 
 
-def main(argv: Optional[Sequence[str]] = None) -> int:
+def main(argv: Sequence[str] | None = None) -> int:
     """Main entry point for the CLI interface."""
     # Define the CLI parser
     parser = argparse.ArgumentParser(description="Unified interface for plan2d planners")

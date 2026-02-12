@@ -155,17 +155,17 @@ def LRL(alpha, beta, dist):
     return t_lrl, p_lrl, q_lrl, ["L", "R", "L"]
 
 
-def interpolate(ind, l, m, maxc, ox, oy, oyaw, px, py, pyaw, directions):
+def interpolate(ind, seg_len, m, maxc, ox, oy, oyaw, px, py, pyaw, directions):
     if m == "S":
-        px[ind] = ox + l / maxc * math.cos(oyaw)
-        py[ind] = oy + l / maxc * math.sin(oyaw)
+        px[ind] = ox + seg_len / maxc * math.cos(oyaw)
+        py[ind] = oy + seg_len / maxc * math.sin(oyaw)
         pyaw[ind] = oyaw
     else:
-        ldx = math.sin(l) / maxc
+        ldx = math.sin(seg_len) / maxc
         if m == "L":
-            ldy = (1.0 - math.cos(l)) / maxc
+            ldy = (1.0 - math.cos(seg_len)) / maxc
         elif m == "R":
-            ldy = (1.0 - math.cos(l)) / (-maxc)
+            ldy = (1.0 - math.cos(seg_len)) / (-maxc)
 
         gdx = math.cos(-oyaw) * ldx + math.sin(-oyaw) * ldy
         gdy = -math.sin(-oyaw) * ldx + math.cos(-oyaw) * ldy
@@ -173,11 +173,11 @@ def interpolate(ind, l, m, maxc, ox, oy, oyaw, px, py, pyaw, directions):
         py[ind] = oy + gdy
 
     if m == "L":
-        pyaw[ind] = oyaw + l
+        pyaw[ind] = oyaw + seg_len
     elif m == "R":
-        pyaw[ind] = oyaw - l
+        pyaw[ind] = oyaw - seg_len
 
-    if l > 0.0:
+    if seg_len > 0.0:
         directions[ind] = 1
     else:
         directions[ind] = -1
@@ -199,39 +199,30 @@ def generate_local_course(L, lengths, mode, maxc, step_size):
     else:
         directions[0] = -1
 
-    if lengths[0] > 0.0:
-        d = step_size
-    else:
-        d = -step_size
+    d = step_size if lengths[0] > 0.0 else -step_size
 
     ll = 0.0
 
-    for m, l, i in zip(mode, lengths, range(len(mode))):
-        if l > 0.0:
-            d = step_size
-        else:
-            d = -step_size
+    for m, seg_len, i in zip(mode, lengths, range(len(mode)), strict=False):
+        d = step_size if seg_len > 0.0 else -step_size
 
         ox, oy, oyaw = px[ind], py[ind], pyaw[ind]
 
         ind -= 1
-        if i >= 1 and (lengths[i - 1] * lengths[i]) > 0:
-            pd = -d - ll
-        else:
-            pd = d - ll
+        pd = -d - ll if i >= 1 and lengths[i - 1] * lengths[i] > 0 else d - ll
 
-        while abs(pd) <= abs(l):
+        while abs(pd) <= abs(seg_len):
             ind += 1
             px, py, pyaw, directions = interpolate(
                 ind, pd, m, maxc, ox, oy, oyaw, px, py, pyaw, directions
             )
             pd += d
 
-        ll = l - pd - d  # calc remain length
+        ll = seg_len - pd - d  # calc remain length
 
         ind += 1
         px, py, pyaw, directions = interpolate(
-            ind, l, m, maxc, ox, oy, oyaw, px, py, pyaw, directions
+            ind, seg_len, m, maxc, ox, oy, oyaw, px, py, pyaw, directions
         )
 
     if len(px) <= 1:
@@ -336,7 +327,7 @@ def main():
 
         path_i = calc_dubins_path(s_x, s_y, s_yaw, g_x, g_y, g_yaw, max_c)
 
-        for x, y, iyaw in zip(path_i.x, path_i.y, path_i.yaw):
+        for x, y, iyaw in zip(path_i.x, path_i.y, path_i.yaw, strict=False):
             path_x.append(x)
             path_y.append(y)
             yaw.append(iyaw)

@@ -35,7 +35,7 @@ class AnytimeDstar:
 
         self.rhs[self.s_goal] = 0.0
         self.eps = eps
-        self.OPEN[self.s_goal] = self.Key(self.s_goal)
+        self.OPEN[self.s_goal] = self.key(self.s_goal)
         self.CLOSED, self.INCONS = set(), dict()
 
         self.visited = set()
@@ -48,7 +48,7 @@ class AnytimeDstar:
 
     def run(self):
         self.Plot.plot_grid(self.title)
-        self.ComputeOrImprovePath()
+        self.compute_or_improve_path()
         self.plot_visited()
         self.plot_path(self.extract_path())
         self.visited = set()
@@ -59,9 +59,9 @@ class AnytimeDstar:
             self.eps -= 0.5
             self.OPEN.update(self.INCONS)
             for s in self.OPEN:
-                self.OPEN[s] = self.Key(s)
+                self.OPEN[s] = self.key(s)
             self.CLOSED = set()
-            self.ComputeOrImprovePath()
+            self.compute_or_improve_path()
             self.plot_visited()
             self.plot_path(self.extract_path())
             self.visited = set()
@@ -87,12 +87,12 @@ class AnytimeDstar:
                     self.rhs[(x, y)] = float("inf")
                 else:
                     self.obs.remove((x, y))
-                    self.UpdateState((x, y))
+                    self.update_state((x, y))
 
                 self.Plot.update_obs(self.obs)
 
                 for sn in self.get_neighbor((x, y)):
-                    self.UpdateState(sn)
+                    self.update_state(sn)
 
                 plt.cla()
                 self.Plot.plot_grid(self.title)
@@ -102,9 +102,9 @@ class AnytimeDstar:
                         break
                     self.OPEN.update(self.INCONS)
                     for s in self.OPEN:
-                        self.OPEN[s] = self.Key(s)
+                        self.OPEN[s] = self.key(s)
                     self.CLOSED = set()
-                    self.ComputeOrImprovePath()
+                    self.compute_or_improve_path()
                     self.plot_visited()
                     self.plot_path(self.extract_path())
                     # plt.plot(self.title)
@@ -137,12 +137,12 @@ class AnytimeDstar:
                         self.rhs[(x, y)] = float("inf")
 
                         for sn in self.get_neighbor(s):
-                            self.UpdateState(sn)
+                            self.update_state(sn)
 
                     for s in self.obs_remove:
                         for sn in self.get_neighbor(s):
-                            self.UpdateState(sn)
-                        self.UpdateState(s)
+                            self.update_state(sn)
+                        self.update_state(s)
 
                     plt.cla()
                     self.Plot.plot_grid(self.title)
@@ -153,9 +153,9 @@ class AnytimeDstar:
                         self.eps -= 0.5
                         self.OPEN.update(self.INCONS)
                         for s in self.OPEN:
-                            self.OPEN[s] = self.Key(s)
+                            self.OPEN[s] = self.key(s)
                         self.CLOSED = set()
-                        self.ComputeOrImprovePath()
+                        self.compute_or_improve_path()
                         self.plot_visited()
                         self.plot_path(self.extract_path())
                         plt.title(self.title)
@@ -164,10 +164,10 @@ class AnytimeDstar:
 
             self.fig.canvas.draw_idle()
 
-    def ComputeOrImprovePath(self):
+    def compute_or_improve_path(self):
         while True:
-            s, v = self.TopKey()
-            if v >= self.Key(self.s_start) and self.rhs[self.s_start] == self.g[self.s_start]:
+            s, v = self.top_key()
+            if v >= self.key(self.s_start) and self.rhs[self.s_start] == self.g[self.s_start]:
                 break
 
             self.OPEN.pop(s)
@@ -177,14 +177,14 @@ class AnytimeDstar:
                 self.g[s] = self.rhs[s]
                 self.CLOSED.add(s)
                 for sn in self.get_neighbor(s):
-                    self.UpdateState(sn)
+                    self.update_state(sn)
             else:
                 self.g[s] = float("inf")
                 for sn in self.get_neighbor(s):
-                    self.UpdateState(sn)
-                self.UpdateState(s)
+                    self.update_state(sn)
+                self.update_state(s)
 
-    def UpdateState(self, s):
+    def update_state(self, s):
         if s != self.s_goal:
             self.rhs[s] = float("inf")
             for x in self.get_neighbor(s):
@@ -194,17 +194,17 @@ class AnytimeDstar:
 
         if self.g[s] != self.rhs[s]:
             if s not in self.CLOSED:
-                self.OPEN[s] = self.Key(s)
+                self.OPEN[s] = self.key(s)
             else:
                 self.INCONS[s] = 0
 
-    def Key(self, s):
+    def key(self, s):
         if self.g[s] > self.rhs[s]:
             return [self.rhs[s] + self.eps * self.h(self.s_start, s), self.rhs[s]]
         else:
             return [self.g[s] + self.h(self.s_start, s), self.g[s]]
 
-    def TopKey(self):
+    def top_key(self):
         """
         :return: return the min key and its value.
         """
@@ -269,7 +269,7 @@ class AnytimeDstar:
         path = [self.s_start]
         s = self.s_start
 
-        for k in range(100):
+        for _k in range(100):
             g_list = {}
             for x in self.get_neighbor(s):
                 if not self.is_collision(s, x):

@@ -305,10 +305,7 @@ class DynamicRRT3D:
     def choose_target(self) -> Node:
         """Sample target node with goal and waypoint bias."""
         p = float(self.rng.random())
-        if len(self.nodes) <= 1:
-            i = 0
-        else:
-            i = int(self.rng.integers(0, high=len(self.nodes) - 1))
+        i = 0 if len(self.nodes) <= 1 else int(self.rng.integers(0, high=len(self.nodes) - 1))
         if p < self.goal_prob:
             return self.xt
         if self.nodes and p < self.goal_prob + self.way_point_prob:

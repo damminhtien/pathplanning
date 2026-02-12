@@ -11,10 +11,10 @@ from pathplanning.spaces.environment3d import env
 from pathplanning.utils import priority_queue as queue
 
 from .plot_util_3d import visualization
-from .utils_3d import children, cost, getDist, heuristic_fun, isinbound
+from .utils_3d import children, cost, get_dist, heuristic_fun, isinbound
 
 
-class D_star_Lite(object):
+class D_star_Lite:
     # Original version of the D*lite
     def __init__(self, resolution=1):
         self.Alldirec = {
@@ -46,8 +46,8 @@ class D_star_Lite(object):
             (-1, 1, 1): np.sqrt(3),
         }
         self.env = env(resolution=resolution)
-        # self.X = StateSpace(self.env)
-        # self.x0, self.xt = getNearest(self.X, self.env.start), getNearest(self.X, self.env.goal)
+        # self.X = state_space(self.env)
+        # self.x0, self.xt = get_nearest(self.X, self.env.start), get_nearest(self.X, self.env.goal)
         self.settings = "CollisionChecking"  # for collision checking
         self.x0, self.xt = tuple(self.env.start), tuple(self.env.goal)
         # self.OPEN = queue.QueuePrior()
@@ -56,7 +56,7 @@ class D_star_Lite(object):
         self.g = {}  # all g initialized at inf
         self.rhs = {self.xt: 0}  # rhs(x0) = 0
         self.h = {}
-        self.OPEN.put(self.xt, self.CalculateKey(self.xt))
+        self.OPEN.put(self.xt, self.calculate_key(self.xt))
         self.CLOSED = set()
 
         # init children set:
@@ -116,15 +116,15 @@ class D_star_Lite(object):
 
     # -------------main functions for D*Lite-------------
 
-    def CalculateKey(self, s, epsilion=1):
+    def calculate_key(self, s, epsilion=1):
         return [
             min(self.getg(s), self.getrhs(s)) + epsilion * self.geth(s) + self.km,
             min(self.getg(s), self.getrhs(s)),
         ]
 
-    def UpdateVertex(self, u):
+    def update_vertex(self, u):
         # if still in the hunt
-        if not getDist(self.xt, u) <= self.env.resolution:  # originally: u != x_goal
+        if not get_dist(self.xt, u) <= self.env.resolution:  # originally: u != x_goal
             if u in self.CHILDREN and len(self.CHILDREN[u]) == 0:
                 self.rhs[u] = np.inf
             else:
@@ -133,36 +133,37 @@ class D_star_Lite(object):
         self.OPEN.check_remove(u)
         # if rhs(u) not equal to g(u)
         if self.getg(u) != self.getrhs(u):
-            self.OPEN.put(u, self.CalculateKey(u))
+            self.OPEN.put(u, self.calculate_key(u))
 
-    def ComputeShortestPath(self):
-        while self.OPEN.top_key() < self.CalculateKey(self.x0) or self.getrhs(self.x0) != self.getg(
+    def compute_shortest_path(self):
+        while self.OPEN.top_key() < self.calculate_key(self.x0) or self.getrhs(
             self.x0
-        ):
+        ) != self.getg(self.x0):
             kold = self.OPEN.top_key()
             u = self.OPEN.get()
             self.V.add(u)
             self.CLOSED.add(u)
-            if not self.done:  # first time running, we need to stop on this condition
-                if getDist(self.x0, u) < 1 * self.env.resolution:
-                    self.x0 = u
-                    break
-            if kold < self.CalculateKey(u):
-                self.OPEN.put(u, self.CalculateKey(u))
+            if (
+                not self.done and get_dist(self.x0, u) < 1 * self.env.resolution
+            ):  # first time running, we need to stop on this condition
+                self.x0 = u
+                break
+            if kold < self.calculate_key(u):
+                self.OPEN.put(u, self.calculate_key(u))
             if self.getg(u) > self.getrhs(u):
                 self.g[u] = self.rhs[u]
             else:
                 self.g[u] = np.inf
-                self.UpdateVertex(u)
+                self.update_vertex(u)
             for s in self.getchildren(u):
-                self.UpdateVertex(s)
+                self.update_vertex(s)
             # visualization(self)
             self.ind += 1
 
     def main(self):
         s_last = self.x0
         print("first run ...")
-        self.ComputeShortestPath()
+        self.compute_shortest_path()
         self.Path = self.path()
         self.done = True
         visualization(self)
@@ -172,8 +173,8 @@ class D_star_Lite(object):
         t = 0  # count time
         ischanged = False
         self.V = set()
-        while getDist(self.x0, self.xt) > 2 * self.env.resolution:
-            # ---------------------------------- at specific times, the environment is changed and Cost is updated
+        while get_dist(self.x0, self.xt) > 2 * self.env.resolution:
+            # At specific times, the environment is changed and Cost is updated.
             if t % 2 == 0:
                 new0, old0 = self.env.move_block(
                     a=[-0.1, 0, -0.2], s=0.5, block_to_move=1, mode="translation"
@@ -182,15 +183,18 @@ class D_star_Lite(object):
                     a=[0, 0, -0.2], s=0.5, block_to_move=0, mode="translation"
                 )
                 new2, old2 = self.env.move_OBB(theta=[0, 0.1 * t, 0])
-                # new2,old2 = self.env.move_block(a=[-0.3, 0, -0.1], s=0.5, block_to_move=1, mode='translation')
+                # Alternative update:
+                # new2, old2 = self.env.move_block(
+                #     a=[-0.3, 0, -0.1], s=0.5, block_to_move=1, mode="translation"
+                # )
                 ischanged = True
                 self.Path = []
-            # ----------------------------------- traverse the route as originally planned
+            # Traverse the route as originally planned.
             if t == 0:
                 children_new = [
                     i
                     for i in self.CLOSED
-                    if getDist(self.x0, i) <= self.env.resolution * np.sqrt(3)
+                    if get_dist(self.x0, i) <= self.env.resolution * np.sqrt(3)
                 ]
             else:
                 children_new = list(children(self, self.x0))
@@ -199,9 +203,9 @@ class D_star_Lite(object):
             ]
             # TODO add the moving robot position codes
             self.env.start = self.x0
-            # ---------------------------------- if any Cost changed, update km, reset slast,
-            #                                    for all directed edgees (u,v) with  chaged edge costs,
-            #                                    update the edge Cost cBest(u,v) and update vertex u. then replan
+            # If Cost changed, update km, reset slast, and update affected edges.
+            # For directed edges (u, v) with changed costs, update cBest(u, v),
+            # update vertex u, then replan.
             if ischanged:
                 self.km += heuristic_fun(self, self.x0, s_last)
                 s_last = self.x0
@@ -211,8 +215,8 @@ class D_star_Lite(object):
                 CHANGED = CHANGED.union(CHANGED1, CHANGED2)
                 # self.V = set()
                 for u in CHANGED:
-                    self.UpdateVertex(u)
-                self.ComputeShortestPath()
+                    self.update_vertex(u)
+                self.compute_shortest_path()
 
                 ischanged = False
             self.Path = self.path(self.x0)
@@ -221,22 +225,19 @@ class D_star_Lite(object):
         plt.show()
 
     def path(self, s_start=None):
-        """After ComputeShortestPath()
+        """After compute_shortest_path()
         returns, one can then follow a shortest path from x_init to
         x_goal by always moving from the current vertex s, starting
         at x_init. , to any successor s' that minimizes cBest(s,s') + g(s')
         until x_goal is reached (ties can be broken arbitrarily)."""
         path = []
         s_goal = self.xt
-        if not s_start:
-            s = self.x0
-        else:
-            s = s_start
+        s = s_start if s_start else self.x0
         ind = 0
         while s != s_goal:
             if s == self.x0:
                 children = [
-                    i for i in self.CLOSED if getDist(s, i) <= self.env.resolution * np.sqrt(3)
+                    i for i in self.CLOSED if get_dist(s, i) <= self.env.resolution * np.sqrt(3)
                 ]
             else:
                 children = list(self.CHILDREN[s])

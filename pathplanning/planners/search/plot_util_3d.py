@@ -110,7 +110,10 @@ def visualization(initparams):
         # edges = E.get_edge()
         # generate axis objects
         ax = plt.subplot(111, projection="3d")
-        # ax.view_init(elev=0.+ 0.03*initparams.ind/(2*np.pi), azim=90 + 0.03*initparams.ind/(2*np.pi))
+        # ax.view_init(
+        #     elev=0.0 + 0.03 * initparams.ind / (2 * np.pi),
+        #     azim=90 + 0.03 * initparams.ind / (2 * np.pi),
+        # )
         # ax.view_init(elev=0., azim=90.)
         ax.view_init(elev=90.0, azim=0.0)
         # ax.view_init(elev=-8., azim=180)

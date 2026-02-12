@@ -4,35 +4,35 @@ import copy
 import numpy as np
 
 
-def getRay(x, y):
+def get_ray(x, y):
     direc = [y[0] - x[0], y[1] - x[1], y[2] - x[2]]
     return np.array([x, direc])
 
 
-def getDist(pos1, pos2):
+def get_dist(pos1, pos2):
     return np.sqrt(
         sum([(pos1[0] - pos2[0]) ** 2, (pos1[1] - pos2[1]) ** 2, (pos1[2] - pos2[2]) ** 2])
     )
 
 
-def getManDist(pos1, pos2):
+def get_manhattan_dist(pos1, pos2):
     return sum([abs(pos1[0] - pos2[0]), abs(pos1[1] - pos2[1]), abs(pos1[2] - pos2[2])])
 
 
-def getNearest(Space, pt):
+def get_nearest(Space, pt):
     """get the nearest point on the grid"""
     mindis, minpt = 1000, None
     for pts in Space:
-        dis = getDist(pts, pt)
+        dis = get_dist(pts, pt)
         if dis < mindis:
             mindis, minpt = dis, pts
     return minpt
 
 
-def Heuristic(Space, t):
+def heuristic(Space, t):
     """Max norm distance"""
     h = {}
-    for k in Space.keys():
+    for k in Space:
         h[k] = max([abs(t[0] - k[0]), abs(t[1] - k[1]), abs(t[2] - k[2])])
     return h
 
@@ -60,9 +60,7 @@ def isinbound(i, x, mode=False, factor=0, isarray=False):
 
 
 def isinball(i, x, factor=0):
-    if getDist(i[0:3], x) <= i[3] + factor:
-        return True
-    return False
+    return get_dist(i[0:3], x) <= i[3] + factor
 
 
 def isinobb(i, x, isarray=False):
@@ -77,7 +75,7 @@ def isinobb(i, x, isarray=False):
         return isinbound(block, pt)
 
 
-def OBB2AABB(obb):
+def obb_to_aabb(obb):
     # https://www.gamasutra.com/view/feature/131790/simple_intersection_tests_for_games.php?print=1
     aabb = copy.deepcopy(obb)
     P = obb.P
@@ -94,7 +92,7 @@ def OBB2AABB(obb):
     return aabb
 
 
-def lineSphere(p0, p1, ball):
+def line_sphere(p0, p1, ball):
     # https://cseweb.ucsd.edu/classes/sp19/cse291-d/Files/CSE291_13_CollisionDetection.pdf
     c, r = ball[0:3], ball[-1]
     line = [p1[0] - p0[0], p1[1] - p0[1], p1[2] - p0[2]]
@@ -117,49 +115,50 @@ def lineSphere(p0, p1, ball):
     return False
 
 
-def lineAABB(p0, p1, dist, aabb):
+def line_aabb(p0, p1, dist, aabb):
     # https://www.gamasutra.com/view/feature/131790/simple_intersection_tests_for_games.php?print=1
     # aabb should have the attributes of P, E as center point and extents
     mid = [(p0[0] + p1[0]) / 2, (p0[1] + p1[1]) / 2, (p0[2] + p1[2]) / 2]  # mid point
-    I = [(p1[0] - p0[0]) / dist, (p1[1] - p0[1]) / dist, (p1[2] - p0[2]) / dist]  # unit direction
+    direction = [
+        (p1[0] - p0[0]) / dist,
+        (p1[1] - p0[1]) / dist,
+        (p1[2] - p0[2]) / dist,
+    ]  # unit direction
     hl = dist / 2  # radius
     T = [aabb.P[0] - mid[0], aabb.P[1] - mid[1], aabb.P[2] - mid[2]]
     # do any of the principal axis form a separting axis?
-    if abs(T[0]) > (aabb.E[0] + hl * abs(I[0])):
+    if abs(T[0]) > (aabb.E[0] + hl * abs(direction[0])):
         return False
-    if abs(T[1]) > (aabb.E[1] + hl * abs(I[1])):
+    if abs(T[1]) > (aabb.E[1] + hl * abs(direction[1])):
         return False
-    if abs(T[2]) > (aabb.E[2] + hl * abs(I[2])):
+    if abs(T[2]) > (aabb.E[2] + hl * abs(direction[2])):
         return False
     # I.cross(s axis) ?
-    r = aabb.E[1] * abs(I[2]) + aabb.E[2] * abs(I[1])
-    if abs(T[1] * I[2] - T[2] * I[1]) > r:
+    r = aabb.E[1] * abs(direction[2]) + aabb.E[2] * abs(direction[1])
+    if abs(T[1] * direction[2] - T[2] * direction[1]) > r:
         return False
     # I.cross(y axis) ?
-    r = aabb.E[0] * abs(I[2]) + aabb.E[2] * abs(I[0])
-    if abs(T[2] * I[0] - T[0] * I[2]) > r:
+    r = aabb.E[0] * abs(direction[2]) + aabb.E[2] * abs(direction[0])
+    if abs(T[2] * direction[0] - T[0] * direction[2]) > r:
         return False
     # I.cross(z axis) ?
-    r = aabb.E[0] * abs(I[1]) + aabb.E[1] * abs(I[0])
-    if abs(T[0] * I[1] - T[1] * I[0]) > r:
-        return False
-
-    return True
+    r = aabb.E[0] * abs(direction[1]) + aabb.E[1] * abs(direction[0])
+    return not abs(T[0] * direction[1] - T[1] * direction[0]) > r
 
 
-def lineOBB(p0, p1, dist, obb):
+def line_obb(p0, p1, dist, obb):
     # transform points to obb frame
     res = obb.T @ np.column_stack([np.array([p0, p1]), [1, 1]]).T
     # record old position and set the position to origin
     oldP, obb.P = obb.P, [0, 0, 0]
     # calculate segment-AABB testing
-    ans = lineAABB(res[0:3, 0], res[0:3, 1], dist, obb)
+    ans = line_aabb(res[0:3, 0], res[0:3, 1], dist, obb)
     # reset the position
     obb.P = oldP
     return ans
 
 
-def OBBOBB(obb1, obb2):
+def obb_obb(obb1, obb2):
     # https://www.gamasutra.com/view/feature/131790/simple_intersection_tests_for_games.php?print=1
     # each obb class should contain attributes:
     # E: extents along three principle axis in R3
@@ -255,15 +254,12 @@ def OBBOBB(obb1, obb2):
             ra = a[0] * abs(R[1][2]) + a[1] * abs(R[0][2])
             rb = b[0] * abs(R[2][1]) + b[1] * abs(R[2][0])
             t = abs(T[1] * R[0][2] - T[0] * R[1][2])
-            if t > ra + rb:
-                return False
-
             # no separating axis found,
             # the two boxes overlap
-            return True
+            return t <= ra + rb
 
 
-def StateSpace(env, factor=0):
+def state_space(env, factor=0):
     boundary = env.boundary
     resolution = env.resolution
     xmin, xmax = boundary[0] + factor * resolution, boundary[3] - factor * resolution
@@ -280,35 +276,35 @@ def StateSpace(env, factor=0):
     return Space
 
 
-def g_Space(initparams):
+def g_space(initparams):
     """This function is used to get nodes and discretize the space.
     State space is by s*y*z,3 where each 3 is a point in 3D."""
     g = {}
-    Space = StateSpace(initparams.env)
+    Space = state_space(initparams.env)
     for v in Space:
         g[v] = np.inf  # this hashmap initialize all g values at inf
     return g
 
 
-def isCollide(initparams, x, child, dist=None):
+def is_collide(initparams, x, child, dist=None):
     """see if line intersects obstacle"""
     """specified for expansion in A* 3D lookup table"""
-    if dist == None:
-        dist = getDist(x, child)
+    if dist is None:
+        dist = get_dist(x, child)
     # check in bound
     if not isinbound(initparams.env.boundary, child):
         return True, dist
     # check collision in AABB
     for i in range(len(initparams.env.AABB)):
-        if lineAABB(x, child, dist, initparams.env.AABB[i]):
+        if line_aabb(x, child, dist, initparams.env.AABB[i]):
             return True, dist
     # check collision in ball
     for i in initparams.env.balls:
-        if lineSphere(x, child, i):
+        if line_sphere(x, child, i):
             return True, dist
     # check collision with obb
     for i in initparams.env.OBB:
-        if lineOBB(x, child, dist, i):
+        if line_obb(x, child, dist, i):
             return True, dist
     return False, dist
 
@@ -335,24 +331,21 @@ def children(initparams, x, settings=0):
         return allcost
 
 
-def obstacleFree(initparams, x):
+def obstacle_free(initparams, x):
     for i in initparams.env.blocks:
         if isinbound(i, x):
             return False
-    for i in initparams.env.balls:
-        if isinball(i, x):
-            return False
-    return True
+    return all(not isinball(i, x) for i in initparams.env.balls)
 
 
 def cost(initparams, i, j, dist=None, settings="Euclidean"):
     if initparams.settings == "NonCollisionChecking":
-        if dist == None:
-            dist = getDist(i, j)
+        if dist is None:
+            dist = get_dist(i, j)
         collide = False
     else:
-        collide, dist = isCollide(initparams, i, j, dist)
-    # collide, dist= False, getDist(i, j)
+        collide, dist = is_collide(initparams, i, j, dist)
+    # collide, dist = False, get_dist(i, j)
     if settings == "Euclidean":
         if collide:
             return np.inf
@@ -362,7 +355,7 @@ def cost(initparams, i, j, dist=None, settings="Euclidean"):
         if collide:
             return np.inf
         else:
-            return getManDist(i, j)
+            return get_manhattan_dist(i, j)
 
 
 def initcost(initparams):
@@ -381,7 +374,15 @@ if __name__ == "__main__":
     from pathplanning.spaces.environment3d import R_matrix, obb
 
     obb1 = obb([2.6, 2.5, 1], [0.2, 2, 2], R_matrix(0, 0, 45))
-    # obb2 = obb([1,1,0],[1,1,1],[[1/np.sqrt(3)*1,1/np.sqrt(3)*1,1/np.sqrt(3)*1],[np.sqrt(3/2)*(-1/3),np.sqrt(3/2)*2/3,np.sqrt(3/2)*(-1/3)],[np.sqrt(1/8)*(-2),0,np.sqrt(1/8)*2]])
+    # obb2 = obb(
+    #     [1, 1, 0],
+    #     [1, 1, 1],
+    #     [
+    #         [1 / np.sqrt(3), 1 / np.sqrt(3), 1 / np.sqrt(3)],
+    #         [np.sqrt(3 / 2) * (-1 / 3), np.sqrt(3 / 2) * 2 / 3, np.sqrt(3 / 2) * (-1 / 3)],
+    #         [np.sqrt(1 / 8) * (-2), 0, np.sqrt(1 / 8) * 2],
+    #     ],
+    # )
     p0, p1 = [2.9, 2.5, 1], [1.9, 2.5, 1]
     pts = np.array([[1, 2, 3], [4, 5, 6], [7, 8, 9], [2, 2, 2], [1, 1, 1], [3, 3, 3]])
     start = time.time()

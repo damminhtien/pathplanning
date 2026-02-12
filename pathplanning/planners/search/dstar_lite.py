@@ -35,14 +35,14 @@ class DStarLite:
                 self.g[(i, j)] = float("inf")
 
         self.rhs[self.s_goal] = 0.0
-        self.U[self.s_goal] = self.CalculateKey(self.s_goal)
+        self.U[self.s_goal] = self.calculate_key(self.s_goal)
         self.visited = set()
         self.count = 0
         self.fig = plt.figure()
 
     def run(self):
         self.Plot.plot_grid("D* Lite")
-        self.ComputePath()
+        self.compute_path()
         self.plot_path(self.extract_path())
         self.fig.canvas.mpl_connect("button_press_event", self.on_press)
         plt.show()
@@ -79,24 +79,24 @@ class DStarLite:
                     else:
                         self.obs.remove((x, y))
                         plt.plot(x, y, marker="s", color="white")
-                        self.UpdateVertex((x, y))
+                        self.update_vertex((x, y))
                     for s in self.get_neighbor((x, y)):
-                        self.UpdateVertex(s)
+                        self.update_vertex(s)
                     i += 1
 
                     self.count += 1
                     self.visited = set()
-                    self.ComputePath()
+                    self.compute_path()
 
             self.plot_visited(self.visited)
             self.plot_path(path)
             self.fig.canvas.draw_idle()
 
-    def ComputePath(self):
+    def compute_path(self):
         while True:
-            s, v = self.TopKey()
+            s, v = self.top_key()
             if (
-                v >= self.CalculateKey(self.s_start)
+                v >= self.calculate_key(self.s_start)
                 and self.rhs[self.s_start] == self.g[self.s_start]
             ):
                 break
@@ -105,19 +105,19 @@ class DStarLite:
             self.U.pop(s)
             self.visited.add(s)
 
-            if k_old < self.CalculateKey(s):
-                self.U[s] = self.CalculateKey(s)
+            if k_old < self.calculate_key(s):
+                self.U[s] = self.calculate_key(s)
             elif self.g[s] > self.rhs[s]:
                 self.g[s] = self.rhs[s]
                 for x in self.get_neighbor(s):
-                    self.UpdateVertex(x)
+                    self.update_vertex(x)
             else:
                 self.g[s] = float("inf")
-                self.UpdateVertex(s)
+                self.update_vertex(s)
                 for x in self.get_neighbor(s):
-                    self.UpdateVertex(x)
+                    self.update_vertex(x)
 
-    def UpdateVertex(self, s):
+    def update_vertex(self, s):
         if s != self.s_goal:
             self.rhs[s] = float("inf")
             for x in self.get_neighbor(s):
@@ -126,15 +126,15 @@ class DStarLite:
             self.U.pop(s)
 
         if self.g[s] != self.rhs[s]:
-            self.U[s] = self.CalculateKey(s)
+            self.U[s] = self.calculate_key(s)
 
-    def CalculateKey(self, s):
+    def calculate_key(self, s):
         return [
             min(self.g[s], self.rhs[s]) + self.h(self.s_start, s) + self.km,
             min(self.g[s], self.rhs[s]),
         ]
 
-    def TopKey(self):
+    def top_key(self):
         """
         :return: return the min key and its value.
         """
@@ -199,7 +199,7 @@ class DStarLite:
         path = [self.s_start]
         s = self.s_start
 
-        for k in range(100):
+        for _k in range(100):
             g_list = {}
             for x in self.get_neighbor(s):
                 if not self.is_collision(s, x):

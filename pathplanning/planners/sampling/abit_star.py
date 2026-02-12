@@ -78,28 +78,30 @@ class AbitStar:
                 elif eps_trunc * (self.g_t(xp) + self.c_hat(xp, xc) + self.h_hat(xc)) <= self.g_t(
                     self.xgoal
                 ):
-                    if self.g_t(xp) + self.c_hat(xp, xc) < self.g_t(xc):
-                        if self.g_t(xp) + self.c(xp, xc) + self.h_hat(xc) < self.g_t(self.xgoal):
-                            if self.g_t(xp) + self.c(xp, xc) < self.g_t(xc):
-                                if xc in vertices:
-                                    edges = edges.difference(
-                                        {
-                                            (x_parent, x_child)
-                                            for (x_parent, x_child) in edges
-                                            if x_child == xc
-                                        }
-                                    )
-                                else:
-                                    unconnected_states.difference_update({xc})
-                                    vertices.add(xc)
-                                    edges.add((xp, xc))
-                                if xc in closed_vertices:
-                                    inconsistent_vertices.add(xc)
-                                else:
-                                    edge_queue.update(
-                                        self.expand({xc}, tree, unconnected_states, self.r(q))
-                                    )
-                                    closed_vertices.add(xc)
+                    if (
+                        self.g_t(xp) + self.c_hat(xp, xc) < self.g_t(xc)
+                        and self.g_t(xp) + self.c(xp, xc) + self.h_hat(xc) < self.g_t(self.xgoal)
+                        and self.g_t(xp) + self.c(xp, xc) < self.g_t(xc)
+                    ):
+                        if xc in vertices:
+                            edges = edges.difference(
+                                {
+                                    (x_parent, x_child)
+                                    for (x_parent, x_child) in edges
+                                    if x_child == xc
+                                }
+                            )
+                        else:
+                            unconnected_states.difference_update({xc})
+                            vertices.add(xc)
+                            edges.add((xp, xc))
+                        if xc in closed_vertices:
+                            inconsistent_vertices.add(xc)
+                        else:
+                            edge_queue.update(
+                                self.expand({xc}, tree, unconnected_states, self.r(q))
+                            )
+                            closed_vertices.add(xc)
                 else:
                     self.mark_search_finished()
             iteration_index += 1
@@ -123,9 +125,10 @@ class AbitStar:
         for xp in set_xi:
             edge_out.update({(x1, x2) for (x1, x2) in edges if x1 == xp})
             for xc in {x for x in unconnected_states.union(vertices) if get_dist(xp, x) <= radius}:
-                if self.g_hat(xp) + self.c_hat(xp, xc) + self.h_hat(xc) <= self.g_t(self.xgoal):
-                    if self.g_hat(xp) + self.c_hat(xp, xc) <= self.g_hat(xc):
-                        edge_out.add((xp, xc))
+                if self.g_hat(xp) + self.c_hat(xp, xc) + self.h_hat(xc) <= self.g_t(
+                    self.xgoal
+                ) and self.g_hat(xp) + self.c_hat(xp, xc) <= self.g_hat(xc):
+                    edge_out.add((xp, xc))
         return edge_out
 
     def prune(

@@ -9,14 +9,14 @@ author: damminhtien
 
 from __future__ import annotations
 
-from typing import Iterable, List, Sequence, Tuple
+from collections.abc import Iterable, Sequence
 
 from pathplanning.spaces.grid2d import Grid2DSearchSpace
 from pathplanning.viz import lazy_import
 
 plt = lazy_import("matplotlib.pyplot")
 
-Point = Tuple[int, int]
+Point = tuple[int, int]
 
 
 class Plotting:
@@ -67,7 +67,7 @@ class Plotting:
         self._ensure_figure()
         self.plot_grid(title)
         colors = self.color_list_lrta()
-        combined_path: List[Point] = []
+        combined_path: list[Point] = []
 
         for iteration_index, path_segment in enumerate(paths):
             color = colors[iteration_index % len(colors)]
@@ -130,7 +130,7 @@ class Plotting:
         ax.set_aspect("equal", adjustable="box")
 
         if self.obstacles:
-            ox, oy = zip(*self.obstacles)
+            ox, oy = zip(*self.obstacles, strict=False)
             ax.plot(ox, oy, "sk")
 
         ax.plot(self.start[0], self.start[1], "bs", label="Start")
@@ -180,7 +180,7 @@ class Plotting:
             return
 
         ax = plt.gca()
-        px, py = zip(*path)
+        px, py = zip(*path, strict=False)
         ax.plot(px, py, linewidth=3, color=color if use_custom_color else self._DEFAULT_PATH_COLOR)
 
         # Redraw start and goal
@@ -215,14 +215,14 @@ class Plotting:
     # Color helpers                                                          #
     # ---------------------------------------------------------------------- #
     @staticmethod
-    def color_list_anytime() -> Tuple[List[str], List[str]]:
+    def color_list_anytime() -> tuple[list[str], list[str]]:
         """(visited_colors, path_colors) for multi-iteration plots (ARA*, etc.)."""
         visited_colors = ["silver", "wheat", "lightskyblue", "royalblue", "slategray"]
         path_colors = ["gray", "orange", "deepskyblue", "red", "m"]
         return visited_colors, path_colors
 
     @staticmethod
-    def color_list_lrta() -> List[str]:
+    def color_list_lrta() -> list[str]:
         """Color cycle used by LRTA*/RTAA* iteration animations."""
         return [
             "silver",

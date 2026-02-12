@@ -27,7 +27,7 @@ def calc_optimal_path(sx, sy, syaw, gx, gy, gyaw, maxc, step_size=STEP_SIZE):
     mini = 0
 
     for i in range(len(paths)):
-        if paths[i].L <= minL:
+        if minL >= paths[i].L:
             minL, mini = paths[i].L, i
 
     return paths[mini]
@@ -45,11 +45,17 @@ def calc_all_paths(sx, sy, syaw, gx, gy, gyaw, maxc, step_size=STEP_SIZE):
         )
 
         # convert global coordinate
-        path.x = [math.cos(-q0[2]) * ix + math.sin(-q0[2]) * iy + q0[0] for (ix, iy) in zip(x, y)]
-        path.y = [-math.sin(-q0[2]) * ix + math.cos(-q0[2]) * iy + q0[1] for (ix, iy) in zip(x, y)]
+        path.x = [
+            math.cos(-q0[2]) * ix + math.sin(-q0[2]) * iy + q0[0]
+            for (ix, iy) in zip(x, y, strict=False)
+        ]
+        path.y = [
+            -math.sin(-q0[2]) * ix + math.cos(-q0[2]) * iy + q0[1]
+            for (ix, iy) in zip(x, y, strict=False)
+        ]
         path.yaw = [pi_2_pi(iyaw + q0[2]) for iyaw in yaw]
         path.directions = directions
-        path.lengths = [l / maxc for l in path.lengths]
+        path.lengths = [segment_length / maxc for segment_length in path.lengths]
         path.L = path.L / maxc
 
     return paths
@@ -62,9 +68,10 @@ def set_path(paths, lengths, ctypes):
 
     # check same path exist
     for path_e in paths:
-        if path_e.ctypes == path.ctypes:
-            if sum([x - y for x, y in zip(path_e.lengths, path.lengths)]) <= 0.01:
-                return paths  # not insert path
+        if path_e.ctypes == path.ctypes and (
+            sum(x - y for x, y in zip(path_e.lengths, path.lengths, strict=False)) <= 0.01
+        ):
+            return paths  # not insert path
 
     path.L = sum([abs(i) for i in lengths])
 
@@ -234,10 +241,7 @@ def calc_tauOmega(u, v, xi, eta, phi):
     t1 = math.atan2(eta * A - xi * B, xi * A + eta * B)
     t2 = 2.0 * (math.cos(delta) - math.cos(v) - math.cos(u)) + 3.0
 
-    if t2 < 0:
-        tau = M(t1 + PI)
-    else:
-        tau = M(t1)
+    tau = M(t1 + PI) if t2 < 0 else M(t1)
 
     omega = M(tau - u + v - phi)
 
@@ -464,40 +468,31 @@ def generate_local_course(L, lengths, mode, maxc, step_size):
     else:
         directions[0] = -1
 
-    if lengths[0] > 0.0:
-        d = step_size
-    else:
-        d = -step_size
+    d = step_size if lengths[0] > 0.0 else -step_size
 
     pd = d
     ll = 0.0
 
-    for m, l, i in zip(mode, lengths, range(len(mode))):
-        if l > 0.0:
-            d = step_size
-        else:
-            d = -step_size
+    for i, (m, segment_len) in enumerate(zip(mode, lengths, strict=False)):
+        d = step_size if segment_len > 0.0 else -step_size
 
         ox, oy, oyaw = px[ind], py[ind], pyaw[ind]
 
         ind -= 1
-        if i >= 1 and (lengths[i - 1] * lengths[i]) > 0:
-            pd = -d - ll
-        else:
-            pd = d - ll
+        pd = -d - ll if i >= 1 and lengths[i - 1] * lengths[i] > 0 else d - ll
 
-        while abs(pd) <= abs(l):
+        while abs(pd) <= abs(segment_len):
             ind += 1
             px, py, pyaw, directions = interpolate(
                 ind, pd, m, maxc, ox, oy, oyaw, px, py, pyaw, directions
             )
             pd += d
 
-        ll = l - pd - d  # calc remain length
+        ll = segment_len - pd - d  # calc remain length
 
         ind += 1
         px, py, pyaw, directions = interpolate(
-            ind, l, m, maxc, ox, oy, oyaw, px, py, pyaw, directions
+            ind, segment_len, m, maxc, ox, oy, oyaw, px, py, pyaw, directions
         )
 
     # remove unused data
@@ -510,17 +505,17 @@ def generate_local_course(L, lengths, mode, maxc, step_size):
     return px, py, pyaw, directions
 
 
-def interpolate(ind, l, m, maxc, ox, oy, oyaw, px, py, pyaw, directions):
+def interpolate(ind, segment_len, m, maxc, ox, oy, oyaw, px, py, pyaw, directions):
     if m == "S":
-        px[ind] = ox + l / maxc * math.cos(oyaw)
-        py[ind] = oy + l / maxc * math.sin(oyaw)
+        px[ind] = ox + segment_len / maxc * math.cos(oyaw)
+        py[ind] = oy + segment_len / maxc * math.sin(oyaw)
         pyaw[ind] = oyaw
     else:
-        ldx = math.sin(l) / maxc
+        ldx = math.sin(segment_len) / maxc
         if m == "L":
-            ldy = (1.0 - math.cos(l)) / maxc
+            ldy = (1.0 - math.cos(segment_len)) / maxc
         elif m == "R":
-            ldy = (1.0 - math.cos(l)) / (-maxc)
+            ldy = (1.0 - math.cos(segment_len)) / (-maxc)
 
         gdx = math.cos(-oyaw) * ldx + math.sin(-oyaw) * ldy
         gdy = -math.sin(-oyaw) * ldx + math.cos(-oyaw) * ldy
@@ -528,11 +523,11 @@ def interpolate(ind, l, m, maxc, ox, oy, oyaw, px, py, pyaw, directions):
         py[ind] = oy + gdy
 
     if m == "L":
-        pyaw[ind] = oyaw + l
+        pyaw[ind] = oyaw + segment_len
     elif m == "R":
-        pyaw[ind] = oyaw - l
+        pyaw[ind] = oyaw - segment_len
 
-    if l > 0.0:
+    if segment_len > 0.0:
         directions[ind] = 1
     else:
         directions[ind] = -1
@@ -598,12 +593,9 @@ def M(theta):
 def get_label(path):
     label = ""
 
-    for m, l in zip(path.ctypes, path.lengths):
+    for m, segment_len in zip(path.ctypes, path.lengths, strict=False):
         label = label + m
-        if l > 0.0:
-            label = label + "+"
-        else:
-            label = label + "-"
+        label = label + "+" if segment_len > 0.0 else label + "-"
 
     return label
 
@@ -661,7 +653,9 @@ def check_path(sx, sy, syaw, gx, gy, gyaw, maxc):
         d = [
             math.hypot(dx, dy)
             for dx, dy in zip(
-                np.diff(path.x[0 : len(path.x) - 1]), np.diff(path.y[0 : len(path.y) - 1])
+                np.diff(path.x[0 : len(path.x) - 1]),
+                np.diff(path.y[0 : len(path.y) - 1]),
+                strict=False,
             )
         ]
 

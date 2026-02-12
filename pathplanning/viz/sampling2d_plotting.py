@@ -55,9 +55,7 @@ class Plotting:
     @staticmethod
     def plot_visited(nodelist, animation):
         if animation:
-            count = 0
-            for node in nodelist:
-                count += 1
+            for count, node in enumerate(nodelist, start=1):
                 if node.parent:
                     plt.plot([node.parent.x, node.x], [node.parent.y, node.y], "-g")
                     plt.gcf().canvas.mpl_connect(
@@ -76,12 +74,10 @@ class Plotting:
         len1, len2 = len(V1), len(V2)
 
         for k in range(max(len1, len2)):
-            if k < len1:
-                if V1[k].parent:
-                    plt.plot([V1[k].x, V1[k].parent.x], [V1[k].y, V1[k].parent.y], "-g")
-            if k < len2:
-                if V2[k].parent:
-                    plt.plot([V2[k].x, V2[k].parent.x], [V2[k].y, V2[k].parent.y], "-g")
+            if k < len1 and V1[k].parent:
+                plt.plot([V1[k].x, V1[k].parent.x], [V1[k].y, V1[k].parent.y], "-g")
+            if k < len2 and V2[k].parent:
+                plt.plot([V2[k].x, V2[k].parent.x], [V2[k].y, V2[k].parent.y], "-g")
 
             plt.gcf().canvas.mpl_connect(
                 "key_release_event", lambda event: [exit(0) if event.key == "escape" else None]

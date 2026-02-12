@@ -40,7 +40,7 @@ class Rrt:
         self.obs_boundary = self.env.obs_boundary
 
     def planning(self):
-        for i in range(self.iter_max):
+        for _i in range(self.iter_max):
             node_rand = self.generate_random_node(self.goal_sample_rate)
             node_near = self.nearest_neighbor(self.vertex, node_rand)
             node_new = self.new_state(node_near, node_rand)

@@ -153,7 +153,8 @@ class Dstar:
                             and self.t[s_n] == "CLOSED"
                             and self.h[s_n] > k_old
                         ):
-                            # Condition: LOWER happened in CLOSED set (s_n), s_n should be explored again
+                            # Condition: LOWER happened in CLOSED set (s_n),
+                            # so s_n should be explored again.
                             self.insert(s_n, self.h[s_n])
 
         return self.get_k_min()

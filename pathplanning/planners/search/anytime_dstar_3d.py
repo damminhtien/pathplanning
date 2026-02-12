@@ -15,14 +15,14 @@ from .plot_util_3d import visualization
 from .utils_3d import (
     children,
     cost,
-    getDist,
+    get_dist,
     heuristic_fun,
     isinbound,
     isinobb,
 )
 
 
-class Anytime_Dstar(object):
+class Anytime_Dstar:
     def __init__(self, resolution=1):
         self.Alldirec = {
             (1, 0, 0): 1,
@@ -155,7 +155,7 @@ class Anytime_Dstar(object):
         else:
             return [self.getg(s) + heuristic_fun(self, s, self.x0), self.getg(s)]
 
-    def UpdateState(self, s):
+    def update_state(self, s):
         if s not in self.CLOSED:
             # TODO if s is not visited before
             self.g[s] = np.inf
@@ -170,14 +170,14 @@ class Anytime_Dstar(object):
             else:
                 self.INCONS.add(s)
 
-    def ComputeorImprovePath(self):
+    def compute_or_improve_path(self):
         while (
             self.OPEN.top_key() < self.key(self.x0, self.epsilon)
             or self.rhs[self.x0] != self.g[self.x0]
         ):
             s = self.OPEN.get()
 
-            if getDist(s, tuple(self.env.start)) < self.env.resolution:
+            if get_dist(s, tuple(self.env.start)) < self.env.resolution:
                 break
 
             if self.g[s] > self.rhs[s]:
@@ -185,19 +185,19 @@ class Anytime_Dstar(object):
                 self.CLOSED.add(s)
                 self.V.add(s)
                 for s_p in self.getchildren(s):
-                    self.UpdateState(s_p)
+                    self.update_state(s_p)
             else:
                 self.g[s] = np.inf
-                self.UpdateState(s)
+                self.update_state(s)
                 for s_p in self.getchildren(s):
-                    self.UpdateState(s_p)
+                    self.update_state(s_p)
             self.ind += 1
 
-    def Main(self):
+    def main(self):
         ischanged = False
         islargelychanged = False
         t = 0
-        self.ComputeorImprovePath()
+        self.compute_or_improve_path()
         # TODO publish current epsilon sub-optimal solution
         self.done = True
         self.ind = 0
@@ -221,8 +221,8 @@ class Anytime_Dstar(object):
                 # CHANGED = self.updatecost(True, new2, old2, mode='obb')
                 CHANGED = self.updatecost(True, new2, old2, mode=mmode)
                 for u in CHANGED:
-                    self.UpdateState(u)
-                self.ComputeorImprovePath()
+                    self.update_state(u)
+                self.compute_or_improve_path()
                 ischanged = False
 
             if islargelychanged:
@@ -237,7 +237,7 @@ class Anytime_Dstar(object):
                 self.OPEN.put(node, self.key(node, self.epsilon))
             self.INCONS = set()
             self.CLOSED = set()
-            self.ComputeorImprovePath()
+            self.compute_or_improve_path()
             # publish current epsilon sub optimal solution
             self.Path = self.path()
             # if epsilon == 1:
@@ -245,7 +245,7 @@ class Anytime_Dstar(object):
             t += 1
 
     def path(self, s_start=None):
-        """After ComputeShortestPath()
+        """After compute_or_improve_path()
         returns, one can then follow a shortest path from x_init to
         x_goal by always moving from the current vertex s, starting
         at x_init. , to any successor s' that minimizes cBest(s,s') + g(s')
@@ -254,10 +254,10 @@ class Anytime_Dstar(object):
         s_goal = self.xt
         s = self.x0
         ind = 0
-        while getDist(s, s_goal) > self.env.resolution:
+        while get_dist(s, s_goal) > self.env.resolution:
             if s == self.x0:
                 children = [
-                    i for i in self.CLOSED if getDist(s, i) <= self.env.resolution * np.sqrt(3)
+                    i for i in self.CLOSED if get_dist(s, i) <= self.env.resolution * np.sqrt(3)
                 ]
             else:
                 children = list(self.CHILDREN[s])
@@ -272,4 +272,4 @@ class Anytime_Dstar(object):
 
 if __name__ == "__main__":
     AD = Anytime_Dstar(resolution=1)
-    AD.Main()
+    AD.main()

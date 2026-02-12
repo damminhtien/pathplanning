@@ -34,7 +34,7 @@ class LifelongPlanningAstar:
                 self.g[(i, j)] = float("inf")
 
         self.rhs[self.s_start] = 0
-        self.U[self.s_start] = self.CalculateKey(self.s_start)
+        self.U[self.s_start] = self.calculate_key(self.s_start)
         self.visited = set()
         self.count = 0
 
@@ -43,7 +43,7 @@ class LifelongPlanningAstar:
     def run(self):
         self.Plot.plot_grid("Lifelong Planning A*")
 
-        self.ComputeShortestPath()
+        self.compute_shortest_path()
         self.plot_path(self.extract_path())
         self.fig.canvas.mpl_connect("button_press_event", self.on_press)
 
@@ -64,14 +64,14 @@ class LifelongPlanningAstar:
                 self.obs.add((x, y))
             else:
                 self.obs.remove((x, y))
-                self.UpdateVertex((x, y))
+                self.update_vertex((x, y))
 
             self.Plot.update_obs(self.obs)
 
             for s_n in self.get_neighbor((x, y)):
-                self.UpdateVertex(s_n)
+                self.update_vertex(s_n)
 
-            self.ComputeShortestPath()
+            self.compute_shortest_path()
 
             plt.cla()
             self.Plot.plot_grid("Lifelong Planning A*")
@@ -79,11 +79,14 @@ class LifelongPlanningAstar:
             self.plot_path(self.extract_path())
             self.fig.canvas.draw_idle()
 
-    def ComputeShortestPath(self):
+    def compute_shortest_path(self):
         while True:
-            s, v = self.TopKey()
+            s, v = self.top_key()
 
-            if v >= self.CalculateKey(self.s_goal) and self.rhs[self.s_goal] == self.g[self.s_goal]:
+            if (
+                v >= self.calculate_key(self.s_goal)
+                and self.rhs[self.s_goal] == self.g[self.s_goal]
+            ):
                 break
 
             self.U.pop(s)
@@ -97,12 +100,12 @@ class LifelongPlanningAstar:
                 # Condition: # under-consistent (eg: added obstacles)
                 # So, rhs[s] increased --> rhs[s] > g[s]
                 self.g[s] = float("inf")
-                self.UpdateVertex(s)
+                self.update_vertex(s)
 
             for s_n in self.get_neighbor(s):
-                self.UpdateVertex(s_n)
+                self.update_vertex(s_n)
 
-    def UpdateVertex(self, s):
+    def update_vertex(self, s):
         """
         update the status and the current cost to come of state s.
         :param s: state s
@@ -119,9 +122,9 @@ class LifelongPlanningAstar:
         if self.g[s] != self.rhs[s]:
             # Condition: current cost to come is different to that of last time
             # state s should be added into OPEN set (set U)
-            self.U[s] = self.CalculateKey(s)
+            self.U[s] = self.calculate_key(s)
 
-    def TopKey(self):
+    def top_key(self):
         """
         :return: return the min key and its value.
         """
@@ -130,7 +133,7 @@ class LifelongPlanningAstar:
 
         return s, self.U[s]
 
-    def CalculateKey(self, s):
+    def calculate_key(self, s):
 
         return [min(self.g[s], self.rhs[s]) + self.h(s), min(self.g[s], self.rhs[s])]
 
@@ -205,7 +208,7 @@ class LifelongPlanningAstar:
         path = [self.s_goal]
         s = self.s_goal
 
-        for k in range(100):
+        for _k in range(100):
             g_list = {}
             for x in self.get_neighbor(s):
                 if not self.is_collision(s, x):
