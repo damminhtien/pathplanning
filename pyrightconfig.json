@@ -1,7 +1,14 @@
 {
   "include": [
-    "pathplanning",
-    "examples"
+    "pathplanning/core",
+    "pathplanning/env",
+    "pathplanning/viz",
+    "pathplanning/sampling_based_planning/rrt_3d/rrt.py",
+    "pathplanning/sampling_based_planning/rrt_3d/rrt_star.py",
+    "pathplanning/sampling_based_planning/rrt_3d/rrt_3d.py",
+    "pathplanning/sampling_based_planning/rrt_3d/rrt_star_3d.py",
+    "pathplanning/sampling_based_planning/rrt_3d/plot_util_3d.py",
+    "examples/worlds/demo_3d_world.py"
   ],
   "exclude": [
     "tests",
@@ -15,10 +22,9 @@
   "strict": [
     "pathplanning/core",
     "pathplanning/env",
-    "pathplanning/sampling_based_planning",
-    "pathplanning/registry.py",
-    "pathplanning/api.py",
-    "pathplanning/__init__.py"
+    "pathplanning/sampling_based_planning/rrt_3d/rrt.py",
+    "pathplanning/sampling_based_planning/rrt_3d/rrt_star.py",
+    "pathplanning/api.py"
   ],
   "reportMissingImports": "warning",
   "reportMissingTypeStubs": "warning"
