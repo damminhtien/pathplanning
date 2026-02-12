@@ -15,6 +15,7 @@ class AlgorithmSpec:
     family: str
     dimension: str
     module: str
+    entrypoint: str
     status: str
     reason: str | None = None
 
@@ -25,6 +26,7 @@ _ALGORITHMS: list[AlgorithmSpec] = [
         "sampling",
         "3d",
         "pathplanning.planners.sampling.rrt",
+        "RrtPlanner",
         SUPPORTED,
     ),
     AlgorithmSpec(
@@ -32,31 +34,26 @@ _ALGORITHMS: list[AlgorithmSpec] = [
         "sampling",
         "3d",
         "pathplanning.planners.sampling.rrt_star",
+        "RrtStarPlanner",
         SUPPORTED,
     ),
 ]
 
 
-_EXPECTED_ENTRYPOINTS: dict[str, str] = {
-    "sampling3d.rrt": "RrtPlanner",
-    "sampling3d.rrt_star": "RrtStarPlanner",
-}
-
 _INDEX: dict[str, AlgorithmSpec] = {spec.algorithm_id: spec for spec in _ALGORITHMS}
 _SUPPORTED_IDS = {spec.algorithm_id for spec in _ALGORITHMS if spec.status == SUPPORTED}
-_MISSING_ENTRYPOINTS = sorted(_SUPPORTED_IDS - set(_EXPECTED_ENTRYPOINTS))
-_EXTRA_ENTRYPOINTS = sorted(set(_EXPECTED_ENTRYPOINTS) - _SUPPORTED_IDS)
 _INVALID_ENTRYPOINT_NAMES = sorted(
-    algorithm_id
-    for algorithm_id, entrypoint in _EXPECTED_ENTRYPOINTS.items()
-    if not entrypoint or not entrypoint[0].isupper()
+    spec.algorithm_id for spec in _ALGORITHMS if not spec.entrypoint or not spec.entrypoint[0].isupper()
+)
+_INVALID_MODULE_PATHS = sorted(
+    spec.algorithm_id for spec in _ALGORITHMS if not spec.module.startswith("pathplanning.planners.")
 )
 
-if _MISSING_ENTRYPOINTS or _EXTRA_ENTRYPOINTS or _INVALID_ENTRYPOINT_NAMES:
+if _INVALID_ENTRYPOINT_NAMES or _INVALID_MODULE_PATHS:
     raise RuntimeError(
         "Registry entrypoint contract mismatch. "
-        f"missing={_MISSING_ENTRYPOINTS}, extra={_EXTRA_ENTRYPOINTS}, "
-        f"invalid_entrypoint_names={_INVALID_ENTRYPOINT_NAMES}"
+        f"invalid_entrypoint_names={_INVALID_ENTRYPOINT_NAMES}, "
+        f"invalid_module_paths={_INVALID_MODULE_PATHS}"
     )
 
 
@@ -72,9 +69,10 @@ def list_supported_algorithms() -> list[AlgorithmSpec]:
 
 def expected_entrypoint_for_algorithm(algorithm_id: str) -> str:
     """Return the expected callable/class symbol name for one supported algorithm id."""
-    if algorithm_id not in _EXPECTED_ENTRYPOINTS:
+    spec = get_algorithm(algorithm_id)
+    if spec.status != SUPPORTED:
         raise KeyError(f"No expected entrypoint contract defined for algorithm id: {algorithm_id}")
-    return _EXPECTED_ENTRYPOINTS[algorithm_id]
+    return spec.entrypoint
 
 
 def get_algorithm(algorithm_id: str) -> AlgorithmSpec:

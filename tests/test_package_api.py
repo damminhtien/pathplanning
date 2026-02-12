@@ -8,9 +8,11 @@ import pathplanning as pp
 
 
 def test_package_import_and_symbols() -> None:
-    assert pp.Search2D is not None
-    assert pp.Planner is not None
-    assert pp.PlanConfig is not None
+    assert pp.run_planner is not None
+    assert pp.plan is not None
+    assert pp.RrtParams is not None
+    assert pp.Result is not None
+    assert pp.Stats is not None
     assert pp.list_supported_algorithms()
 
 
