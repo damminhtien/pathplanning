@@ -37,22 +37,35 @@ def _rotation_matrix_zyx_deg(z_deg: float, y_deg: float, x_deg: float) -> NDArra
     return rz @ ry @ rx
 
 
+def _vec3(x: list[float]) -> NDArray[np.float64]:
+    """Return a float64 3D vector for typed obstacle constructors."""
+    return np.asarray(x, dtype=float)
+
+
 def build_demo_3d_world() -> tuple[ContinuousSpace3D, NDArray[np.float64], NDArray[np.float64]]:
     """Build the legacy demo scenario on top of reusable ``ContinuousSpace3D``."""
     aabbs = [
-        AABB([4.0, 12.0, 0.0], [5.0, 20.0, 5.0]),
-        AABB([5.5, 12.0, 0.0], [10.0, 13.0, 5.0]),
-        AABB([10.0, 12.0, 0.0], [14.0, 13.0, 5.0]),
-        AABB([10.0, 9.0, 0.0], [20.0, 10.0, 5.0]),
-        AABB([9.0, 6.0, 0.0], [10.0, 10.0, 5.0]),
+        AABB(_vec3([4.0, 12.0, 0.0]), _vec3([5.0, 20.0, 5.0])),
+        AABB(_vec3([5.5, 12.0, 0.0]), _vec3([10.0, 13.0, 5.0])),
+        AABB(_vec3([10.0, 12.0, 0.0]), _vec3([14.0, 13.0, 5.0])),
+        AABB(_vec3([10.0, 9.0, 0.0]), _vec3([20.0, 10.0, 5.0])),
+        AABB(_vec3([9.0, 6.0, 0.0]), _vec3([10.0, 10.0, 5.0])),
     ]
     spheres = [
-        Sphere([2.0, 6.0, 2.5], 1.0),
-        Sphere([14.0, 14.0, 2.5], 2.0),
+        Sphere(_vec3([2.0, 6.0, 2.5]), 1.0),
+        Sphere(_vec3([14.0, 14.0, 2.5]), 2.0),
     ]
     obbs = [
-        OBB([5.0, 7.0, 2.5], [0.5, 2.0, 2.5], _rotation_matrix_zyx_deg(135.0, 0.0, 0.0)),
-        OBB([12.0, 4.0, 2.5], [0.5, 2.0, 2.5], _rotation_matrix_zyx_deg(45.0, 0.0, 0.0)),
+        OBB(
+            _vec3([5.0, 7.0, 2.5]),
+            _vec3([0.5, 2.0, 2.5]),
+            _rotation_matrix_zyx_deg(135.0, 0.0, 0.0),
+        ),
+        OBB(
+            _vec3([12.0, 4.0, 2.5]),
+            _vec3([0.5, 2.0, 2.5]),
+            _rotation_matrix_zyx_deg(45.0, 0.0, 0.0),
+        ),
     ]
 
     start = np.array([2.0, 2.0, 2.0], dtype=float)
@@ -60,9 +73,9 @@ def build_demo_3d_world() -> tuple[ContinuousSpace3D, NDArray[np.float64], NDArr
     space = ContinuousSpace3D(
         lower_bound=np.array([0.0, 0.0, 0.0], dtype=float),
         upper_bound=np.array([20.0, 20.0, 5.0], dtype=float),
-        aabbs=aabbs,
-        spheres=spheres,
-        obbs=obbs,
+        aabbs=tuple(aabbs),
+        spheres=tuple(spheres),
+        obbs=tuple(obbs),
         goal=goal,
         goal_tolerance=0.0,
     )
