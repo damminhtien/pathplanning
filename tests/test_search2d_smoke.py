@@ -3,25 +3,21 @@
 from __future__ import annotations
 
 from pathplanning.search2d import PlanConfig, Planner, Search2D
+from pathplanning.spaces.grid2d import Grid2DSearchSpace
 
 
 def test_search2d_all_planners_smoke() -> None:
     planner = Search2D()
-    cfg = PlanConfig(s_start=(5, 5), s_goal=(45, 25))
+    cfg = PlanConfig(start=(5, 5), goal=(45, 25), graph=Grid2DSearchSpace())
     expected = {
-        Planner.BREADTH_FIRST_SEARCH,
-        Planner.DEPTH_FIRST_SEARCH,
-        Planner.BEST_FIRST_SEARCH,
+        Planner.BFS,
+        Planner.DFS,
+        Planner.GREEDY_BEST_FIRST,
         Planner.DIJKSTRA,
         Planner.ASTAR,
         Planner.BIDIRECTIONAL_ASTAR,
-        Planner.ANYTIME_DSTAR,
-        Planner.ANYTIME_REPAIRING_ASTAR,
-        Planner.LIFELONG_PLANNING_ASTAR,
-        Planner.REALTIME_ADAPTIVE_ASTAR,
-        Planner.LEARNING_REALTIME_ASTAR,
-        Planner.DSTAR_LITE,
-        Planner.DSTAR,
+        Planner.WEIGHTED_ASTAR,
+        Planner.ANYTIME_ASTAR,
     }
 
     for algo in expected:
@@ -29,4 +25,4 @@ def test_search2d_all_planners_smoke() -> None:
         assert result.path is not None, f"{algo.value} returned no path"
         assert len(result.path) > 0, f"{algo.value} returned empty path"
         assert result.cost is not None
-        assert result.nodes_expanded is not None
+        assert result.nodes_expanded > 0
