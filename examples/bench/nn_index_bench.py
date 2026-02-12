@@ -6,7 +6,7 @@ import time
 
 import numpy as np
 
-from pathplanning.core.nn_index import KDTreeIndex, NaiveIndex
+from pathplanning.nn.index import KDTreeIndex, NaiveIndex
 
 
 def _bench(index, queries, repeats: int) -> float:
