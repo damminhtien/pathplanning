@@ -37,7 +37,7 @@ def get_dist(pos1: Sequence[float], pos2: Sequence[float]) -> float:
 
 def visualization(initparams: Any) -> None:
     """Lazy wrapper around plot visualization to avoid import-time side effects."""
-    from .plot_util_3d import visualization as _visualization
+    from pathplanning.viz.sampling3d_plotting import visualization as _visualization
 
     return _visualization(initparams)
 

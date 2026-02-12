@@ -15,7 +15,7 @@ import copy
 import numpy as np
 
 from pathplanning.spaces.environment3d import Environment3D
-from .utils_3d import get_dist, is_collide, is_in_bound, is_inside, sample_free
+from pathplanning.utils.sampling3d import get_dist, is_collide, is_in_bound, is_inside, sample_free
 
 def create_unit_sphere(radius: float = 1.0) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Create a sampled sphere mesh in Cartesian coordinates."""

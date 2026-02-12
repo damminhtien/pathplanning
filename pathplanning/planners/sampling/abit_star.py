@@ -9,7 +9,7 @@ Reference:
 import numpy as np
 
 from pathplanning.spaces.environment3d import Environment3D
-from .utils_3d import get_dist
+from pathplanning.utils.sampling3d import get_dist
 
 
 class AbitStar:
