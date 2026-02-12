@@ -8,7 +8,7 @@ Status values:
 
 ## Sampling 3D
 
-| Algorithm ID          | Module                                                  | Status    |
-| --------------------- | ------------------------------------------------------- | --------- |
-| `sampling3d.rrt`      | `pathplanning.sampling_based_planning.rrt_3d.rrt`      | supported |
-| `sampling3d.rrt_star` | `pathplanning.sampling_based_planning.rrt_3d.rrt_star` | supported |
+| Algorithm ID          | Module                                    | Entrypoint       | Status    |
+| --------------------- | ----------------------------------------- | ---------------- | --------- |
+| `sampling3d.rrt`      | `pathplanning.planners.sampling.rrt`      | `RrtPlanner`     | supported |
+| `sampling3d.rrt_star` | `pathplanning.planners.sampling.rrt_star` | `RrtStarPlanner` | supported |
