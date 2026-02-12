@@ -13,7 +13,7 @@ from typing import Any
 import numpy as np
 
 from pathplanning.spaces.environment3d import Environment3D
-from .utils_3d import (
+from pathplanning.utils.sampling3d import (
     get_dist,
     is_collide,
     is_inside,

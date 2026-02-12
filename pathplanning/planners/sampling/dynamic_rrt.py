@@ -10,7 +10,7 @@ import numpy as np
 from numpy.typing import NDArray
 from scipy.spatial import cKDTree
 
-from . import utils_3d
+from pathplanning.utils import sampling3d as utils_3d
 from pathplanning.spaces.environment3d import Environment3D
 
 Node: TypeAlias = tuple[float, float, float]

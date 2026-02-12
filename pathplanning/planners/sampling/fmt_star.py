@@ -16,7 +16,7 @@ import numpy as np
 from pathplanning.utils.priority_queue import MinHeapPriorityQueue
 
 from pathplanning.spaces.environment3d import Environment3D
-from .utils_3d import get_dist, is_collide, sample_free
+from pathplanning.utils.sampling3d import get_dist, is_collide, sample_free
 
 
 class FmtStar:

@@ -7,11 +7,8 @@ import math
 import numpy as np
 from pathplanning.spaces.grid2d import Grid2DSamplingSpace
 
-try:
-    from . import plotting, utils
-except ImportError:  # pragma: no cover - script execution fallback
-    import plotting
-    import utils
+from pathplanning.utils import sampling2d as utils
+from pathplanning.viz import sampling2d_plotting as plotting
 
 
 class Node:
