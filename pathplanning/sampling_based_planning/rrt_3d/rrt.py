@@ -15,11 +15,11 @@ from pathplanning.core.contracts import (
     ConfigurationSpace,
     State,
 )
-from pathplanning.core.nn_index import NaiveNnIndex, NearestNeighborIndex
 from pathplanning.core.params import RrtParams
 from pathplanning.core.results import PlanResult, StopReason
-from pathplanning.core.tree import ArrayTree
 from pathplanning.core.types import Mat
+from pathplanning.data_structures.tree_array import ArrayTree
+from pathplanning.nn.index import NaiveNnIndex, NearestNeighborIndex
 
 GoalPredicate: TypeAlias = Callable[[State], bool]
 GoalRegion: TypeAlias = GoalPredicate | tuple[Sequence[float], float] | Sequence[float] | State

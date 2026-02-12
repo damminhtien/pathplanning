@@ -1,0 +1,1 @@
+"""Benchmarking namespace placeholder."""

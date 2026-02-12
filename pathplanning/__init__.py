@@ -1,4 +1,7 @@
-"""PathPlanning reusable package API."""
+"""PathPlanning reusable package API.
+
+Keep root imports lightweight and side-effect free.
+"""
 
 from .api import load_algorithm_module
 from .registry import (
