@@ -71,8 +71,7 @@ class Plotting:
 
         for iteration_index, path_segment in enumerate(paths):
             color = colors[iteration_index % len(colors)]
-            self.plot_visited(
-                visited_sets[iteration_index], color=color, pause_time=0.2)
+            self.plot_visited(visited_sets[iteration_index], color=color, pause_time=0.2)
             self.plot_path(path_segment, pause_time=0.2)
             combined_path.extend(path_segment)
 
@@ -148,8 +147,7 @@ class Plotting:
             return
 
         ax = plt.gca()
-        filtered_nodes = [
-            p for p in visited_nodes if p not in {self.start, self.goal}]
+        filtered_nodes = [p for p in visited_nodes if p not in {self.start, self.goal}]
         if not filtered_nodes:
             return
 
@@ -183,8 +181,7 @@ class Plotting:
 
         ax = plt.gca()
         px, py = zip(*path)
-        ax.plot(px, py, linewidth=3,
-                color=color if use_custom_color else self._DEFAULT_PATH_COLOR)
+        ax.plot(px, py, linewidth=3, color=color if use_custom_color else self._DEFAULT_PATH_COLOR)
 
         # Redraw start and goal
         ax.plot(self.start[0], self.start[1], "bs")
@@ -204,12 +201,10 @@ class Plotting:
         for index in range(max_length):
             if index < len(forward_nodes):
                 fx, fy = forward_nodes[index]
-                ax.plot(fx, fy, marker="o", linestyle="None",
-                        color=self._DEFAULT_BI_FORWARD_COLOR)
+                ax.plot(fx, fy, marker="o", linestyle="None", color=self._DEFAULT_BI_FORWARD_COLOR)
             if index < len(backward_nodes):
                 bx, by = backward_nodes[index]
-                ax.plot(bx, by, marker="o", linestyle="None",
-                        color=self._DEFAULT_BI_BACKWARD_COLOR)
+                ax.plot(bx, by, marker="o", linestyle="None", color=self._DEFAULT_BI_BACKWARD_COLOR)
 
             if index % 10 == 0:
                 plt.pause(0.001)
@@ -222,8 +217,7 @@ class Plotting:
     @staticmethod
     def color_list_anytime() -> Tuple[List[str], List[str]]:
         """(visited_colors, path_colors) for multi-iteration plots (ARA*, etc.)."""
-        visited_colors = ["silver", "wheat",
-                          "lightskyblue", "royalblue", "slategray"]
+        visited_colors = ["silver", "wheat", "lightskyblue", "royalblue", "slategray"]
         path_colors = ["gray", "orange", "deepskyblue", "red", "m"]
         return visited_colors, path_colors
 

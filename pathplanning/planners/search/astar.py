@@ -3,17 +3,15 @@ A_star 2D
 @author: damminhtien
 """
 
-import math
 import heapq
-
-from pathplanning.viz import search2d_plotting as plotting
+import math
 
 from pathplanning.spaces.grid2d import Grid2DSearchSpace
+from pathplanning.viz import search2d_plotting as plotting
 
 
 class Astar:
-    """Astar set the cost + heuristics as the priority
-    """
+    """Astar set the cost + heuristics as the priority"""
 
     def __init__(self, s_start, s_goal, heuristic_type):
         self.s_start = s_start
@@ -39,8 +37,7 @@ class Astar:
         self.PARENT[self.s_start] = self.s_start
         self.g[self.s_start] = 0
         self.g[self.s_goal] = math.inf
-        heapq.heappush(self.OPEN,
-                       (self.f_value(self.s_start), self.s_start))
+        heapq.heappush(self.OPEN, (self.f_value(self.s_start), self.s_start))
 
         while self.OPEN:
             _, s = heapq.heappop(self.OPEN)
@@ -92,8 +89,7 @@ class Astar:
         PARENT = {s_start: s_start}
         OPEN = []
         CLOSED = []
-        heapq.heappush(OPEN,
-                       (g[s_start] + e * self.heuristic(s_start), s_start))
+        heapq.heappush(OPEN, (g[s_start] + e * self.heuristic(s_start), s_start))
 
         while OPEN:
             _, s = heapq.heappop(OPEN)
@@ -111,8 +107,7 @@ class Astar:
                 if new_cost < g[s_n]:  # conditions for updating Cost
                     g[s_n] = new_cost
                     PARENT[s_n] = s
-                    heapq.heappush(
-                        OPEN, (g[s_n] + e * self.heuristic(s_n), s_n))
+                    heapq.heappush(OPEN, (g[s_n] + e * self.heuristic(s_n), s_n))
 
         return self.extract_path(PARENT), CLOSED
 
@@ -220,5 +215,5 @@ def main():
     # plot.animate_ara_star(path, visited, "Repeated A*")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

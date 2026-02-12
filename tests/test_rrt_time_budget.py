@@ -6,9 +6,9 @@ import numpy as np
 
 from pathplanning.core.params import RrtParams
 from pathplanning.core.results import StopReason
-from pathplanning.spaces.continuous_3d import AABB, ContinuousSpace3D
 from pathplanning.planners.sampling.rrt import RrtPlanner
 from pathplanning.planners.sampling.rrt_star import RrtStarPlanner
+from pathplanning.spaces.continuous_3d import AABB, ContinuousSpace3D
 
 
 def _build_space() -> ContinuousSpace3D:

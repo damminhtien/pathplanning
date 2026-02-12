@@ -3,16 +3,16 @@ Best-First Searching
 @author: damminhtien
 """
 
-import math
 import heapq
+import math
 
 from pathplanning.planners.search.astar import Astar
 from pathplanning.viz import search2d_plotting as plotting
 
 
 class BestFirstSearch(Astar):
-    """BestFirst set the heuristics as the priority 
-    """
+    """BestFirst set the heuristics as the priority"""
+
     def searching(self):
         """
         Breadth-first Searching.
@@ -22,8 +22,7 @@ class BestFirstSearch(Astar):
         self.PARENT[self.s_start] = self.s_start
         self.g[self.s_start] = 0
         self.g[self.s_goal] = math.inf
-        heapq.heappush(self.OPEN,
-                       (self.heuristic(self.s_start), self.s_start))
+        heapq.heappush(self.OPEN, (self.heuristic(self.s_start), self.s_start))
 
         while self.OPEN:
             _, s = heapq.heappop(self.OPEN)
@@ -42,7 +41,7 @@ class BestFirstSearch(Astar):
                     self.g[s_n] = new_cost
                     self.PARENT[s_n] = s
 
-                    # best first set the heuristics as the priority 
+                    # best first set the heuristics as the priority
                     heapq.heappush(self.OPEN, (self.heuristic(s_n), s_n))
 
         return self.extract_path(self.PARENT), self.CLOSED
@@ -52,12 +51,12 @@ def main():
     s_start = (5, 5)
     s_goal = (45, 25)
 
-    BF = BestFirstSearch(s_start, s_goal, 'euclidean')
+    BF = BestFirstSearch(s_start, s_goal, "euclidean")
     plot = plotting.Plotting(s_start, s_goal)
 
     path, visited = BF.searching()
     plot.animate(path, visited, "Best-first Searching")  # animation
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

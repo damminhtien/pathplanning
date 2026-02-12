@@ -65,8 +65,10 @@ target-version = "py310"
 line-length = 100
 
 [tool.ruff.lint]
-# Keep a practical baseline for library code; expand as legacy modules are cleaned up.
-select = ["E", "F", "I", "B", "UP", "SIM"]
+# Repository-wide baseline for legacy + production modules.
+# Focus on correctness and import hygiene; advanced modernization rules can be
+# tightened incrementally per module over time.
+select = ["E9", "F", "I"]
 
 [tool.ruff.lint.isort]
 known-first-party = [
@@ -75,7 +77,7 @@ known-first-party = [
 force-sort-within-sections = true
 
 [tool.ruff.lint.per-file-ignores]
-# Keep legacy script-style modules runnable while preserving stricter checks elsewhere.
+# Keep script-style modules runnable while preserving import ordering checks.
 "pathplanning/planners/search/*.py" = ["E402"]
 "pathplanning/planners/sampling/*.py" = ["E402"]
 

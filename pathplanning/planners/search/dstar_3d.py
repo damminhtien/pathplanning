@@ -1,36 +1,60 @@
 import numpy as np
+
 from pathplanning.viz import lazy_import
 
 plt = lazy_import("matplotlib.pyplot")
 
-import os
-import sys
 from collections import defaultdict
 
 from pathplanning.spaces.environment3d import env
-from pathplanning.planners.search import astar_3d
-from .utils_3d import StateSpace, getDist, getNearest, getRay, isinbound, isinball, isCollide, children, cost, \
-    initcost
+
 from .plot_util_3d import visualization
+from .utils_3d import (
+    StateSpace,
+    children,
+    cost,
+    getNearest,
+)
 
 
 class D_star(object):
     def __init__(self, resolution=1):
-        self.Alldirec = {(1, 0, 0): 1, (0, 1, 0): 1, (0, 0, 1): 1, \
-                        (-1, 0, 0): 1, (0, -1, 0): 1, (0, 0, -1): 1, \
-                        (1, 1, 0): np.sqrt(2), (1, 0, 1): np.sqrt(2), (0, 1, 1): np.sqrt(2), \
-                        (-1, -1, 0): np.sqrt(2), (-1, 0, -1): np.sqrt(2), (0, -1, -1): np.sqrt(2), \
-                        (1, -1, 0): np.sqrt(2), (-1, 1, 0): np.sqrt(2), (1, 0, -1): np.sqrt(2), \
-                        (-1, 0, 1): np.sqrt(2), (0, 1, -1): np.sqrt(2), (0, -1, 1): np.sqrt(2), \
-                        (1, 1, 1): np.sqrt(3), (-1, -1, -1) : np.sqrt(3), \
-                        (1, -1, -1): np.sqrt(3), (-1, 1, -1): np.sqrt(3), (-1, -1, 1): np.sqrt(3), \
-                        (1, 1, -1): np.sqrt(3), (1, -1, 1): np.sqrt(3), (-1, 1, 1): np.sqrt(3)}
-        self.settings = 'CollisionChecking'
+        self.Alldirec = {
+            (1, 0, 0): 1,
+            (0, 1, 0): 1,
+            (0, 0, 1): 1,
+            (-1, 0, 0): 1,
+            (0, -1, 0): 1,
+            (0, 0, -1): 1,
+            (1, 1, 0): np.sqrt(2),
+            (1, 0, 1): np.sqrt(2),
+            (0, 1, 1): np.sqrt(2),
+            (-1, -1, 0): np.sqrt(2),
+            (-1, 0, -1): np.sqrt(2),
+            (0, -1, -1): np.sqrt(2),
+            (1, -1, 0): np.sqrt(2),
+            (-1, 1, 0): np.sqrt(2),
+            (1, 0, -1): np.sqrt(2),
+            (-1, 0, 1): np.sqrt(2),
+            (0, 1, -1): np.sqrt(2),
+            (0, -1, 1): np.sqrt(2),
+            (1, 1, 1): np.sqrt(3),
+            (-1, -1, -1): np.sqrt(3),
+            (1, -1, -1): np.sqrt(3),
+            (-1, 1, -1): np.sqrt(3),
+            (-1, -1, 1): np.sqrt(3),
+            (1, 1, -1): np.sqrt(3),
+            (1, -1, 1): np.sqrt(3),
+            (-1, 1, 1): np.sqrt(3),
+        }
+        self.settings = "CollisionChecking"
         self.env = env(resolution=resolution)
         self.X = StateSpace(self.env)
         self.x0, self.xt = getNearest(self.X, self.env.start), getNearest(self.X, self.env.goal)
         # self.x0, self.xt = tuple(self.env.start), tuple(self.env.goal)
-        self.b = defaultdict(lambda: defaultdict(dict))  # back pointers every state has one except xt.
+        self.b = defaultdict(
+            lambda: defaultdict(dict)
+        )  # back pointers every state has one except xt.
         self.OPEN = {}  # OPEN list, here use a hashmap implementation. hash is point, key is value
         self.h = {}  # estimate from a point to the end point
         self.tag = {}  # set all states to new
@@ -45,7 +69,7 @@ class D_star(object):
         if y not in self.h:
             self.h[y] = 0
         if y not in self.tag:
-            self.tag[y] = 'New'
+            self.tag[y] = "New"
 
     def get_kmin(self):
         # get the minimum of the k val in OPEN
@@ -68,20 +92,20 @@ class D_star(object):
     def insert(self, x, h_new):
         # inserting a key and value into OPEN list (s, kx)
         # depending on following situations
-        if self.tag[x] == 'New':
+        if self.tag[x] == "New":
             kx = h_new
-        if self.tag[x] == 'Open':
+        if self.tag[x] == "Open":
             kx = min(self.OPEN[x], h_new)
-        if self.tag[x] == 'Closed':
+        if self.tag[x] == "Closed":
             kx = min(self.h[x], h_new)
         self.OPEN[x] = kx
-        self.h[x], self.tag[x] = h_new, 'Open'
+        self.h[x], self.tag[x] = h_new, "Open"
 
     def process_state(self):
-        # main function of the D star algorithm, perform the process state 
+        # main function of the D star algorithm, perform the process state
         # around the old path when needed.
         x, kold = self.min_state()
-        self.tag[x] = 'Closed'
+        self.tag[x] = "Closed"
         self.V.add(x)
         if x is None:
             return -1
@@ -99,32 +123,37 @@ class D_star(object):
                 # check y
                 self.checkState(y)
                 bb = self.h[x] + cost(self, x, y)
-                if self.tag[y] == 'New' or \
-                        (self.b[y] == x and self.h[y] != bb) or \
-                        (self.b[y] != x and self.h[y] > bb):
+                if (
+                    self.tag[y] == "New"
+                    or (self.b[y] == x and self.h[y] != bb)
+                    or (self.b[y] != x and self.h[y] > bb)
+                ):
                     self.b[y] = x
                     self.insert(y, bb)
         else:
             for y in children(self, x):
-                 # check y
+                # check y
                 self.checkState(y)
                 bb = self.h[x] + cost(self, x, y)
-                if self.tag[y] == 'New' or \
-                        (self.b[y] == x and self.h[y] != bb):
+                if self.tag[y] == "New" or (self.b[y] == x and self.h[y] != bb):
                     self.b[y] = x
                     self.insert(y, bb)
                 else:
                     if self.b[y] != x and self.h[y] > bb:
                         self.insert(x, self.h[x])
                     else:
-                        if self.b[y] != x and self.h[y] > bb and \
-                                self.tag[y] == 'Closed' and self.h[y] == kold:
+                        if (
+                            self.b[y] != x
+                            and self.h[y] > bb
+                            and self.tag[y] == "Closed"
+                            and self.h[y] == kold
+                        ):
                             self.insert(y, self.h[y])
         return self.get_kmin()
 
     def modify_cost(self, x):
         xparent = self.b[x]
-        if self.tag[x] == 'Closed':
+        if self.tag[x] == "Closed":
             self.insert(x, self.h[xparent] + cost(self, x, xparent))
 
     def modify(self, x):
@@ -150,7 +179,7 @@ class D_star(object):
     def run(self):
         # put G (ending state) into the OPEN list
         self.OPEN[self.xt] = 0
-        self.tag[self.x0] = 'New'
+        self.tag[self.x0] = "New"
         # first run
         while True:
             # TODO: self.x0 =
@@ -167,8 +196,8 @@ class D_star(object):
         # when the environemnt changes over time
 
         for i in range(5):
-            self.env.move_block(a=[0, -0.50, 0], s=0.5, block_to_move=1, mode='translation')
-            self.env.move_block(a=[-0.25, 0, 0], s=0.5, block_to_move=0, mode='translation')
+            self.env.move_block(a=[0, -0.50, 0], s=0.5, block_to_move=1, mode="translation")
+            self.env.move_block(a=[-0.25, 0, 0], s=0.5, block_to_move=0, mode="translation")
             # travel from end to start
             s = tuple(self.env.start)
             # self.V = set()
@@ -188,6 +217,6 @@ class D_star(object):
         plt.show()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     D = D_star(1)
     D.run()

@@ -499,7 +499,8 @@ class env:
                 np.column_stack(
                     [
                         self.OBB[obb_to_move].O.T,
-                        -self.OBB[obb_to_move].O.T @ np.asarray(self.OBB[obb_to_move].P, dtype=float),
+                        -self.OBB[obb_to_move].O.T
+                        @ np.asarray(self.OBB[obb_to_move].P, dtype=float),
                     ]
                 ),
                 [translation[0], translation[1], translation[2], 1],

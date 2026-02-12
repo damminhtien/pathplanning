@@ -3,16 +3,16 @@ Dijkstra 2D
 @author: damminhtien
 """
 
-import math
 import heapq
+import math
 
 from pathplanning.planners.search.astar import Astar
 from pathplanning.viz import search2d_plotting as plotting
 
 
 class Dijkstra(Astar):
-    """Dijkstra set the cost as the priority 
-    """
+    """Dijkstra set the cost as the priority"""
+
     def searching(self):
         """
         Breadth-first Searching.
@@ -22,8 +22,7 @@ class Dijkstra(Astar):
         self.PARENT[self.s_start] = self.s_start
         self.g[self.s_start] = 0
         self.g[self.s_goal] = math.inf
-        heapq.heappush(self.OPEN,
-                       (0, self.s_start))
+        heapq.heappush(self.OPEN, (0, self.s_start))
 
         while self.OPEN:
             _, s = heapq.heappop(self.OPEN)
@@ -42,23 +41,23 @@ class Dijkstra(Astar):
                     self.g[s_n] = new_cost
                     self.PARENT[s_n] = s
 
-                    # best first set the heuristics as the priority 
+                    # best first set the heuristics as the priority
                     heapq.heappush(self.OPEN, (new_cost, s_n))
 
         return self.extract_path(self.PARENT), self.CLOSED
 
 
 def main():
-    """ Main function to run Dijkstra's algorithm."""
+    """Main function to run Dijkstra's algorithm."""
     s_start = (5, 5)
     s_goal = (45, 25)
 
-    dijkstra = Dijkstra(s_start, s_goal, 'None')
+    dijkstra = Dijkstra(s_start, s_goal, "None")
     plot = plotting.Plotting(s_start, s_goal)
 
     path, visited = dijkstra.searching()
     plot.animate(path, visited, "Dijkstra's")  # animation generate
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

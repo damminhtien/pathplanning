@@ -13,16 +13,17 @@ from typing import Any
 
 import numpy as np
 
-from pathplanning.utils.priority_queue import MinHeapPriorityQueue
-
 from pathplanning.spaces.environment3d import Environment3D
+from pathplanning.utils.priority_queue import MinHeapPriorityQueue
 from pathplanning.utils.sampling3d import get_dist, is_collide, sample_free
 
 
 class FmtStar:
     """Fast Marching Tree* planner for 3D environments."""
 
-    def __init__(self, radius: float = 1, n: int = 1000, rng: np.random.Generator | None = None) -> None:
+    def __init__(
+        self, radius: float = 1, n: int = 1000, rng: np.random.Generator | None = None
+    ) -> None:
         """Initialize planner state.
 
         Args:

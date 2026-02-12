@@ -1,36 +1,59 @@
-# check paper of 
+# check paper of
 # [Likhachev2005]
 import numpy as np
+
 from pathplanning.viz import lazy_import
 
 plt = lazy_import("matplotlib.pyplot")
 
-import os
-import sys
 from collections import defaultdict
 
 from pathplanning.spaces.environment3d import env
-from .utils_3d import getDist, heuristic_fun, getNearest, isinbound, isinobb, \
-    cost, children, StateSpace
-from .plot_util_3d import visualization
 from pathplanning.utils import priority_queue as queue
-import time
+
+from .plot_util_3d import visualization
+from .utils_3d import (
+    children,
+    cost,
+    getDist,
+    heuristic_fun,
+    isinbound,
+    isinobb,
+)
 
 
 class Anytime_Dstar(object):
-
     def __init__(self, resolution=1):
-        self.Alldirec = {(1, 0, 0): 1, (0, 1, 0): 1, (0, 0, 1): 1, \
-                         (-1, 0, 0): 1, (0, -1, 0): 1, (0, 0, -1): 1, \
-                         (1, 1, 0): np.sqrt(2), (1, 0, 1): np.sqrt(2), (0, 1, 1): np.sqrt(2), \
-                         (-1, -1, 0): np.sqrt(2), (-1, 0, -1): np.sqrt(2), (0, -1, -1): np.sqrt(2), \
-                         (1, -1, 0): np.sqrt(2), (-1, 1, 0): np.sqrt(2), (1, 0, -1): np.sqrt(2), \
-                         (-1, 0, 1): np.sqrt(2), (0, 1, -1): np.sqrt(2), (0, -1, 1): np.sqrt(2), \
-                         (1, 1, 1): np.sqrt(3), (-1, -1, -1): np.sqrt(3), \
-                         (1, -1, -1): np.sqrt(3), (-1, 1, -1): np.sqrt(3), (-1, -1, 1): np.sqrt(3), \
-                         (1, 1, -1): np.sqrt(3), (1, -1, 1): np.sqrt(3), (-1, 1, 1): np.sqrt(3)}
+        self.Alldirec = {
+            (1, 0, 0): 1,
+            (0, 1, 0): 1,
+            (0, 0, 1): 1,
+            (-1, 0, 0): 1,
+            (0, -1, 0): 1,
+            (0, 0, -1): 1,
+            (1, 1, 0): np.sqrt(2),
+            (1, 0, 1): np.sqrt(2),
+            (0, 1, 1): np.sqrt(2),
+            (-1, -1, 0): np.sqrt(2),
+            (-1, 0, -1): np.sqrt(2),
+            (0, -1, -1): np.sqrt(2),
+            (1, -1, 0): np.sqrt(2),
+            (-1, 1, 0): np.sqrt(2),
+            (1, 0, -1): np.sqrt(2),
+            (-1, 0, 1): np.sqrt(2),
+            (0, 1, -1): np.sqrt(2),
+            (0, -1, 1): np.sqrt(2),
+            (1, 1, 1): np.sqrt(3),
+            (-1, -1, -1): np.sqrt(3),
+            (1, -1, -1): np.sqrt(3),
+            (-1, 1, -1): np.sqrt(3),
+            (-1, -1, 1): np.sqrt(3),
+            (1, 1, -1): np.sqrt(3),
+            (1, -1, 1): np.sqrt(3),
+            (-1, 1, 1): np.sqrt(3),
+        }
         self.env = env(resolution=resolution)
-        self.settings = 'CollisionChecking'  # for collision checking
+        self.settings = "CollisionChecking"  # for collision checking
         self.x0, self.xt = tuple(self.env.start), tuple(self.env.goal)
         self.OPEN = queue.MinheapPQ()
         self.g = {}  # all g initialized at inf
@@ -59,9 +82,9 @@ class Anytime_Dstar(object):
     def getcost(self, xi, xj):
         # use a LUT for getting the costd
         if xi not in self.COST:
-            for (xj, xjcost) in children(self, xi, settings=1):
+            for xj, xjcost in children(self, xi, settings=1):
                 self.COST[xi][xj] = cost(self, xi, xj, xjcost)
-        # this might happen when there is a node changed. 
+        # this might happen when there is a node changed.
         if xj not in self.COST[xi]:
             self.COST[xi][xj] = cost(self, xi, xj)
         return self.COST[xi][xj]
@@ -104,9 +127,9 @@ class Anytime_Dstar(object):
         return CHANGED
 
     def isinobs(self, obs, x, mode):
-        if mode == 'obb':
+        if mode == "obb":
             return isinobb(obs, x)
-        elif mode == 'aabb':
+        elif mode == "aabb":
             return isinbound(obs, x, mode)
 
     # def updateGraphCost(self, range_changed=None, new=None, old=None, mode=False):
@@ -123,7 +146,6 @@ class Anytime_Dstar(object):
     #         self.CHILDREN[xi] = set(children(self, xi))
     #         for xj in self.CHILDREN:
     #             self.COST[xi][xj] = Cost(self, xi, xj)
-        
 
     # --------------main functions for Anytime D star
 
@@ -138,7 +160,9 @@ class Anytime_Dstar(object):
             # TODO if s is not visited before
             self.g[s] = np.inf
         if s != self.xt:
-            self.rhs[s] = min([self.getcost(s, s_p) + self.getg(s_p) for s_p in self.getchildren(s)])
+            self.rhs[s] = min(
+                [self.getcost(s, s_p) + self.getg(s_p) for s_p in self.getchildren(s)]
+            )
         self.OPEN.check_remove(s)
         if self.getg(s) != self.getrhs(s):
             if s not in self.CLOSED:
@@ -147,7 +171,10 @@ class Anytime_Dstar(object):
                 self.INCONS.add(s)
 
     def ComputeorImprovePath(self):
-        while self.OPEN.top_key() < self.key(self.x0, self.epsilon) or self.rhs[self.x0] != self.g[self.x0]:
+        while (
+            self.OPEN.top_key() < self.key(self.x0, self.epsilon)
+            or self.rhs[self.x0] != self.g[self.x0]
+        ):
             s = self.OPEN.get()
 
             if getDist(s, tuple(self.env.start)) < self.env.resolution:
@@ -183,8 +210,8 @@ class Anytime_Dstar(object):
             # change environment
             # new2,old2 = self.env.move_block(theta = [0,0,0.1*t], mode='rotation')
             # new2, old2 = self.env.move_block(a=[0, 0, -0.2], mode='translation')
-            new2, old2 = self.env.move_OBB(theta=[10*t, 0, 0], translation=[0, 0.1*t, 0])
-            mmode = 'obb' # obb or aabb
+            new2, old2 = self.env.move_OBB(theta=[10 * t, 0, 0], translation=[0, 0.1 * t, 0])
+            mmode = "obb"  # obb or aabb
             ischanged = True
             # islargelychanged = True
             self.Path = []
@@ -229,7 +256,9 @@ class Anytime_Dstar(object):
         ind = 0
         while getDist(s, s_goal) > self.env.resolution:
             if s == self.x0:
-                children = [i for i in self.CLOSED if getDist(s, i) <= self.env.resolution * np.sqrt(3)]
+                children = [
+                    i for i in self.CLOSED if getDist(s, i) <= self.env.resolution * np.sqrt(3)
+                ]
             else:
                 children = list(self.CHILDREN[s])
             snext = children[np.argmin([self.getcost(s, s_p) + self.getg(s_p) for s_p in children])]
@@ -241,6 +270,6 @@ class Anytime_Dstar(object):
         return path
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     AD = Anytime_Dstar(resolution=1)
     AD.Main()

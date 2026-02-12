@@ -28,28 +28,8 @@ jobs:
 
       - name: Run ruff checks
         run: |
-          ruff check \
-            pathplanning/api.py \
-            pathplanning/registry.py \
-            pathplanning/planners/sampling/rrt.py \
-            pathplanning/planners/sampling/rrt_star.py \
-            pathplanning/spaces/continuous_3d.py \
-            pathplanning/spaces/continuous_nd.py \
-            pathplanning/spaces/grid2d.py \
-            pathplanning/nn/index.py \
-            pathplanning/data_structures/tree_array.py \
-            examples/worlds/demo_3d_world.py
-          ruff format --check \
-            pathplanning/api.py \
-            pathplanning/registry.py \
-            pathplanning/planners/sampling/rrt.py \
-            pathplanning/planners/sampling/rrt_star.py \
-            pathplanning/spaces/continuous_3d.py \
-            pathplanning/spaces/continuous_nd.py \
-            pathplanning/spaces/grid2d.py \
-            pathplanning/nn/index.py \
-            pathplanning/data_structures/tree_array.py \
-            examples/worlds/demo_3d_world.py
+          ruff check pathplanning tests scripts examples
+          ruff format --check pathplanning tests scripts examples
 
   typecheck:
     name: typecheck (pyright)

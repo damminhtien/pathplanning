@@ -1,4 +1,5 @@
 import math
+
 import numpy as np
 
 # parameters initiation
@@ -39,9 +40,9 @@ def calc_all_paths(sx, sy, syaw, gx, gy, gyaw, maxc, step_size=STEP_SIZE):
     paths = generate_path(q0, q1, maxc)
 
     for path in paths:
-        x, y, yaw, directions = \
-            generate_local_course(path.L, path.lengths,
-                                  path.ctypes, maxc, step_size * maxc)
+        x, y, yaw, directions = generate_local_course(
+            path.L, path.lengths, path.ctypes, maxc, step_size * maxc
+        )
 
         # convert global coordinate
         path.x = [math.cos(-q0[2]) * ix + math.sin(-q0[2]) * iy + q0[0] for (ix, iy) in zip(x, y)]
@@ -89,7 +90,7 @@ def LSL(x, y, phi):
 
 def LSR(x, y, phi):
     u1, t1 = R(x + math.sin(phi), y - 1.0 - math.cos(phi))
-    u1 = u1 ** 2
+    u1 = u1**2
 
     if u1 >= 4.0:
         u = math.sqrt(u1 - 4.0)
@@ -137,13 +138,13 @@ def SLS(x, y, phi):
         xd = -y / math.tan(phi) + x
         t = xd - math.tan(phi / 2.0)
         u = phi
-        v = math.sqrt((x - xd) ** 2 + y ** 2) - math.tan(phi / 2.0)
+        v = math.sqrt((x - xd) ** 2 + y**2) - math.tan(phi / 2.0)
         return True, t, u, v
     elif y < 0.0 and 0.0 < phi < PI * 0.99:
         xd = -y / math.tan(phi) + x
         t = xd - math.tan(phi / 2.0)
         u = phi
-        v = -math.sqrt((x - xd) ** 2 + y ** 2) - math.tan(phi / 2.0)
+        v = -math.sqrt((x - xd) ** 2 + y**2) - math.tan(phi / 2.0)
         return True, t, u, v
 
     return False, 0.0, 0.0, 0.0
@@ -487,15 +488,17 @@ def generate_local_course(L, lengths, mode, maxc, step_size):
 
         while abs(pd) <= abs(l):
             ind += 1
-            px, py, pyaw, directions = \
-                interpolate(ind, pd, m, maxc, ox, oy, oyaw, px, py, pyaw, directions)
+            px, py, pyaw, directions = interpolate(
+                ind, pd, m, maxc, ox, oy, oyaw, px, py, pyaw, directions
+            )
             pd += d
 
         ll = l - pd - d  # calc remain length
 
         ind += 1
-        px, py, pyaw, directions = \
-            interpolate(ind, l, m, maxc, ox, oy, oyaw, px, py, pyaw, directions)
+        px, py, pyaw, directions = interpolate(
+            ind, l, m, maxc, ox, oy, oyaw, px, py, pyaw, directions
+        )
 
     # remove unused data
     while px[-1] == 0.0:
@@ -619,7 +622,7 @@ def calc_curvature(x, y, yaw, directions):
         ddx = 2.0 / (dn + dp) * (dxp / dp - dxn / dn)
         dy = 1.0 / (dn + dp) * (dp / dn * dyn + dn / dp * dyp)
         ddy = 2.0 / (dn + dp) * (dyp / dp - dyn / dn)
-        curvature = (ddy * dx - ddx * dy) / (dx ** 2 + dy ** 2)
+        curvature = (ddy * dx - ddx * dy) / (dx**2 + dy**2)
         d = (dn + dp) / 2.0
 
         if np.isnan(curvature):
@@ -655,17 +658,20 @@ def check_path(sx, sy, syaw, gx, gy, gyaw, maxc):
         assert abs(path.yaw[-1] - gyaw) <= 0.01
 
         # course distance check
-        d = [math.hypot(dx, dy)
-             for dx, dy in zip(np.diff(path.x[0:len(path.x) - 1]),
-                               np.diff(path.y[0:len(path.y) - 1]))]
+        d = [
+            math.hypot(dx, dy)
+            for dx, dy in zip(
+                np.diff(path.x[0 : len(path.x) - 1]), np.diff(path.y[0 : len(path.y) - 1])
+            )
+        ]
 
         for i in range(len(d)):
             assert abs(d[i] - STEP_SIZE) <= 0.001
 
 
 def main():
-    from pathplanning.viz import lazy_import
     from pathplanning.viz import geometry_draw as draw
+    from pathplanning.viz import lazy_import
 
     plt = lazy_import("matplotlib.pyplot")
 
@@ -675,8 +681,15 @@ def main():
     #           (35, -5, 30), (25, -10, -120), (15, -15, 100), (0, -10, -90)]
 
     # simulation-2
-    states = [(-3, 3, 120), (10, -7, 30), (10, 13, 30), (20, 5, -25),
-              (35, 10, 180), (32, -10, 180), (5, -12, 90)]
+    states = [
+        (-3, 3, 120),
+        (10, -7, 30),
+        (10, 13, 30),
+        (20, 5, -25),
+        (35, 10, 180),
+        (32, -10, 180),
+        (5, -12, 90),
+    ]
 
     max_c = 0.1  # max curvature
     path_x, path_y, yaw = [], [], []
@@ -689,8 +702,7 @@ def main():
         g_y = states[i + 1][1]
         g_yaw = np.deg2rad(states[i + 1][2])
 
-        path_i = calc_optimal_path(s_x, s_y, s_yaw,
-                                   g_x, g_y, g_yaw, max_c)
+        path_i = calc_optimal_path(s_x, s_y, s_yaw, g_x, g_y, g_yaw, max_c)
 
         path_x += path_i.x
         path_y += path_i.y
@@ -702,10 +714,10 @@ def main():
 
     for i in range(len(path_x)):
         plt.clf()
-        plt.plot(path_x, path_y, linewidth=1, color='gray')
+        plt.plot(path_x, path_y, linewidth=1, color="gray")
 
         for x, y, theta in states:
-            draw.Arrow(x, y, np.deg2rad(theta), 2, 'blueviolet')
+            draw.Arrow(x, y, np.deg2rad(theta), 2, "blueviolet")
 
         draw.Car(path_x[i], path_y[i], yaw[i], 1.5, 3)
 
@@ -718,5 +730,5 @@ def main():
     plt.pause(1)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

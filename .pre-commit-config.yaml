@@ -19,14 +19,14 @@ repos:
         entry: ruff format --check --diff --config pyproject.toml
         language: system
         types: [python]
-        files: ^(pathplanning/api\.py|pathplanning/registry\.py|pathplanning/planners/sampling/(rrt|rrt_star)\.py|pathplanning/spaces/(continuous_3d|continuous_nd|grid2d)\.py|pathplanning/nn/index\.py|pathplanning/data_structures/tree_array\.py|examples/worlds/demo_3d_world\.py)$
+        files: ^(pathplanning/.*\.py|tests/.*\.py|scripts/.*\.py|examples/.*\.py)$
 
       - id: ruff-check
         name: ruff check
         entry: ruff check --config pyproject.toml
         language: system
         types: [python]
-        files: ^(pathplanning/api\.py|pathplanning/registry\.py|pathplanning/planners/sampling/(rrt|rrt_star)\.py|pathplanning/spaces/(continuous_3d|continuous_nd|grid2d)\.py|pathplanning/nn/index\.py|pathplanning/data_structures/tree_array\.py|examples/worlds/demo_3d_world\.py)$
+        files: ^(pathplanning/.*\.py|tests/.*\.py|scripts/.*\.py|examples/.*\.py)$
 
       - id: pyright
         name: pyright

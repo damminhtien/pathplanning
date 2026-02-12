@@ -7,7 +7,13 @@ each algorithm, printing the results including nodes expanded, cost, path length
 
 author: damminhtien
 """
-from pathplanning.planners.search.plan2d_facade import Search2dFacade, PlanConfig, Heuristic, Planner
+
+from pathplanning.planners.search.plan2d_facade import (
+    Heuristic,
+    PlanConfig,
+    Planner,
+    Search2dFacade,
+)
 
 ALL_ALGORITHMS = [
     # Uninformed Search
@@ -30,12 +36,9 @@ ALL_ALGORITHMS = [
 
 
 def demo():
-    """ Run a demo of the Search2D planner with all algorithms. """
+    """Run a demo of the Search2D planner with all algorithms."""
     planner = Search2dFacade()
-    cfg = PlanConfig(
-        s_start=(5, 5),
-        s_goal=(45, 25),
-        heuristic=Heuristic.EUCLIDEAN)
+    cfg = PlanConfig(s_start=(5, 5), s_goal=(45, 25), heuristic=Heuristic.EUCLIDEAN)
 
     for algo in ALL_ALGORITHMS:
         res = planner.plan(algo, cfg)

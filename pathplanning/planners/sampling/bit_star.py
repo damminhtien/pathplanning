@@ -10,12 +10,11 @@ References:
     IJRR 39(5), 2020.
 """
 
-import copy
-
 import numpy as np
 
 from pathplanning.spaces.environment3d import Environment3D
 from pathplanning.utils.sampling3d import get_dist, is_collide, is_in_bound, is_inside, sample_free
+
 
 def create_unit_sphere(radius: float = 1.0) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Create a sampled sphere mesh in Cartesian coordinates."""
@@ -113,7 +112,9 @@ class BitStar:
                 if self.g_hat(vm) + cost + self.h_hat(xm) < self.g_t(self.xgoal):
                     if self.g_t(vm) + cost < self.g_t(xm):
                         if xm in self.vertices:
-                            self.edges.difference_update({(v, x) for (v, x) in self.edges if x == xm})
+                            self.edges.difference_update(
+                                {(v, x) for (v, x) in self.edges if x == xm}
+                            )
                         else:
                             self.samples.remove(xm)
                             self.vertices.add(xm)
@@ -181,8 +182,7 @@ class BitStar:
                     x[
                         np.array(
                             [
-                                not is_inside(self, state)
-                                and is_in_bound(self.env.boundary, state)
+                                not is_inside(self, state) and is_in_bound(self.env.boundary, state)
                                 for state in x
                             ]
                         )
@@ -245,7 +245,9 @@ class BitStar:
         """Prune samples/vertices/edges that cannot improve current best cost."""
         self.samples = {x for x in self.samples if self.f_hat(x) >= c}
         self.vertices.difference_update({v for v in self.vertices if self.f_hat(v) >= c})
-        self.edges.difference_update({(v, w) for (v, w) in self.edges if (self.f_hat(v) > c) or (self.f_hat(w) > c)})
+        self.edges.difference_update(
+            {(v, w) for (v, w) in self.edges if (self.f_hat(v) > c) or (self.f_hat(w) > c)}
+        )
         self.samples.update({v for v in self.vertices if self.g_t(v) == np.inf})
         self.vertices.difference_update({v for v in self.vertices if self.g_t(v) == np.inf})
 
@@ -255,7 +257,8 @@ class BitStar:
             2
             * self.eta
             * (1 + 1 / self.dimension) ** (1 / self.dimension)
-            * (self.lambda_measure(self.xf_hat(self.vertices)) / self.zeta()) ** (1 / self.dimension)
+            * (self.lambda_measure(self.xf_hat(self.vertices)) / self.zeta())
+            ** (1 / self.dimension)
             * (np.log(q) / q) ** (1 / self.dimension)
         )
 

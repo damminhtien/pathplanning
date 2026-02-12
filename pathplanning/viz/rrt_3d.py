@@ -18,9 +18,7 @@ Edge = tuple[Vec, Vec]
 EdgeCollection = Sequence[Edge] | Sequence[Sequence[Sequence[float]]] | Mat
 
 
-def create_sphere(
-    center: Vec | Sequence[float], radius: float
-) -> tuple[Mat, Mat, Mat]:
+def create_sphere(center: Vec | Sequence[float], radius: float) -> tuple[Mat, Mat, Mat]:
     center_vec = np.asarray(center, dtype=float)
     u = np.linspace(0, 2 * np.pi, 30)
     v = np.linspace(0, np.pi, 30)
@@ -210,9 +208,7 @@ def render_tree_state(
 
     draw_line(ax, parent_edges, visibility=0.75, color="g")
     draw_line(ax, path_edges, color="r")
-    ax.plot(
-        start_vec[0:1], start_vec[1:2], start_vec[2:], "go", markersize=7, markeredgecolor="k"
-    )
+    ax.plot(start_vec[0:1], start_vec[1:2], start_vec[2:], "go", markersize=7, markeredgecolor="k")
     ax.plot(goal_vec[0:1], goal_vec[1:2], goal_vec[2:], "ro", markersize=7, markeredgecolor="k")
     set_axes_equal(ax)
     make_transparent(ax)

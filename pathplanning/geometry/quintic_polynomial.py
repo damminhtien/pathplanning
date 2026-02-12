@@ -3,17 +3,16 @@ Quintic Polynomial
 """
 
 import math
+
 import numpy as np
 
 
 class QuinticPolynomial:
     def __init__(self, x0, v0, a0, x1, v1, a1, T):
-        A = np.array([[T ** 3, T ** 4, T ** 5],
-                      [3 * T ** 2, 4 * T ** 3, 5 * T ** 4],
-                      [6 * T, 12 * T ** 2, 20 * T ** 3]])
-        b = np.array([x1 - x0 - v0 * T - a0 * T ** 2 / 2,
-                      v1 - v0 - a0 * T,
-                      a1 - a0])
+        A = np.array(
+            [[T**3, T**4, T**5], [3 * T**2, 4 * T**3, 5 * T**4], [6 * T, 12 * T**2, 20 * T**3]]
+        )
+        b = np.array([x1 - x0 - v0 * T - a0 * T**2 / 2, v1 - v0 - a0 * T, a1 - a0])
         X = np.linalg.solve(A, b)
 
         self.a0 = x0
@@ -24,24 +23,31 @@ class QuinticPolynomial:
         self.a5 = X[2]
 
     def calc_xt(self, t):
-        xt = self.a0 + self.a1 * t + self.a2 * t ** 2 + \
-                self.a3 * t ** 3 + self.a4 * t ** 4 + self.a5 * t ** 5
+        xt = (
+            self.a0
+            + self.a1 * t
+            + self.a2 * t**2
+            + self.a3 * t**3
+            + self.a4 * t**4
+            + self.a5 * t**5
+        )
 
         return xt
 
     def calc_dxt(self, t):
-        dxt = self.a1 + 2 * self.a2 * t + \
-            3 * self.a3 * t ** 2 + 4 * self.a4 * t ** 3 + 5 * self.a5 * t ** 4
+        dxt = (
+            self.a1 + 2 * self.a2 * t + 3 * self.a3 * t**2 + 4 * self.a4 * t**3 + 5 * self.a5 * t**4
+        )
 
         return dxt
 
     def calc_ddxt(self, t):
-        ddxt = 2 * self.a2 + 6 * self.a3 * t + 12 * self.a4 * t ** 2 + 20 * self.a5 * t ** 3
+        ddxt = 2 * self.a2 + 6 * self.a3 * t + 12 * self.a4 * t**2 + 20 * self.a5 * t**3
 
         return ddxt
 
     def calc_dddxt(self, t):
-        dddxt = 6 * self.a3 + 24 * self.a4 * t + 60 * self.a5 * t ** 2
+        dddxt = 6 * self.a3 + 24 * self.a4 * t + 60 * self.a5 * t**2
 
         return dddxt
 
@@ -58,8 +64,8 @@ class Trajectory:
 
 
 def simulation():
-    from pathplanning.viz import lazy_import
     from pathplanning.viz import geometry_draw as draw
+    from pathplanning.viz import lazy_import
 
     plt = lazy_import("matplotlib.pyplot")
 
@@ -127,10 +133,11 @@ def simulation():
 
     for i in range(len(path.t)):
         plt.cla()
-        plt.gcf().canvas.mpl_connect('key_release_event',
-                                     lambda event: [exit(0) if event.key == 'escape' else None])
+        plt.gcf().canvas.mpl_connect(
+            "key_release_event", lambda event: [exit(0) if event.key == "escape" else None]
+        )
         plt.axis("equal")
-        plt.plot(path.x, path.y, linewidth=2, color='gray')
+        plt.plot(path.x, path.y, linewidth=2, color="gray")
         draw.Car(sx, sy, syaw, 1.5, 3)
         draw.Car(gx, gy, gyaw, 1.5, 3)
         draw.Car(path.x[i], path.y[i], path.yaw[i], 1.5, 3)
@@ -141,5 +148,5 @@ def simulation():
     plt.show()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     simulation()
