@@ -3,7 +3,9 @@
 Keep root imports lightweight and side-effect free.
 """
 
-from .api import load_algorithm_module
+from .api import Result, Stats, load_algorithm_module, plan, run_planner
+from .core.params import RrtParams
+from .core.results import PlanResult, StopReason
 from .registry import (
     SUPPORTED,
     AlgorithmSpec,
@@ -11,7 +13,6 @@ from .registry import (
     list_algorithms,
     list_supported_algorithms,
 )
-from .search2d import Heuristic, PlanConfig, Planner, PlanResult, Search2D
 
 __all__ = [
     "SUPPORTED",
@@ -20,9 +21,11 @@ __all__ = [
     "list_algorithms",
     "list_supported_algorithms",
     "load_algorithm_module",
-    "Search2D",
-    "Planner",
-    "Heuristic",
-    "PlanConfig",
+    "run_planner",
+    "plan",
+    "Result",
+    "Stats",
+    "RrtParams",
     "PlanResult",
+    "StopReason",
 ]

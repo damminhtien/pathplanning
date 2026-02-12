@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from pathplanning import PlanConfig, Planner, Search2D
+from pathplanning.search2d import PlanConfig, Planner, Search2D
 
 
 def test_search2d_all_planners_smoke() -> None:

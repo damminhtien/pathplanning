@@ -12,7 +12,7 @@ import time
 
 import numpy as np
 
-from pathplanning import PlanConfig, Planner, Search2D
+from pathplanning.search2d import PlanConfig, Planner, Search2D
 from pathplanning.planners.sampling.rrt_grid2d import Rrt
 from pathplanning.planners.search.astar_3d import Weighted_A_star
 
