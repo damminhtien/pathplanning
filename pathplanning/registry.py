@@ -5,7 +5,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 SUPPORTED = "supported"
-DROPPED_INCOMPLETE = "dropped_incomplete"
 
 
 @dataclass(frozen=True)
@@ -34,46 +33,6 @@ _ALGORITHMS: list[AlgorithmSpec] = [
         "3d",
         "pathplanning.sampling_based_planning.rrt_3d.rrt_star",
         SUPPORTED,
-    ),
-    AlgorithmSpec(
-        "sampling2d.advanced_batch_informed_trees",
-        "sampling",
-        "2d",
-        "pathplanning.sampling_based_planning.rrt_2d.advanced_batch_informed_trees",
-        DROPPED_INCOMPLETE,
-        "Not migrated to the production planner contract.",
-    ),
-    AlgorithmSpec(
-        "sampling2d.adaptively_informed_trees",
-        "sampling",
-        "2d",
-        "pathplanning.sampling_based_planning.rrt_2d.adaptively_informed_trees",
-        DROPPED_INCOMPLETE,
-        "Not migrated to the production planner contract.",
-    ),
-    AlgorithmSpec(
-        "sampling2d.rrt_sharp",
-        "sampling",
-        "2d",
-        "pathplanning.sampling_based_planning.rrt_2d.rrt_sharp",
-        DROPPED_INCOMPLETE,
-        "Not migrated to the production planner contract.",
-    ),
-    AlgorithmSpec(
-        "sampling3d.abit_star",
-        "sampling",
-        "3d",
-        "pathplanning.sampling_based_planning.rrt_3d.abit_star_3d",
-        DROPPED_INCOMPLETE,
-        "Not migrated to the production planner contract.",
-    ),
-    AlgorithmSpec(
-        "sampling3d.rrt_star_smart",
-        "sampling",
-        "3d",
-        "pathplanning.sampling_based_planning.rrt_3d.rrt_star_smart_3d",
-        DROPPED_INCOMPLETE,
-        "Not migrated to the production planner contract.",
     ),
 ]
 
@@ -109,11 +68,6 @@ def list_algorithms() -> list[AlgorithmSpec]:
 def list_supported_algorithms() -> list[AlgorithmSpec]:
     """Return production-supported algorithms with planner entrypoint contracts."""
     return [spec for spec in _ALGORITHMS if spec.status == SUPPORTED]
-
-
-def list_dropped_algorithms() -> list[AlgorithmSpec]:
-    """Return dropped/incomplete algorithms excluded from production."""
-    return [spec for spec in _ALGORITHMS if spec.status == DROPPED_INCOMPLETE]
 
 
 def expected_entrypoint_for_algorithm(algorithm_id: str) -> str:
