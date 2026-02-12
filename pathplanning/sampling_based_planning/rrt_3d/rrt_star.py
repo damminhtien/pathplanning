@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
+from enum import Enum
 from numbers import Real
 import time
 from typing import TypeAlias, cast
@@ -20,6 +21,7 @@ from pathplanning.core.contracts import (
 from pathplanning.core.nn_index import NaiveNnIndex, NearestNeighborIndex
 from pathplanning.core.params import RrtParams
 from pathplanning.core.tree import ArrayTree
+from pathplanning.core.types import NodeId
 
 GoalPredicate: TypeAlias = Callable[[State], bool]
 GoalRegion: TypeAlias = GoalPredicate | tuple[Sequence[float], float] | Sequence[float] | State
@@ -56,6 +58,14 @@ class GoalSpec:
 
     predicate: GoalPredicate
     target_state: State | None
+
+
+class StopReason(str, Enum):
+    """Planner stop reason values."""
+
+    GOAL_REACHED = "goal_reached"
+    TIME_BUDGET = "time_budget"
+    MAX_ITERS = "max_iters"
 
 
 class RrtStarPlanner:
@@ -176,19 +186,88 @@ class RrtStarPlanner:
             return bool(self._batch_space.segment_free_batch(starts, ends)[0])
         return self.space.segment_free(start, end)
 
-    @staticmethod
-    def _propagate_cost_delta(
-        root_index: int,
+    def _stop_reason_for_budget(self, start_time: float) -> StopReason | None:
+        """Return budget stop reason when the configured time budget is exhausted."""
+        if self.params.time_budget_s is None:
+            return None
+        elapsed = time.perf_counter() - start_time
+        if elapsed >= self.params.time_budget_s:
+            return StopReason.TIME_BUDGET
+        return None
+
+    def _choose_target(self, goal: GoalSpec) -> State:
+        """Choose the next expansion target using configured goal bias."""
+        use_goal_sample = (
+            goal.target_state is not None and self.rng.random() < self.params.goal_sample_rate
+        )
+        if use_goal_sample and goal.target_state is not None:
+            return goal.target_state
+        return self._sample_free()
+
+    def _choose_parent(
+        self,
+        tree: ArrayTree,
+        candidate: State,
+        near_indices: NDArray[np.int64],
+        nearest_index: NodeId,
+    ) -> NodeId:
+        """Select the best parent for ``candidate`` from nearby nodes."""
+        parent_index = nearest_index
+        nearest = tree.node(nearest_index)
+        parent_cost = float(tree.cost[parent_index] + self.space.distance(nearest, candidate))
+        for near_index_raw in near_indices:
+            near_index = int(near_index_raw)
+            near_node = tree.node(near_index)
+            if not self._segment_free(near_node, candidate):
+                continue
+            candidate_cost = float(
+                tree.cost[near_index] + self.space.distance(near_node, candidate)
+            )
+            if candidate_cost < parent_cost:
+                parent_index = near_index
+                parent_cost = candidate_cost
+        return parent_index
+
+    def _propagate_costs_from(
+        self,
+        root_index: NodeId,
         delta: float,
-        costs: NDArray[np.float64],
-        children: list[set[int]],
+        tree: ArrayTree,
+        children: list[set[NodeId]],
     ) -> None:
         """Apply a cost delta to one subtree after rewiring."""
         stack = [root_index]
         while stack:
             index = stack.pop()
-            costs[index] += delta
+            tree.cost[index] += delta
             stack.extend(children[index])
+
+    def _rewire(
+        self,
+        tree: ArrayTree,
+        new_index: NodeId,
+        candidate: State,
+        near_indices: NDArray[np.int64],
+        parent_index: NodeId,
+        children: list[set[NodeId]],
+    ) -> None:
+        """Attempt rewiring nearby nodes through ``new_index``."""
+        for near_index_raw in near_indices:
+            near_index = int(near_index_raw)
+            if near_index in (parent_index, new_index):
+                continue
+            near_node = tree.node(near_index)
+            if not self._segment_free(candidate, near_node):
+                continue
+            rewired_cost = float(tree.cost[new_index] + self.space.distance(candidate, near_node))
+            if rewired_cost < tree.cost[near_index]:
+                old_parent = int(tree.parent[near_index])
+                if old_parent != -1:
+                    children[old_parent].remove(near_index)
+                tree.parent[near_index] = new_index
+                children[new_index].add(near_index)
+                delta = float(rewired_cost - tree.cost[near_index])
+                self._propagate_costs_from(near_index, delta, tree, children)
 
     def plan(self, start: Sequence[float] | State, goal_region: GoalRegion) -> PlanResult:
         """Compute a collision-free path from ``start`` into ``goal_region``."""
@@ -209,7 +288,7 @@ class RrtStarPlanner:
 
         tree = ArrayTree(self.space.dim)
         tree.add_node(start_state, -1, 0.0)
-        children: list[set[int]] = [set()]
+        children: list[set[NodeId]] = [set()]
         index = self._nn_index_factory(self.space.dim)
         index.build(tree.nodes)
 
@@ -217,25 +296,15 @@ class RrtStarPlanner:
         goal_checks = 0
         start_time = time.perf_counter()
         iters_run = 0
-        stop_reason: str | None = None
+        stop_reason: StopReason | None = None
 
         for iter_index in range(1, self.params.max_iters + 1):
             iters_run = iter_index
-            if self.params.time_budget_s is not None:
-                elapsed = time.perf_counter() - start_time
-                if elapsed >= self.params.time_budget_s:
-                    stop_reason = "time_budget"
-                    break
+            stop_reason = self._stop_reason_for_budget(start_time)
+            if stop_reason is not None:
+                break
 
-            use_goal_sample = (
-                goal.target_state is not None and self.rng.random() < self.params.goal_sample_rate
-            )
-            if use_goal_sample:
-                target = goal.target_state
-                if target is None:
-                    continue
-            else:
-                target = self._sample_free()
+            target = self._choose_target(goal)
 
             nearest_index = self._nearest_index(index, target)
             nearest = tree.node(nearest_index)
@@ -260,43 +329,18 @@ class RrtStarPlanner:
                 )
                 near_indices = self._near_indices(index, candidate, near_radius)
 
-            parent_index = nearest_index
-            parent_cost = float(tree.cost[parent_index] + self.space.distance(nearest, candidate))
-            for near_index_raw in near_indices:
-                near_index = int(near_index_raw)
-                near_node = tree.nodes[near_index]
-                if not self._segment_free(near_node, candidate):
-                    continue
-                candidate_cost = float(
-                    tree.cost[near_index] + self.space.distance(near_node, candidate)
-                )
-                if candidate_cost < parent_cost:
-                    parent_index = near_index
-                    parent_cost = candidate_cost
+            parent_index = self._choose_parent(tree, candidate, near_indices, nearest_index)
+            parent_node = tree.node(parent_index)
+            parent_cost = float(
+                tree.cost[parent_index] + self.space.distance(parent_node, candidate)
+            )
 
             new_index = tree.add_node(candidate, parent_index, parent_cost)
             children.append(set())
             children[parent_index].add(new_index)
             index.build(tree.nodes)
 
-            for near_index_raw in near_indices:
-                near_index = int(near_index_raw)
-                if near_index in (parent_index, new_index):
-                    continue
-                near_node = tree.nodes[near_index]
-                if not self._segment_free(candidate, near_node):
-                    continue
-                rewired_cost = float(
-                    tree.cost[new_index] + self.space.distance(candidate, near_node)
-                )
-                if rewired_cost < tree.cost[near_index]:
-                    old_parent = int(tree.parent[near_index])
-                    if old_parent != -1:
-                        children[old_parent].remove(near_index)
-                    tree.parent[near_index] = new_index
-                    children[new_index].add(near_index)
-                    delta = float(rewired_cost - tree.cost[near_index])
-                    self._propagate_cost_delta(near_index, delta, tree.cost, children)
+            self._rewire(tree, new_index, candidate, near_indices, parent_index, children)
 
             goal_checks += 1
             if goal.predicate(tree.node(new_index)):
@@ -307,7 +351,7 @@ class RrtStarPlanner:
             path = self._path_from_tree(tree, best_goal_index)
             elapsed = time.perf_counter() - start_time
             if stop_reason is None:
-                stop_reason = "goal_reached"
+                stop_reason = StopReason.GOAL_REACHED
             return PlanResult(
                 success=True,
                 path=path,
@@ -317,14 +361,14 @@ class RrtStarPlanner:
                     "goal_checks": goal_checks,
                     "path_cost": float(tree.cost[best_goal_index]),
                     "goal_nodes": len(goal_indices),
-                    "stopped_reason": stop_reason,
+                    "stopped_reason": stop_reason.value,
                     "elapsed_s": elapsed,
                     "time_budget_s": self.params.time_budget_s,
                 },
             )
 
         if stop_reason is None:
-            stop_reason = "max_iters"
+            stop_reason = StopReason.MAX_ITERS
         elapsed = time.perf_counter() - start_time
         return PlanResult(
             success=False,
@@ -333,7 +377,7 @@ class RrtStarPlanner:
             nodes=tree.size,
             stats={
                 "goal_checks": goal_checks,
-                "stopped_reason": stop_reason,
+                "stopped_reason": stop_reason.value,
                 "elapsed_s": elapsed,
                 "time_budget_s": self.params.time_budget_s,
             },

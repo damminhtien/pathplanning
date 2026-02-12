@@ -33,6 +33,7 @@ def test_supported_sampling_modules_do_not_use_global_np_random() -> None:
     """Supported sampling modules should not call global np.random helpers."""
     forbidden = (
         "np.random.random",
+        "np.random.default_rng",
         "np.random.uniform",
         "np.random.randint",
         "np.random.choice",
@@ -53,7 +54,9 @@ def test_planners_do_not_use_global_np_random(monkeypatch) -> None:
     def _raise(*_args: object, **_kwargs: object) -> None:
         raise AssertionError("global np.random usage is forbidden in planners")
 
-    for name in ("random", "uniform", "randint", "choice", "rand"):
+    rng_rrt = np.random.default_rng(1234)
+    rng_rrt_star = np.random.default_rng(4321)
+    for name in ("random", "default_rng", "uniform", "randint", "choice", "rand"):
         monkeypatch.setattr(np.random, name, _raise, raising=True)
 
     space = ContinuousSpace3D(
@@ -62,9 +65,6 @@ def test_planners_do_not_use_global_np_random(monkeypatch) -> None:
         aabbs=[AABB([2.0, 2.0, 0.0], [3.0, 3.0, 5.0])],
     )
     params = RrtParams(max_iters=10, step_size=0.5, goal_sample_rate=0.2)
-    rng = np.random.default_rng(1234)
 
-    RrtPlanner(space, params, rng).plan([0.5, 0.5, 0.5], ([4.5, 4.5, 0.5], 0.5))
-    RrtStarPlanner(space, params, np.random.default_rng(4321)).plan(
-        [0.5, 0.5, 0.5], ([4.5, 4.5, 0.5], 0.5)
-    )
+    RrtPlanner(space, params, rng_rrt).plan([0.5, 0.5, 0.5], ([4.5, 4.5, 0.5], 0.5))
+    RrtStarPlanner(space, params, rng_rrt_star).plan([0.5, 0.5, 0.5], ([4.5, 4.5, 0.5], 0.5))
