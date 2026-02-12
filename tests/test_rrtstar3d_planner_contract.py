@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import numpy as np
 
+from pathplanning.core.contracts import GoalState
 from pathplanning.core.params import RrtParams
 from pathplanning.planners.sampling.rrt_star import RrtStarPlanner
 from pathplanning.spaces.continuous_3d import AABB, ContinuousSpace3D
@@ -29,12 +30,20 @@ def test_rrtstar_planner_is_deterministic_for_fixed_seed() -> None:
         collision_step=0.1,
     )
 
-    first = RrtStarPlanner(_build_space(), params, np.random.default_rng(7)).plan(
-        start, (goal_center, goal_tolerance)
+    first_space = _build_space()
+    second_space = _build_space()
+    first_goal = GoalState(
+        state=goal_center,
+        radius=goal_tolerance,
+        distance_fn=first_space.distance,
     )
-    second = RrtStarPlanner(_build_space(), params, np.random.default_rng(7)).plan(
-        start, (goal_center, goal_tolerance)
+    second_goal = GoalState(
+        state=goal_center,
+        radius=goal_tolerance,
+        distance_fn=second_space.distance,
     )
+    first = RrtStarPlanner(first_space, params, np.random.default_rng(7)).plan(start, first_goal)
+    second = RrtStarPlanner(second_space, params, np.random.default_rng(7)).plan(start, second_goal)
 
     assert first.success and second.success
     assert first.path is not None
@@ -58,10 +67,13 @@ def test_rrtstar_planner_path_collision_free_and_cost_monotonic() -> None:
         max_sample_tries=2_000,
         collision_step=0.1,
     )
-
-    result = RrtStarPlanner(space, params, np.random.default_rng(11)).plan(
-        start, (goal_center, goal_tolerance)
+    goal = GoalState(
+        state=goal_center,
+        radius=goal_tolerance,
+        distance_fn=space.distance,
     )
+
+    result = RrtStarPlanner(space, params, np.random.default_rng(11)).plan(start, goal)
 
     assert result.success
     assert result.path is not None
@@ -73,7 +85,7 @@ def test_rrtstar_planner_path_collision_free_and_cost_monotonic() -> None:
     for index in range(len(result.path) - 1):
         src = result.path[index]
         dst = result.path[index + 1]
-        assert space.segment_free(src, dst, params.collision_step)
+        assert space.is_motion_valid(src, dst)
         edge_cost = space.distance(src, dst)
         cumulative += edge_cost
         cumulative_costs.append(cumulative)

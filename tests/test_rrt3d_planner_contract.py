@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import numpy as np
 
+from pathplanning.core.contracts import GoalState
 from pathplanning.core.params import RrtParams
 from pathplanning.planners.sampling.rrt import RrtPlanner
 from pathplanning.spaces.continuous_3d import AABB, ContinuousSpace3D
@@ -29,12 +30,20 @@ def test_rrt_planner_is_deterministic_for_fixed_seed() -> None:
         collision_step=0.1,
     )
 
-    first = RrtPlanner(_build_space(), params, np.random.default_rng(7)).plan(
-        start, (goal_center, goal_tolerance)
+    first_space = _build_space()
+    second_space = _build_space()
+    first_goal = GoalState(
+        state=goal_center,
+        radius=goal_tolerance,
+        distance_fn=first_space.distance,
     )
-    second = RrtPlanner(_build_space(), params, np.random.default_rng(7)).plan(
-        start, (goal_center, goal_tolerance)
+    second_goal = GoalState(
+        state=goal_center,
+        radius=goal_tolerance,
+        distance_fn=second_space.distance,
     )
+    first = RrtPlanner(first_space, params, np.random.default_rng(7)).plan(start, first_goal)
+    second = RrtPlanner(second_space, params, np.random.default_rng(7)).plan(start, second_goal)
 
     assert first.success and second.success
     assert first.path is not None
@@ -57,10 +66,13 @@ def test_rrt_planner_path_is_collision_free_and_reaches_goal() -> None:
         max_sample_tries=2_000,
         collision_step=0.1,
     )
-
-    result = RrtPlanner(space, params, np.random.default_rng(11)).plan(
-        start, (goal_center, goal_tolerance)
+    goal = GoalState(
+        state=goal_center,
+        radius=goal_tolerance,
+        distance_fn=space.distance,
     )
+
+    result = RrtPlanner(space, params, np.random.default_rng(11)).plan(start, goal)
 
     assert result.success
     assert result.path is not None
@@ -68,4 +80,4 @@ def test_rrt_planner_path_is_collision_free_and_reaches_goal() -> None:
     assert space.distance(result.path[-1], goal_center) <= goal_tolerance
 
     for index in range(len(result.path) - 1):
-        assert space.segment_free(result.path[index], result.path[index + 1], params.collision_step)
+        assert space.is_motion_valid(result.path[index], result.path[index + 1])

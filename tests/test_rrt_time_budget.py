@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import numpy as np
 
+from pathplanning.core.contracts import GoalState
 from pathplanning.core.params import RrtParams
 from pathplanning.core.results import StopReason
 from pathplanning.planners.sampling.rrt import RrtPlanner
@@ -20,6 +21,7 @@ def _build_space() -> ContinuousSpace3D:
 
 
 def test_rrt_time_budget_stops_early() -> None:
+    space = _build_space()
     start = np.array([1.0, 1.0, 1.0], dtype=float)
     goal_center = np.array([9.0, 9.0, 1.0], dtype=float)
     params = RrtParams(
@@ -31,9 +33,8 @@ def test_rrt_time_budget_stops_early() -> None:
         collision_step=0.1,
     )
 
-    result = RrtPlanner(_build_space(), params, np.random.default_rng(7)).plan(
-        start, (goal_center, 0.25)
-    )
+    goal = GoalState(state=goal_center, radius=0.25, distance_fn=space.distance)
+    result = RrtPlanner(space, params, np.random.default_rng(7)).plan(start, goal)
 
     assert result.stop_reason is StopReason.TIME_BUDGET
     assert result.iters < params.max_iters
@@ -41,6 +42,7 @@ def test_rrt_time_budget_stops_early() -> None:
 
 
 def test_rrt_star_time_budget_stops_early() -> None:
+    space = _build_space()
     start = np.array([1.0, 1.0, 1.0], dtype=float)
     goal_center = np.array([9.0, 9.0, 1.0], dtype=float)
     params = RrtParams(
@@ -52,9 +54,8 @@ def test_rrt_star_time_budget_stops_early() -> None:
         collision_step=0.1,
     )
 
-    result = RrtStarPlanner(_build_space(), params, np.random.default_rng(7)).plan(
-        start, (goal_center, 0.25)
-    )
+    goal = GoalState(state=goal_center, radius=0.25, distance_fn=space.distance)
+    result = RrtStarPlanner(space, params, np.random.default_rng(7)).plan(start, goal)
 
     assert result.stop_reason is StopReason.TIME_BUDGET
     assert result.iters < params.max_iters

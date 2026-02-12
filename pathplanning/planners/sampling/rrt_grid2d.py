@@ -1,118 +1,120 @@
-"""
-RRT_2D
-@author: damminhtien
-"""
+"""Legacy RRT 2D compatibility wrapper backed by ``RrtPlanner`` contracts."""
 
-import math
+from __future__ import annotations
+
+from dataclasses import dataclass
+from typing import Protocol
 
 import numpy as np
+from numpy.typing import NDArray
 
-from pathplanning.spaces.grid2d import Grid2DSamplingSpace
-from pathplanning.utils import sampling2d as utils
-from pathplanning.viz import sampling2d_plotting as plotting
+from pathplanning.core.contracts import GoalState
+from pathplanning.core.params import RrtParams
+from pathplanning.planners.sampling.rrt import RrtPlanner
+
+State2D = NDArray[np.float64]
 
 
+class ContinuousSpace2D(Protocol):
+    def sample_free(self, rng: np.random.Generator) -> State2D: ...
+
+    def is_state_valid(self, x: State2D) -> bool: ...
+
+    def is_motion_valid(self, a: State2D, b: State2D) -> bool: ...
+
+    def distance(self, a: State2D, b: State2D) -> float: ...
+
+    def steer(self, a: State2D, b: State2D, step_size: float) -> State2D: ...
+
+
+@dataclass
 class Node:
-    def __init__(self, n):
-        self.x = n[0]
-        self.y = n[1]
-        self.parent = None
+    x: float
+    y: float
+    parent: "Node | None" = None
+
+    @classmethod
+    def from_xy(cls, xy: tuple[float, float]) -> "Node":
+        return cls(x=float(xy[0]), y=float(xy[1]))
+
+
+class OpenPlane2D:
+    """Simple open 2D continuous space used by the legacy wrapper."""
+
+    def __init__(self, lower: tuple[float, float] = (0.0, 0.0), upper: tuple[float, float] = (50.0, 30.0)) -> None:
+        self.lower = np.array(lower, dtype=float)
+        self.upper = np.array(upper, dtype=float)
+
+    def sample_free(self, rng: np.random.Generator) -> State2D:
+        return rng.uniform(self.lower, self.upper)
+
+    def is_state_valid(self, x: State2D) -> bool:
+        point = np.asarray(x, dtype=float)
+        if point.shape != (2,):
+            return False
+        return bool(np.all(point >= self.lower) and np.all(point <= self.upper))
+
+    def is_motion_valid(self, a: State2D, b: State2D) -> bool:
+        return self.is_state_valid(a) and self.is_state_valid(b)
+
+    def distance(self, a: State2D, b: State2D) -> float:
+        return float(np.linalg.norm(np.asarray(b, dtype=float) - np.asarray(a, dtype=float)))
+
+    def steer(self, a: State2D, b: State2D, step_size: float) -> State2D:
+        if step_size <= 0.0:
+            raise ValueError("step_size must be > 0")
+        start = np.asarray(a, dtype=float)
+        target = np.asarray(b, dtype=float)
+        direction = target - start
+        norm = float(np.linalg.norm(direction))
+        if norm <= step_size:
+            return target
+        return start + (direction / norm) * float(step_size)
 
 
 class Rrt:
-    def __init__(self, s_start, s_goal, step_len, goal_sample_rate, iter_max, rng=None):
-        self.s_start = Node(s_start)
-        self.s_goal = Node(s_goal)
-        self.step_len = step_len
-        self.goal_sample_rate = goal_sample_rate
-        self.iter_max = iter_max
-        self.vertex = [self.s_start]
+    """Compatibility facade preserving the old ``Rrt`` surface."""
+
+    def __init__(self, s_start, s_goal, step_len, goal_sample_rate, iter_max, rng=None, space=None):
+        self.s_start = Node.from_xy((float(s_start[0]), float(s_start[1])))
+        self.s_goal = Node.from_xy((float(s_goal[0]), float(s_goal[1])))
+        self.step_len = float(step_len)
+        self.goal_sample_rate = float(goal_sample_rate)
+        self.iter_max = int(iter_max)
         self.rng = rng if rng is not None else np.random.default_rng()
-
-        self.env = Grid2DSamplingSpace()
-        self.plotting = plotting.Plotting(s_start, s_goal)
-        self.utils = utils.Utils()
-
-        self.x_range = self.env.x_range
-        self.y_range = self.env.y_range
-        self.obs_circle = self.env.obs_circle
-        self.obs_rectangle = self.env.obs_rectangle
-        self.obs_boundary = self.env.obs_boundary
+        self.space: ContinuousSpace2D = space if space is not None else OpenPlane2D()
+        self.vertex: list[Node] = [self.s_start]
 
     def planning(self):
-        for _i in range(self.iter_max):
-            node_rand = self.generate_random_node(self.goal_sample_rate)
-            node_near = self.nearest_neighbor(self.vertex, node_rand)
-            node_new = self.new_state(node_near, node_rand)
-
-            if node_new and not self.utils.is_collision(node_near, node_new):
-                self.vertex.append(node_new)
-                dist, _ = self.get_distance_and_angle(node_new, self.s_goal)
-
-                if dist <= self.step_len and not self.utils.is_collision(node_new, self.s_goal):
-                    goal_node = Node((self.s_goal.x, self.s_goal.y))
-                    goal_node.parent = node_new
-                    self.vertex.append(goal_node)
-                    return self.extract_path(goal_node)
-
-        return None
-
-    def generate_random_node(self, goal_sample_rate):
-        delta = self.utils.delta
-
-        if self.rng.random() > goal_sample_rate:
-            return Node(
-                (
-                    self.rng.uniform(self.x_range[0] + delta, self.x_range[1] - delta),
-                    self.rng.uniform(self.y_range[0] + delta, self.y_range[1] - delta),
-                )
-            )
-
-        return self.s_goal
-
-    @staticmethod
-    def nearest_neighbor(node_list, n):
-        return node_list[int(np.argmin([math.hypot(nd.x - n.x, nd.y - n.y) for nd in node_list]))]
-
-    def new_state(self, node_start, node_end):
-        dist, theta = self.get_distance_and_angle(node_start, node_end)
-
-        dist = min(self.step_len, dist)
-        node_new = Node(
-            (node_start.x + dist * math.cos(theta), node_start.y + dist * math.sin(theta))
+        params = RrtParams(
+            step_size=self.step_len,
+            goal_sample_rate=self.goal_sample_rate,
+            max_iters=self.iter_max,
         )
-        node_new.parent = node_start
+        planner = RrtPlanner(space=self.space, params=params, rng=self.rng)
 
-        return node_new
+        start = np.array([self.s_start.x, self.s_start.y], dtype=float)
+        goal = np.array([self.s_goal.x, self.s_goal.y], dtype=float)
+        goal_region = GoalState(state=goal, radius=1e-9, distance_fn=self.space.distance)
+        result = planner.plan(start, goal_region)
 
-    def extract_path(self, node_end):
-        path = [(self.s_goal.x, self.s_goal.y)]
-        node_now = node_end
+        if result.path is None:
+            return None
 
-        while node_now.parent is not None:
-            node_now = node_now.parent
-            path.append((node_now.x, node_now.y))
+        path_forward = [(float(p[0]), float(p[1])) for p in result.path]
+        legacy_path = list(reversed(path_forward))
 
-        return path
+        self.vertex = [Node.from_xy(point) for point in path_forward]
+        for idx in range(1, len(self.vertex)):
+            self.vertex[idx].parent = self.vertex[idx - 1]
 
-    @staticmethod
-    def get_distance_and_angle(node_start, node_end):
-        dx = node_end.x - node_start.x
-        dy = node_end.y - node_start.y
-        return math.hypot(dx, dy), math.atan2(dy, dx)
+        return legacy_path
 
 
 def main():
-    x_start = (2, 2)  # Starting node
-    x_goal = (49, 24)  # Goal node
-
-    rrt = Rrt(x_start, x_goal, 0.5, 0.05, 10000)
-    path = rrt.planning()
-
-    if path:
-        rrt.plotting.animation(rrt.vertex, path, "RRT", True)
-    else:
-        print("No Path Found!")
+    planner = Rrt((2, 2), (49, 24), 0.5, 0.05, 1000)
+    path = planner.planning()
+    print("No Path Found!" if path is None else f"path_len={len(path)}")
 
 
 if __name__ == "__main__":

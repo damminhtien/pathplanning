@@ -8,6 +8,7 @@ from pathlib import Path
 
 import numpy as np
 
+from pathplanning.core.contracts import GoalState
 from pathplanning.core.params import RrtParams
 from pathplanning.planners.sampling.rrt import RrtPlanner
 from pathplanning.planners.sampling.rrt_star import RrtStarPlanner
@@ -65,6 +66,11 @@ def test_planners_do_not_use_global_np_random(monkeypatch) -> None:
         aabbs=[AABB([2.0, 2.0, 0.0], [3.0, 3.0, 5.0])],
     )
     params = RrtParams(max_iters=10, step_size=0.5, goal_sample_rate=0.2)
+    goal = GoalState(
+        state=np.array([4.5, 4.5, 0.5], dtype=float),
+        radius=0.5,
+        distance_fn=space.distance,
+    )
 
-    RrtPlanner(space, params, rng_rrt).plan([0.5, 0.5, 0.5], ([4.5, 4.5, 0.5], 0.5))
-    RrtStarPlanner(space, params, rng_rrt_star).plan([0.5, 0.5, 0.5], ([4.5, 4.5, 0.5], 0.5))
+    RrtPlanner(space, params, rng_rrt).plan([0.5, 0.5, 0.5], goal)
+    RrtStarPlanner(space, params, rng_rrt_star).plan([0.5, 0.5, 0.5], goal)

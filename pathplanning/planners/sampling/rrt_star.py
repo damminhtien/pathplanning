@@ -1,10 +1,9 @@
-"""Headless, environment-agnostic 3D RRT* planner."""
+"""Headless, contract-based RRT* planner."""
 
 from __future__ import annotations
 
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
-from numbers import Real
 import time
 from typing import TypeAlias, cast
 
@@ -12,9 +11,11 @@ import numpy as np
 from numpy.typing import NDArray
 
 from pathplanning.core.contracts import (
-    BatchConfigurationSpace,
-    ConfigurationSpace,
+    ContinuousSpace,
+    GoalRegion,
+    GoalState,
     State,
+    SupportsBatchMotionCheck,
 )
 from pathplanning.core.params import RrtParams
 from pathplanning.core.results import PlanResult, StopReason
@@ -23,7 +24,6 @@ from pathplanning.data_structures.tree_array import ArrayTree
 from pathplanning.nn.index import NaiveNnIndex, NearestNeighborIndex
 
 GoalPredicate: TypeAlias = Callable[[State], bool]
-GoalRegion: TypeAlias = GoalPredicate | tuple[Sequence[float], float] | Sequence[float] | State
 IndexFactory: TypeAlias = Callable[[int], NearestNeighborIndex]
 
 
@@ -32,19 +32,7 @@ def _default_index_factory(dim: int) -> NearestNeighborIndex:
 
 
 def _as_state(value: Sequence[float] | State, name: str, *, dim: int) -> State:
-    """Normalize a coordinate-like value to a 1D float state vector.
-
-    Args:
-        value: Input coordinate sequence.
-        name: Human-readable argument name for error messages.
-        dim: Expected state dimension.
-
-    Returns:
-        Normalized NumPy state vector with shape ``(dim,)``.
-
-    Raises:
-        ValueError: If the input does not match the expected dimension.
-    """
+    """Normalize a coordinate-like value to a 1D float state vector."""
     state = np.asarray(value, dtype=float)
     if state.shape != (dim,):
         raise ValueError(f"{name} must be shape ({dim},), got {state.shape}")
@@ -60,89 +48,37 @@ class GoalSpec:
 
 
 class RrtStarPlanner:
-    """Single-query RRT* planner on top of ``ConfigurationSpace`` contracts."""
+    """Single-query RRT* planner on top of ``ContinuousSpace`` contracts."""
 
     def __init__(
         self,
-        space: ConfigurationSpace,
+        space: ContinuousSpace[State],
         params: RrtParams,
         rng: np.random.Generator,
         nn_index_factory: IndexFactory | None = None,
     ) -> None:
-        """Initialize a contract-based RRT* planner.
-
-        Args:
-            space: Configuration space implementation.
-            params: Planner parameters.
-            rng: Random number generator used for sampling.
-        """
+        """Initialize an interface-driven RRT* planner."""
         self.space = space
         self.params = params.validate()
         self.rng = rng
         self._nn_index_factory = nn_index_factory or _default_index_factory
-        self._batch_space: BatchConfigurationSpace | None = self._resolve_batch_space(space)
+        self._batch_motion_checker: SupportsBatchMotionCheck[State] | None = None
+        if hasattr(space, "is_motion_valid_batch"):
+            self._batch_motion_checker = cast(SupportsBatchMotionCheck[State], space)
         if hasattr(self.space, "collision_step"):
             self.space.collision_step = self.params.collision_step  # type: ignore[attr-defined]
 
-    @staticmethod
-    def _resolve_batch_space(space: ConfigurationSpace) -> BatchConfigurationSpace | None:
-        if (
-            hasattr(space, "sample_free_batch")
-            and hasattr(space, "is_free_batch")
-            and hasattr(space, "segment_free_batch")
-        ):
-            return cast(BatchConfigurationSpace, space)
-        return None
+    def _goal_spec(self, goal_region: GoalRegion[State], *, dim: int) -> GoalSpec:
+        """Build planner goal helpers from a ``GoalRegion`` implementation."""
+        target_state: State | None = None
+        if isinstance(goal_region, GoalState):
+            target_state = _as_state(goal_region.state, "goal_state", dim=dim)
+        return GoalSpec(predicate=goal_region.contains, target_state=target_state)
 
-    def _goal_spec(self, goal_region: GoalRegion) -> GoalSpec:
-        """Build an internal goal specification from supported goal inputs."""
-        if callable(goal_region):
-            target = getattr(self.space, "goal", None)
-            target_state: State | None = None
-            if target is not None:
-                target_array = np.asarray(target, dtype=float)
-                if target_array.shape == (self.space.dim,):
-                    target_state = target_array
-            return GoalSpec(predicate=goal_region, target_state=target_state)
-
-        if isinstance(goal_region, tuple):
-            if len(goal_region) != 2:
-                raise ValueError("goal tuple must be (center, tolerance)")
-            center_raw, tolerance_raw = goal_region
-            if not isinstance(tolerance_raw, Real):
-                raise ValueError("goal tuple must be (center, tolerance)")
-            center = _as_state(
-                cast(Sequence[float] | State, center_raw),
-                "goal_center",
-                dim=self.space.dim,
-            )
-            tolerance = float(tolerance_raw)
-            if tolerance < 0.0:
-                raise ValueError("goal tolerance must be >= 0")
-            return GoalSpec(
-                predicate=lambda state: self.space.distance(state, center) <= tolerance,
-                target_state=center,
-            )
-
-        goal_state = _as_state(goal_region, "goal_state", dim=self.space.dim)
-        return GoalSpec(
-            predicate=lambda state: (
-                self.space.distance(state, goal_state) <= self.params.goal_reach_tolerance
-            ),
-            target_state=goal_state,
-        )
-
-    def _sample_free(self) -> State:
-        """Sample one collision-free state within configured bounds.
-
-        Raises:
-            RuntimeError: If no free sample is found within max retries.
-        """
-        if self._batch_space is not None:
-            sampled = self._batch_space.sample_free_batch(self.rng, 1)[0]
-            return _as_state(sampled, "sampled_state", dim=self.space.dim)
+    def _sample_free(self, *, dim: int) -> State:
+        """Sample one collision-free state and normalize dimensionality."""
         sampled = self.space.sample_free(self.rng)
-        return _as_state(sampled, "sampled_state", dim=self.space.dim)
+        return _as_state(sampled, "sampled_state", dim=dim)
 
     @staticmethod
     def _nearest_index(index: NearestNeighborIndex, target: State) -> int:
@@ -163,18 +99,19 @@ class RrtStarPlanner:
         """Return root-to-node path as a state matrix."""
         return tree.extract_path(node_id)
 
-    def _is_free(self, state: State) -> bool:
-        if self._batch_space is not None:
-            points = np.asarray([state], dtype=float)
-            return bool(self._batch_space.is_free_batch(points)[0])
-        return self.space.is_free(state)
+    def _is_state_valid(self, state: State) -> bool:
+        return self.space.is_state_valid(state)
 
-    def _segment_free(self, start: State, end: State) -> bool:
-        if self._batch_space is not None:
-            starts = np.asarray([start], dtype=float)
-            ends = np.asarray([end], dtype=float)
-            return bool(self._batch_space.segment_free_batch(starts, ends)[0])
-        return self.space.segment_free(start, end)
+    def _is_motion_valid(self, start: State, end: State) -> bool:
+        return self.space.is_motion_valid(start, end)
+
+    def _is_motion_valid_batch(self, edges: list[tuple[State, State]]) -> list[bool]:
+        if self._batch_motion_checker is None:
+            return [self._is_motion_valid(start, end) for start, end in edges]
+        checks = self._batch_motion_checker.is_motion_valid_batch(edges)
+        if len(checks) != len(edges):
+            raise ValueError("is_motion_valid_batch must return one flag per edge")
+        return [bool(value) for value in checks]
 
     def _stop_reason_for_budget(self, start_time: float) -> StopReason | None:
         """Return budget stop reason when the configured time budget is exhausted."""
@@ -185,14 +122,14 @@ class RrtStarPlanner:
             return StopReason.TIME_BUDGET
         return None
 
-    def _choose_target(self, goal: GoalSpec) -> State:
+    def _choose_target(self, goal: GoalSpec, *, dim: int) -> State:
         """Choose the next expansion target using configured goal bias."""
         use_goal_sample = (
             goal.target_state is not None and self.rng.random() < self.params.goal_sample_rate
         )
         if use_goal_sample and goal.target_state is not None:
             return goal.target_state
-        return self._sample_free()
+        return self._sample_free(dim=dim)
 
     def _choose_parent(
         self,
@@ -205,11 +142,20 @@ class RrtStarPlanner:
         parent_index = nearest_index
         nearest = tree.node(nearest_index)
         parent_cost = float(tree.cost[parent_index] + self.space.distance(nearest, candidate))
+
+        candidate_edges: list[tuple[State, State]] = []
+        near_index_list: list[NodeId] = []
         for near_index_raw in near_indices:
             near_index = int(near_index_raw)
             near_node = tree.node(near_index)
-            if not self._segment_free(near_node, candidate):
+            near_index_list.append(near_index)
+            candidate_edges.append((near_node, candidate))
+
+        validity = self._is_motion_valid_batch(candidate_edges)
+        for near_index, is_valid in zip(near_index_list, validity, strict=True):
+            if not is_valid:
                 continue
+            near_node = tree.node(near_index)
             candidate_cost = float(
                 tree.cost[near_index] + self.space.distance(near_node, candidate)
             )
@@ -242,13 +188,21 @@ class RrtStarPlanner:
         children: list[set[NodeId]],
     ) -> None:
         """Attempt rewiring nearby nodes through ``new_index``."""
+        rewire_index_list: list[NodeId] = []
+        rewire_edges: list[tuple[State, State]] = []
         for near_index_raw in near_indices:
             near_index = int(near_index_raw)
             if near_index in (parent_index, new_index):
                 continue
             near_node = tree.node(near_index)
-            if not self._segment_free(candidate, near_node):
+            rewire_index_list.append(near_index)
+            rewire_edges.append((candidate, near_node))
+
+        validity = self._is_motion_valid_batch(rewire_edges)
+        for near_index, is_valid in zip(rewire_index_list, validity, strict=True):
+            if not is_valid:
                 continue
+            near_node = tree.node(near_index)
             rewired_cost = float(tree.cost[new_index] + self.space.distance(candidate, near_node))
             if rewired_cost < tree.cost[near_index]:
                 old_parent = int(tree.parent[near_index])
@@ -259,14 +213,19 @@ class RrtStarPlanner:
                 delta = float(rewired_cost - tree.cost[near_index])
                 self._propagate_costs_from(near_index, delta, tree, children)
 
-    def plan(self, start: Sequence[float] | State, goal_region: GoalRegion) -> PlanResult:
+    def plan(self, start: Sequence[float] | State, goal_region: GoalRegion[State]) -> PlanResult:
         """Compute a collision-free path from ``start`` into ``goal_region``."""
         self.params.validate()
-        start_state = _as_state(start, "start", dim=self.space.dim)
-        if not self._is_free(start_state):
+        start_array = np.asarray(start, dtype=float)
+        if start_array.ndim != 1:
+            raise ValueError(f"start must be a 1D state vector, got {start_array.shape}")
+
+        dim = int(start_array.shape[0])
+        start_state = _as_state(start_array, "start", dim=dim)
+        if not self._is_state_valid(start_state):
             raise ValueError("start must be collision free")
 
-        goal = self._goal_spec(goal_region)
+        goal = self._goal_spec(goal_region, dim=dim)
         if goal.predicate(start_state):
             return PlanResult(
                 success=True,
@@ -278,10 +237,10 @@ class RrtStarPlanner:
                 stats={"goal_checks": 1.0},
             )
 
-        tree = ArrayTree(self.space.dim)
+        tree = ArrayTree(dim)
         tree.add_node(start_state, -1, 0.0)
         children: list[set[NodeId]] = [set()]
-        index = self._nn_index_factory(self.space.dim)
+        index = self._nn_index_factory(dim)
         index.build(tree.nodes)
 
         goal_indices: list[int] = []
@@ -296,24 +255,28 @@ class RrtStarPlanner:
             if stop_reason is not None:
                 break
 
-            target = self._choose_target(goal)
+            target = self._choose_target(goal, dim=dim)
 
             nearest_index = self._nearest_index(index, target)
             nearest = tree.node(nearest_index)
-            candidate = self.space.steer(nearest, target, self.params.step_size)
+            candidate = _as_state(
+                self.space.steer(nearest, target, self.params.step_size),
+                "candidate",
+                dim=dim,
+            )
 
-            if not self._is_free(candidate):
+            if not self._is_state_valid(candidate):
                 continue
-            if not self._segment_free(nearest, candidate):
+            if not self._is_motion_valid_batch([(nearest, candidate)])[0]:
                 continue
 
             card_v = tree.size
             if card_v <= 1:
                 near_indices = np.asarray([0], dtype=np.int64)
             else:
-                dim = float(self.space.dim)
+                dim_float = float(dim)
                 dynamic_radius = self.params.step_size * (
-                    self.params.rrt_star_radius_gamma * (np.log(card_v) / card_v) ** (1.0 / dim)
+                    self.params.rrt_star_radius_gamma * (np.log(card_v) / card_v) ** (1.0 / dim_float)
                     + self.params.rrt_star_radius_bias
                 )
                 near_radius = min(
