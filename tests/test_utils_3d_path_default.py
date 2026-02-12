@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from pathplanning.sampling_based_planning.rrt_3d.utils_3d import path
+from pathplanning.utils.sampling3d import path
 
 
 class _InitParams:

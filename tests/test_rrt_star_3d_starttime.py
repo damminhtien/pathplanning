@@ -4,7 +4,7 @@ import numpy as np
 
 from pathplanning.core.params import RrtParams
 from pathplanning.spaces.continuous_3d import ContinuousSpace3D
-from pathplanning.sampling_based_planning.rrt_3d.rrt_star import RrtStarPlanner
+from pathplanning.planners.sampling.rrt_star import RrtStarPlanner
 
 
 def test_rrt_star_3d_plan_has_no_global_starttime_dependency() -> None:
