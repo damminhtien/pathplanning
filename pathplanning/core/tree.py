@@ -7,11 +7,11 @@ from collections.abc import Sequence
 import numpy as np
 from numpy.typing import NDArray
 
-from pathplanning.core.types import Float, FloatArray, Mat, NodeId, Vec
+from pathplanning.core.types import FloatArray, Mat, NodeId, Vec
 
 
-class Tree:
-    """Tree container with array-backed storage.
+class ArrayTree:
+    """Array-backed tree storage for planners.
 
     Stores node coordinates, parent indices, and cumulative costs in NumPy arrays.
     """
@@ -20,35 +20,42 @@ class Tree:
         if dim <= 0:
             raise ValueError("dim must be positive")
         self._dim = dim
-        self.nodes: Mat = np.empty((0, dim), dtype=float)
-        self.parent: NDArray[np.int64] = np.empty((0,), dtype=int)
-        self.cost: FloatArray = np.empty((0,), dtype=float)
+        self.nodes: FloatArray = np.empty((0, dim), dtype=np.float64)
+        self.parent: NDArray[np.int32] = np.empty((0,), dtype=np.int32)
+        self.cost: FloatArray = np.empty((0,), dtype=np.float64)
 
     @property
     def size(self) -> int:
         """Return number of nodes in the tree."""
-        return int(self.parent.shape[0])
+        return int(self.nodes.shape[0])
 
-    def append_node(self, x: Sequence[Float] | Vec, parent_id: NodeId, cost: Float) -> NodeId:
+    def add_node(self, x: Sequence[float] | Vec, parent: NodeId, cost: float) -> NodeId:
         """Append a node and return its index id.
 
         Args:
             x: Node coordinate with shape ``(dim,)``.
-            parent_id: Parent node index or ``-1`` for root.
+            parent: Parent node index or ``-1`` for root.
             cost: Cumulative cost-to-come for the node.
         """
-        point = np.asarray(x, dtype=float)
-        if point.shape != (self._dim,):
-            raise ValueError(f"x must be shape ({self._dim},), got {point.shape}")
-
-        if self.nodes.size == 0:
-            self.nodes = point.reshape(1, self._dim)
-        else:
-            self.nodes = np.vstack([self.nodes, point])
-
-        self.parent = np.append(self.parent, int(parent_id))
-        self.cost = np.append(self.cost, float(cost))
+        point = np.asarray(x, dtype=np.float64)
+        assert point.ndim == 1, "x must be 1D"
+        assert point.shape == (self._dim,), f"x must be shape ({self._dim},), got {point.shape}"
+        self.nodes = np.vstack((self.nodes, point.reshape(1, self._dim)))
+        self.parent = np.concatenate(
+            (self.parent, np.asarray([int(parent)], dtype=np.int32)),
+            axis=0,
+        )
+        self.cost = np.concatenate(
+            (self.cost, np.asarray([float(cost)], dtype=np.float64)),
+            axis=0,
+        )
         return self.size - 1
+
+    def node(self, index: NodeId) -> Vec:
+        """Return node coordinates at ``index``."""
+        if index < 0 or index >= self.size:
+            raise IndexError("index out of bounds")
+        return self.nodes[int(index)]
 
     def extract_path(self, node_id: NodeId) -> Mat:
         """Return the path from root to ``node_id`` as an array."""
@@ -61,3 +68,7 @@ class Tree:
             current = int(self.parent[current])
         indices.reverse()
         return self.nodes[np.asarray(indices, dtype=int)]
+
+
+# Keep a stable alias for existing imports.
+Tree = ArrayTree
