@@ -47,11 +47,11 @@ This codebase is useful for:
 
 Primary modules:
 
-- `pathplanning/search_based_planning/plan2d`: 2D grid search planners
-- `pathplanning/search_based_planning/search_3d`: 3D search planners
-- `pathplanning/sampling_based_planning/rrt_2d`: 2D sampling-based planners
-- `pathplanning/sampling_based_planning/rrt_3d`: 3D sampling-based planners
-- `pathplanning/curves`: curve generation utilities (Bezier, spline, Dubins, Reeds-Shepp)
+- `pathplanning/planners/search`: search planners (2D and 3D)
+- `pathplanning/planners/sampling`: sampling planners (contract-based and legacy research variants)
+- `pathplanning/spaces`: shared environment/space contracts and implementations
+- `pathplanning/utils`: reusable data structures and geometry/sampling helpers
+- `pathplanning/geometry`: curve generation utilities (Bezier, spline, Dubins, Reeds-Shepp)
 
 ## Visual Preview
 
@@ -60,23 +60,23 @@ A small gallery from the built-in animations:
 ### Search-Based
 
 <p align="center">
-  <img src="./pathplanning/search_based_planning/gif/Astar.gif" alt="A star planning animation" width="360"/>
-  <img src="./pathplanning/search_based_planning/gif/Bi-Astar.gif" alt="Bidirectional A star animation" width="360"/>
+  <img src="./assets/gif/search/Astar.gif" alt="A star planning animation" width="360"/>
+  <img src="./assets/gif/search/Bi-Astar.gif" alt="Bidirectional A star animation" width="360"/>
 </p>
 <p align="center">
-  <img src="./pathplanning/search_based_planning/gif/D_star_Lite.gif" alt="D star lite planning animation" width="360"/>
-  <img src="./pathplanning/search_based_planning/gif/ARA_star.gif" alt="ARA star planning animation" width="360"/>
+  <img src="./assets/gif/search/D_star_Lite.gif" alt="D star lite planning animation" width="360"/>
+  <img src="./assets/gif/search/ARA_star.gif" alt="ARA star planning animation" width="360"/>
 </p>
 
 ### Sampling-Based
 
 <p align="center">
-  <img src="./pathplanning/sampling_based_planning/gif/RRT_2D.gif" alt="RRT 2D planning animation" width="360"/>
-  <img src="./pathplanning/sampling_based_planning/gif/RRT_CONNECT_2D.gif" alt="RRT connect 2D planning animation" width="360"/>
+  <img src="./assets/gif/sampling/RRT_2D.gif" alt="RRT 2D planning animation" width="360"/>
+  <img src="./assets/gif/sampling/RRT_CONNECT_2D.gif" alt="RRT connect 2D planning animation" width="360"/>
 </p>
 <p align="center">
-  <img src="./pathplanning/sampling_based_planning/gif/FMT.gif" alt="FMT star planning animation" width="360"/>
-  <img src="./pathplanning/sampling_based_planning/gif/BIT2.gif" alt="BIT star planning animation" width="360"/>
+  <img src="./assets/gif/sampling/FMT.gif" alt="FMT star planning animation" width="360"/>
+  <img src="./assets/gif/sampling/BIT2.gif" alt="BIT star planning animation" width="360"/>
 </p>
 
 ## Repository Layout
@@ -90,14 +90,13 @@ A small gallery from the built-in animations:
 │   └── worlds/
 ├── pathplanning/
 │   ├── core/
-│   ├── curves/
+│   ├── geometry/
 │   ├── env/
-│   ├── sampling_based_planning/
-│   │   ├── rrt_2d/
-│   │   └── rrt_3d/
-│   ├── search_based_planning/
-│   │   ├── plan2d/
-│   │   └── search_3d/
+│   ├── planners/
+│   │   ├── sampling/
+│   │   └── search/
+│   ├── spaces/
+│   ├── utils/
 │   └── viz/
 ├── scripts/
 ├── tests/
@@ -159,16 +158,23 @@ Python `>=3.10` is recommended.
 Import-first usage (production path):
 
 ```python
-from pathplanning import Search2D, Planner, PlanConfig, Heuristic
+import numpy as np
 
-planner = Search2D()
-result = planner.plan(
-    Planner.ASTAR,
-    PlanConfig(s_start=(5, 5), s_goal=(45, 25), heuristic=Heuristic.EUCLIDEAN),
+from pathplanning import RrtParams, run_planner
+from pathplanning.spaces.continuous_3d import ContinuousSpace3D
+
+space = ContinuousSpace3D(lower_bound=[0, 0, 0], upper_bound=[10, 10, 10])
+params = RrtParams(max_iters=2_000, step_size=0.6, goal_sample_rate=0.1)
+result = run_planner(
+    "sampling3d.rrt",
+    space=space,
+    start=[1.0, 1.0, 1.0],
+    goal=([9.0, 9.0, 1.0], 0.5),
+    params=params,
+    seed=7,  # deterministic default if omitted
 )
 
-print(result.path)
-print(result.cost)
+print(result.success, result.stop_reason, result.path)
 ```
 
 Load algorithm modules via registry:
@@ -235,31 +241,31 @@ Run from repository root.
 2D search demo (runs multiple algorithms):
 
 ```bash
-python pathplanning/search_based_planning/plan2d/run.py
+python pathplanning/planners/search/run.py
 ```
 
 Single 2D search example:
 
 ```bash
-python pathplanning/search_based_planning/plan2d/astar.py
+python pathplanning/planners/search/astar.py
 ```
 
 2D sampling example:
 
 ```bash
-python pathplanning/sampling_based_planning/rrt_2d/rrt.py
+python pathplanning/planners/sampling/rrt_grid2d.py
 ```
 
 3D search example:
 
 ```bash
-python pathplanning/search_based_planning/search_3d/Astar3D.py
+python pathplanning/planners/search/astar_3d.py
 ```
 
 Generated animations are available under:
 
-- `pathplanning/search_based_planning/gif`
-- `pathplanning/sampling_based_planning/gif`
+- `assets/gif/search`
+- `assets/gif/sampling`
 
 ## Production Developer Workflow
 
