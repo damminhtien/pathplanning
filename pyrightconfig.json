@@ -1,10 +1,6 @@
 {
   "include": [
-    "pathplanning/core",
-    "pathplanning/env",
-    "pathplanning/registry.py",
-    "pathplanning/api.py",
-    "pathplanning/__init__.py"
+    "pathplanning"
   ],
   "exclude": [
     "pathplanning/_legacy",
@@ -27,7 +23,14 @@
     "pathplanning.egg-info",
     "pathplanningv2.egg-info"
   ],
-  "typeCheckingMode": "strict",
+  "typeCheckingMode": "basic",
+  "strict": [
+    "pathplanning/core",
+    "pathplanning/env",
+    "pathplanning/registry.py",
+    "pathplanning/api.py",
+    "pathplanning/__init__.py"
+  ],
   "reportMissingImports": "warning",
   "reportMissingTypeStubs": "warning"
 }
