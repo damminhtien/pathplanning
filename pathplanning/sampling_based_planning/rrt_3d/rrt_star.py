@@ -9,7 +9,6 @@ import time
 from typing import TypeAlias, cast
 
 import numpy as np
-
 from numpy.typing import NDArray
 
 from pathplanning.core.contracts import (
@@ -18,9 +17,9 @@ from pathplanning.core.contracts import (
     PlanResult,
     State,
 )
-from pathplanning.core.nn_index import NaiveIndex, NearestNeighborIndex
+from pathplanning.core.nn_index import NaiveNnIndex, NearestNeighborIndex
 from pathplanning.core.params import RrtParams
-from pathplanning.core.tree import Tree
+from pathplanning.core.tree import ArrayTree
 
 GoalPredicate: TypeAlias = Callable[[State], bool]
 GoalRegion: TypeAlias = GoalPredicate | tuple[Sequence[float], float] | Sequence[float] | State
@@ -28,7 +27,7 @@ IndexFactory: TypeAlias = Callable[[int], NearestNeighborIndex]
 
 
 def _default_index_factory(dim: int) -> NearestNeighborIndex:
-    return NaiveIndex(dim=dim)
+    return NaiveNnIndex(dim=dim)
 
 
 def _as_state(value: Sequence[float] | State, name: str, *, dim: int) -> State:
@@ -82,7 +81,7 @@ class RrtStarPlanner:
         self._nn_index_factory = nn_index_factory or _default_index_factory
         self._batch_space: BatchConfigurationSpace | None = self._resolve_batch_space(space)
         if hasattr(self.space, "collision_step"):
-            setattr(self.space, "collision_step", self.params.collision_step)
+            self.space.collision_step = self.params.collision_step  # type: ignore[attr-defined]
 
     @staticmethod
     def _resolve_batch_space(space: ConfigurationSpace) -> BatchConfigurationSpace | None:
@@ -150,12 +149,16 @@ class RrtStarPlanner:
         return index.nearest(target)
 
     @staticmethod
-    def _near_indices(index: NearestNeighborIndex, target: State, radius: float) -> list[int]:
+    def _near_indices(
+        index: NearestNeighborIndex,
+        target: State,
+        radius: float,
+    ) -> NDArray[np.int64]:
         """Return neighbor indices around ``target`` using a dynamic RRT* radius."""
         return index.radius(target, radius)
 
     @staticmethod
-    def _path_from_tree(tree: Tree, node_id: int) -> list[State]:
+    def _path_from_tree(tree: ArrayTree, node_id: int) -> list[State]:
         """Return root-to-node path as a list of states."""
         path = tree.extract_path(node_id)
         return [np.asarray(state, dtype=float) for state in path]
@@ -204,11 +207,11 @@ class RrtStarPlanner:
                 stats={"reason": "start_in_goal", "goal_checks": 1},
             )
 
-        tree = Tree(self.space.dim)
-        root_id = tree.append_node(start_state, -1, 0.0)
+        tree = ArrayTree(self.space.dim)
+        tree.add_node(start_state, -1, 0.0)
         children: list[set[int]] = [set()]
         index = self._nn_index_factory(self.space.dim)
-        index.add(tree.nodes[root_id])
+        index.build(tree.nodes)
 
         goal_indices: list[int] = []
         goal_checks = 0
@@ -216,7 +219,8 @@ class RrtStarPlanner:
         iters_run = 0
         stop_reason: str | None = None
 
-        for iters_run in range(1, self.params.max_iters + 1):
+        for iter_index in range(1, self.params.max_iters + 1):
+            iters_run = iter_index
             if self.params.time_budget_s is not None:
                 elapsed = time.perf_counter() - start_time
                 if elapsed >= self.params.time_budget_s:
@@ -234,7 +238,7 @@ class RrtStarPlanner:
                 target = self._sample_free()
 
             nearest_index = self._nearest_index(index, target)
-            nearest = tree.nodes[nearest_index]
+            nearest = tree.node(nearest_index)
             candidate = self.space.steer(nearest, target, self.params.step_size)
 
             if not self._is_free(candidate):
@@ -244,7 +248,7 @@ class RrtStarPlanner:
 
             card_v = tree.size
             if card_v <= 1:
-                near_indices = [0]
+                near_indices = np.asarray([0], dtype=np.int64)
             else:
                 dim = float(self.space.dim)
                 dynamic_radius = self.params.step_size * (
@@ -258,7 +262,8 @@ class RrtStarPlanner:
 
             parent_index = nearest_index
             parent_cost = float(tree.cost[parent_index] + self.space.distance(nearest, candidate))
-            for near_index in near_indices:
+            for near_index_raw in near_indices:
+                near_index = int(near_index_raw)
                 near_node = tree.nodes[near_index]
                 if not self._segment_free(near_node, candidate):
                     continue
@@ -269,13 +274,14 @@ class RrtStarPlanner:
                     parent_index = near_index
                     parent_cost = candidate_cost
 
-            new_index = tree.append_node(candidate, parent_index, parent_cost)
+            new_index = tree.add_node(candidate, parent_index, parent_cost)
             children.append(set())
             children[parent_index].add(new_index)
-            index.add(tree.nodes[new_index])
+            index.build(tree.nodes)
 
-            for near_index in near_indices:
-                if near_index == parent_index or near_index == new_index:
+            for near_index_raw in near_indices:
+                near_index = int(near_index_raw)
+                if near_index in (parent_index, new_index):
                     continue
                 near_node = tree.nodes[near_index]
                 if not self._segment_free(candidate, near_node):
@@ -293,7 +299,7 @@ class RrtStarPlanner:
                     self._propagate_cost_delta(near_index, delta, tree.cost, children)
 
             goal_checks += 1
-            if goal.predicate(tree.nodes[new_index]):
+            if goal.predicate(tree.node(new_index)):
                 goal_indices.append(new_index)
 
         if goal_indices:

@@ -2,39 +2,87 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable, Sequence
-from typing import Protocol, TypeAlias, cast
+import importlib
+from typing import TYPE_CHECKING, Protocol, cast
 
 import numpy as np
 from numpy.typing import NDArray
 
-from pathplanning.core.types import Float, Mat, NodeId, Vec
+from pathplanning.core.types import Mat, NodeId, Vec
+
+if TYPE_CHECKING:  # pragma: no cover - typing-only optional import
+    try:
+        from scipy.spatial import cKDTree as _ScipyKDTree  # pyright: ignore[reportMissingTypeStubs, reportAttributeAccessIssue, reportUnknownVariableType]
+    except Exception:  # pragma: no cover - scipy optional for typing
+
+        class _ScipyKDTree:  # noqa: D101
+            def __init__(self, *_args: object, **_kwargs: object) -> None:
+                pass
+else:  # pragma: no cover - runtime placeholder for optional dependency type
+
+    class _ScipyKDTree:  # noqa: D101
+        def __init__(self, *_args: object, **_kwargs: object) -> None:
+            pass
 
 
-PointLike: TypeAlias = Sequence[Float] | Vec
-
-
-def _as_point(point: PointLike, dim: int) -> Vec:
-    array = np.asarray(point, dtype=float)
+def _as_point(point: Vec, dim: int) -> Vec:
+    array = np.asarray(point, dtype=np.float64)
     if array.shape != (dim,):
         raise ValueError(f"point must be shape ({dim},), got {array.shape}")
+    return array
+
+
+def _as_matrix(points: Mat, dim: int) -> Mat:
+    array = np.asarray(points, dtype=np.float64)
+    if array.ndim != 2 or array.shape[1] != dim:
+        raise ValueError(f"points must be shape (n, {dim}), got {array.shape}")
     return array
 
 
 class NearestNeighborIndex(Protocol):
     """Contract for pluggable nearest-neighbor backends."""
 
-    def add(self, point: PointLike) -> NodeId:
-        """Insert ``point`` and return its index id."""
+    def build(self, points: Mat) -> None:
+        """Build or rebuild the index from planner points."""
         ...
 
-    def nearest(self, query: PointLike) -> NodeId:
-        """Return the id of the nearest stored point to ``query``."""
+    def nearest(self, q: Vec) -> NodeId:
+        """Return the id of the nearest stored point to ``q``."""
         ...
 
-    def radius(self, query: PointLike, radius: Float) -> list[NodeId]:
-        """Return ids of points within ``radius`` of ``query``."""
+    def radius(self, q: Vec, r: float) -> NDArray[np.int64]:
+        """Return ids of points within radius ``r`` around ``q``."""
         ...
+
+
+class NaiveNnIndex:
+    """Vectorized NumPy nearest-neighbor index."""
+
+    def __init__(self, dim: int) -> None:
+        self._dim = dim
+        self._points: Mat = np.empty((0, dim), dtype=np.float64)
+
+    def build(self, points: Mat) -> None:
+        self._points = _as_matrix(points, self._dim).copy()
+
+    def nearest(self, q: Vec) -> NodeId:
+        if self._points.shape[0] == 0:
+            raise ValueError("nearest() called on empty index")
+        query = _as_point(q, self._dim)
+        deltas = self._points - query
+        distances_sq = np.einsum("ij,ij->i", deltas, deltas)
+        return int(np.argmin(distances_sq))
+
+    def radius(self, q: Vec, r: float) -> NDArray[np.int64]:
+        if r < 0:
+            raise ValueError("radius must be non-negative")
+        if self._points.shape[0] == 0:
+            return np.empty((0,), dtype=np.int64)
+        query = _as_point(q, self._dim)
+        deltas = self._points - query
+        distances_sq = np.einsum("ij,ij->i", deltas, deltas)
+        threshold = float(r) ** 2
+        return np.where(distances_sq <= threshold)[0].astype(np.int64, copy=False)
 
 
 class _KDTreeBackend(Protocol):
@@ -42,122 +90,65 @@ class _KDTreeBackend(Protocol):
 
     def query(
         self, x: Vec, k: int = 1
-    ) -> tuple[Float | NDArray[np.float64], NodeId | NDArray[np.int64]]:
+    ) -> tuple[float, int] | tuple[NDArray[np.float64], NDArray[np.int64]]:
         """Return nearest-neighbor distance and index."""
         ...
 
-    def query_ball_point(self, x: Vec, r: Float) -> list[NodeId]:
+    def query_ball_point(self, x: Vec, r: float) -> list[int]:
         """Return indices inside the search radius."""
         ...
 
 
-class NaiveIndex:
-    """Vectorized NumPy nearest-neighbor index.
-
-    Uses Euclidean distance when no custom distance function is provided.
-    """
-
-    def __init__(
-        self,
-        dim: int,
-        distance_fn: Callable[[Vec, Vec], Float] | None = None,
-    ) -> None:
-        self._dim = dim
-        self._distance_fn = distance_fn
-        self._points: list[Vec] = []
-        self._matrix: Mat | None = None
-        self._dirty = False
-
-    def add(self, point: PointLike) -> NodeId:
-        array = _as_point(point, self._dim)
-        self._points.append(array)
-        self._dirty = True
-        return len(self._points) - 1
-
-    def _ensure_matrix(self) -> Mat:
-        if self._matrix is None or self._dirty:
-            if not self._points:
-                self._matrix = np.empty((0, self._dim), dtype=float)
-            else:
-                self._matrix = np.vstack(self._points).astype(float, copy=False)
-            self._dirty = False
-        return self._matrix
-
-    def nearest(self, query: PointLike) -> NodeId:
-        if not self._points:
-            raise ValueError("nearest() called on empty index")
-        query_array = _as_point(query, self._dim)
-        if self._distance_fn is not None:
-            distances = [self._distance_fn(point, query_array) for point in self._points]
-            return int(np.argmin(np.asarray(distances, dtype=float)))
-
-        matrix = self._ensure_matrix()
-        deltas = matrix - query_array
-        distances = np.einsum("ij,ij->i", deltas, deltas)
-        return int(np.argmin(distances))
-
-    def radius(self, query: PointLike, radius: Float) -> list[NodeId]:
-        if not self._points:
-            return []
-        query_array = _as_point(query, self._dim)
-        if self._distance_fn is not None:
-            indices: list[int] = []
-            for idx, point in enumerate(self._points):
-                if self._distance_fn(point, query_array) <= radius:
-                    indices.append(idx)
-            return indices
-
-        matrix = self._ensure_matrix()
-        deltas = matrix - query_array
-        distances = np.einsum("ij,ij->i", deltas, deltas)
-        radius_sq = float(radius) ** 2
-        return [int(idx) for idx in np.where(distances <= radius_sq)[0]]
+try:  # pragma: no cover - optional runtime dependency
+    _scipy_spatial = importlib.import_module("scipy.spatial")
+    _cKDTree_runtime = cast(type[_ScipyKDTree], _scipy_spatial.cKDTree)
+except Exception:  # pragma: no cover - scipy optional
+    _cKDTree_runtime: type[_ScipyKDTree] | None = None
 
 
-try:  # Optional SciPy backend.
-    from scipy.spatial import cKDTree as _cKDTree  # type: ignore[import-not-found]
-except Exception:  # pragma: no cover - optional dependency
-    _cKDTree = None
-
-
-class KDTreeIndex:
+class KDTreeNnIndex:
     """Nearest-neighbor index backed by ``scipy.spatial.cKDTree``."""
 
     def __init__(self, dim: int) -> None:
-        if _cKDTree is None:
-            raise ImportError("scipy is required for KDTreeIndex")
         self._dim = dim
-        self._points: list[Vec] = []
+        self._points: Mat = np.empty((0, dim), dtype=np.float64)
         self._tree: _KDTreeBackend | None = None
-        self._dirty = False
 
-    def add(self, point: PointLike) -> NodeId:
-        array = _as_point(point, self._dim)
-        self._points.append(array)
-        self._dirty = True
-        return len(self._points) - 1
+    def _runtime_kdtree_class(self) -> type[_ScipyKDTree]:
+        runtime_kdtree = _cKDTree_runtime
+        if runtime_kdtree is None:
+            raise RuntimeError("scipy is required for KDTreeNnIndex")
+        return runtime_kdtree
 
-    def _ensure_tree(self) -> _KDTreeBackend:
-        if _cKDTree is None:
-            raise ImportError("scipy is required for KDTreeIndex")
-        if self._tree is None or self._dirty:
-            matrix = np.vstack(self._points).astype(float, copy=False)
-            self._tree = cast(_KDTreeBackend, _cKDTree(matrix))
-            self._dirty = False
-        return self._tree
+    def build(self, points: Mat) -> None:
+        runtime_kdtree = self._runtime_kdtree_class()
+        self._points = _as_matrix(points, self._dim).copy()
+        if self._points.shape[0] == 0:
+            self._tree = None
+            return
+        self._tree = cast(_KDTreeBackend, runtime_kdtree(self._points))
 
-    def nearest(self, query: PointLike) -> NodeId:
-        if not self._points:
+    def nearest(self, q: Vec) -> NodeId:
+        self._runtime_kdtree_class()
+        if self._tree is None:
             raise ValueError("nearest() called on empty index")
-        query_array = _as_point(query, self._dim)
-        tree = self._ensure_tree()
-        _, idx = tree.query(query_array, k=1)
-        return int(idx)
+        query = _as_point(q, self._dim)
+        _, index = self._tree.query(query, k=1)
+        if isinstance(index, np.ndarray):
+            return int(index.item())
+        return int(index)
 
-    def radius(self, query: PointLike, radius: Float) -> list[NodeId]:
-        if not self._points:
-            return []
-        query_array = _as_point(query, self._dim)
-        tree = self._ensure_tree()
-        indices = tree.query_ball_point(query_array, r=float(radius))
-        return [int(idx) for idx in indices]
+    def radius(self, q: Vec, r: float) -> NDArray[np.int64]:
+        self._runtime_kdtree_class()
+        if r < 0:
+            raise ValueError("radius must be non-negative")
+        if self._tree is None:
+            return np.empty((0,), dtype=np.int64)
+        query = _as_point(q, self._dim)
+        indices = self._tree.query_ball_point(query, r=float(r))
+        return np.asarray(indices, dtype=np.int64)
+
+
+# Stable aliases for existing imports.
+NaiveIndex = NaiveNnIndex
+KDTreeIndex = KDTreeNnIndex

@@ -3,9 +3,15 @@
 from __future__ import annotations
 
 from .contracts import BatchConfigurationSpace, ConfigurationSpace, PlanResult, State
-from .nn_index import KDTreeIndex, NaiveIndex, NearestNeighborIndex
+from .nn_index import (
+    KDTreeIndex,
+    KDTreeNnIndex,
+    NaiveIndex,
+    NaiveNnIndex,
+    NearestNeighborIndex,
+)
 from .params import RrtParams
-from .tree import Tree
+from .tree import ArrayTree, Tree
 from .types import BoolArray, Float, FloatArray, Mat, NodeId, Vec
 
 __all__ = [
@@ -15,8 +21,11 @@ __all__ = [
     "RrtParams",
     "State",
     "NearestNeighborIndex",
+    "NaiveNnIndex",
+    "KDTreeNnIndex",
     "NaiveIndex",
     "KDTreeIndex",
+    "ArrayTree",
     "Tree",
     "NodeId",
     "Float",
