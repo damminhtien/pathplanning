@@ -11,7 +11,7 @@ from numpy.typing import NDArray
 from scipy.spatial import cKDTree
 
 from . import utils_3d
-from .env_3d import Environment3D
+from pathplanning.spaces.environment3d import Environment3D
 
 Node: TypeAlias = tuple[float, float, float]
 Edge: TypeAlias = tuple[Node, Node]

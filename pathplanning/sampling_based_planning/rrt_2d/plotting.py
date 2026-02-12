@@ -3,21 +3,17 @@ Plotting tools for Sampling-based algorithms
 @author: damminhtien
 """
 
+from pathplanning.spaces.grid2d import Grid2DSamplingSpace
 from pathplanning.viz import lazy_import
 
 plt = lazy_import("matplotlib.pyplot")
 patches = lazy_import("matplotlib.patches")
 
-try:
-    from . import env
-except ImportError:  # pragma: no cover - script execution fallback
-    import env
-
 
 class Plotting:
     def __init__(self, x_start, x_goal):
         self.xI, self.xG = x_start, x_goal
-        self.env = env.Env()
+        self.env = Grid2DSamplingSpace()
         self.obs_bound = self.env.obs_boundary
         self.obs_circle = self.env.obs_circle
         self.obs_rectangle = self.env.obs_rectangle

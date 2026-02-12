@@ -5,7 +5,7 @@ from __future__ import annotations
 import numpy as np
 
 from pathplanning.core.params import RrtParams
-from pathplanning.env.continuous_3d import AABB, ContinuousSpace3D
+from pathplanning.spaces.continuous_3d import AABB, ContinuousSpace3D
 from pathplanning.sampling_based_planning.rrt_3d.rrt_star import RrtStarPlanner
 
 

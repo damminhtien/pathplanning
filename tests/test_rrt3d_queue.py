@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from pathplanning.sampling_based_planning.rrt_3d.queue import MinHeapPriorityQueue
+from pathplanning.utils.priority_queue import MinHeapPriorityQueue
 
 
 def test_remove_marks_item_and_get_skips_it() -> None:

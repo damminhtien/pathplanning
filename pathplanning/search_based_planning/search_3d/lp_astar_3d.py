@@ -6,15 +6,12 @@ plt = lazy_import("matplotlib.pyplot")
 import os
 import sys
 
-from .env_3d import env
+from pathplanning.spaces.environment3d import env
 from . import astar_3d
 from .utils_3d import getDist, getRay, g_Space, Heuristic, getNearest, isinbound, isinball, \
     cost, obstacleFree, isCollide
 from .plot_util_3d import visualization
-try:
-    from . import queue
-except ImportError:  # pragma: no cover - script execution fallback
-    from . import queue
+from pathplanning.utils import priority_queue as queue
 import pyrr
 import time
 

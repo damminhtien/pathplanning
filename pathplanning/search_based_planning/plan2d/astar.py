@@ -7,9 +7,11 @@ import math
 import heapq
 
 try:
-    from .utils import plotting, env
+    from .utils import plotting
 except ImportError:  # pragma: no cover - script execution fallback
-    from utils import plotting, env
+    from utils import plotting
+
+from pathplanning.spaces.grid2d import Grid2DSearchSpace
 
 
 class Astar:
@@ -21,7 +23,7 @@ class Astar:
         self.s_goal = s_goal
         self.heuristic_type = heuristic_type
 
-        self.Env = env.Env()  # class Env
+        self.Env = Grid2DSearchSpace()  # class Env
 
         self.u_set = self.Env.motions  # feasible input set
         self.obs = self.Env.obs  # position of obstacles

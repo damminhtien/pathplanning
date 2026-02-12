@@ -11,14 +11,10 @@ from __future__ import annotations
 
 from typing import Iterable, List, Sequence, Tuple
 
+from pathplanning.spaces.grid2d import Grid2DSearchSpace
 from pathplanning.viz import lazy_import
 
 plt = lazy_import("matplotlib.pyplot")
-
-try:
-    from . import env
-except ImportError:  # pragma: no cover - script execution fallback
-    from utils import env
 
 Point = Tuple[int, int]
 
@@ -39,7 +35,7 @@ class Plotting:
 
     def __init__(self, start: Point, goal: Point) -> None:
         self.start, self.goal = start, goal
-        self.env = env.Env()
+        self.env = Grid2DSearchSpace()
         self.obstacles = self.env.obs_map()
         self._figure = None  # type: ignore[var-annotated]
 

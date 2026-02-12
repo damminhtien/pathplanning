@@ -9,11 +9,12 @@ import math
 import copy
 import numpy as np
 from pathplanning.viz import lazy_import
+from pathplanning.spaces.grid2d import Grid2DSamplingSpace
 
 plt = lazy_import("matplotlib.pyplot")
 patches = lazy_import("matplotlib.patches")
 
-from . import env, plotting, utils
+from . import plotting, utils
 
 
 class Node:
@@ -45,7 +46,7 @@ class DynamicRrt:
         self.vertex_new = []
         self.edges = []
 
-        self.env = env.Env()
+        self.env = Grid2DSamplingSpace()
         self.plotting = plotting.Plotting(s_start, s_goal)
         self.utils = utils.Utils()
         self.fig, self.ax = plt.subplots()

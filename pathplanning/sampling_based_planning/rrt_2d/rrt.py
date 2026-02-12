@@ -5,11 +5,11 @@ RRT_2D
 
 import math
 import numpy as np
+from pathplanning.spaces.grid2d import Grid2DSamplingSpace
 
 try:
-    from . import env, plotting, utils
+    from . import plotting, utils
 except ImportError:  # pragma: no cover - script execution fallback
-    import env
     import plotting
     import utils
 
@@ -31,7 +31,7 @@ class Rrt:
         self.vertex = [self.s_start]
         self.rng = rng if rng is not None else np.random.default_rng()
 
-        self.env = env.Env()
+        self.env = Grid2DSamplingSpace()
         self.plotting = plotting.Plotting(s_start, s_goal)
         self.utils = utils.Utils()
 

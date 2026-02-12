@@ -3,12 +3,13 @@ RRT_star 2D
 @author: damminhtien
 """
 
-import os
-import sys
 import math
 import numpy as np
 
-from . import env, plotting, utils, queue
+from pathplanning.spaces.grid2d import Grid2DSamplingSpace
+from pathplanning.utils import priority_queue as queue
+
+from . import plotting, utils
 
 
 class Node:
@@ -31,7 +32,7 @@ class RrtStar:
         self.path = []
         self.rng = rng if rng is not None else np.random.default_rng()
 
-        self.env = env.Env()
+        self.env = Grid2DSamplingSpace()
         self.plotting = plotting.Plotting(x_start, x_goal)
         self.utils = utils.Utils()
 

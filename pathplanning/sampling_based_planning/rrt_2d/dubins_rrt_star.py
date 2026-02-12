@@ -6,11 +6,12 @@ DUBINS_RRT_STAR 2D
 import math
 import numpy as np
 from pathplanning.viz import lazy_import
+from pathplanning.spaces.grid2d import Grid2DSamplingSpace
 
 plt = lazy_import("matplotlib.pyplot")
 patches = lazy_import("matplotlib.patches")
 
-from . import env, utils
+from . import utils
 from pathplanning.curves import dubins_path as dubins
 from pathplanning.curves import draw
 
@@ -40,7 +41,7 @@ class DubinsRRTStar:
         self.curv = 1
         self.rng = rng if rng is not None else np.random.default_rng()
 
-        self.env = env.Env()
+        self.env = Grid2DSamplingSpace()
         self.utils = utils.Utils()
 
         self.fig, self.ax = plt.subplots()

@@ -12,14 +12,11 @@ plt = lazy_import("matplotlib.pyplot")
 import os
 import sys
 
-from .env_3d import env
+from pathplanning.spaces.environment3d import env
 from .utils_3d import getDist, getRay, g_Space, Heuristic, getNearest, isCollide, \
     cost, children, StateSpace, heuristic_fun
 from .plot_util_3d import visualization
-try:
-    from . import queue
-except ImportError:  # pragma: no cover - script execution fallback
-    from . import queue
+from pathplanning.utils import priority_queue as queue
 import time
 
 class Weighted_A_star(object):

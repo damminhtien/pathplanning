@@ -498,7 +498,7 @@ class KdTree:
 
 
 if __name__ == "__main__":
-    from .env_3d import Environment3D
+    from pathplanning.spaces.environment3d import Environment3D
     import time
     import matplotlib.pyplot as plt
 

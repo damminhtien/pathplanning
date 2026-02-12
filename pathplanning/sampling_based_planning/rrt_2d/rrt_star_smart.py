@@ -8,12 +8,13 @@ import sys
 import math
 import numpy as np
 from pathplanning.viz import lazy_import
+from pathplanning.spaces.grid2d import Grid2DSamplingSpace
 
 plt = lazy_import("matplotlib.pyplot")
 patches = lazy_import("matplotlib.patches")
 from scipy.spatial.transform import Rotation as Rot
 
-from . import env, plotting, utils
+from . import plotting, utils
 
 
 class Node:
@@ -34,7 +35,7 @@ class RrtStarSmart:
         self.iter_max = iter_max
         self.rng = rng if rng is not None else np.random.default_rng()
 
-        self.env = env.Env()
+        self.env = Grid2DSamplingSpace()
         self.plotting = plotting.Plotting(x_start, x_goal)
         self.utils = utils.Utils()
 

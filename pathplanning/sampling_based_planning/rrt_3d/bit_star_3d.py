@@ -14,7 +14,7 @@ import copy
 
 import numpy as np
 
-from .env_3d import Environment3D
+from pathplanning.spaces.environment3d import Environment3D
 from .utils_3d import get_dist, is_collide, is_in_bound, is_inside, sample_free
 
 def create_unit_sphere(radius: float = 1.0) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
