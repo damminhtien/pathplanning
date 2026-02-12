@@ -6,12 +6,12 @@ from collections.abc import Sequence
 from dataclasses import dataclass, field
 
 import numpy as np
-from numpy.typing import NDArray
 
-from pathplanning.core.contracts import ConfigurationSpace, State
+from pathplanning.core.contracts import BatchConfigurationSpace
+from pathplanning.core.types import BoolArray, Float, FloatArray, Mat, Vec
 
 
-def _as_state(value: Sequence[float] | NDArray[np.float64], name: str) -> State:
+def _as_state(value: Sequence[Float] | FloatArray, name: str) -> Vec:
     state = np.asarray(value, dtype=float)
     if state.shape != (3,):
         raise ValueError(f"{name} must be shape (3,), got {state.shape}")
@@ -22,8 +22,8 @@ def _as_state(value: Sequence[float] | NDArray[np.float64], name: str) -> State:
 class AABB:
     """Axis-aligned bounding box in continuous 3D space."""
 
-    min_corner: Sequence[float] | NDArray[np.float64]
-    max_corner: Sequence[float] | NDArray[np.float64]
+    min_corner: Vec
+    max_corner: Vec
 
     def __post_init__(self) -> None:
         self.min_corner = _as_state(self.min_corner, "min_corner")
@@ -31,7 +31,7 @@ class AABB:
         if np.any(self.min_corner >= self.max_corner):
             raise ValueError("min_corner must be strictly smaller than max_corner")
 
-    def contains(self, point: Sequence[float] | NDArray[np.float64]) -> bool:
+    def contains(self, point: Sequence[Float] | FloatArray) -> bool:
         state = _as_state(point, "point")
         return bool(np.all(state >= self.min_corner) and np.all(state <= self.max_corner))
 
@@ -40,8 +40,8 @@ class AABB:
 class Sphere:
     """Sphere obstacle in continuous 3D space."""
 
-    center: Sequence[float] | NDArray[np.float64]
-    radius: float
+    center: Vec
+    radius: Float
 
     def __post_init__(self) -> None:
         self.center = _as_state(self.center, "center")
@@ -49,7 +49,7 @@ class Sphere:
         if self.radius <= 0.0:
             raise ValueError("radius must be > 0")
 
-    def contains(self, point: Sequence[float] | NDArray[np.float64]) -> bool:
+    def contains(self, point: Sequence[Float] | FloatArray) -> bool:
         state = _as_state(point, "point")
         return bool(np.linalg.norm(state - self.center) <= self.radius)
 
@@ -58,9 +58,9 @@ class Sphere:
 class OBB:
     """Oriented bounding box with center, extents, and orientation matrix."""
 
-    center: Sequence[float] | NDArray[np.float64]
-    extents: Sequence[float] | NDArray[np.float64]
-    orientation: NDArray[np.float64]
+    center: Vec
+    extents: Vec
+    orientation: Mat
 
     def __post_init__(self) -> None:
         self.center = _as_state(self.center, "center")
@@ -71,54 +71,61 @@ class OBB:
         if self.orientation.shape != (3, 3):
             raise ValueError(f"orientation must be shape (3, 3), got {self.orientation.shape}")
 
-    def contains(self, point: Sequence[float] | NDArray[np.float64]) -> bool:
+    def contains(self, point: Sequence[Float] | FloatArray) -> bool:
         state = _as_state(point, "point")
         local = self.orientation.T @ (state - self.center)
         return bool(np.all(np.abs(local) <= self.extents))
 
 
 @dataclass(slots=True)
-class ContinuousSpace3D(ConfigurationSpace):
+class ContinuousSpace3D(BatchConfigurationSpace):
     """Continuous 3D configuration space with collision-checking primitives."""
 
-    lower_bound: Sequence[float] | NDArray[np.float64]
-    upper_bound: Sequence[float] | NDArray[np.float64]
+    lower_bound: Vec
+    upper_bound: Vec
     aabbs: tuple[AABB, ...] = field(default_factory=tuple)
     spheres: tuple[Sphere, ...] = field(default_factory=tuple)
     obbs: tuple[OBB, ...] = field(default_factory=tuple)
-    goal: Sequence[float] | NDArray[np.float64] | None = None
-    goal_tolerance: float = 0.0
+    goal: Vec | None = None
+    goal_tolerance: Float = 0.0
+    collision_step: Float = 0.1
     rng: np.random.Generator = field(default_factory=np.random.default_rng, repr=False)
     max_sample_tries: int = 10_000
 
     def __post_init__(self) -> None:
         self.lower_bound = _as_state(self.lower_bound, "lower_bound")
         self.upper_bound = _as_state(self.upper_bound, "upper_bound")
+        self.aabbs = tuple(self.aabbs)
+        self.spheres = tuple(self.spheres)
+        self.obbs = tuple(self.obbs)
         if np.any(self.lower_bound >= self.upper_bound):
             raise ValueError("lower_bound must be strictly smaller than upper_bound")
         self.goal_tolerance = float(self.goal_tolerance)
         if self.goal_tolerance < 0.0:
             raise ValueError("goal_tolerance must be >= 0")
+        self.collision_step = float(self.collision_step)
+        if self.collision_step <= 0.0:
+            raise ValueError("collision_step must be > 0")
         if self.goal is not None:
             self.goal = _as_state(self.goal, "goal")
         if self.max_sample_tries <= 0:
             raise ValueError("max_sample_tries must be > 0")
 
     @property
-    def bounds(self) -> tuple[State, State]:
-        return np.array(self.lower_bound, dtype=float), np.array(self.upper_bound, dtype=float)
+    def bounds(self) -> FloatArray:
+        return np.vstack((self.lower_bound, self.upper_bound)).astype(float, copy=False)
 
     @property
     def dim(self) -> int:
         return 3
 
-    def in_bounds(self, point: Sequence[float] | NDArray[np.float64]) -> bool:
+    def in_bounds(self, point: Sequence[Float] | FloatArray) -> bool:
         state = _as_state(point, "point")
         return bool(np.all(state >= self.lower_bound) and np.all(state <= self.upper_bound))
 
-    def sample_free(self) -> State:
+    def sample_free(self, rng: np.random.Generator) -> Vec:
         for _ in range(self.max_sample_tries):
-            candidate = self.rng.uniform(self.lower_bound, self.upper_bound)
+            candidate = rng.uniform(self.lower_bound, self.upper_bound)
             if self.is_free(candidate):
                 return candidate
         raise RuntimeError(
@@ -126,8 +133,8 @@ class ContinuousSpace3D(ConfigurationSpace):
             "Check bounds and obstacle occupancy."
         )
 
-    def is_free(self, state: State) -> bool:
-        point = _as_state(state, "state")
+    def is_free(self, x: Vec) -> bool:
+        point = _as_state(x, "x")
         if not self.in_bounds(point):
             return False
         if any(obstacle.contains(point) for obstacle in self.aabbs):
@@ -136,10 +143,10 @@ class ContinuousSpace3D(ConfigurationSpace):
             return False
         return not any(obstacle.contains(point) for obstacle in self.obbs)
 
-    def segment_free(self, start: State, end: State, collision_step: float) -> bool:
-        start_state = _as_state(start, "start")
-        end_state = _as_state(end, "end")
-        step = float(collision_step)
+    def segment_free(self, a: Vec, b: Vec, collision_step: Float | None = None) -> bool:
+        start_state = _as_state(a, "a")
+        end_state = _as_state(b, "b")
+        step = self.collision_step if collision_step is None else float(collision_step)
         if step <= 0.0:
             raise ValueError("collision_step must be > 0")
 
@@ -155,15 +162,15 @@ class ContinuousSpace3D(ConfigurationSpace):
                 return False
         return True
 
-    def distance(self, start: State, end: State) -> float:
-        start_state = _as_state(start, "start")
-        end_state = _as_state(end, "end")
+    def distance(self, a: Vec, b: Vec) -> Float:
+        start_state = _as_state(a, "a")
+        end_state = _as_state(b, "b")
         return float(np.linalg.norm(end_state - start_state))
 
-    def steer(self, start: State, target: State, step_size: float) -> State:
-        start_state = _as_state(start, "start")
-        target_state = _as_state(target, "target")
-        step = float(step_size)
+    def steer(self, a: Vec, b: Vec, step: Float) -> Vec:
+        start_state = _as_state(a, "a")
+        target_state = _as_state(b, "b")
+        step = float(step)
         if step <= 0.0:
             raise ValueError("step_size must be > 0")
 
@@ -173,10 +180,38 @@ class ContinuousSpace3D(ConfigurationSpace):
             return target_state
         return start_state + (direction / distance) * step
 
-    def is_goal(self, state: State) -> bool:
+    def is_goal(self, x: Vec) -> bool:
         goal = self.goal
         if goal is None:
             return False
-        point = _as_state(state, "state")
+        point = _as_state(x, "x")
         goal_state = _as_state(goal, "goal")
         return self.distance(point, goal_state) <= self.goal_tolerance
+
+    def sample_free_batch(self, rng: np.random.Generator, n: int) -> Mat:
+        if n < 0:
+            raise ValueError("n must be >= 0")
+        if n == 0:
+            return np.empty((0, self.dim), dtype=float)
+        samples = [self.sample_free(rng) for _ in range(n)]
+        return np.vstack(samples).astype(float, copy=False)
+
+    def is_free_batch(self, x: Mat) -> BoolArray:
+        points = np.asarray(x, dtype=float)
+        if points.ndim != 2 or points.shape[1] != self.dim:
+            raise ValueError(f"x must be shape (n, {self.dim}), got {points.shape}")
+        return np.asarray([self.is_free(point) for point in points], dtype=np.bool_)
+
+    def segment_free_batch(self, a: Mat, b: Mat) -> BoolArray:
+        starts = np.asarray(a, dtype=float)
+        ends = np.asarray(b, dtype=float)
+        if starts.ndim != 2 or starts.shape[1] != self.dim:
+            raise ValueError(f"a must be shape (n, {self.dim}), got {starts.shape}")
+        if ends.ndim != 2 or ends.shape[1] != self.dim:
+            raise ValueError(f"b must be shape (n, {self.dim}), got {ends.shape}")
+        if starts.shape[0] != ends.shape[0]:
+            raise ValueError("a and b must have the same number of rows")
+        return np.asarray(
+            [self.segment_free(start, end) for start, end in zip(starts, ends, strict=True)],
+            dtype=np.bool_,
+        )

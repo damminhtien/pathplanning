@@ -4,20 +4,29 @@ from __future__ import annotations
 
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
+from numbers import Real
 import time
-from typing import TypeAlias
+from typing import TypeAlias, cast
 
 import numpy as np
 
-from pathplanning.core.contracts import ConfigurationSpace, PlanResult, State
+from pathplanning.core.contracts import (
+    BatchConfigurationSpace,
+    ConfigurationSpace,
+    PlanResult,
+    State,
+)
 from pathplanning.core.nn_index import NaiveIndex, NearestNeighborIndex
-from pathplanning.core.tree import Tree
 from pathplanning.core.params import RrtParams
+from pathplanning.core.tree import Tree
 
 GoalPredicate: TypeAlias = Callable[[State], bool]
-GoalRegion: TypeAlias = GoalPredicate | tuple[Sequence[float],
-                                              float] | Sequence[float] | State
+GoalRegion: TypeAlias = GoalPredicate | tuple[Sequence[float], float] | Sequence[float] | State
 IndexFactory: TypeAlias = Callable[[int], NearestNeighborIndex]
+
+
+def _default_index_factory(dim: int) -> NearestNeighborIndex:
+    return NaiveIndex(dim=dim)
 
 
 def _as_state(value: Sequence[float] | State, name: str, *, dim: int) -> State:
@@ -68,7 +77,20 @@ class RrtPlanner:
         self.space = space
         self.params = params.validate()
         self.rng = rng
-        self._nn_index_factory = nn_index_factory or (lambda dim: NaiveIndex(dim=dim))
+        self._nn_index_factory = nn_index_factory or _default_index_factory
+        self._batch_space: BatchConfigurationSpace | None = self._resolve_batch_space(space)
+        if hasattr(self.space, "collision_step"):
+            setattr(self.space, "collision_step", self.params.collision_step)
+
+    @staticmethod
+    def _resolve_batch_space(space: ConfigurationSpace) -> BatchConfigurationSpace | None:
+        if (
+            hasattr(space, "sample_free_batch")
+            and hasattr(space, "is_free_batch")
+            and hasattr(space, "segment_free_batch")
+        ):
+            return cast(BatchConfigurationSpace, space)
+        return None
 
     def _goal_spec(self, goal_region: GoalRegion) -> GoalSpec:
         """Build an internal goal specification from supported goal inputs."""
@@ -76,30 +98,35 @@ class RrtPlanner:
             target = getattr(self.space, "goal", None)
             target_state: State | None = None
             if target is not None:
-                target_state = _as_state(
-                    target, "space.goal", dim=self.space.dim)
+                target_array = np.asarray(target, dtype=float)
+                if target_array.shape == (self.space.dim,):
+                    target_state = target_array
             return GoalSpec(predicate=goal_region, target_state=target_state)
 
-        if (
-            isinstance(goal_region, tuple)
-            and len(goal_region) == 2
-            and not isinstance(goal_region[1], (Sequence, np.ndarray))
-        ):
+        if isinstance(goal_region, tuple):
+            if len(goal_region) != 2:
+                raise ValueError("goal tuple must be (center, tolerance)")
+            center_raw, tolerance_raw = goal_region
+            if not isinstance(tolerance_raw, Real):
+                raise ValueError("goal tuple must be (center, tolerance)")
             center = _as_state(
-                goal_region[0], "goal_center", dim=self.space.dim)
-            tolerance = float(goal_region[1])
+                cast(Sequence[float] | State, center_raw),
+                "goal_center",
+                dim=self.space.dim,
+            )
+            tolerance = float(tolerance_raw)
             if tolerance < 0.0:
                 raise ValueError("goal tolerance must be >= 0")
             return GoalSpec(
-                predicate=lambda state: self.space.distance(
-                    state, center) <= tolerance,
+                predicate=lambda state: self.space.distance(state, center) <= tolerance,
                 target_state=center,
             )
 
         goal_state = _as_state(goal_region, "goal_state", dim=self.space.dim)
         return GoalSpec(
-            predicate=lambda state: self.space.distance(
-                state, goal_state) <= self.params.goal_reach_tolerance,
+            predicate=lambda state: (
+                self.space.distance(state, goal_state) <= self.params.goal_reach_tolerance
+            ),
             target_state=goal_state,
         )
 
@@ -109,17 +136,11 @@ class RrtPlanner:
         Raises:
             RuntimeError: If no free sample is found within max retries.
         """
-        lower, upper = self.space.bounds
-        lower_state = _as_state(lower, "space.bounds[0]", dim=self.space.dim)
-        upper_state = _as_state(upper, "space.bounds[1]", dim=self.space.dim)
-        for _ in range(self.params.max_sample_tries):
-            sample = self.rng.uniform(lower_state, upper_state)
-            if self.space.is_free(sample):
-                return sample
-        raise RuntimeError(
-            "Failed to sample a free state within max_sample_tries. "
-            "Adjust bounds/obstacles or increase max_sample_tries."
-        )
+        if self._batch_space is not None:
+            sampled = self._batch_space.sample_free_batch(self.rng, 1)[0]
+            return _as_state(sampled, "sampled_state", dim=self.space.dim)
+        sampled = self.space.sample_free(self.rng)
+        return _as_state(sampled, "sampled_state", dim=self.space.dim)
 
     @staticmethod
     def _nearest_index(index: NearestNeighborIndex, target: State) -> int:
@@ -132,11 +153,24 @@ class RrtPlanner:
         path = tree.extract_path(node_id)
         return [np.asarray(state, dtype=float) for state in path]
 
+    def _is_free(self, state: State) -> bool:
+        if self._batch_space is not None:
+            points = np.asarray([state], dtype=float)
+            return bool(self._batch_space.is_free_batch(points)[0])
+        return self.space.is_free(state)
+
+    def _segment_free(self, start: State, end: State) -> bool:
+        if self._batch_space is not None:
+            starts = np.asarray([start], dtype=float)
+            ends = np.asarray([end], dtype=float)
+            return bool(self._batch_space.segment_free_batch(starts, ends)[0])
+        return self.space.segment_free(start, end)
+
     def plan(self, start: Sequence[float] | State, goal_region: GoalRegion) -> PlanResult:
         """Compute a collision-free path from ``start`` into ``goal_region``."""
         self.params.validate()
         start_state = _as_state(start, "start", dim=self.space.dim)
-        if not self.space.is_free(start_state):
+        if not self._is_free(start_state):
             raise ValueError("start must be collision free")
 
         goal = self._goal_spec(goal_region)
@@ -165,18 +199,23 @@ class RrtPlanner:
                     stop_reason = "time_budget"
                     break
 
-            use_goal_sample = goal.target_state is not None and self.rng.random(
-            ) < self.params.goal_sample_rate
-            target = goal.target_state if use_goal_sample else self._sample_free()
+            use_goal_sample = (
+                goal.target_state is not None and self.rng.random() < self.params.goal_sample_rate
+            )
+            if use_goal_sample:
+                target = goal.target_state
+                if target is None:
+                    continue
+            else:
+                target = self._sample_free()
 
             nearest_index = self._nearest_index(index, target)
             nearest = tree.nodes[nearest_index]
-            candidate = self.space.steer(
-                nearest, target, self.params.step_size)
+            candidate = self.space.steer(nearest, target, self.params.step_size)
 
-            if not self.space.is_free(candidate):
+            if not self._is_free(candidate):
                 continue
-            if not self.space.segment_free(nearest, candidate, self.params.collision_step):
+            if not self._segment_free(nearest, candidate):
                 continue
 
             new_cost = float(tree.cost[nearest_index] + self.space.distance(nearest, candidate))

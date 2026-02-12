@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Protocol, TypeAlias
+from typing import Protocol, TypeAlias, runtime_checkable
 
-from pathplanning.core.types import Float, Vec
+import numpy as np
+
+from pathplanning.core.types import BoolArray, Float, FloatArray, Mat, Vec
 
 State: TypeAlias = Vec
 
@@ -14,8 +16,8 @@ class ConfigurationSpace(Protocol):
     """Abstract geometric interface expected by sampling-based planners."""
 
     @property
-    def bounds(self) -> tuple[Vec, Vec]:
-        """Configuration-space bounds as ``(lower, upper)`` vectors."""
+    def bounds(self) -> FloatArray:
+        """Configuration-space bounds matrix with shape ``(2, dim)``."""
         ...
 
     @property
@@ -23,28 +25,45 @@ class ConfigurationSpace(Protocol):
         """Dimensionality of the configuration space."""
         ...
 
-    def sample_free(self) -> Vec:
+    def sample_free(self, rng: np.random.Generator) -> Vec:
         """Sample one collision-free state from the space."""
         ...
 
-    def is_free(self, state: Vec) -> bool:
+    def is_free(self, x: Vec) -> bool:
         """Return ``True`` when a state is collision free."""
         ...
 
-    def segment_free(self, start: Vec, end: Vec, collision_step: Float) -> bool:
+    def segment_free(self, a: Vec, b: Vec) -> bool:
         """Return ``True`` when the line segment is collision free."""
         ...
 
-    def distance(self, start: Vec, end: Vec) -> Float:
+    def distance(self, a: Vec, b: Vec) -> Float:
         """Distance metric used by the planner."""
         ...
 
-    def steer(self, start: Vec, target: Vec, step_size: Float) -> Vec:
-        """Steer from ``start`` toward ``target`` with a bounded step."""
+    def steer(self, a: Vec, b: Vec, step: Float) -> Vec:
+        """Steer from ``a`` toward ``b`` with a bounded step."""
         ...
 
-    def is_goal(self, state: Vec) -> bool:
+    def is_goal(self, x: Vec) -> bool:
         """Return ``True`` when a state satisfies the goal condition."""
+        ...
+
+
+@runtime_checkable
+class BatchConfigurationSpace(ConfigurationSpace, Protocol):
+    """Optional batch operations that planners can use when available."""
+
+    def sample_free_batch(self, rng: np.random.Generator, n: int) -> Mat:
+        """Sample ``n`` collision-free states as a matrix with shape ``(n, dim)``."""
+        ...
+
+    def is_free_batch(self, x: Mat) -> BoolArray:
+        """Return collision-free flags for each state in ``x``."""
+        ...
+
+    def segment_free_batch(self, a: Mat, b: Mat) -> BoolArray:
+        """Return segment-validity flags for each start/end pair."""
         ...
 
 
