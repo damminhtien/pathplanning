@@ -8,7 +8,7 @@ import sys
 from collections import defaultdict
 
 from pathplanning.spaces.environment3d import env
-from . import astar_3d
+from pathplanning.planners.search import astar_3d
 from .utils_3d import StateSpace, getDist, getNearest, getRay, isinbound, isinball, isCollide, children, cost, \
     initcost
 from .plot_util_3d import visualization

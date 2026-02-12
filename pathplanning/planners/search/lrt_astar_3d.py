@@ -13,7 +13,7 @@ import os
 import sys
 
 from pathplanning.spaces.environment3d import env
-from . import astar_3d
+from pathplanning.planners.search import astar_3d
 from .utils_3d import getDist, getRay, g_Space, Heuristic, getNearest, isCollide, \
     cost, obstacleFree, children
 from .plot_util_3d import visualization

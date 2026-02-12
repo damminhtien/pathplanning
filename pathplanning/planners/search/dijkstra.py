@@ -1,21 +1,17 @@
 """
-Breadth-first Searching_2D (BFS)
+Dijkstra 2D
 @author: damminhtien
 """
 
-import heapq
 import math
+import heapq
 
-try:
-    from .astar import Astar
-    from .utils import plotting
-except ImportError:  # pragma: no cover - script execution fallback
-    from astar import Astar
-    from utils import plotting
+from pathplanning.planners.search.astar import Astar
+from pathplanning.viz import search2d_plotting as plotting
 
 
-class BreadthFirstSearch(Astar):
-    """BFS add the new visited node in the end of the openset
+class Dijkstra(Astar):
+    """Dijkstra set the cost as the priority 
     """
     def searching(self):
         """
@@ -46,23 +42,22 @@ class BreadthFirstSearch(Astar):
                     self.g[s_n] = new_cost
                     self.PARENT[s_n] = s
 
-                    # bfs, add new node to the end of the openset
-                    prior = self.OPEN[-1][0]+1 if len(self.OPEN)>0 else 0
-                    heapq.heappush(self.OPEN, (prior, s_n))
+                    # best first set the heuristics as the priority 
+                    heapq.heappush(self.OPEN, (new_cost, s_n))
 
         return self.extract_path(self.PARENT), self.CLOSED
 
 
 def main():
-    """ Run a demo of the Breadth-first Search planner."""
+    """ Main function to run Dijkstra's algorithm."""
     s_start = (5, 5)
     s_goal = (45, 25)
 
-    bfs = BreadthFirstSearch(s_start, s_goal, 'None')
+    dijkstra = Dijkstra(s_start, s_goal, 'None')
     plot = plotting.Plotting(s_start, s_goal)
 
-    path, visited = bfs.searching()
-    plot.animate(path, visited, "Breadth-first Searching (BFS)")
+    path, visited = dijkstra.searching()
+    plot.animate(path, visited, "Dijkstra's")  # animation generate
 
 
 if __name__ == '__main__':

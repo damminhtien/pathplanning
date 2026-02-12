@@ -7,10 +7,7 @@ each algorithm, printing the results including nodes expanded, cost, path length
 
 author: damminhtien
 """
-try:
-    from .plan2d_facade import Search2dFacade, PlanConfig, Heuristic, Planner
-except ImportError:  # pragma: no cover - script execution fallback
-    from plan2d_facade import Search2dFacade, PlanConfig, Heuristic, Planner
+from pathplanning.planners.search.plan2d_facade import Search2dFacade, PlanConfig, Heuristic, Planner
 
 ALL_ALGORITHMS = [
     # Uninformed Search

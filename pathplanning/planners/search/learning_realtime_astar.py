@@ -6,10 +6,7 @@ LRTA_star 2D (Learning Real-time A*)
 import copy
 import math
 
-try:
-    from .utils import plotting
-except ImportError:  # pragma: no cover - script execution fallback
-    from utils import plotting
+from pathplanning.viz import search2d_plotting as plotting
 
 from pathplanning.spaces.grid2d import Grid2DSearchSpace
 from pathplanning.utils import priority_queue as queue
