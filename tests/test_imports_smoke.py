@@ -8,7 +8,7 @@ import importlib
 def test_core_package_imports_smoke() -> None:
     modules = [
         "pathplanning",
-        "pathplanning.search_based_planning",
+        "pathplanning.planners.search",
         "pathplanning.sampling_based_planning",
         "pathplanning.curves",
     ]
