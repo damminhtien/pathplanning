@@ -28,6 +28,7 @@ The repository is organized for practical use:
 - [Run Demos](#run-demos)
 - [Publish to PyPI](#publish-to-pypi)
 - [Production Developer Workflow](#production-developer-workflow)
+- [Typing Policy](#typing-policy)
 - [Code Quality Files](#code-quality-files)
 - [CI](#ci)
 - [License](#license)
@@ -306,6 +307,24 @@ make precommit
 make test
 ```
 
+## Typing Policy
+
+Typing is enforced incrementally with `pyright`.
+
+- Global check mode is `basic` to keep broad repository coverage.
+- Core production modules are enforced in `strict` mode:
+  - `pathplanning/core`
+  - `pathplanning/env`
+  - `pathplanning/registry.py`
+  - `pathplanning/api.py`
+  - `pathplanning/__init__.py`
+- Public typing contracts are tested in `tests/test_typing_contracts.py`.
+- The package ships `py.typed` for PEP 561 compatibility.
+
+Details:
+
+- `docs/typing_policy.md`
+
 ## Code Quality Files
 
 - `pyproject.toml`
@@ -314,8 +333,9 @@ make test
 - `.pre-commit-config.yaml`
   - syntax/config sanity checks
   - `ruff` lint hook for Python files
+  - `pyright` type-check hook for `pathplanning/*`
 - `requirements-dev.txt`
-  - pinned development dependencies for linting and pre-commit
+  - pinned development dependencies for linting, type-checking, and pre-commit
 - `.editorconfig`
   - consistent whitespace/newline/indentation defaults
 - `Makefile`
