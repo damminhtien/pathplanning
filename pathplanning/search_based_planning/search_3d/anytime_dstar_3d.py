@@ -9,11 +9,11 @@ import os
 import sys
 from collections import defaultdict
 
-from .env_3d import env
+from pathplanning.spaces.environment3d import env
 from .utils_3d import getDist, heuristic_fun, getNearest, isinbound, isinobb, \
     cost, children, StateSpace
 from .plot_util_3d import visualization
-from . import queue
+from pathplanning.utils import priority_queue as queue
 import time
 
 

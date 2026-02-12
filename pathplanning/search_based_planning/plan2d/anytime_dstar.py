@@ -9,9 +9,11 @@ from pathplanning.viz import lazy_import
 plt = lazy_import("matplotlib.pyplot")
 
 try:
-    from .utils import plotting, env
+    from .utils import plotting
 except ImportError:  # pragma: no cover - script execution fallback
-    from utils import plotting, env
+    from utils import plotting
+
+from pathplanning.spaces.grid2d import Grid2DSearchSpace
 
 
 class AnytimeDstar:
@@ -19,7 +21,7 @@ class AnytimeDstar:
         self.s_start, self.s_goal = s_start, s_goal
         self.heuristic_type = heuristic_type
 
-        self.Env = env.Env()  # class Env
+        self.Env = Grid2DSearchSpace()  # class Env
         self.Plot = plotting.Plotting(s_start, s_goal)
 
         self.u_set = self.Env.motions  # feasible input set

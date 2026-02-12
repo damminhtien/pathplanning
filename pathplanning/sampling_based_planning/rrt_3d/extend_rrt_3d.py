@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import numpy as np
 
-from .env_3d import Environment3D
+from pathplanning.spaces.environment3d import Environment3D
 from .utils_3d import get_dist, is_collide, nearest, path, sample_free, steer
 
 

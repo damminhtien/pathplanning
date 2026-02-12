@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import numpy as np
 
-from pathplanning.env.continuous_3d import AABB, OBB, ContinuousSpace3D, Sphere
+from pathplanning.spaces.continuous_3d import AABB, OBB, ContinuousSpace3D, Sphere
 
 
 def test_is_free_checks_aabb_sphere_obb_and_bounds() -> None:

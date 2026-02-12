@@ -7,12 +7,13 @@ import os
 import sys
 import math
 import numpy as np
+from pathplanning.spaces.grid2d import Grid2DSamplingSpace
 from pathplanning.viz import lazy_import
 
 plt = lazy_import("matplotlib.pyplot")
 patches = lazy_import("matplotlib.patches")
 
-from . import env, plotting, utils
+from . import plotting, utils
 
 
 class Node:
@@ -33,7 +34,7 @@ class ExtendedRrt:
         self.vertex = [self.s_start]
         self.rng = rng if rng is not None else np.random.default_rng()
 
-        self.env = env.Env()
+        self.env = Grid2DSamplingSpace()
         self.plotting = plotting.Plotting(s_start, s_goal)
         self.utils = utils.Utils()
         self.fig, self.ax = plt.subplots()

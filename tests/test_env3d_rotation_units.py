@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import numpy as np
 
-from pathplanning.sampling_based_planning.rrt_3d.env_3d import rotation_matrix
+from pathplanning.spaces.environment3d import rotation_matrix
 
 
 def test_rotation_matrix_uses_radians_for_angles() -> None:

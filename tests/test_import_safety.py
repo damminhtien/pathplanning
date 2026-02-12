@@ -25,9 +25,9 @@ def test_core_modules_import_headless() -> None:
     core_modules = [
         "pathplanning.core.contracts",
         "pathplanning.core.params",
-        "pathplanning.core.nn_index",
-        "pathplanning.core.tree",
-        "pathplanning.env.continuous_3d",
+        "pathplanning.nn.index",
+        "pathplanning.data_structures.tree_array",
+        "pathplanning.spaces.continuous_3d",
         "pathplanning.registry",
     ]
 

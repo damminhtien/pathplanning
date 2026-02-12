@@ -10,9 +10,11 @@ g(s) decreased introduces a local inconsistency between s and its successors.
 import math
 
 try:
-    from .utils import plotting, env
+    from .utils import plotting
 except ImportError:  # pragma: no cover - script execution fallback
-    from utils import plotting, env
+    from utils import plotting
+
+from pathplanning.spaces.grid2d import Grid2DSearchSpace
 
 
 class AnytimeRepairingAstar:
@@ -20,7 +22,7 @@ class AnytimeRepairingAstar:
         self.s_start, self.s_goal = s_start, s_goal
         self.heuristic_type = heuristic_type
 
-        self.Env = env.Env()                                                # class Env
+        self.Env = Grid2DSearchSpace()                                      # class Env
 
         self.u_set = self.Env.motions                                       # feasible input set
         self.obs = self.Env.obs                                             # position of obstacles

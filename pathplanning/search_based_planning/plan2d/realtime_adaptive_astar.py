@@ -6,9 +6,12 @@ import copy
 import math
 
 try:
-    from .utils import queue, plotting, env
+    from .utils import plotting
 except ImportError:  # pragma: no cover - script execution fallback
-    from utils import queue, plotting, env
+    from utils import plotting
+
+from pathplanning.spaces.grid2d import Grid2DSearchSpace
+from pathplanning.utils import priority_queue as queue
 
 
 class RealtimeAdaptiveAstar:
@@ -16,7 +19,7 @@ class RealtimeAdaptiveAstar:
         self.s_start, self.s_goal = s_start, s_goal
         self.heuristic_type = heuristic_type
 
-        self.Env = env.Env()
+        self.Env = Grid2DSearchSpace()
 
         self.u_set = self.Env.motions  # feasible input set
         self.obs = self.Env.obs  # position of obstacles

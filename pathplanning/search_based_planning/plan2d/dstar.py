@@ -11,16 +11,18 @@ from pathplanning.viz import lazy_import
 plt = lazy_import("matplotlib.pyplot")
 
 try:
-    from .utils import plotting, env
+    from .utils import plotting
 except ImportError:  # pragma: no cover - script execution fallback
-    from utils import plotting, env
+    from utils import plotting
+
+from pathplanning.spaces.grid2d import Grid2DSearchSpace
 
 
 class Dstar:
     def __init__(self, s_start, s_goal):
         self.s_start, self.s_goal = s_start, s_goal
 
-        self.Env = env.Env()
+        self.Env = Grid2DSearchSpace()
         self.Plot = plotting.Plotting(self.s_start, self.s_goal)
 
         self.u_set = self.Env.motions

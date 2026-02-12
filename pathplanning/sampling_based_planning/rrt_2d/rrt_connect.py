@@ -9,10 +9,11 @@ import math
 import copy
 import numpy as np
 from pathplanning.viz import lazy_import
+from pathplanning.spaces.grid2d import Grid2DSamplingSpace
 
 plt = lazy_import("matplotlib.pyplot")
 
-from . import env, plotting, utils
+from . import plotting, utils
 
 
 class Node:
@@ -33,7 +34,7 @@ class RrtConnect:
         self.V2 = [self.s_goal]
         self.rng = rng if rng is not None else np.random.default_rng()
 
-        self.env = env.Env()
+        self.env = Grid2DSamplingSpace()
         self.plotting = plotting.Plotting(s_start, s_goal)
         self.utils = utils.Utils()
 

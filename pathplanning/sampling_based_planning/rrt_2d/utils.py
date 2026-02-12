@@ -5,11 +5,7 @@ utils for collision check
 
 import math
 import numpy as np
-
-try:
-    from . import env
-except ImportError:  # pragma: no cover - script execution fallback
-    import env
+from pathplanning.spaces.grid2d import Grid2DSamplingSpace
 
 
 class Node:
@@ -22,7 +18,7 @@ class Node:
 
 class Utils:
     def __init__(self):
-        self.env = env.Env()
+        self.env = Grid2DSamplingSpace()
 
         self.delta = 0.5
         self.obs_circle = self.env.obs_circle

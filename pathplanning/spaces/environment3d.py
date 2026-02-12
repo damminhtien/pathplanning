@@ -326,5 +326,204 @@ class Environment3D:
         return current_obb, previous_ref[0]
 
 
-if __name__ == "__main__":
-    _new_env = Environment3D()
+def R_matrix(z_angle: float, y_angle: float, x_angle: float) -> NDArray[np.float64]:
+    """Legacy alias for :func:`rotation_matrix`."""
+    return rotation_matrix(z_angle, y_angle, x_angle)
+
+
+def getblocks() -> NDArray[np.float64]:
+    """Legacy alias for :func:`get_blocks`."""
+    return get_blocks()
+
+
+def getballs() -> NDArray[np.float64]:
+    """Legacy alias for :func:`get_balls`."""
+    return get_balls()
+
+
+def getAABB(blocks: NDArray[np.float64]) -> list[Block6]:
+    """Legacy alias for :func:`get_aabb_pyrr`."""
+    return get_aabb_pyrr(blocks)
+
+
+class aabb:
+    """Legacy AABB representation with ``P``/``E``/``O`` fields."""
+
+    def __init__(self, bounds: Sequence[float] | NDArray[np.float64]) -> None:
+        values = np.asarray(bounds, dtype=float)
+        self.P = [
+            float((values[3] + values[0]) / 2),
+            float((values[4] + values[1]) / 2),
+            float((values[5] + values[2]) / 2),
+        ]
+        self.E = [
+            float((values[3] - values[0]) / 2),
+            float((values[4] - values[1]) / 2),
+            float((values[5] - values[2]) / 2),
+        ]
+        self.O = [[1, 0, 0], [0, 1, 0], [0, 0, 1]]
+
+
+def getAABB2(blocks: NDArray[np.float64]) -> list[aabb]:
+    """Legacy alias that returns ``aabb`` objects."""
+    return [aabb(block) for block in blocks]
+
+
+class obb:
+    """Legacy OBB representation with ``P``/``E``/``O``/``T`` fields."""
+
+    def __init__(
+        self,
+        P: Sequence[float] | NDArray[np.float64],
+        E: Sequence[float] | NDArray[np.float64],
+        O: NDArray[np.float64],
+    ) -> None:
+        self.P = [float(v) for v in P]
+        self.E = [float(v) for v in E]
+        self.O = np.asarray(O, dtype=float)
+        self.T = np.vstack(
+            [np.column_stack([self.O.T, -self.O.T @ np.asarray(self.P, dtype=float)]), [0, 0, 0, 1]]
+        )
+
+
+class env:
+    """Legacy 3D environment API used by search-based 3D planners."""
+
+    def __init__(
+        self,
+        xmin: float = 0,
+        ymin: float = 0,
+        zmin: float = 0,
+        xmax: float = 20,
+        ymax: float = 20,
+        zmax: float = 5,
+        resolution: float = 1,
+    ) -> None:
+        self.resolution = float(resolution)
+        self.boundary = np.array([xmin, ymin, zmin, xmax, ymax, zmax], dtype=float)
+        self.blocks = getblocks()
+        self.AABB = getAABB2(self.blocks)
+        self.AABB_pyrr = getAABB(self.blocks)
+        self.balls = getballs()
+        self.OBB = np.array(
+            [
+                obb([5.0, 7.0, 2.5], [0.5, 2.0, 2.5], R_matrix(135, 0, 0)),
+                obb([12.0, 4.0, 2.5], [0.5, 2.0, 2.5], R_matrix(45, 0, 0)),
+            ],
+            dtype=object,
+        )
+        self.start = np.array([2.0, 2.0, 2.0], dtype=float)
+        self.goal = np.array([6.0, 16.0, 0.0], dtype=float)
+        self.t = 0.0
+
+    def New_block(self) -> None:
+        new_block = add_block()
+        self.blocks = np.vstack([self.blocks, new_block])
+        self.AABB = getAABB2(self.blocks)
+        self.AABB_pyrr = getAABB(self.blocks)
+
+    def move_start(self, x: Sequence[float] | NDArray[np.float64]) -> None:
+        self.start = np.asarray(x, dtype=float)
+
+    def move_block(
+        self,
+        a: Sequence[float] = (0, 0, 0),
+        s: float = 0,
+        v: Sequence[float] = (0.1, 0, 0),
+        block_to_move: int = 0,
+        mode: str = "translation",
+    ) -> tuple[NDArray[np.float64], NDArray[np.float64]] | None:
+        _ = v
+        if mode != "translation":
+            return None
+        delta = np.asarray(a, dtype=float)
+        original = np.array(self.blocks[block_to_move], dtype=float)
+        self.blocks[block_to_move] = np.array(
+            [
+                original[0] + delta[0],
+                original[1] + delta[1],
+                original[2] + delta[2],
+                original[3] + delta[0],
+                original[4] + delta[1],
+                original[5] + delta[2],
+            ],
+            dtype=float,
+        )
+        self.AABB[block_to_move].P = [
+            self.AABB[block_to_move].P[0] + float(delta[0]),
+            self.AABB[block_to_move].P[1] + float(delta[1]),
+            self.AABB[block_to_move].P[2] + float(delta[2]),
+        ]
+        self.t += float(s)
+        moved = self.blocks[block_to_move]
+        return (
+            np.array(
+                [
+                    moved[0] - self.resolution,
+                    moved[1] - self.resolution,
+                    moved[2] - self.resolution,
+                    moved[3] + self.resolution,
+                    moved[4] + self.resolution,
+                    moved[5] + self.resolution,
+                ],
+                dtype=float,
+            ),
+            np.array(
+                [
+                    original[0] - self.resolution,
+                    original[1] - self.resolution,
+                    original[2] - self.resolution,
+                    original[3] + self.resolution,
+                    original[4] + self.resolution,
+                    original[5] + self.resolution,
+                ],
+                dtype=float,
+            ),
+        )
+
+    def move_OBB(
+        self,
+        obb_to_move: int = 0,
+        theta: Sequence[float] = (0, 0, 0),
+        translation: Sequence[float] = (0, 0, 0),
+    ) -> tuple[obb, obb]:
+        previous = [self.OBB[obb_to_move]]
+        self.OBB[obb_to_move].P = [
+            self.OBB[obb_to_move].P[0] + translation[0],
+            self.OBB[obb_to_move].P[1] + translation[1],
+            self.OBB[obb_to_move].P[2] + translation[2],
+        ]
+        self.OBB[obb_to_move].O = R_matrix(theta[0], theta[1], theta[2])
+        self.OBB[obb_to_move].T = np.vstack(
+            [
+                np.column_stack(
+                    [
+                        self.OBB[obb_to_move].O.T,
+                        -self.OBB[obb_to_move].O.T @ np.asarray(self.OBB[obb_to_move].P, dtype=float),
+                    ]
+                ),
+                [translation[0], translation[1], translation[2], 1],
+            ]
+        )
+        return self.OBB[obb_to_move], previous[0]
+
+
+__all__ = [
+    "Environment3D",
+    "AxisAlignedBoundingBox",
+    "OrientedBoundingBox",
+    "rotation_matrix",
+    "get_blocks",
+    "get_balls",
+    "get_aabb_pyrr",
+    "get_aabb_list",
+    "add_block",
+    "R_matrix",
+    "getblocks",
+    "getballs",
+    "getAABB",
+    "getAABB2",
+    "aabb",
+    "obb",
+    "env",
+]

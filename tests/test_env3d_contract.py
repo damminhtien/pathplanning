@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from pathplanning.sampling_based_planning.rrt_3d.env_3d import Environment3D
+from pathplanning.spaces.environment3d import Environment3D
 
 
 def test_environment3d_exposes_canonical_snake_case_fields() -> None:
