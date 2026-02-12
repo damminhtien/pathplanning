@@ -6,11 +6,7 @@ modified: damminhtien
 """
 
 import numpy as np
-from pathplanning.viz import lazy_import
-
-plt = lazy_import("matplotlib.pyplot")
 from scipy.special import comb
-import draw
 
 
 def calc_4points_bezier_path(sx, sy, syaw, gx, gy, gyaw, offset):
@@ -61,6 +57,10 @@ def curvature(dx, dy, ddx, ddy):
 
 
 def simulation():
+    from pathplanning.viz import lazy_import
+
+    plt = lazy_import("matplotlib.pyplot")
+
     sx = [-3, 0, 4, 6]
     sy = [2, 0, 1.5, 6]
 
@@ -99,6 +99,11 @@ def simulation():
 
 
 def main():
+    from pathplanning.viz import lazy_import
+    from pathplanning.viz import geometry_draw as draw
+
+    plt = lazy_import("matplotlib.pyplot")
+
     sx, sy, syaw = 10.0, 1.0, np.deg2rad(180.0)
     gx, gy, gyaw = 0.0, -3.0, np.deg2rad(-45.0)
     offset = 3.0

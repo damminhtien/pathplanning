@@ -1,10 +1,5 @@
 import math
 import numpy as np
-from pathplanning.viz import lazy_import
-
-plt = lazy_import("matplotlib.pyplot")
-
-import draw
 
 # parameters initiation
 STEP_SIZE = 0.2
@@ -669,6 +664,11 @@ def check_path(sx, sy, syaw, gx, gy, gyaw, maxc):
 
 
 def main():
+    from pathplanning.viz import lazy_import
+    from pathplanning.viz import geometry_draw as draw
+
+    plt = lazy_import("matplotlib.pyplot")
+
     # choose states pairs: (s, y, yaw)
     # simulation-1
     # states = [(0, 0, 0), (10, 10, -90), (20, 5, 60), (30, 10, 120),
