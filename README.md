@@ -9,6 +9,10 @@ The repository is organized for practical use:
 - runnable demo scripts
 - production-oriented linting and pre-commit checks
 
+## Mission
+
+PathPlanning is a library-first, environment-agnostic core for grid and continuous path-planning workflows. It is designed for reproducible and benchmarkable planner development, with deterministic execution patterns and clear contracts. The stack prioritizes strong typing, actionable diagnostics, and performance-friendly primitives for research-to-production use.
+
 ## Release
 
 - Package: `pathplanning`
