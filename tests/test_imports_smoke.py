@@ -9,7 +9,7 @@ def test_core_package_imports_smoke() -> None:
     modules = [
         "pathplanning",
         "pathplanning.planners.search",
-        "pathplanning.sampling_based_planning",
+        "pathplanning.planners.sampling",
         "pathplanning.curves",
     ]
 

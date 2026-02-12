@@ -6,7 +6,7 @@ import numpy as np
 
 from pathplanning.core.params import RrtParams
 from pathplanning.spaces.continuous_3d import AABB, ContinuousSpace3D
-from pathplanning.sampling_based_planning.rrt_3d.rrt import RrtPlanner
+from pathplanning.planners.sampling.rrt import RrtPlanner
 
 
 def _build_space() -> ContinuousSpace3D:

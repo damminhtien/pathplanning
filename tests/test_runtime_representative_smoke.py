@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import numpy as np
 
-from pathplanning.sampling_based_planning.rrt_2d.rrt import Rrt
+from pathplanning.planners.sampling.rrt_grid2d import Rrt
 from pathplanning.planners.search.astar_3d import Weighted_A_star
 
 

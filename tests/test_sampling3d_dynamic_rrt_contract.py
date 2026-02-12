@@ -5,7 +5,7 @@ from __future__ import annotations
 import subprocess
 import sys
 
-from pathplanning.sampling_based_planning.rrt_3d.dynamic_rrt_3d import (
+from pathplanning.planners.sampling.dynamic_rrt import (
     BruteForceNearestNodeIndex,
     DynamicRRT3D,
     KDTreeNearestNodeIndex,
@@ -18,11 +18,11 @@ def test_dynamic_rrt_import_is_headless_safe() -> None:
         "import importlib\n"
         "import sys\n"
         "before = set(sys.modules)\n"
-        "importlib.import_module('pathplanning.sampling_based_planning.rrt_3d.dynamic_rrt_3d')\n"
+        "importlib.import_module('pathplanning.planners.sampling.dynamic_rrt')\n"
         "loaded = set(sys.modules) - before\n"
         "bad = sorted(name for name in loaded if "
         "name == 'matplotlib' or name.startswith('matplotlib.') "
-        "or name == 'pathplanning.sampling_based_planning.rrt_3d.plot_util_3d')\n"
+        "or name == 'pathplanning.viz' or name.startswith('pathplanning.viz.'))\n"
         "if bad:\n"
         "    raise SystemExit('\\n'.join(bad))\n"
     )

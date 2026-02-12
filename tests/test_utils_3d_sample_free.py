@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import numpy as np
 
-from pathplanning.sampling_based_planning.rrt_3d import utils_3d
+import pathplanning.utils.sampling3d as utils_3d
 
 
 class _Env:
