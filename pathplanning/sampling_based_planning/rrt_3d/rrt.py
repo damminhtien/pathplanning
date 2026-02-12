@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
+from enum import Enum
 from numbers import Real
 import time
 from typing import TypeAlias, cast
@@ -55,6 +56,14 @@ class GoalSpec:
 
     predicate: GoalPredicate
     target_state: State | None
+
+
+class StopReason(str, Enum):
+    """Planner stop reason values."""
+
+    GOAL_REACHED = "goal_reached"
+    TIME_BUDGET = "time_budget"
+    MAX_ITERS = "max_iters"
 
 
 class RrtPlanner:
@@ -166,6 +175,24 @@ class RrtPlanner:
             return bool(self._batch_space.segment_free_batch(starts, ends)[0])
         return self.space.segment_free(start, end)
 
+    def _stop_reason_for_budget(self, start_time: float) -> StopReason | None:
+        """Return budget stop reason when the configured time budget is exhausted."""
+        if self.params.time_budget_s is None:
+            return None
+        elapsed = time.perf_counter() - start_time
+        if elapsed >= self.params.time_budget_s:
+            return StopReason.TIME_BUDGET
+        return None
+
+    def _choose_target(self, goal: GoalSpec) -> State:
+        """Choose the next expansion target using configured goal bias."""
+        use_goal_sample = (
+            goal.target_state is not None and self.rng.random() < self.params.goal_sample_rate
+        )
+        if use_goal_sample and goal.target_state is not None:
+            return goal.target_state
+        return self._sample_free()
+
     def plan(self, start: Sequence[float] | State, goal_region: GoalRegion) -> PlanResult:
         """Compute a collision-free path from ``start`` into ``goal_region``."""
         self.params.validate()
@@ -191,23 +218,13 @@ class RrtPlanner:
 
         start_time = time.perf_counter()
         iters_run = 0
-        stop_reason: str | None = None
+        stop_reason: StopReason | None = None
         for iters_run in range(1, self.params.max_iters + 1):
-            if self.params.time_budget_s is not None:
-                elapsed = time.perf_counter() - start_time
-                if elapsed >= self.params.time_budget_s:
-                    stop_reason = "time_budget"
-                    break
+            stop_reason = self._stop_reason_for_budget(start_time)
+            if stop_reason is not None:
+                break
 
-            use_goal_sample = (
-                goal.target_state is not None and self.rng.random() < self.params.goal_sample_rate
-            )
-            if use_goal_sample:
-                target = goal.target_state
-                if target is None:
-                    continue
-            else:
-                target = self._sample_free()
+            target = self._choose_target(goal)
 
             nearest_index = self._nearest_index(index, target)
             nearest = tree.node(nearest_index)
@@ -234,14 +251,14 @@ class RrtPlanner:
                     stats={
                         "goal_checks": goal_checks,
                         "path_cost": float(tree.cost[new_index]),
-                        "stopped_reason": "goal_reached",
+                        "stopped_reason": StopReason.GOAL_REACHED.value,
                         "elapsed_s": elapsed,
                         "time_budget_s": self.params.time_budget_s,
                     },
                 )
 
         if stop_reason is None:
-            stop_reason = "max_iters"
+            stop_reason = StopReason.MAX_ITERS
         elapsed = time.perf_counter() - start_time
         return PlanResult(
             success=False,
@@ -250,7 +267,7 @@ class RrtPlanner:
             nodes=tree.size,
             stats={
                 "goal_checks": goal_checks,
-                "stopped_reason": stop_reason,
+                "stopped_reason": stop_reason.value,
                 "elapsed_s": elapsed,
                 "time_budget_s": self.params.time_budget_s,
             },
