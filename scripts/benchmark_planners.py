@@ -4,21 +4,13 @@ from __future__ import annotations
 
 import argparse
 import contextlib
+from dataclasses import asdict, dataclass
 import io
 import json
-import os
 import random
-import sys
 import time
-from dataclasses import asdict, dataclass
-from typing import List
 
 import numpy as np
-
-# Ensure repo root is importable when running as a plain script.
-REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-if REPO_ROOT not in sys.path:
-    sys.path.insert(0, REPO_ROOT)
 
 from pathplanning import PlanConfig, Planner, Search2D
 from pathplanning.sampling_based_planning.rrt_2d.rrt import Rrt
@@ -82,7 +74,7 @@ def _benchmark_search3d_astar() -> BenchmarkRow:
     )
 
 
-def run_benchmarks(seed: int) -> List[BenchmarkRow]:
+def run_benchmarks(seed: int) -> list[BenchmarkRow]:
     """Run representative benchmarks and return rows."""
     random.seed(seed)
     np.random.seed(seed)
@@ -93,7 +85,7 @@ def run_benchmarks(seed: int) -> List[BenchmarkRow]:
     ]
 
 
-def _print_table(rows: List[BenchmarkRow]) -> None:
+def _print_table(rows: list[BenchmarkRow]) -> None:
     header = f"{'planner_id':28} {'runtime_s':>10} {'nodes_expanded':>15} {'path_found':>11}"
     print(header)
     print("-" * len(header))

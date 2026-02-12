@@ -5,7 +5,7 @@ from __future__ import annotations
 import numpy as np
 from numpy.typing import NDArray
 
-from pathplanning.env.continuous_3d import AABB, OBB, Sphere, ContinuousSpace3D
+from pathplanning.env.continuous_3d import AABB, OBB, ContinuousSpace3D, Sphere
 
 
 def _rotation_matrix_zyx_deg(z_deg: float, y_deg: float, x_deg: float) -> NDArray[np.float64]:
@@ -67,4 +67,3 @@ def build_demo_3d_world() -> tuple[ContinuousSpace3D, NDArray[np.float64], NDArr
         goal_tolerance=0.0,
     )
     return space, start, goal
-

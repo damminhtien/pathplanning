@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass, field
-from typing import Sequence
 
 import numpy as np
 from numpy.typing import NDArray
@@ -134,9 +134,7 @@ class ContinuousSpace3D(ConfigurationSpace):
             return False
         if any(obstacle.contains(point) for obstacle in self.spheres):
             return False
-        if any(obstacle.contains(point) for obstacle in self.obbs):
-            return False
-        return True
+        return not any(obstacle.contains(point) for obstacle in self.obbs)
 
     def segment_free(self, start: State, end: State, collision_step: float) -> bool:
         start_state = _as_state(start, "start")
@@ -176,7 +174,8 @@ class ContinuousSpace3D(ConfigurationSpace):
         return start_state + (direction / distance) * step
 
     def is_goal(self, state: State) -> bool:
-        if self.goal is None:
+        goal = self.goal
+        if goal is None:
             return False
         point = _as_state(state, "state")
         goal_state = _as_state(self.goal, "goal")

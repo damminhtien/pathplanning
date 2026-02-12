@@ -64,11 +64,12 @@ def _imports_matplotlib(source_text: str) -> bool:
             for alias in node.names:
                 if alias.name == "matplotlib" or alias.name.startswith("matplotlib."):
                     return True
-        elif isinstance(node, ast.ImportFrom):
-            if node.module and (
-                node.module == "matplotlib" or node.module.startswith("matplotlib.")
-            ):
-                return True
+        elif (
+            isinstance(node, ast.ImportFrom)
+            and node.module
+            and (node.module == "matplotlib" or node.module.startswith("matplotlib."))
+        ):
+            return True
     return False
 
 
@@ -117,7 +118,11 @@ def test_importing_all_supported_registry_modules_is_headless() -> None:
         "for module_name in modules:\n"
         "    importlib.import_module(module_name)\n"
         "loaded = set(sys.modules) - before\n"
-        "bad = sorted(name for name in loaded if name == 'matplotlib' or name.startswith('matplotlib.'))\n"
+        "bad = sorted(\n"
+        "    name\n"
+        "    for name in loaded\n"
+        "    if name == 'matplotlib' or name.startswith('matplotlib.')\n"
+        ")\n"
         "if bad:\n"
         "    raise SystemExit('\\n'.join(bad))\n"
     )
@@ -125,6 +130,5 @@ def test_importing_all_supported_registry_modules_is_headless() -> None:
         [sys.executable, "-c", code], capture_output=True, text=True, check=False
     )
     assert result.returncode == 0, (
-        "Supported registry modules load matplotlib during import:\n"
-        f"{result.stdout}{result.stderr}"
-        )
+        f"Supported registry modules load matplotlib during import:\n{result.stdout}{result.stderr}"
+    )

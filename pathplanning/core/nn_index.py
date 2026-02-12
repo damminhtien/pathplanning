@@ -35,6 +35,23 @@ class NearestNeighborIndex(Protocol):
     def radius(self, query: Sequence[float] | FloatArray, radius: float) -> list[int]:
         """Return ids of points within ``radius`` of ``query``."""
         ...
+    def radius(self, query: Sequence[float] | NDArray[np.float64], radius: float) -> list[int]:
+        """Return ids of points within ``radius`` of ``query``."""
+        ...
+
+
+class _KDTreeBackend(Protocol):
+    """Typed subset of ``scipy.spatial.cKDTree`` used by this module."""
+
+    def query(
+        self, x: NDArray[np.float64], k: int = 1
+    ) -> tuple[float | NDArray[np.float64], int | NDArray[np.int64]]:
+        """Return nearest-neighbor distance and index."""
+        ...
+
+    def query_ball_point(self, x: NDArray[np.float64], r: float) -> list[int]:
+        """Return indices inside the search radius."""
+        ...
 
 
 class NaiveIndex:
@@ -101,6 +118,9 @@ try:  # Optional SciPy backend.
     import scipy.spatial as _scipy_spatial
 except Exception:  # pragma: no cover - optional dependency
     _scipy_spatial = None
+    from scipy.spatial import cKDTree as _cKDTree  # type: ignore[import-not-found]
+except Exception:  # pragma: no cover - optional dependency
+    _cKDTree = None
 
 
 class KDTreeIndex:
@@ -112,6 +132,11 @@ class KDTreeIndex:
         self._dim = dim
         self._points: list[FloatArray] = []
         self._tree: ScipyKDTree | None = None
+        if _cKDTree is None:
+            raise ImportError("scipy is required for KDTreeIndex")
+        self._dim = dim
+        self._points: list[NDArray[np.float64]] = []
+        self._tree: _KDTreeBackend | None = None
         self._dirty = False
 
     def add(self, point: Sequence[float] | FloatArray) -> int:
@@ -127,6 +152,12 @@ class KDTreeIndex:
             if backend is None:
                 raise RuntimeError("KDTree backend not available")
             self._tree = backend(matrix)
+    def _ensure_tree(self) -> _KDTreeBackend:
+        if _cKDTree is None:
+            raise ImportError("scipy is required for KDTreeIndex")
+        if self._tree is None or self._dirty:
+            matrix = np.vstack(self._points).astype(float, copy=False)
+            self._tree = cast(_KDTreeBackend, _cKDTree(matrix))
             self._dirty = False
         if self._tree is None:  # Defensive narrowing for type-checkers.
             raise RuntimeError("KDTree backend not initialized")

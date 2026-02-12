@@ -8,6 +8,11 @@ import math
 
 def _is_valid_real(value: object) -> bool:
     return isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value)
+    if isinstance(value, bool):
+        return False
+    if not isinstance(value, (int, float)):
+        return False
+    return math.isfinite(float(value))
 
 
 @dataclass(slots=True)
@@ -31,6 +36,7 @@ class RrtParams:
     def validate(self) -> RrtParams:
         """Validate parameter values and return ``self`` for chaining."""
         if type(self.max_iters) is not int:
+        if isinstance(self.max_iters, bool) or type(self.max_iters) is not int:
             raise TypeError("max_iters must be an integer")
         if self.max_iters <= 0:
             raise ValueError("max_iters must be > 0")
@@ -52,6 +58,7 @@ class RrtParams:
                 raise ValueError("time_budget_s must be > 0 when provided")
 
         if type(self.max_sample_tries) is not int:
+        if isinstance(self.max_sample_tries, bool) or type(self.max_sample_tries) is not int:
             raise TypeError("max_sample_tries must be an integer")
         if self.max_sample_tries <= 0:
             raise ValueError("max_sample_tries must be > 0")

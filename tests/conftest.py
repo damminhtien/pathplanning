@@ -2,12 +2,11 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 import sys
 import warnings
-from pathlib import Path
 
 import pytest
-
 
 ROOT = Path(__file__).resolve().parents[1]
 PROJECT_CODE_ROOT = ROOT / "pathplanning"

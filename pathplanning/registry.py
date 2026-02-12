@@ -3,8 +3,6 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Dict, List, Optional
-
 
 SUPPORTED = "supported"
 DROPPED_INCOMPLETE = "dropped_incomplete"
@@ -19,10 +17,10 @@ class AlgorithmSpec:
     dimension: str
     module: str
     status: str
-    reason: Optional[str] = None
+    reason: str | None = None
 
 
-_ALGORITHMS: List[AlgorithmSpec] = [
+_ALGORITHMS: list[AlgorithmSpec] = [
     AlgorithmSpec(
         "sampling3d.rrt",
         "sampling",
@@ -80,12 +78,12 @@ _ALGORITHMS: List[AlgorithmSpec] = [
 ]
 
 
-_EXPECTED_ENTRYPOINTS: Dict[str, str] = {
+_EXPECTED_ENTRYPOINTS: dict[str, str] = {
     "sampling3d.rrt": "RrtPlanner",
     "sampling3d.rrt_star": "RrtStarPlanner",
 }
 
-_INDEX: Dict[str, AlgorithmSpec] = {spec.algorithm_id: spec for spec in _ALGORITHMS}
+_INDEX: dict[str, AlgorithmSpec] = {spec.algorithm_id: spec for spec in _ALGORITHMS}
 _SUPPORTED_IDS = {spec.algorithm_id for spec in _ALGORITHMS if spec.status == SUPPORTED}
 _MISSING_ENTRYPOINTS = sorted(_SUPPORTED_IDS - set(_EXPECTED_ENTRYPOINTS))
 _EXTRA_ENTRYPOINTS = sorted(set(_EXPECTED_ENTRYPOINTS) - _SUPPORTED_IDS)
@@ -103,17 +101,17 @@ if _MISSING_ENTRYPOINTS or _EXTRA_ENTRYPOINTS or _INVALID_ENTRYPOINT_NAMES:
     )
 
 
-def list_algorithms() -> List[AlgorithmSpec]:
+def list_algorithms() -> list[AlgorithmSpec]:
     """Return all algorithm metadata entries."""
     return list(_ALGORITHMS)
 
 
-def list_supported_algorithms() -> List[AlgorithmSpec]:
+def list_supported_algorithms() -> list[AlgorithmSpec]:
     """Return production-supported algorithms with planner entrypoint contracts."""
     return [spec for spec in _ALGORITHMS if spec.status == SUPPORTED]
 
 
-def list_dropped_algorithms() -> List[AlgorithmSpec]:
+def list_dropped_algorithms() -> list[AlgorithmSpec]:
     """Return dropped/incomplete algorithms excluded from production."""
     return [spec for spec in _ALGORITHMS if spec.status == DROPPED_INCOMPLETE]
 

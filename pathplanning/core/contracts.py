@@ -58,6 +58,14 @@ class StopReason(str, Enum):
 
 StatValue: TypeAlias = float | int | bool | str | None
 PlanStats: TypeAlias = dict[str, StatValue]
+def _default_path() -> list[State]:
+    """Provide a typed default path container for ``PlanResult``."""
+    return []
+
+
+def _default_stats() -> dict[str, object]:
+    """Provide a typed default stats container for ``PlanResult``."""
+    return {}
 
 
 @dataclass(slots=True)
