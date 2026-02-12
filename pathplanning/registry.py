@@ -24,14 +24,14 @@ _ALGORITHMS: list[AlgorithmSpec] = [
         "sampling3d.rrt",
         "sampling",
         "3d",
-        "pathplanning.sampling_based_planning.rrt_3d.rrt",
+        "pathplanning.planners.sampling.rrt",
         SUPPORTED,
     ),
     AlgorithmSpec(
         "sampling3d.rrt_star",
         "sampling",
         "3d",
-        "pathplanning.sampling_based_planning.rrt_3d.rrt_star",
+        "pathplanning.planners.sampling.rrt_star",
         SUPPORTED,
     ),
 ]
