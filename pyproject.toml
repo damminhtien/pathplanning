@@ -74,8 +74,7 @@ force-sort-within-sections = true
 [tool.ruff.lint.per-file-ignores]
 # Keep legacy script-style modules runnable while preserving stricter checks elsewhere.
 "pathplanning/planners/search/*.py" = ["E402"]
-"pathplanning/sampling_based_planning/rrt_2d/*.py" = ["E402"]
-"pathplanning/sampling_based_planning/rrt_3d/*.py" = ["E402"]
+"pathplanning/planners/sampling/*.py" = ["E402"]
 
 [tool.ruff.lint.flake8-tidy-imports]
 ban-relative-imports = "parents"
