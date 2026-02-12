@@ -43,10 +43,14 @@ _ALGORITHMS: list[AlgorithmSpec] = [
 _INDEX: dict[str, AlgorithmSpec] = {spec.algorithm_id: spec for spec in _ALGORITHMS}
 _SUPPORTED_IDS = {spec.algorithm_id for spec in _ALGORITHMS if spec.status == SUPPORTED}
 _INVALID_ENTRYPOINT_NAMES = sorted(
-    spec.algorithm_id for spec in _ALGORITHMS if not spec.entrypoint or not spec.entrypoint[0].isupper()
+    spec.algorithm_id
+    for spec in _ALGORITHMS
+    if not spec.entrypoint or not spec.entrypoint[0].isupper()
 )
 _INVALID_MODULE_PATHS = sorted(
-    spec.algorithm_id for spec in _ALGORITHMS if not spec.module.startswith("pathplanning.planners.")
+    spec.algorithm_id
+    for spec in _ALGORITHMS
+    if not spec.module.startswith("pathplanning.planners.")
 )
 
 if _INVALID_ENTRYPOINT_NAMES or _INVALID_MODULE_PATHS:

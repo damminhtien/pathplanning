@@ -1,22 +1,47 @@
 # Contributing
 
-Thanks for helping improve PathPlanning. Please follow these guidelines:
+Thanks for helping improve PathPlanning.
 
-- Keep changes small and focused; separate unrelated fixes.
-- Add or update tests for any behavior change.
-- Run quality gates locally before pushing:
-  - `ruff check .`
-  - `pytest -q`
-  - `pre-commit run --all-files`
-- Update docs (README/SUPPORTED_ALGORITHMS.md) when APIs or support status change.
+## Prerequisites
+
+- Python `>=3.10`
+- Install development dependencies:
+
+```bash
+pip install -r requirements-dev.txt
+```
+
+## Local Quality Gates
+
+Run these before opening a PR:
+
+```bash
+ruff check .
+ruff format --check .
+pyright
+pytest -q
+pre-commit run --all-files
+```
 
 ## Workflow
-- Fork or create a feature branch.
-- Make changes with clear commit messages (`feat|fix|chore|docs|test|refactor`).
-- Submit a pull request with a short summary and validation commands run.
 
-## Code style
-- Python 3.9+.
-- Keep plotting and planning logic decoupled.
-- Use type hints on public interfaces.
-- Avoid silent behavior changes; prefer explicit flags or config.
+1. Create a focused branch.
+2. Keep changes small and logically grouped.
+3. Add/update tests for behavior changes.
+4. Update docs (`README.md`, `SUPPORTED_ALGORITHMS.md`) when API or support scope changes.
+5. Submit a PR with:
+   - short summary
+   - risk notes (if any)
+   - validation commands and outputs
+
+## Commit Guidelines
+
+- Use conventional prefixes: `feat`, `fix`, `refactor`, `test`, `docs`, `chore`.
+- Prefer one logical concern per commit.
+
+## Design Guidelines
+
+- Keep core planning logic independent from visualization code.
+- Prefer absolute imports in production modules.
+- Preserve deterministic behavior for randomized planners (explicit seed/RNG flow).
+- Keep public interfaces typed.

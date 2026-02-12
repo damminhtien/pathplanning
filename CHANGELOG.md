@@ -1,16 +1,47 @@
 # Changelog
 
-All notable changes will be documented here.
+All notable changes to this project are documented in this file.
 
-## Unreleased
-- Package renamed to `pathplanning` (metadata).
-- Added registry, support matrix, and runtime smoke tests.
-- Added publish workflow targets and PyPI-ready metadata.
-- Refactored `DynamicRRT3D` with deterministic RNG support, configurable contracts, and pluggable nearest backends.
-- Refactored `Environment3D` to canonical snake_case obstacle fields (`aabb`, `aabb_pyrr`, `obb`) with compatibility properties.
-- Fixed 3D sampling correctness bugs (`utils_3d.path` mutable default, sampling bias recursion, `rrt_star_3d` timer scope).
-- Added tests for headless import safety, determinism, nearest-backend consistency, and env contract coverage.
-- Added refactor architecture and migration notes in `docs/rrt3d_refactor.md`.
+## [Unreleased]
 
-## 0.1.0
-- Initial production-oriented release of search-based and sampling-based planners with visual demos.
+- No unreleased entries yet.
+
+## [0.2.0] - 2026-02-12
+
+### Changed
+
+- Refactored package layout around reusable layers:
+  - planners under `pathplanning/planners/{search,sampling}`
+  - canonical spaces under `pathplanning/spaces`
+  - geometry utilities under `pathplanning/geometry`
+  - NN/tree modules under `pathplanning/nn` and `pathplanning/data_structures`
+- Consolidated queue implementations into `pathplanning/utils/priority_queue.py`.
+- Shrank root public API to stable entrypoints (`run_planner`, `plan`) and typed aliases.
+- Registry now stores explicit planner entrypoints per algorithm.
+
+### Packaging
+
+- Moved demo GIFs out of runtime package paths to `assets/gif/*`.
+- Updated packaging config to exclude GIF assets from runtime wheel content.
+
+### Documentation
+
+- Updated README and support matrix for the new module layout and API.
+
+## [0.1.2] - 2026-02-11
+
+### Changed
+
+- Synced package metadata/docs for `0.1.2`.
+
+## [0.1.1] - 2026-02-11
+
+### Changed
+
+- Synced release metadata and restored green lint/test flow in CI.
+
+## [0.1.0] - 2026-02-10
+
+### Added
+
+- Initial production-oriented packaging, registry, and test baseline.
