@@ -5,17 +5,16 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Protocol, TypeAlias
 
-import numpy as np
-from numpy.typing import NDArray
+from pathplanning.core.types import Float, Vec
 
-State: TypeAlias = NDArray[np.float64]
+State: TypeAlias = Vec
 
 
 class ConfigurationSpace(Protocol):
     """Abstract geometric interface expected by sampling-based planners."""
 
     @property
-    def bounds(self) -> tuple[State, State]:
+    def bounds(self) -> tuple[Vec, Vec]:
         """Configuration-space bounds as ``(lower, upper)`` vectors."""
         ...
 
@@ -24,32 +23,32 @@ class ConfigurationSpace(Protocol):
         """Dimensionality of the configuration space."""
         ...
 
-    def sample_free(self) -> State:
+    def sample_free(self) -> Vec:
         """Sample one collision-free state from the space."""
         ...
 
-    def is_free(self, state: State) -> bool:
+    def is_free(self, state: Vec) -> bool:
         """Return ``True`` when a state is collision free."""
         ...
 
-    def segment_free(self, start: State, end: State, collision_step: float) -> bool:
+    def segment_free(self, start: Vec, end: Vec, collision_step: Float) -> bool:
         """Return ``True`` when the line segment is collision free."""
         ...
 
-    def distance(self, start: State, end: State) -> float:
+    def distance(self, start: Vec, end: Vec) -> Float:
         """Distance metric used by the planner."""
         ...
 
-    def steer(self, start: State, target: State, step_size: float) -> State:
+    def steer(self, start: Vec, target: Vec, step_size: Float) -> Vec:
         """Steer from ``start`` toward ``target`` with a bounded step."""
         ...
 
-    def is_goal(self, state: State) -> bool:
+    def is_goal(self, state: Vec) -> bool:
         """Return ``True`` when a state satisfies the goal condition."""
         ...
 
 
-def _default_path() -> list[State]:
+def _default_path() -> list[Vec]:
     """Provide a typed default path container for ``PlanResult``."""
     return []
 
@@ -64,7 +63,7 @@ class PlanResult:
     """Planner output in a stable, reusable shape."""
 
     success: bool
-    path: list[State] = field(default_factory=_default_path)
+    path: list[Vec] = field(default_factory=_default_path)
     iters: int = 0
     nodes: int = 0
     stats: dict[str, object] = field(default_factory=_default_stats)

@@ -7,6 +7,8 @@ from collections.abc import Sequence
 import numpy as np
 from numpy.typing import NDArray
 
+from pathplanning.core.types import Float, FloatArray, Mat, NodeId, Vec
+
 
 class Tree:
     """Tree container with array-backed storage.
@@ -18,18 +20,16 @@ class Tree:
         if dim <= 0:
             raise ValueError("dim must be positive")
         self._dim = dim
-        self.nodes: NDArray[np.float64] = np.empty((0, dim), dtype=float)
+        self.nodes: Mat = np.empty((0, dim), dtype=float)
         self.parent: NDArray[np.int64] = np.empty((0,), dtype=int)
-        self.cost: NDArray[np.float64] = np.empty((0,), dtype=float)
+        self.cost: FloatArray = np.empty((0,), dtype=float)
 
     @property
     def size(self) -> int:
         """Return number of nodes in the tree."""
         return int(self.parent.shape[0])
 
-    def append_node(
-        self, x: Sequence[float] | NDArray[np.float64], parent_id: int, cost: float
-    ) -> int:
+    def append_node(self, x: Sequence[Float] | Vec, parent_id: NodeId, cost: Float) -> NodeId:
         """Append a node and return its index id.
 
         Args:
@@ -50,7 +50,7 @@ class Tree:
         self.cost = np.append(self.cost, float(cost))
         return self.size - 1
 
-    def extract_path(self, node_id: int) -> NDArray[np.float64]:
+    def extract_path(self, node_id: NodeId) -> Mat:
         """Return the path from root to ``node_id`` as an array."""
         if node_id < 0 or node_id >= self.size:
             raise IndexError("node_id out of bounds")
