@@ -3,12 +3,12 @@
 from __future__ import annotations
 
 import importlib
-from typing import Any
+from types import ModuleType
 
 from .registry import DROPPED_INCOMPLETE, get_algorithm
 
 
-def load_algorithm_module(algorithm_id: str) -> Any:
+def load_algorithm_module(algorithm_id: str) -> ModuleType:
     """Load an algorithm module by registry id, enforcing production support."""
     spec = get_algorithm(algorithm_id)
     if spec.status == DROPPED_INCOMPLETE:
