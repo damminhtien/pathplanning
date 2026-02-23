@@ -94,9 +94,7 @@ class Grid3DSearchSpace:
         target = self._coerce_node(goal)
         return math.sqrt(
             float(
-                (target[0] - node[0]) ** 2
-                + (target[1] - node[1]) ** 2
-                + (target[2] - node[2]) ** 2
+                (target[0] - node[0]) ** 2 + (target[1] - node[1]) ** 2 + (target[2] - node[2]) ** 2
             )
         )
 

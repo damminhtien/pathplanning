@@ -110,9 +110,7 @@ def test_problem_wrappers_accept_minimal_implementations() -> None:
         def is_state_valid(self, x: tuple[float, float]) -> bool:
             return 0.0 <= x[0] <= 1.0 and 0.0 <= x[1] <= 1.0
 
-        def is_motion_valid(
-            self, a: tuple[float, float], b: tuple[float, float]
-        ) -> bool:
+        def is_motion_valid(self, a: tuple[float, float], b: tuple[float, float]) -> bool:
             return self.is_state_valid(a) and self.is_state_valid(b)
 
         def distance(self, a: tuple[float, float], b: tuple[float, float]) -> float:

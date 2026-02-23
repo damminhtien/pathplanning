@@ -20,7 +20,7 @@ from pathplanning.core.contracts import (
 )
 from pathplanning.core.params import RrtParams
 from pathplanning.core.results import PlanResult, StopReason
-from pathplanning.core.types import Mat, NodeId, RNG
+from pathplanning.core.types import RNG, Mat, NodeId
 from pathplanning.data_structures.tree_array import ArrayTree
 from pathplanning.nn.index import NaiveNnIndex, NearestNeighborIndex
 from pathplanning.planners.sampling._internal.problem_adapter import (
@@ -281,7 +281,8 @@ class RrtStarPlanner:
             else:
                 dim_float = float(dim)
                 dynamic_radius = self.params.step_size * (
-                    self.params.rrt_star_radius_gamma * (np.log(card_v) / card_v) ** (1.0 / dim_float)
+                    self.params.rrt_star_radius_gamma
+                    * (np.log(card_v) / card_v) ** (1.0 / dim_float)
                     + self.params.rrt_star_radius_bias
                 )
                 near_radius = min(

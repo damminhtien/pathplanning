@@ -97,8 +97,8 @@ def run_best_first(
     heuristic_graph, exact_goal = _resolve_heuristic(problem)
 
     if use_heuristic and exact_goal is not None:
-        heuristic = lambda node: heuristic_weight * float(
-            heuristic_graph.heuristic(node, exact_goal)
+        heuristic = lambda node: (
+            heuristic_weight * float(heuristic_graph.heuristic(node, exact_goal))
         )
     else:
         heuristic = lambda node: 0.0

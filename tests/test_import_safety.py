@@ -62,8 +62,8 @@ def test_no_legacy_planner_package_paths() -> None:
         for path in planner_files
         if any(part in banned_parts for part in path.parts)
     ]
-    assert not offenders, (
-        "Legacy planner package paths must be removed:\n" + "\n".join(sorted(offenders))
+    assert not offenders, "Legacy planner package paths must be removed:\n" + "\n".join(
+        sorted(offenders)
     )
 
 

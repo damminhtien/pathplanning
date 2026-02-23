@@ -132,8 +132,7 @@ def test_importing_all_registered_planner_modules_is_headless() -> None:
         [sys.executable, "-c", code], capture_output=True, text=True, check=False
     )
     assert result.returncode == 0, (
-        "Registered planner modules load matplotlib during import:\n"
-        f"{result.stdout}{result.stderr}"
+        f"Registered planner modules load matplotlib during import:\n{result.stdout}{result.stderr}"
     )
 
 

@@ -175,7 +175,9 @@ def plan_bidirectional_astar(
             success=False,
             path=None,
             best_path=None,
-            stop_reason=StopReason.MAX_ITERS if max_expansions is not None else StopReason.NO_PROGRESS,
+            stop_reason=StopReason.MAX_ITERS
+            if max_expansions is not None
+            else StopReason.NO_PROGRESS,
             iters=expanded,
             nodes=len(g_forward) + len(g_backward),
             stats={"elapsed_s": elapsed, "expanded": float(expanded)},

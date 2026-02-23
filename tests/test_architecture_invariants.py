@@ -28,8 +28,7 @@ def test_planner_modules_do_not_import_viz_matplotlib_or_examples() -> None:
                     offenders.append(f"{file_path.as_posix()}:{node.lineno}:{node.module}")
 
     assert not offenders, (
-        "Planner modules must not import viz/matplotlib/examples/scripts:\n"
-        + "\n".join(offenders)
+        "Planner modules must not import viz/matplotlib/examples/scripts:\n" + "\n".join(offenders)
     )
 
 
@@ -53,8 +52,8 @@ def test_planner_modules_do_not_use_legacy_wrapper_naming() -> None:
         for path in _iter_python_files(planners_root)
         if any(token in path.stem for token in ("legacy", "facade", "wrapper"))
     ]
-    assert not offenders, "Legacy compatibility wrappers are not allowed in planners:\n" + "\n".join(
-        offenders
+    assert not offenders, (
+        "Legacy compatibility wrappers are not allowed in planners:\n" + "\n".join(offenders)
     )
 
 

@@ -19,7 +19,7 @@ from pathplanning.core.contracts import (
 )
 from pathplanning.core.params import RrtParams
 from pathplanning.core.results import PlanResult, StopReason
-from pathplanning.core.types import Mat, RNG
+from pathplanning.core.types import RNG, Mat
 from pathplanning.data_structures.tree_array import ArrayTree
 from pathplanning.nn.index import NaiveNnIndex, NearestNeighborIndex
 from pathplanning.planners.sampling._internal.problem_adapter import (

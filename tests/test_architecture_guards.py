@@ -68,16 +68,8 @@ def test_legacy_contract_symbols_are_removed() -> None:
 def test_legacy_search_file_patterns_are_removed() -> None:
     """Search planners must stay dimension-agnostic and legacy-wrapper free."""
     offenders = sorted(
-        [
-            path.as_posix()
-            for path in SEARCH_ROOT.glob("*_3d.py")
-            if path.is_file()
-        ]
-        + [
-            path.as_posix()
-            for path in SEARCH_ROOT.glob("_legacy*.py")
-            if path.is_file()
-        ]
+        [path.as_posix() for path in SEARCH_ROOT.glob("*_3d.py") if path.is_file()]
+        + [path.as_posix() for path in SEARCH_ROOT.glob("_legacy*.py") if path.is_file()]
     )
     explicit_legacy = [
         PACKAGE_ROOT / "search2d.py",
@@ -95,8 +87,8 @@ def test_legacy_sampling_wrappers_and_utils_are_removed() -> None:
         PACKAGE_ROOT / "utils" / "sampling3d.py",
     ]
     offenders = [path.as_posix() for path in banned if path.exists()]
-    assert not offenders, (
-        "Legacy sampling wrappers/helpers must stay absent:\n" + "\n".join(offenders)
+    assert not offenders, "Legacy sampling wrappers/helpers must stay absent:\n" + "\n".join(
+        offenders
     )
 
 

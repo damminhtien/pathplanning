@@ -76,9 +76,7 @@ def build_custom_grid_problem() -> DiscreteProblem[GridCell]:
     blocked.update({(5, 5), (5, 6), (6, 6), (14, 3), (14, 4), (14, 5)})
 
     # Slow terrain corridor (still traversable).
-    terrain_weight = {
-        (x_coord, 9): 2.5 for x_coord in range(2, 17)
-    }
+    terrain_weight = {(x_coord, 9): 2.5 for x_coord in range(2, 17)}
 
     graph = WeightedGridGraph(
         width=20,

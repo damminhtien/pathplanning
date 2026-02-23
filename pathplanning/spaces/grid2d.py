@@ -49,9 +49,7 @@ class Grid2DSearchSpace:
         chosen_motions = _DEFAULT_8_CONNECTED_MOTIONS if motions is None else tuple(motions)
         if not chosen_motions:
             raise ValueError("motions must be non-empty")
-        self.motions: tuple[Motion2D, ...] = tuple(
-            (int(dx), int(dy)) for dx, dy in chosen_motions
-        )
+        self.motions: tuple[Motion2D, ...] = tuple((int(dx), int(dy)) for dx, dy in chosen_motions)
 
         self._blocked_cells: set[GridCell] = set(obstacles or [])
         self._occupancy: NDArray[np.bool_] | None = None
@@ -223,7 +221,9 @@ class Grid2DSamplingSpace:
     def is_state_valid(self, x: Sequence[float]) -> bool:
         state = self._as_state(x)
         px, py = state
-        in_bounds = self.x_range[0] <= px <= self.x_range[1] and self.y_range[0] <= py <= self.y_range[1]
+        in_bounds = (
+            self.x_range[0] <= px <= self.x_range[1] and self.y_range[0] <= py <= self.y_range[1]
+        )
         return in_bounds and not self._inside_obstacle(state)
 
     def is_motion_valid(self, a: Sequence[float], b: Sequence[float]) -> bool:
