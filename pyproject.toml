@@ -88,3 +88,9 @@ ban-relative-imports = "parents"
 quote-style = "double"
 indent-style = "space"
 line-ending = "lf"
+
+[tool.pytest.ini_options]
+markers = [
+  "slow: longer-running integration/contract tests excluded from the default unit target",
+  "packaging: distribution build and wheel/sdist metadata checks",
+]

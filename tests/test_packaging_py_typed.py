@@ -7,7 +7,11 @@ import subprocess
 import sys
 import zipfile
 
+import pytest
 
+
+@pytest.mark.slow
+@pytest.mark.packaging
 def test_wheel_contains_py_typed_marker(tmp_path: Path) -> None:
     """Build wheel/sdist and verify the wheel ships ``pathplanning/py.typed``."""
     project_root = Path(__file__).resolve().parents[1]

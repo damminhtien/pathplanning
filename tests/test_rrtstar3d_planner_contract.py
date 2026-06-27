@@ -3,11 +3,14 @@
 from __future__ import annotations
 
 import numpy as np
+import pytest
 
 from pathplanning.core.contracts import GoalState
 from pathplanning.core.params import RrtParams
 from pathplanning.planners.sampling.rrt_star import RrtStarPlanner
 from pathplanning.spaces.continuous_3d import AABB, ContinuousSpace3D
+
+pytestmark = pytest.mark.slow
 
 
 def _build_space() -> ContinuousSpace3D:

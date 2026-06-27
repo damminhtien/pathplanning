@@ -9,6 +9,8 @@ from pathlib import Path
 import subprocess
 import sys
 
+import pytest
+
 from pathplanning.registry import SAMPLING_PLANNERS, SEARCH_PLANNERS, planner_modules
 
 
@@ -63,6 +65,7 @@ def test_import_all_registered_modules() -> None:
         importlib.import_module(module_name)
 
 
+@pytest.mark.slow
 def test_import_registered_modules_does_not_load_matplotlib() -> None:
     for module_name in planner_modules():
         code = (

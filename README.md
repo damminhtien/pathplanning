@@ -13,14 +13,15 @@ with reusable planner contracts and optional visualization utilities.
 
 Current codebase organization:
 
-- `pathplanning/planners/search`: dimension-agnostic discrete-search implementations
+- `pathplanning/native`: C++ discrete-search core exposed through a stable C ABI
+- `pathplanning/planners/search`: Python planner wrappers around the native search core
 - `pathplanning/planners/sampling`: dimension-agnostic sampling-planner cores
 - `pathplanning/spaces`: canonical environment/configuration-space layer
 - `pathplanning/nn`: nearest-neighbor index abstractions
 - `pathplanning/data_structures`: reusable tree/storage structures
 - `pathplanning/utils`: shared utilities (including priority queue)
 - `pathplanning/geometry`: geometry and trajectory generation utilities
-- `pathplanning/viz`: plotting-only helpers with lazy imports
+- `pathplanning/viz`: plotting-only Python helpers with lazy imports
 
 ## Repository Layout
 
@@ -78,10 +79,10 @@ cd pathplanning
 python -m venv .venv
 source .venv/bin/activate
 pip install --upgrade pip
-pip install -r requirements.txt
+pip install .
 ```
 
-Python `>=3.10` is required.
+Python `>=3.10` and a C++17 compiler are required when building from source.
 
 ## Package API
 
@@ -142,6 +143,7 @@ Install dev dependencies:
 
 ```bash
 pip install -r requirements-dev.txt
+make build-ext
 ```
 
 Run checks:
@@ -150,7 +152,9 @@ Run checks:
 ruff check .
 ruff format --check .
 pyright
-pytest -q
+make test       # fast unit tier (excludes slow integration/packaging checks)
+make test-slow  # slow integration/packaging tier
+make test-all   # full suite
 ```
 
 Convenience commands:

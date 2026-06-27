@@ -1,4 +1,5 @@
-recursive-exclude * __pycache__ *.pyc *.pyo *.pyd
+recursive-exclude * __pycache__ *.pyc *.pyo *.pyd *.so *.dylib *.dll
 global-exclude *.gif
 prune assets/gif
 include pathplanning/py.typed
+recursive-include pathplanning/native *.cpp *.h

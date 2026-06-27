@@ -1,10 +1,13 @@
-.PHONY: install install-dev lint format precommit test typecheck benchmark
+NATIVE_BUILD_DIR ?= /tmp/pathplanning-native-build
+
+.PHONY: install install-dev lint format precommit test test-unit test-slow test-all typecheck benchmark build-ext
 
 install:
-	pip install -r requirements.txt
+	pip install .
 
 install-dev:
 	pip install -r requirements-dev.txt
+	$(MAKE) build-ext
 
 lint:
 	ruff check .
@@ -26,7 +29,18 @@ typecheck:
 	@command -v pyright >/dev/null || (echo "pyright not found. Run: make install-dev" && exit 1)
 	pyright
 
-test:
+build-ext:
+	python setup.py build_ext --inplace --build-temp "$(NATIVE_BUILD_DIR)/temp" --build-lib "$(NATIVE_BUILD_DIR)/lib"
+
+test: test-unit
+
+test-unit: build-ext
+	pytest -q -m "not slow"
+
+test-slow: build-ext
+	pytest -q -m "slow"
+
+test-all: build-ext
 	pytest -q
 
 benchmark:
