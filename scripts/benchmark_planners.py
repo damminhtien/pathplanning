@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import argparse
+from collections.abc import Callable
 from dataclasses import asdict, dataclass
 import json
 import random
+import statistics
 import time
 
 import numpy as np
@@ -25,6 +27,9 @@ class BenchmarkRow:
     runtime_s: float
     nodes_expanded: int
     path_found: bool
+    graph_init_s: float = 0.0
+    native_search_s: float = 0.0
+    samples: int = 1
 
 
 def _benchmark_search2d_astar() -> BenchmarkRow:
@@ -47,6 +52,8 @@ def _benchmark_search2d_astar() -> BenchmarkRow:
         runtime_s=runtime_s,
         nodes_expanded=result.iters,
         path_found=result.path is not None,
+        graph_init_s=result.stats.get("graph_init_s", 0.0),
+        native_search_s=result.stats.get("native_search_s", 0.0),
     )
 
 
@@ -100,30 +107,58 @@ def _benchmark_search3d_weighted_astar() -> BenchmarkRow:
         runtime_s=runtime_s,
         nodes_expanded=result.iters,
         path_found=result.path is not None,
+        graph_init_s=result.stats.get("graph_init_s", 0.0),
+        native_search_s=result.stats.get("native_search_s", 0.0),
     )
 
 
-def run_benchmarks(seed: int) -> list[BenchmarkRow]:
-    """Run representative benchmarks and return rows."""
+def _repeat_benchmark(
+    benchmark: Callable[[], BenchmarkRow],
+    repeats: int,
+) -> BenchmarkRow:
+    """Run a benchmark repeatedly and report medians for numeric fields."""
+    samples = [benchmark() for _ in range(repeats)]
+    first = samples[0]
+    return BenchmarkRow(
+        planner_id=first.planner_id,
+        runtime_s=statistics.median(row.runtime_s for row in samples),
+        nodes_expanded=int(statistics.median(row.nodes_expanded for row in samples)),
+        path_found=all(row.path_found for row in samples),
+        graph_init_s=statistics.median(row.graph_init_s for row in samples),
+        native_search_s=statistics.median(row.native_search_s for row in samples),
+        samples=repeats,
+    )
+
+
+def run_benchmarks(seed: int, repeats: int = 1) -> list[BenchmarkRow]:
+    """Run representative benchmarks and return median rows."""
+    if repeats <= 0:
+        raise ValueError("repeats must be > 0")
     random.seed(seed)
     np.random.seed(seed)
     return [
-        _benchmark_search2d_astar(),
-        _benchmark_sampling2d_rrt(),
-        _benchmark_search3d_weighted_astar(),
+        _repeat_benchmark(_benchmark_search2d_astar, repeats),
+        _repeat_benchmark(_benchmark_sampling2d_rrt, repeats),
+        _repeat_benchmark(_benchmark_search3d_weighted_astar, repeats),
     ]
 
 
 def _print_table(rows: list[BenchmarkRow]) -> None:
-    header = f"{'planner_id':28} {'runtime_s':>10} {'nodes_expanded':>15} {'path_found':>11}"
+    header = (
+        f"{'planner_id':28} {'runtime_s':>10} {'graph_init_s':>13} "
+        f"{'native_search_s':>16} {'nodes_expanded':>15} {'path_found':>11} {'samples':>8}"
+    )
     print(header)
     print("-" * len(header))
     for row in rows:
         print(
             f"{row.planner_id:28} "
             f"{row.runtime_s:10.4f} "
+            f"{row.graph_init_s:13.4f} "
+            f"{row.native_search_s:16.4f} "
             f"{row.nodes_expanded:15d} "
-            f"{str(row.path_found):>11}"
+            f"{str(row.path_found):>11} "
+            f"{row.samples:8d}"
         )
 
 
@@ -135,9 +170,15 @@ def main() -> None:
         action="store_true",
         help="Print machine-readable JSON instead of a table.",
     )
+    parser.add_argument(
+        "--repeats",
+        type=int,
+        default=5,
+        help="Number of runs per planner; reported times are medians.",
+    )
     args = parser.parse_args()
 
-    rows = run_benchmarks(args.seed)
+    rows = run_benchmarks(args.seed, repeats=args.repeats)
     if args.json:
         print(json.dumps([asdict(row) for row in rows], indent=2, sort_keys=True))
         return

@@ -4,9 +4,13 @@ from __future__ import annotations
 
 from collections.abc import Callable, Iterable, Sequence
 import math
+from typing import TYPE_CHECKING
 
 import numpy as np
 from numpy.typing import NDArray
+
+if TYPE_CHECKING:
+    from pathplanning.native.graph import NativeGraph
 
 Point2D = tuple[int, int]
 Motion2D = tuple[int, int]
@@ -127,6 +131,32 @@ class Grid2DSearchSpace:
         node = self._coerce_cell(n)
         target = self._coerce_cell(goal)
         return math.hypot(float(target[0] - node[0]), float(target[1] - node[1]))
+
+    def native_heuristic_values(self, goal: GridCell) -> NDArray[np.float64]:
+        """Return Euclidean grid heuristics in native node-ID order."""
+        target = self._coerce_cell(goal)
+        x_coords = np.tile(np.arange(self.x_range, dtype=np.float64), self.y_range)
+        y_coords = np.repeat(np.arange(self.y_range, dtype=np.float64), self.x_range)
+        return np.hypot(target[0] - x_coords, target[1] - y_coords)
+
+    def to_native_graph(self) -> NativeGraph[GridCell]:
+        """Build this regular grid's CSR adjacency directly in C++."""
+        from pathplanning.native import NativeGraph
+
+        valid_nodes = [
+            self.is_valid_node((x_coord, y_coord))
+            for y_coord in range(self.y_range)
+            for x_coord in range(self.x_range)
+        ]
+        return NativeGraph[GridCell].from_grid(
+            dimensions=2,
+            width=self.x_range,
+            height=self.y_range,
+            depth=1,
+            motions=self.motions,
+            valid_nodes=valid_nodes,
+            heuristic=self.heuristic,
+        )
 
     def obs_map(self) -> set[Point2D]:
         blocked: set[Point2D] = set()

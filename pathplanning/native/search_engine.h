@@ -1,8 +1,8 @@
 // C ABI for reusable discrete graph-search kernels.
 //
-// The implementation is C++, but this header exposes only plain C-compatible
-// types and functions so Python can bind through ctypes and other runtimes can
-// reuse the same ABI.
+// Graphs are copied into an opaque native CSR handle before search begins. The
+// search ABI receives flat goal and heuristic arrays and never calls back into
+// the host language while expanding nodes.
 
 #ifndef PATHPLANNING_NATIVE_SEARCH_ENGINE_H_
 #define PATHPLANNING_NATIVE_SEARCH_ENGINE_H_
@@ -32,18 +32,10 @@ typedef enum pp_search_algorithm {
     PP_SEARCH_ANYTIME_ASTAR = 8,
 } pp_search_algorithm;
 
-typedef int (*pp_goal_callback)(
-    void* user_data,
-    uint64_t node_id,
-    int* out_is_goal
-);
-
-typedef int (*pp_heuristic_callback)(
-    void* user_data,
-    uint64_t node_id,
-    double* out_value
-);
-
+// Legacy callback input is retained for ABI compatibility. Its graph is
+// snapshotted before entering a search kernel.
+typedef int (*pp_goal_callback)(void* user_data, uint64_t node_id, int* out_is_goal);
+typedef int (*pp_heuristic_callback)(void* user_data, uint64_t node_id, double* out_value);
 typedef int (*pp_neighbors_callback)(
     void* user_data,
     uint64_t node_id,
@@ -65,6 +57,8 @@ typedef struct pp_astar_options {
     double heuristic_weight;
     uint64_t reserve_nodes;
 } pp_astar_options;
+
+typedef struct pp_native_graph pp_native_graph;
 
 typedef struct pp_search_options {
     int algorithm;
@@ -89,17 +83,52 @@ typedef struct pp_search_result {
     char* error_message;
 } pp_search_result;
 
-int pp_astar_plan(
-    const pp_graph_callbacks* graph,
-    uint64_t start_id,
-    const pp_astar_options* options,
-    pp_search_result* result
+int pp_graph_create_csr(
+    uint64_t node_count,
+    uint64_t edge_count,
+    const uint64_t* offsets,
+    const uint64_t* neighbor_ids,
+    const double* edge_costs,
+    pp_native_graph** out_graph,
+    char* error_message,
+    size_t error_capacity
 );
+
+int pp_graph_create_grid(
+    uint64_t width,
+    uint64_t height,
+    uint64_t depth,
+    uint64_t dimensions,
+    const int32_t* motions,
+    size_t motion_count,
+    const uint8_t* valid_nodes,
+    pp_native_graph** out_graph,
+    char* error_message,
+    size_t error_capacity
+);
+
+void pp_graph_free(pp_native_graph* graph);
 
 int pp_search_plan(
     const pp_graph_callbacks* graph,
     uint64_t start_id,
     const pp_search_options* options,
+    pp_search_result* result
+);
+
+int pp_native_search_plan(
+    const pp_native_graph* graph,
+    const uint8_t* goal_flags,
+    const double* heuristic_values,
+    uint64_t start_id,
+    const pp_search_options* options,
+    pp_search_result* result
+);
+
+int pp_astar_plan(
+    const pp_graph_callbacks* graph,
+    uint64_t start_id,
+    const pp_astar_options* options,
     pp_search_result* result
 );
 

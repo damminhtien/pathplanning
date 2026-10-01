@@ -4,6 +4,12 @@ from __future__ import annotations
 
 from collections.abc import Iterable, Sequence
 import math
+from typing import TYPE_CHECKING
+
+import numpy as np
+
+if TYPE_CHECKING:
+    from pathplanning.native.graph import NativeGraph
 
 Node3D = tuple[int, int, int]
 Motion3D = tuple[int, int, int]
@@ -96,6 +102,37 @@ class Grid3DSearchSpace:
             float(
                 (target[0] - node[0]) ** 2 + (target[1] - node[1]) ** 2 + (target[2] - node[2]) ** 2
             )
+        )
+
+    def native_heuristic_values(self, goal: Sequence[int] | Node3D) -> np.ndarray:
+        """Return Euclidean voxel heuristics in native node-ID order."""
+        target = self._coerce_node(goal)
+        x_coords = np.tile(np.arange(self.x_range, dtype=np.float64), self.y_range * self.z_range)
+        y_plane = np.repeat(np.arange(self.y_range, dtype=np.float64), self.x_range)
+        y_coords = np.tile(y_plane, self.z_range)
+        z_coords = np.repeat(np.arange(self.z_range, dtype=np.float64), self.x_range * self.y_range)
+        return np.sqrt(
+            (target[0] - x_coords) ** 2 + (target[1] - y_coords) ** 2 + (target[2] - z_coords) ** 2
+        )
+
+    def to_native_graph(self) -> NativeGraph[Node3D]:
+        """Build this regular voxel grid's CSR adjacency directly in C++."""
+        from pathplanning.native import NativeGraph
+
+        valid_nodes = [
+            self.is_valid_node((x_coord, y_coord, z_coord))
+            for z_coord in range(self.z_range)
+            for y_coord in range(self.y_range)
+            for x_coord in range(self.x_range)
+        ]
+        return NativeGraph[Node3D].from_grid(
+            dimensions=3,
+            width=self.x_range,
+            height=self.y_range,
+            depth=self.z_range,
+            motions=self.motions,
+            valid_nodes=valid_nodes,
+            heuristic=self.heuristic,
         )
 
 

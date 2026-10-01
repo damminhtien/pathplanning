@@ -4,7 +4,16 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
-- No unreleased entries yet.
+### Changed
+
+- Moved discrete search to reusable C++-owned CSR graphs and precomputed goal/heuristic arrays.
+- Kept the Python graph protocol through a one-time finite-graph snapshot before search.
+- Retained the callback C ABI as a compatibility shim that snapshots before running a native kernel.
+- Added `NativeGraph.from_csr` and `NativeGraph.from_edges` for reusable native graph initialization.
+- Added direct C++ CSR construction for built-in 2D and 3D grids, using Python only for the valid-node mask.
+- Added graph initialization and native search timings to discrete planner stats and benchmarks.
+- Benchmark CLI reports medians over configurable repeats (default: 5).
+- Removed the unused NetworkX optional extra; CSR arrays are the bulk graph interface.
 
 ## [0.2.0] - 2026-02-12
 

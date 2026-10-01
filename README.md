@@ -127,6 +127,43 @@ result = plan_discrete(problem, planner="astar", seed=0)
 print(result.success, result.iters)
 ```
 
+### Native graph input
+
+Discrete searches run against a C++-owned CSR graph. For repeated queries or
+large graphs, initialize it once and reuse it:
+
+```python
+from pathplanning.api import plan_discrete
+from pathplanning.core.contracts import DiscreteProblem
+from pathplanning.native import NativeGraph
+
+graph = NativeGraph.from_edges(
+    nodes=[0, 1, 2, 3],
+    edges=[(0, 1, 1.0), (0, 2, 4.0), (1, 3, 2.0), (2, 3, 1.0)],
+)
+problem = DiscreteProblem(graph=graph, start=0, goal=3)
+result = plan_discrete(problem, planner="astar")
+```
+
+For bulk input, pass CSR row offsets, neighbor IDs, and edge costs to
+`NativeGraph.from_csr`. This also accepts arrays from a SciPy CSR matrix through
+its `indptr`, `indices`, and `data` attributes; SciPy is not required by the
+native graph API. No NetworkX conversion is used.
+
+Existing Python graphs that implement `neighbors` and `edge_cost` remain
+supported. Their finite reachable graph is copied into CSR once before each
+search. Goal predicates and heuristics are evaluated during that preparation;
+the C++ search loop does not call Python. The default materialization limit is
+1,000,000 nodes and can be changed with
+`DiscreteProblem(params={"max_materialized_nodes": ...})`. Use `NativeGraph`
+for graphs that exceed that limit or for repeated searches over the same graph.
+The built-in 2D and 3D grids pass their valid-node mask and motion set to C++,
+which builds their CSR adjacency without Python edge callbacks.
+
+Discrete search results include `graph_init_s` and `native_search_s` stats, and
+`elapsed_s` covers graph preparation, native search, and path adaptation. The
+benchmark script reports both phases alongside end-to-end runtime.
+
 ## Run Demos
 
 Run from repository root.

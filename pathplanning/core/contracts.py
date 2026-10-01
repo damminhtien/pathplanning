@@ -4,9 +4,12 @@ from __future__ import annotations
 
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass
-from typing import Generic, Protocol, TypeAlias, TypeVar, cast, runtime_checkable
+from typing import TYPE_CHECKING, Generic, Protocol, TypeAlias, TypeVar, cast, runtime_checkable
 
 from pathplanning.core.types import RNG, Float, N, S, Vec
+
+if TYPE_CHECKING:
+    from pathplanning.native.graph import NativeGraph
 
 State: TypeAlias = Vec
 N_contra = TypeVar("N_contra", contravariant=True)
@@ -73,7 +76,7 @@ class ExactGoalTest(Generic[N]):
 class DiscreteProblem(Generic[N]):
     """Discrete planning problem wrapper used by graph-search planners."""
 
-    graph: DiscreteGraph[N]
+    graph: DiscreteGraph[N] | NativeGraph[N]
     start: N
     goal: N | GoalTest[N]
     params: DiscreteParams | None = None

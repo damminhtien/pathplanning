@@ -1,18 +1,21 @@
-"""ctypes adapter for the native discrete-search engine."""
+"""Native adapter for discrete search without callbacks in the search loop."""
 
 from __future__ import annotations
 
 import ctypes
-from importlib.machinery import EXTENSION_SUFFIXES
 import math
-from pathlib import Path
 import time
 from typing import Any, Generic, TypeVar, cast
 
 import numpy as np
 
-from pathplanning.core.contracts import DiscreteProblem, HeuristicDiscreteGraph
+from pathplanning.core.contracts import (
+    DiscreteProblem,
+    HeuristicDiscreteGraph,
+)
 from pathplanning.core.results import PlanResult, StopReason
+from pathplanning.native import NativeGraph
+from pathplanning.native._ffi import SearchOptions, SearchResult, load_native_library
 
 N = TypeVar("N")
 
@@ -22,69 +25,9 @@ class NativeSearchUnavailable(RuntimeError):
 
 
 class NativeSearchError(RuntimeError):
-    """Raised when the native engine or graph callback reports an error."""
+    """Raised when the native engine or graph initialization reports an error."""
 
 
-_GoalCallback = ctypes.CFUNCTYPE(
-    ctypes.c_int,
-    ctypes.c_void_p,
-    ctypes.c_uint64,
-    ctypes.POINTER(ctypes.c_int),
-)
-_HeuristicCallback = ctypes.CFUNCTYPE(
-    ctypes.c_int,
-    ctypes.c_void_p,
-    ctypes.c_uint64,
-    ctypes.POINTER(ctypes.c_double),
-)
-_NeighborsCallback = ctypes.CFUNCTYPE(
-    ctypes.c_int,
-    ctypes.c_void_p,
-    ctypes.c_uint64,
-    ctypes.POINTER(ctypes.POINTER(ctypes.c_uint64)),
-    ctypes.POINTER(ctypes.POINTER(ctypes.c_double)),
-    ctypes.POINTER(ctypes.c_size_t),
-)
-
-
-class _GraphCallbacks(ctypes.Structure):
-    _fields_ = [
-        ("user_data", ctypes.c_void_p),
-        ("is_goal", _GoalCallback),
-        ("heuristic", _HeuristicCallback),
-        ("neighbors", _NeighborsCallback),
-    ]
-
-
-class _SearchOptions(ctypes.Structure):
-    _fields_ = [
-        ("algorithm", ctypes.c_int),
-        ("has_max_expansions", ctypes.c_int),
-        ("max_expansions", ctypes.c_uint64),
-        ("heuristic_weight", ctypes.c_double),
-        ("reserve_nodes", ctypes.c_uint64),
-        ("has_goal_id", ctypes.c_int),
-        ("goal_id", ctypes.c_uint64),
-        ("anytime_weights", ctypes.POINTER(ctypes.c_double)),
-        ("anytime_weight_count", ctypes.c_size_t),
-    ]
-
-
-class _SearchResult(ctypes.Structure):
-    _fields_ = [
-        ("success", ctypes.c_int),
-        ("stop_reason", ctypes.c_int),
-        ("iters", ctypes.c_uint64),
-        ("nodes", ctypes.c_uint64),
-        ("path_cost", ctypes.c_double),
-        ("path_ids", ctypes.POINTER(ctypes.c_uint64)),
-        ("path_length", ctypes.c_size_t),
-        ("error_message", ctypes.c_char_p),
-    ]
-
-
-_NATIVE_LIB: ctypes.CDLL | None = None
-_ACTIVE_ADAPTERS: dict[int, "_ProblemAdapter[Any]"] = {}
 _STOP_REASONS = {
     0: StopReason.SUCCESS,
     1: StopReason.MAX_ITERS,
@@ -98,51 +41,14 @@ _ALGORITHM_DIJKSTRA = 5
 _ALGORITHM_WEIGHTED_ASTAR = 6
 _ALGORITHM_BIDIRECTIONAL_ASTAR = 7
 _ALGORITHM_ANYTIME_ASTAR = 8
-
-
-def _native_dir() -> Path:
-    return Path(__file__).resolve().parents[3] / "native"
+_DEFAULT_MAX_MATERIALIZED_NODES = 1_000_000
 
 
 def _load_library() -> ctypes.CDLL:
-    global _NATIVE_LIB
-    if _NATIVE_LIB is not None:
-        return _NATIVE_LIB
-
-    candidates = [_native_dir() / f"_search_engine{suffix}" for suffix in EXTENSION_SUFFIXES]
-    for candidate in candidates:
-        if not candidate.exists():
-            continue
-        library = ctypes.CDLL(str(candidate))
-        try:
-            library.pp_search_plan.argtypes = [
-                ctypes.POINTER(_GraphCallbacks),
-                ctypes.c_uint64,
-                ctypes.POINTER(_SearchOptions),
-                ctypes.POINTER(_SearchResult),
-            ]
-            library.pp_search_plan.restype = ctypes.c_int
-        except AttributeError as exc:
-            raise NativeSearchUnavailable(
-                "native search engine is stale; run `make build-ext`"
-            ) from exc
-        library.pp_search_free_result.argtypes = [ctypes.POINTER(_SearchResult)]
-        library.pp_search_free_result.restype = None
-        library.pp_search_engine_version.argtypes = []
-        library.pp_search_engine_version.restype = ctypes.c_char_p
-        _NATIVE_LIB = library
-        return library
-
-    searched = ", ".join(str(path) for path in candidates)
-    raise NativeSearchUnavailable(
-        f"native search engine is not built; run `make build-ext`. Searched: {searched}"
-    )
-
-
-def _adapter_from_user_data(user_data: int | None) -> "_ProblemAdapter[Any]":
-    if user_data is None:
-        raise RuntimeError("missing native adapter user data")
-    return _ACTIVE_ADAPTERS[int(user_data)]
+    try:
+        return load_native_library()
+    except RuntimeError as exc:
+        raise NativeSearchUnavailable(str(exc)) from exc
 
 
 def _path_to_matrix(path_nodes: list[Any]) -> np.ndarray | None:
@@ -158,150 +64,196 @@ def _path_to_matrix(path_nodes: list[Any]) -> np.ndarray | None:
 
 
 class _ProblemAdapter(Generic[N]):
-    def __init__(self, problem: DiscreteProblem[N], *, use_heuristic: bool) -> None:
+    """Prepare one immutable native graph and per-node query data."""
+
+    def __init__(
+        self,
+        problem: DiscreteProblem[N],
+        *,
+        use_heuristic: bool,
+    ) -> None:
         self.problem = problem
-        self.graph = problem.graph
+        self.source_graph = problem.graph
         self.goal_test = problem.resolve_goal_test()
         self.use_heuristic = use_heuristic
 
-        goal = problem.goal
-        self.exact_goal: N | None = None
-        self.heuristic_graph: HeuristicDiscreteGraph[N] | None
-        if not hasattr(goal, "is_goal"):
-            self.exact_goal = cast(N, goal)
+        self._has_exact_goal = not hasattr(problem.goal, "is_goal")
+        self.exact_goal: N | None = cast(N, problem.goal) if self._has_exact_goal else None
+        self.native_graph = self._prepare_graph(problem)
+        self.id_to_node = self.native_graph.node_labels
 
-        if (
-            use_heuristic
-            and self.exact_goal is not None
-            and isinstance(self.graph, HeuristicDiscreteGraph)
-        ):
-            self.heuristic_graph = self.graph
+        start_id = self.native_graph._node_id(problem.start)
+        if start_id is None:
+            raise NativeSearchError("start node is not present in the native graph")
+        self.start_id = start_id
+
+        if self._has_exact_goal:
+            exact_goal = cast(N, problem.goal)
+            resolved_goal_id = self.native_graph._node_id(exact_goal)
+            self.goal_id = self.start_id if resolved_goal_id is None else resolved_goal_id
+            self.has_goal_id = True
         else:
-            self.heuristic_graph = None
+            self.goal_id = 0
+            self.has_goal_id = False
 
-        self._node_to_id: dict[N, int] = {}
-        self._id_to_node: list[N] = []
-        self._last_neighbor_ids: ctypes.Array[ctypes.c_uint64] | None = None
-        self._last_edge_costs: ctypes.Array[ctypes.c_double] | None = None
-        self.error: str | None = None
+        self.goal_flags = self._build_goal_flags()
+        self.heuristic_values = self._build_heuristic_values()
 
-    def node_id(self, node: N) -> int:
-        existing = self._node_to_id.get(node)
-        if existing is not None:
-            return existing
-        node_id = len(self._id_to_node)
-        self._node_to_id[node] = node_id
-        self._id_to_node.append(node)
-        return node_id
+    def _prepare_graph(self, problem: DiscreteProblem[N]) -> NativeGraph[N]:
+        if isinstance(problem.graph, NativeGraph):
+            return problem.graph
 
-    def node_for_id(self, node_id: int) -> N:
-        return self._id_to_node[node_id]
+        limit = _DEFAULT_MAX_MATERIALIZED_NODES
+        if problem.params is not None and "max_materialized_nodes" in problem.params:
+            configured_limit = problem.params["max_materialized_nodes"]
+            if isinstance(configured_limit, bool) or not isinstance(configured_limit, int):
+                raise NativeSearchError("max_materialized_nodes must be a positive integer")
+            if configured_limit <= 0:
+                raise NativeSearchError("max_materialized_nodes must be a positive integer")
+            limit = configured_limit
 
-    def is_goal(self, node_id: int) -> bool:
-        return bool(self.goal_test.is_goal(self.node_for_id(node_id)))
+        native_factory = getattr(problem.graph, "to_native_graph", None)
+        if callable(native_factory):
+            dimensions = [
+                getattr(problem.graph, "x_range", None),
+                getattr(problem.graph, "y_range", None),
+                getattr(problem.graph, "z_range", None),
+            ]
+            node_count = 1
+            for dimension in dimensions:
+                if isinstance(dimension, int) and dimension > 0:
+                    node_count *= dimension
+            if node_count > limit:
+                raise NativeSearchError(
+                    "grid exceeds max_materialized_nodes; raise the limit or use NativeGraph"
+                )
+            try:
+                return cast(NativeGraph[N], native_factory())
+            except (TypeError, ValueError, RuntimeError) as exc:
+                raise NativeSearchError(f"failed to initialize native graph: {exc}") from exc
 
-    def heuristic(self, node_id: int) -> float:
-        heuristic_graph = self.heuristic_graph
-        exact_goal = self.exact_goal
-        if heuristic_graph is None or exact_goal is None:
-            return 0.0
-        value = float(heuristic_graph.heuristic(self.node_for_id(node_id), exact_goal))
-        return value if math.isfinite(value) else 0.0
+        labels: list[N] = []
+        node_to_id: dict[N, int] = {}
+        rows: list[list[tuple[int, float]]] = []
 
-    def neighbors(
-        self,
-        node_id: int,
-    ) -> tuple[ctypes.Array[ctypes.c_uint64], ctypes.Array[ctypes.c_double]]:
-        node = self.node_for_id(node_id)
+        def ensure_node(node: N) -> int:
+            try:
+                existing_id = node_to_id.get(node)
+            except TypeError as exc:
+                raise NativeSearchError("discrete graph nodes must be hashable") from exc
+            if existing_id is not None:
+                return existing_id
+            if len(labels) >= limit:
+                raise NativeSearchError(
+                    "reachable graph exceeds max_materialized_nodes; "
+                    "construct a NativeGraph from CSR arrays or raise the limit"
+                )
+            node_id = len(labels)
+            node_to_id[node] = node_id
+            labels.append(node)
+            rows.append([])
+            return node_id
+
+        start_id = ensure_node(problem.start)
+        queue = [start_id]
+        queued = {start_id}
+        if self._has_exact_goal:
+            ensure_node(cast(N, problem.goal))
+
+        cursor = 0
+        neighbor_edges = getattr(problem.graph, "neighbor_edges", None)
+        while cursor < len(queue):
+            node_id = queue[cursor]
+            node = labels[node_id]
+            row: list[tuple[int, float]] = []
+            if callable(neighbor_edges):
+                edges = neighbor_edges(node)
+                for neighbor, edge_cost in edges:
+                    neighbor_id = ensure_node(neighbor)
+                    row.append((neighbor_id, float(edge_cost)))
+                    if neighbor_id not in queued:
+                        queue.append(neighbor_id)
+                        queued.add(neighbor_id)
+            else:
+                for neighbor in problem.graph.neighbors(node):
+                    neighbor_id = ensure_node(neighbor)
+                    row.append((neighbor_id, float(problem.graph.edge_cost(node, neighbor))))
+                    if neighbor_id not in queued:
+                        queue.append(neighbor_id)
+                        queued.add(neighbor_id)
+            rows[node_id] = row
+            cursor += 1
+
+        offsets = [0]
         neighbor_ids: list[int] = []
         edge_costs: list[float] = []
+        for row in rows:
+            for neighbor_id, edge_cost in row:
+                neighbor_ids.append(neighbor_id)
+                edge_costs.append(edge_cost)
+            offsets.append(len(neighbor_ids))
 
-        neighbor_edges = getattr(self.graph, "neighbor_edges", None)
-        if callable(neighbor_edges):
-            for neighbor, edge_cost in neighbor_edges(node):
-                neighbor_ids.append(self.node_id(neighbor))
-                edge_costs.append(float(edge_cost))
-        else:
-            for neighbor in self.graph.neighbors(node):
-                neighbor_ids.append(self.node_id(neighbor))
-                edge_costs.append(float(self.graph.edge_cost(node, neighbor)))
+        heuristic = None
+        if self.use_heuristic and self._has_exact_goal:
+            candidate = getattr(problem.graph, "heuristic", None)
+            if callable(candidate):
+                heuristic = candidate
 
-        ids_array = (ctypes.c_uint64 * len(neighbor_ids))(*neighbor_ids)
-        costs_array = (ctypes.c_double * len(edge_costs))(*edge_costs)
-        self._last_neighbor_ids = ids_array
-        self._last_edge_costs = costs_array
-        return ids_array, costs_array
+        try:
+            return NativeGraph.from_csr(
+                offsets,
+                neighbor_ids,
+                edge_costs,
+                node_labels=labels,
+                heuristic=heuristic,
+            )
+        except (TypeError, ValueError, RuntimeError) as exc:
+            raise NativeSearchError(f"failed to initialize native graph: {exc}") from exc
+
+    def _build_goal_flags(self) -> np.ndarray:
+        flags = np.zeros(self.native_graph.node_count, dtype=np.uint8)
+        if self._has_exact_goal:
+            goal_id = self.native_graph._node_id(cast(N, self.problem.goal))
+            if goal_id is not None:
+                flags[goal_id] = 1
+            return flags
+
+        for node_id, node in enumerate(self.id_to_node):
+            flags[node_id] = 1 if self.goal_test.is_goal(node) else 0
+        return flags
+
+    def _build_heuristic_values(self) -> np.ndarray:
+        values = np.zeros(self.native_graph.node_count, dtype=np.float64)
+        if not self.use_heuristic or not self._has_exact_goal:
+            return values
+
+        exact_goal = cast(N, self.problem.goal)
+        if isinstance(self.source_graph, NativeGraph):
+            get_value = self.source_graph._heuristic
+            for node_id in range(self.native_graph.node_count):
+                value = get_value(node_id, exact_goal)
+                values[node_id] = value if math.isfinite(value) else 0.0
+            return values
+
+        value_builder = getattr(self.source_graph, "native_heuristic_values", None)
+        if callable(value_builder):
+            built_values = np.asarray(value_builder(exact_goal), dtype=np.float64)
+            if built_values.shape != values.shape:
+                raise NativeSearchError(
+                    "native_heuristic_values must return one value per native graph node"
+                )
+            values[:] = built_values
+            values[~np.isfinite(values)] = 0.0
+            return values
+
+        if isinstance(self.source_graph, HeuristicDiscreteGraph):
+            for node_id, node in enumerate(self.id_to_node):
+                value = float(self.source_graph.heuristic(node, exact_goal))
+                values[node_id] = value if math.isfinite(value) else 0.0
+        return values
 
     def path_nodes(self, path_ids: ctypes.POINTER(ctypes.c_uint64), length: int) -> list[N]:
-        return [self.node_for_id(int(path_ids[index])) for index in range(length)]
-
-    def reserve_nodes(self) -> int:
-        graph = self.graph
-        dimensions = [
-            getattr(graph, "x_range", None),
-            getattr(graph, "y_range", None),
-            getattr(graph, "z_range", None),
-        ]
-        product = 1
-        found_dimension = False
-        for value in dimensions:
-            if isinstance(value, int) and value > 0:
-                product *= value
-                found_dimension = True
-        return product if found_dimension else 0
-
-
-@_GoalCallback
-def _goal_callback(
-    user_data: int | None,
-    node_id: int,
-    out_is_goal: ctypes.POINTER(ctypes.c_int),
-) -> int:
-    try:
-        adapter = _adapter_from_user_data(user_data)
-        out_is_goal[0] = 1 if adapter.is_goal(int(node_id)) else 0
-        return 0
-    except Exception as exc:
-        if user_data is not None and int(user_data) in _ACTIVE_ADAPTERS:
-            _ACTIVE_ADAPTERS[int(user_data)].error = str(exc)
-        return 1
-
-
-@_HeuristicCallback
-def _heuristic_callback(
-    user_data: int | None,
-    node_id: int,
-    out_value: ctypes.POINTER(ctypes.c_double),
-) -> int:
-    try:
-        adapter = _adapter_from_user_data(user_data)
-        out_value[0] = adapter.heuristic(int(node_id))
-        return 0
-    except Exception as exc:
-        if user_data is not None and int(user_data) in _ACTIVE_ADAPTERS:
-            _ACTIVE_ADAPTERS[int(user_data)].error = str(exc)
-        return 1
-
-
-@_NeighborsCallback
-def _neighbors_callback(
-    user_data: int | None,
-    node_id: int,
-    out_neighbor_ids: ctypes.POINTER(ctypes.POINTER(ctypes.c_uint64)),
-    out_edge_costs: ctypes.POINTER(ctypes.POINTER(ctypes.c_double)),
-    out_count: ctypes.POINTER(ctypes.c_size_t),
-) -> int:
-    try:
-        adapter = _adapter_from_user_data(user_data)
-        ids_array, costs_array = adapter.neighbors(int(node_id))
-        out_neighbor_ids[0] = ctypes.cast(ids_array, ctypes.POINTER(ctypes.c_uint64))
-        out_edge_costs[0] = ctypes.cast(costs_array, ctypes.POINTER(ctypes.c_double))
-        out_count[0] = len(ids_array)
-        return 0
-    except Exception as exc:
-        if user_data is not None and int(user_data) in _ACTIVE_ADAPTERS:
-            _ACTIVE_ADAPTERS[int(user_data)].error = str(exc)
-        return 1
+        return [self.id_to_node[int(path_ids[index])] for index in range(length)]
 
 
 def run_native_search(
@@ -314,64 +266,57 @@ def run_native_search(
     require_exact_goal: bool = False,
     anytime_weights: tuple[float, ...] = (),
 ) -> PlanResult:
-    """Run one native graph-search kernel and adapt the result to Python."""
+    """Run a native graph-search kernel after one-time graph preparation."""
     library = _load_library()
-    adapter = _ProblemAdapter(problem, use_heuristic=use_heuristic)
-    start_id = adapter.node_id(problem.start)
-    goal_id = 0
-    has_goal_id = adapter.exact_goal is not None
-    if adapter.exact_goal is not None:
-        goal_id = adapter.node_id(adapter.exact_goal)
-    elif require_exact_goal:
+    if require_exact_goal and hasattr(problem.goal, "is_goal"):
         raise NativeSearchUnavailable("native bidirectional search requires an exact goal")
 
-    adapter_key = id(adapter)
-    _ACTIVE_ADAPTERS[adapter_key] = adapter
+    total_start = time.perf_counter()
+    adapter = _ProblemAdapter(problem, use_heuristic=use_heuristic)
+    graph_init_s = time.perf_counter() - total_start
 
-    graph_callbacks = _GraphCallbacks(
-        ctypes.c_void_p(adapter_key),
-        _goal_callback,
-        _heuristic_callback,
-        _neighbors_callback,
-    )
-    weights_array: ctypes.Array[ctypes.c_double] | None = None
+    weights_array: np.ndarray | None = None
     weights_pointer = ctypes.POINTER(ctypes.c_double)()
     if anytime_weights:
-        weights_array = (ctypes.c_double * len(anytime_weights))(*anytime_weights)
-        weights_pointer = ctypes.cast(weights_array, ctypes.POINTER(ctypes.c_double))
+        weights_array = np.ascontiguousarray(anytime_weights, dtype=np.float64)
+        weights_pointer = weights_array.ctypes.data_as(ctypes.POINTER(ctypes.c_double))
 
-    options = _SearchOptions(
+    options = SearchOptions(
         int(algorithm),
         1 if max_expansions is not None else 0,
         0 if max_expansions is None else int(max_expansions),
         float(heuristic_weight if use_heuristic else 0.0),
-        adapter.reserve_nodes(),
-        1 if has_goal_id else 0,
-        int(goal_id),
+        0,
+        1 if adapter.has_goal_id else 0,
+        int(adapter.goal_id),
         weights_pointer,
         len(anytime_weights),
     )
-    result = _SearchResult()
-    start_time = time.perf_counter()
+    result = SearchResult()
+    goal_pointer = adapter.goal_flags.ctypes.data_as(ctypes.POINTER(ctypes.c_uint8))
+    heuristic_pointer = adapter.heuristic_values.ctypes.data_as(ctypes.POINTER(ctypes.c_double))
+    native_start = time.perf_counter()
 
     try:
         _ = weights_array
         status = int(
-            library.pp_search_plan(
-                ctypes.byref(graph_callbacks),
-                ctypes.c_uint64(start_id),
+            library.pp_native_search_plan(
+                adapter.native_graph._native_handle,
+                goal_pointer,
+                heuristic_pointer,
+                ctypes.c_uint64(adapter.start_id),
                 ctypes.byref(options),
                 ctypes.byref(result),
             )
         )
-        elapsed = time.perf_counter() - start_time
+        native_search_s = time.perf_counter() - native_start
         if status != 0 or result.stop_reason == 3:
             native_error = (
                 result.error_message.decode("utf-8", errors="replace")
                 if result.error_message
                 else None
             )
-            raise NativeSearchError(adapter.error or native_error or "native search failed")
+            raise NativeSearchError(native_error or "native search failed")
 
         stop_reason = _STOP_REASONS.get(int(result.stop_reason), StopReason.NO_PROGRESS)
         path = None
@@ -380,7 +325,9 @@ def run_native_search(
             path = _path_to_matrix(path_nodes)
 
         stats: dict[str, float] = {
-            "elapsed_s": elapsed,
+            "elapsed_s": time.perf_counter() - total_start,
+            "graph_init_s": graph_init_s,
+            "native_search_s": native_search_s,
             "expanded": float(result.iters),
         }
         if result.success:
@@ -399,7 +346,6 @@ def run_native_search(
         )
     finally:
         library.pp_search_free_result(ctypes.byref(result))
-        _ACTIVE_ADAPTERS.pop(adapter_key, None)
 
 
 def run_native_best_first(
