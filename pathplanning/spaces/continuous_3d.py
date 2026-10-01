@@ -152,7 +152,7 @@ class ContinuousSpace3D(ContinuousSpace[Vec]):
         start_state = as_state_nd(a, "a", self.dim)
         end_state = as_state_nd(b, "b", self.dim)
         step = self.collision_step if collision_step is None else float(collision_step)
-        if step <= 0.0:
+        if not np.isfinite(step) or step <= 0.0:
             raise ValueError("collision_step must be > 0")
 
         segment_length = self.distance(start_state, end_state)
@@ -168,10 +168,22 @@ class ContinuousSpace3D(ContinuousSpace[Vec]):
         return True
 
     def is_motion_valid(self, a: Vec, b: Vec) -> bool:
-        return self.segment_free(a, b)
+        return self.is_motion_valid_with_step(a, b, self.collision_step)
+
+    def is_motion_valid_with_step(self, a: Vec, b: Vec, collision_step: Float) -> bool:
+        """Check motion using a caller-owned step size without changing this space."""
+        return self.segment_free(a, b, collision_step)
 
     def is_motion_valid_batch(self, edges: list[tuple[Vec, Vec]]) -> list[bool]:
-        return [self.is_motion_valid(start, end) for start, end in edges]
+        return self.is_motion_valid_batch_with_step(edges, self.collision_step)
+
+    def is_motion_valid_batch_with_step(
+        self,
+        edges: Sequence[tuple[Vec, Vec]],
+        collision_step: Float,
+    ) -> list[bool]:
+        """Check a batch using a caller-owned step size without changing this space."""
+        return [self.is_motion_valid_with_step(start, end, collision_step) for start, end in edges]
 
     def distance(self, a: Vec, b: Vec) -> Float:
         return euclidean_distance_nd(a, b, dim=self.dim)

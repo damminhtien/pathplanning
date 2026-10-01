@@ -26,7 +26,9 @@ from .contracts import (
     InterpolatingContinuousSpace,
     Objective,
     State,
+    SupportsBatchCollisionStepMotionCheck,
     SupportsBatchMotionCheck,
+    SupportsCollisionStepMotionCheck,
     ValidatingDiscreteGraph,
 )
 from .params import RrtParams
@@ -47,6 +49,8 @@ __all__ = [
     "DistanceAwareGoalRegion",
     "GoalState",
     "SupportsBatchMotionCheck",
+    "SupportsCollisionStepMotionCheck",
+    "SupportsBatchCollisionStepMotionCheck",
     "Objective",
     "ContinuousProblem",
     "PlanResult",

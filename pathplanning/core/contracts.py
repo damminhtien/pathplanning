@@ -151,6 +151,33 @@ class SupportsBatchMotionCheck(Protocol[S]):
 
 
 @runtime_checkable
+class SupportsCollisionStepMotionCheck(Protocol[S_contra]):
+    """Optional motion-check extension that accepts a planner-local step size."""
+
+    def is_motion_valid_with_step(
+        self,
+        a: S_contra,
+        b: S_contra,
+        collision_step: Float,
+    ) -> bool:
+        """Return motion validity using ``collision_step`` without mutating the space."""
+        ...
+
+
+@runtime_checkable
+class SupportsBatchCollisionStepMotionCheck(Protocol[S_contra]):
+    """Optional batched motion-check extension that accepts a local step size."""
+
+    def is_motion_valid_batch_with_step(
+        self,
+        edges: Sequence[tuple[S_contra, S_contra]],
+        collision_step: Float,
+    ) -> list[bool]:
+        """Return validity flags using ``collision_step`` without mutating the space."""
+        ...
+
+
+@runtime_checkable
 class GoalRegion(Protocol[S_contra]):
     """Goal-region predicate for continuous problems."""
 
@@ -189,7 +216,7 @@ class DistanceAwareGoalRegion(GoalRegion[S_contra], Protocol[S_contra]):
 
 @runtime_checkable
 class Objective(Protocol[S]):
-    """Optional objective contract for continuous planning problems."""
+    """Optional path objective; sampling optimizers select paths with lower values."""
 
     def path_cost(self, path: Sequence[S], space: ContinuousSpace[S]) -> Float:
         """Return objective value for ``path`` under ``space``."""

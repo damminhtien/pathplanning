@@ -6,7 +6,13 @@ from collections.abc import Mapping, Sequence
 
 import numpy as np
 
-from pathplanning.core.contracts import ContinuousProblem, ContinuousSpace, GoalRegion, State
+from pathplanning.core.contracts import (
+    ContinuousProblem,
+    ContinuousSpace,
+    GoalRegion,
+    Objective,
+    State,
+)
 from pathplanning.core.params import RrtParams
 from pathplanning.core.results import PlanResult
 from pathplanning.core.types import RNG
@@ -34,6 +40,7 @@ class InformedRrtStar:
         *,
         show_ellipse: bool = False,
         nn_index_factory: IndexFactory | None = None,
+        objective: Objective[State] | None = None,
     ) -> None:
         self.space = space
         self.params = params.validate()
@@ -44,6 +51,7 @@ class InformedRrtStar:
             params=self.params,
             rng=rng,
             nn_index_factory=nn_index_factory,
+            objective=objective,
         )
 
     def plan(self, start: Sequence[float] | State, goal_region: GoalRegion[State]) -> PlanResult:
@@ -67,7 +75,12 @@ def plan_informed_rrt_star(
 ) -> PlanResult:
     """Plan one ``ContinuousProblem`` with Informed RRT*."""
     resolved_params = coerce_rrt_params(problem, params)
-    planner = InformedRrtStar(problem.space, resolved_params, resolve_rng(rng))
+    planner = InformedRrtStar(
+        problem.space,
+        resolved_params,
+        resolve_rng(rng),
+        objective=problem.objective,
+    )
     return planner.plan(problem.start, problem.goal)
 
 

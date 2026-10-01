@@ -19,9 +19,6 @@ def coerce_rrt_params(
     params: RrtParams | Mapping[str, object] | None,
 ) -> RrtParams:
     """Resolve ``RrtParams`` from problem defaults and call overrides."""
-    if isinstance(params, RrtParams):
-        return params.validate()
-
     problem_params = problem.params
     merged_kwargs: dict[str, object] = {}
 
@@ -32,7 +29,11 @@ def coerce_rrt_params(
             raise KeyError(f"Unsupported continuous problem params: {invalid_values}")
         merged_kwargs.update(problem_params)
 
-    if params is not None:
+    if isinstance(params, RrtParams):
+        merged_kwargs.update(
+            {field.name: getattr(params, field.name) for field in fields(RrtParams)}
+        )
+    elif params is not None:
         invalid = set(params) - _ALLOWED_RRT_PARAM_KEYS
         if invalid:
             invalid_values = ", ".join(sorted(invalid))

@@ -276,6 +276,18 @@ class Grid2DSamplingSpace:
         return in_bounds and not self._inside_obstacle(state)
 
     def is_motion_valid(self, a: Sequence[float], b: Sequence[float]) -> bool:
+        return self.is_motion_valid_with_step(a, b, self.collision_step)
+
+    def is_motion_valid_with_step(
+        self,
+        a: Sequence[float],
+        b: Sequence[float],
+        collision_step: float,
+    ) -> bool:
+        """Check motion using a caller-owned step size without changing this space."""
+        step = float(collision_step)
+        if not math.isfinite(step) or step <= 0.0:
+            raise ValueError("collision_step must be > 0")
         start = self._as_state(a)
         end = self._as_state(b)
         if not self.is_state_valid(start) or not self.is_state_valid(end):
@@ -285,7 +297,7 @@ class Grid2DSamplingSpace:
         if segment_length == 0.0:
             return self.is_state_valid(start)
 
-        num_steps = int(math.ceil(segment_length / self.collision_step))
+        num_steps = int(math.ceil(segment_length / step))
         for i in range(num_steps + 1):
             alpha = i / num_steps
             sample = (
@@ -297,7 +309,15 @@ class Grid2DSamplingSpace:
         return True
 
     def is_motion_valid_batch(self, edges: list[tuple[SampleState2D, SampleState2D]]) -> list[bool]:
-        return [self.is_motion_valid(start, end) for start, end in edges]
+        return self.is_motion_valid_batch_with_step(edges, self.collision_step)
+
+    def is_motion_valid_batch_with_step(
+        self,
+        edges: Sequence[tuple[SampleState2D, SampleState2D]],
+        collision_step: float,
+    ) -> list[bool]:
+        """Check a batch using a caller-owned step size without changing this space."""
+        return [self.is_motion_valid_with_step(start, end, collision_step) for start, end in edges]
 
     def distance(self, a: Sequence[float], b: Sequence[float]) -> float:
         start = self._as_state(a)

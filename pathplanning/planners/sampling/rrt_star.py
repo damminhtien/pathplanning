@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
+import math
 import time
 from typing import TypeAlias, cast
 
@@ -15,8 +16,11 @@ from pathplanning.core.contracts import (
     ContinuousSpace,
     GoalRegion,
     GoalState,
+    Objective,
     State,
+    SupportsBatchCollisionStepMotionCheck,
     SupportsBatchMotionCheck,
+    SupportsCollisionStepMotionCheck,
 )
 from pathplanning.core.params import RrtParams
 from pathplanning.core.results import PlanResult, StopReason
@@ -61,17 +65,27 @@ class RrtStarPlanner:
         params: RrtParams,
         rng: np.random.Generator,
         nn_index_factory: IndexFactory | None = None,
+        objective: Objective[State] | None = None,
     ) -> None:
         """Initialize an interface-driven RRT* planner."""
         self.space = space
         self.params = params.validate()
         self.rng = rng
+        self.objective = objective
         self._nn_index_factory = nn_index_factory or _default_index_factory
+        self._motion_checker_with_step: SupportsCollisionStepMotionCheck[State] | None = None
+        if hasattr(space, "is_motion_valid_with_step"):
+            self._motion_checker_with_step = cast(SupportsCollisionStepMotionCheck[State], space)
+        self._batch_motion_checker_with_step: (
+            SupportsBatchCollisionStepMotionCheck[State] | None
+        ) = None
+        if hasattr(space, "is_motion_valid_batch_with_step"):
+            self._batch_motion_checker_with_step = cast(
+                SupportsBatchCollisionStepMotionCheck[State], space
+            )
         self._batch_motion_checker: SupportsBatchMotionCheck[State] | None = None
         if hasattr(space, "is_motion_valid_batch"):
             self._batch_motion_checker = cast(SupportsBatchMotionCheck[State], space)
-        if hasattr(self.space, "collision_step"):
-            self.space.collision_step = self.params.collision_step  # type: ignore[attr-defined]
 
     def _goal_spec(self, goal_region: GoalRegion[State], *, dim: int) -> GoalSpec:
         """Build planner goal helpers from a ``GoalRegion`` implementation."""
@@ -104,16 +118,68 @@ class RrtStarPlanner:
         """Return root-to-node path as a state matrix."""
         return tree.extract_path(node_id)
 
+    def _objective_path_cost(self, path: Mat) -> float:
+        """Score a complete path and reject values that cannot be ranked safely."""
+        if self.objective is None:
+            raise RuntimeError("objective path cost requested without an objective")
+        cost = float(self.objective.path_cost(tuple(path), self.space))
+        if not math.isfinite(cost):
+            raise ValueError("objective.path_cost must return a finite value")
+        return cost
+
+    def _cost_from_parent(self, tree: ArrayTree, parent_index: NodeId, node: State) -> float:
+        """Return the cost of the path formed by extending ``parent_index`` to ``node``."""
+        parent = tree.node(parent_index)
+        if self.objective is None:
+            return float(tree.cost[parent_index] + self.space.distance(parent, node))
+        path = self._path_from_tree(tree, parent_index)
+        candidate_path = np.vstack((path, np.asarray(node, dtype=float).reshape(1, -1)))
+        return self._objective_path_cost(candidate_path)
+
+    def _recompute_objective_subtree(
+        self,
+        root_index: NodeId,
+        tree: ArrayTree,
+        children: list[set[NodeId]],
+    ) -> None:
+        """Refresh path costs after a rewire changes a subtree's root path."""
+        stack = [root_index]
+        while stack:
+            index = stack.pop()
+            tree.cost[index] = self._objective_path_cost(self._path_from_tree(tree, index))
+            stack.extend(children[index])
+
+    @staticmethod
+    def _is_ancestor(tree: ArrayTree, ancestor: NodeId, node: NodeId) -> bool:
+        """Return whether ``ancestor`` appears on ``node``'s current parent chain."""
+        while node >= 0:
+            if node == ancestor:
+                return True
+            node = int(tree.parent[node])
+        return False
+
     def _is_state_valid(self, state: State) -> bool:
         return self.space.is_state_valid(state)
 
     def _is_motion_valid(self, start: State, end: State) -> bool:
+        if self._motion_checker_with_step is not None:
+            return self._motion_checker_with_step.is_motion_valid_with_step(
+                start,
+                end,
+                self.params.collision_step,
+            )
         return self.space.is_motion_valid(start, end)
 
     def _is_motion_valid_batch(self, edges: list[tuple[State, State]]) -> list[bool]:
-        if self._batch_motion_checker is None:
-            return [self._is_motion_valid(start, end) for start, end in edges]
-        checks = self._batch_motion_checker.is_motion_valid_batch(edges)
+        if self._batch_motion_checker_with_step is not None:
+            checks = self._batch_motion_checker_with_step.is_motion_valid_batch_with_step(
+                edges,
+                self.params.collision_step,
+            )
+        elif self._batch_motion_checker is not None:
+            checks = self._batch_motion_checker.is_motion_valid_batch(edges)
+        else:
+            checks = [self._is_motion_valid(start, end) for start, end in edges]
         if len(checks) != len(edges):
             raise ValueError("is_motion_valid_batch must return one flag per edge")
         return [bool(value) for value in checks]
@@ -142,11 +208,10 @@ class RrtStarPlanner:
         candidate: State,
         near_indices: NDArray[np.int64],
         nearest_index: NodeId,
-    ) -> NodeId:
+    ) -> tuple[NodeId, float]:
         """Select the best parent for ``candidate`` from nearby nodes."""
         parent_index = nearest_index
-        nearest = tree.node(nearest_index)
-        parent_cost = float(tree.cost[parent_index] + self.space.distance(nearest, candidate))
+        parent_cost = self._cost_from_parent(tree, parent_index, candidate)
 
         candidate_edges: list[tuple[State, State]] = []
         near_index_list: list[NodeId] = []
@@ -161,13 +226,11 @@ class RrtStarPlanner:
             if not is_valid:
                 continue
             near_node = tree.node(near_index)
-            candidate_cost = float(
-                tree.cost[near_index] + self.space.distance(near_node, candidate)
-            )
+            candidate_cost = self._cost_from_parent(tree, near_index, candidate)
             if candidate_cost < parent_cost:
                 parent_index = near_index
                 parent_cost = candidate_cost
-        return parent_index
+        return parent_index, parent_cost
 
     def _propagate_costs_from(
         self,
@@ -208,15 +271,20 @@ class RrtStarPlanner:
             if not is_valid:
                 continue
             near_node = tree.node(near_index)
-            rewired_cost = float(tree.cost[new_index] + self.space.distance(candidate, near_node))
+            if self.objective is not None and self._is_ancestor(tree, near_index, new_index):
+                continue
+            rewired_cost = self._cost_from_parent(tree, new_index, near_node)
             if rewired_cost < tree.cost[near_index]:
                 old_parent = int(tree.parent[near_index])
                 if old_parent != -1:
                     children[old_parent].remove(near_index)
                 tree.parent[near_index] = new_index
                 children[new_index].add(near_index)
-                delta = float(rewired_cost - tree.cost[near_index])
-                self._propagate_costs_from(near_index, delta, tree, children)
+                if self.objective is None:
+                    delta = float(rewired_cost - tree.cost[near_index])
+                    self._propagate_costs_from(near_index, delta, tree, children)
+                else:
+                    self._recompute_objective_subtree(near_index, tree, children)
 
     def plan(self, start: Sequence[float] | State, goal_region: GoalRegion[State]) -> PlanResult:
         """Compute a collision-free path from ``start`` into ``goal_region``."""
@@ -232,18 +300,27 @@ class RrtStarPlanner:
 
         goal = self._goal_spec(goal_region, dim=dim)
         if goal.predicate(start_state):
+            path = np.asarray([start_state], dtype=float)
+            stats = {"goal_checks": 1.0}
+            if self.objective is not None:
+                stats["path_cost"] = self._objective_path_cost(path)
             return PlanResult(
                 success=True,
-                path=np.asarray([start_state], dtype=float),
-                best_path=np.asarray([start_state], dtype=float),
+                path=path,
+                best_path=path,
                 stop_reason=StopReason.SUCCESS,
                 iters=0,
                 nodes=1,
-                stats={"goal_checks": 1.0},
+                stats=stats,
             )
 
         tree = ArrayTree(dim)
-        tree.add_node(start_state, -1, 0.0)
+        start_cost = (
+            self._objective_path_cost(np.asarray([start_state], dtype=float))
+            if self.objective is not None
+            else 0.0
+        )
+        tree.add_node(start_state, -1, start_cost)
         children: list[set[NodeId]] = [set()]
         index = self._nn_index_factory(dim)
         index.build(tree.nodes)
@@ -290,10 +367,11 @@ class RrtStarPlanner:
                 )
                 near_indices = self._near_indices(index, candidate, near_radius)
 
-            parent_index = self._choose_parent(tree, candidate, near_indices, nearest_index)
-            parent_node = tree.node(parent_index)
-            parent_cost = float(
-                tree.cost[parent_index] + self.space.distance(parent_node, candidate)
+            parent_index, parent_cost = self._choose_parent(
+                tree,
+                candidate,
+                near_indices,
+                nearest_index,
             )
 
             new_index = tree.add_node(candidate, parent_index, parent_cost)
@@ -317,6 +395,8 @@ class RrtStarPlanner:
                 "goal_nodes": float(len(goal_indices)),
                 "elapsed_s": elapsed,
             }
+            if self.objective is not None:
+                stats["objective_cost"] = float(tree.cost[best_goal_index])
             if self.params.time_budget_s is not None:
                 stats["time_budget_s"] = self.params.time_budget_s
             return PlanResult(
@@ -357,7 +437,12 @@ def plan_rrt_star(
 ) -> PlanResult:
     """Plan one ``ContinuousProblem`` with RRT*."""
     resolved_params = coerce_rrt_params(problem, params)
-    planner = RrtStarPlanner(problem.space, resolved_params, resolve_rng(rng))
+    planner = RrtStarPlanner(
+        problem.space,
+        resolved_params,
+        resolve_rng(rng),
+        objective=problem.objective,
+    )
     return planner.plan(problem.start, problem.goal)
 
 

@@ -15,7 +15,9 @@ from pathplanning.core.contracts import (
     GoalRegion,
     GoalState,
     State,
+    SupportsBatchCollisionStepMotionCheck,
     SupportsBatchMotionCheck,
+    SupportsCollisionStepMotionCheck,
 )
 from pathplanning.core.params import RrtParams
 from pathplanning.core.results import PlanResult, StopReason
@@ -66,11 +68,19 @@ class RrtPlanner:
         self.params = params.validate()
         self.rng = rng
         self._nn_index_factory = nn_index_factory or _default_index_factory
+        self._motion_checker_with_step: SupportsCollisionStepMotionCheck[State] | None = None
+        if hasattr(space, "is_motion_valid_with_step"):
+            self._motion_checker_with_step = cast(SupportsCollisionStepMotionCheck[State], space)
+        self._batch_motion_checker_with_step: (
+            SupportsBatchCollisionStepMotionCheck[State] | None
+        ) = None
+        if hasattr(space, "is_motion_valid_batch_with_step"):
+            self._batch_motion_checker_with_step = cast(
+                SupportsBatchCollisionStepMotionCheck[State], space
+            )
         self._batch_motion_checker: SupportsBatchMotionCheck[State] | None = None
         if hasattr(space, "is_motion_valid_batch"):
             self._batch_motion_checker = cast(SupportsBatchMotionCheck[State], space)
-        if hasattr(self.space, "collision_step"):
-            self.space.collision_step = self.params.collision_step  # type: ignore[attr-defined]
 
     def _goal_spec(self, goal_region: GoalRegion[State], *, dim: int) -> GoalSpec:
         """Build planner goal helpers from a ``GoalRegion`` implementation."""
@@ -98,12 +108,24 @@ class RrtPlanner:
         return self.space.is_state_valid(state)
 
     def _is_motion_valid(self, start: State, end: State) -> bool:
+        if self._motion_checker_with_step is not None:
+            return self._motion_checker_with_step.is_motion_valid_with_step(
+                start,
+                end,
+                self.params.collision_step,
+            )
         return self.space.is_motion_valid(start, end)
 
     def _is_motion_valid_batch(self, edges: list[tuple[State, State]]) -> list[bool]:
-        if self._batch_motion_checker is None:
-            return [self._is_motion_valid(start, end) for start, end in edges]
-        checks = self._batch_motion_checker.is_motion_valid_batch(edges)
+        if self._batch_motion_checker_with_step is not None:
+            checks = self._batch_motion_checker_with_step.is_motion_valid_batch_with_step(
+                edges,
+                self.params.collision_step,
+            )
+        elif self._batch_motion_checker is not None:
+            checks = self._batch_motion_checker.is_motion_valid_batch(edges)
+        else:
+            checks = [self._is_motion_valid(start, end) for start, end in edges]
         if len(checks) != len(edges):
             raise ValueError("is_motion_valid_batch must return one flag per edge")
         return [bool(value) for value in checks]

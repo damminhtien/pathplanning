@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
+from dataclasses import replace
 from typing import Any, TypeAlias, overload
 
 import numpy as np
@@ -35,9 +36,13 @@ def plan_discrete(
 ) -> Result:
     """Run one registered discrete planner on a ``DiscreteProblem``."""
     effective_rng = _resolve_rng(seed, rng)
-    resolved_params = dict(params) if params is not None else None
+    merged_params = dict(problem.params or {})
+    if params is not None:
+        merged_params.update(params)
+    resolved_params = merged_params or None
+    resolved_problem = replace(problem, params=resolved_params)
     planner_fn = get_discrete_planner(planner)
-    return planner_fn(problem, params=resolved_params, rng=effective_rng)
+    return planner_fn(resolved_problem, params=resolved_params, rng=effective_rng)
 
 
 def plan_continuous(
