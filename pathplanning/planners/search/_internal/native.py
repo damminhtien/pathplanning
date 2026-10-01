@@ -42,6 +42,8 @@ _ALGORITHM_WEIGHTED_ASTAR = 6
 _ALGORITHM_BIDIRECTIONAL_ASTAR = 7
 _ALGORITHM_ANYTIME_ASTAR = 8
 _DEFAULT_MAX_MATERIALIZED_NODES = 1_000_000
+_NO_GOAL_ID = (1 << 64) - 1
+_MAX_PRECOMPUTED_HEURISTIC_NODES = 65_536
 
 
 def _load_library() -> ctypes.CDLL:
@@ -90,7 +92,7 @@ class _ProblemAdapter(Generic[N]):
         if self._has_exact_goal:
             exact_goal = cast(N, problem.goal)
             resolved_goal_id = self.native_graph._node_id(exact_goal)
-            self.goal_id = self.start_id if resolved_goal_id is None else resolved_goal_id
+            self.goal_id = _NO_GOAL_ID if resolved_goal_id is None else resolved_goal_id
             self.has_goal_id = True
         else:
             self.goal_id = 0
@@ -210,25 +212,27 @@ class _ProblemAdapter(Generic[N]):
         except (TypeError, ValueError, RuntimeError) as exc:
             raise NativeSearchError(f"failed to initialize native graph: {exc}") from exc
 
-    def _build_goal_flags(self) -> np.ndarray:
-        flags = np.zeros(self.native_graph.node_count, dtype=np.uint8)
+    def _build_goal_flags(self) -> np.ndarray | None:
         if self._has_exact_goal:
-            goal_id = self.native_graph._node_id(cast(N, self.problem.goal))
-            if goal_id is not None:
-                flags[goal_id] = 1
-            return flags
-
+            return None
+        flags = np.zeros(self.native_graph.node_count, dtype=np.uint8)
         for node_id, node in enumerate(self.id_to_node):
             flags[node_id] = 1 if self.goal_test.is_goal(node) else 0
         return flags
 
-    def _build_heuristic_values(self) -> np.ndarray:
-        values = np.zeros(self.native_graph.node_count, dtype=np.float64)
+    def _build_heuristic_values(self) -> np.ndarray | None:
         if not self.use_heuristic or not self._has_exact_goal:
-            return values
+            return None
 
         exact_goal = cast(N, self.problem.goal)
+        if self.native_graph._heuristic_mode == "euclidean":
+            if self.native_graph.node_count > _MAX_PRECOMPUTED_HEURISTIC_NODES:
+                return None
+
         if isinstance(self.source_graph, NativeGraph):
+            if self.source_graph._heuristic_fn is None:
+                return None
+            values = np.empty(self.native_graph.node_count, dtype=np.float64)
             get_value = self.source_graph._heuristic
             for node_id in range(self.native_graph.node_count):
                 value = get_value(node_id, exact_goal)
@@ -238,19 +242,20 @@ class _ProblemAdapter(Generic[N]):
         value_builder = getattr(self.source_graph, "native_heuristic_values", None)
         if callable(value_builder):
             built_values = np.asarray(value_builder(exact_goal), dtype=np.float64)
-            if built_values.shape != values.shape:
+            if built_values.shape != (self.native_graph.node_count,):
                 raise NativeSearchError(
                     "native_heuristic_values must return one value per native graph node"
                 )
-            values[:] = built_values
-            values[~np.isfinite(values)] = 0.0
-            return values
+            # The C++ kernel maps non-finite values to zero when it reads them.
+            return np.ascontiguousarray(built_values)
 
         if isinstance(self.source_graph, HeuristicDiscreteGraph):
+            values = np.empty(self.native_graph.node_count, dtype=np.float64)
             for node_id, node in enumerate(self.id_to_node):
                 value = float(self.source_graph.heuristic(node, exact_goal))
                 values[node_id] = value if math.isfinite(value) else 0.0
-        return values
+            return values
+        return None
 
     def path_nodes(self, path_ids: ctypes.POINTER(ctypes.c_uint64), length: int) -> list[N]:
         return [self.id_to_node[int(path_ids[index])] for index in range(length)]
@@ -293,8 +298,16 @@ def run_native_search(
         len(anytime_weights),
     )
     result = SearchResult()
-    goal_pointer = adapter.goal_flags.ctypes.data_as(ctypes.POINTER(ctypes.c_uint8))
-    heuristic_pointer = adapter.heuristic_values.ctypes.data_as(ctypes.POINTER(ctypes.c_double))
+    goal_pointer = (
+        adapter.goal_flags.ctypes.data_as(ctypes.POINTER(ctypes.c_uint8))
+        if adapter.goal_flags is not None
+        else ctypes.POINTER(ctypes.c_uint8)()
+    )
+    heuristic_pointer = (
+        adapter.heuristic_values.ctypes.data_as(ctypes.POINTER(ctypes.c_double))
+        if adapter.heuristic_values is not None
+        else ctypes.POINTER(ctypes.c_double)()
+    )
     native_start = time.perf_counter()
 
     try:

@@ -166,6 +166,32 @@ def test_native_graph_accepts_csr_arrays_and_custom_labels() -> None:
     assert np.array_equal(result.path, np.array([[0.0, 0.0], [1.0, 0.0]]))
 
 
+def test_native_graph_uses_implicit_integer_labels_and_exact_goal() -> None:
+    graph = NativeGraph.from_csr([0, 1, 1], [1], [2.0])
+
+    result = plan_discrete(
+        DiscreteProblem(graph=graph, start=0, goal=1),
+        planner="dijkstra",
+    )
+
+    assert result.success
+    assert np.array_equal(result.path[:, 0], np.array([0.0, 1.0]))
+    assert result.stats["path_cost"] == pytest.approx(2.0)
+
+
+@pytest.mark.parametrize("planner", ["astar", "bidirectional_astar"])
+def test_native_graph_missing_exact_goal_is_unreachable(planner: str) -> None:
+    graph = NativeGraph.from_csr([0, 1, 1], [1], [1.0])
+
+    result = plan_discrete(
+        DiscreteProblem(graph=graph, start=0, goal=99),
+        planner=planner,
+    )
+
+    assert not result.success
+    assert result.path is None
+
+
 def test_native_graph_validates_csr_shape_and_endpoints() -> None:
     with pytest.raises(NativeGraphError, match="end at the edge count"):
         NativeGraph.from_csr([0, 2, 2], [1], [1.0])

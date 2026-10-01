@@ -107,6 +107,20 @@ int pp_graph_create_grid(
     size_t error_capacity
 );
 
+int pp_graph_create_grid_ex(
+    uint64_t width,
+    uint64_t height,
+    uint64_t depth,
+    uint64_t dimensions,
+    int euclidean_heuristic,
+    const int32_t* motions,
+    size_t motion_count,
+    const uint8_t* valid_nodes,
+    pp_native_graph** out_graph,
+    char* error_message,
+    size_t error_capacity
+);
+
 void pp_graph_free(pp_native_graph* graph);
 
 int pp_search_plan(

@@ -65,11 +65,12 @@ def load_native_library() -> ctypes.CDLL:
                 ctypes.c_size_t,
             ]
             library.pp_graph_create_csr.restype = ctypes.c_int
-            library.pp_graph_create_grid.argtypes = [
+            library.pp_graph_create_grid_ex.argtypes = [
                 ctypes.c_uint64,
                 ctypes.c_uint64,
                 ctypes.c_uint64,
                 ctypes.c_uint64,
+                ctypes.c_int,
                 ctypes.POINTER(ctypes.c_int32),
                 ctypes.c_size_t,
                 ctypes.POINTER(ctypes.c_uint8),
@@ -77,7 +78,7 @@ def load_native_library() -> ctypes.CDLL:
                 ctypes.POINTER(ctypes.c_char),
                 ctypes.c_size_t,
             ]
-            library.pp_graph_create_grid.restype = ctypes.c_int
+            library.pp_graph_create_grid_ex.restype = ctypes.c_int
             library.pp_graph_free.argtypes = [ctypes.c_void_p]
             library.pp_graph_free.restype = None
             library.pp_native_search_plan.argtypes = [

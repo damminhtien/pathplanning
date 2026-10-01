@@ -119,12 +119,21 @@ class Grid3DSearchSpace:
         """Build this regular voxel grid's CSR adjacency directly in C++."""
         from pathplanning.native import NativeGraph
 
-        valid_nodes = [
-            self.is_valid_node((x_coord, y_coord, z_coord))
-            for z_coord in range(self.z_range)
-            for y_coord in range(self.y_range)
-            for x_coord in range(self.x_range)
-        ]
+        has_blockages = bool(self.obs)
+        valid_nodes = (
+            np.fromiter(
+                (
+                    self.is_valid_node((x_coord, y_coord, z_coord))
+                    for z_coord in range(self.z_range)
+                    for y_coord in range(self.y_range)
+                    for x_coord in range(self.x_range)
+                ),
+                dtype=np.bool_,
+                count=self.x_range * self.y_range * self.z_range,
+            )
+            if has_blockages
+            else None
+        )
         return NativeGraph[Node3D].from_grid(
             dimensions=3,
             width=self.x_range,
@@ -133,6 +142,12 @@ class Grid3DSearchSpace:
             motions=self.motions,
             valid_nodes=valid_nodes,
             heuristic=self.heuristic,
+            heuristic_mode="euclidean"
+            if (
+                getattr(self.heuristic, "__func__", None) is Grid3DSearchSpace.heuristic
+                and type(self).native_heuristic_values is Grid3DSearchSpace.native_heuristic_values
+            )
+            else None,
         )
 
 

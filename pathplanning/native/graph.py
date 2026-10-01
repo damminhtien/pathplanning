@@ -4,7 +4,8 @@ from __future__ import annotations
 
 from collections.abc import Callable, Iterable, Sequence
 import ctypes
-from typing import Generic, Hashable, TypeVar, cast
+import operator
+from typing import Generic, Hashable, Literal, TypeVar, cast
 import weakref
 
 import numpy as np
@@ -39,6 +40,32 @@ def _make_label_index(labels: Sequence[N]) -> dict[N, int]:
             raise NativeGraphError(f"node labels must be unique; duplicate label: {label!r}")
         index[label] = node_id
     return index
+
+
+class _IntegerNodeLabels(Sequence[int]):
+    """Represent the default integer IDs without allocating one Python int per node."""
+
+    def __init__(self, node_count: int) -> None:
+        self._node_count = node_count
+
+    def __len__(self) -> int:
+        return self._node_count
+
+    def __getitem__(self, node_id: int | slice) -> int | tuple[int, ...]:
+        if isinstance(node_id, slice):
+            return tuple(range(*node_id.indices(self._node_count)))
+        if node_id < 0:
+            node_id += self._node_count
+        if node_id < 0 or node_id >= self._node_count:
+            raise IndexError(node_id)
+        return node_id
+
+    def node_id(self, node: object) -> int | None:
+        try:
+            node_id = operator.index(node)
+        except TypeError:
+            return None
+        return node_id if 0 <= node_id < self._node_count else None
 
 
 class _GridNodeLabels(Sequence[tuple[int, ...]]):
@@ -118,10 +145,15 @@ class NativeGraph(Generic[N]):
         if bool(np.any(neighbor_ids >= node_count)):
             raise NativeGraphError("indices contains a node id outside the graph")
 
-        labels = tuple(range(node_count)) if node_labels is None else tuple(node_labels)
+        labels: Sequence[N]
+        if node_labels is None:
+            labels = cast(Sequence[N], _IntegerNodeLabels(node_count))
+            label_to_id = None
+        else:
+            labels = tuple(node_labels)
+            label_to_id = _make_label_index(labels)
         if len(labels) != node_count:
             raise NativeGraphError("node_labels length must match the number of CSR rows")
-        label_to_id = _make_label_index(labels)
 
         library = load_native_library()
         handle = ctypes.c_void_p()
@@ -154,6 +186,7 @@ class NativeGraph(Generic[N]):
         labels: Sequence[N],
         label_to_id: dict[N, int] | None,
         heuristic: Heuristic[N] | None,
+        heuristic_mode: Literal["euclidean"] | None = None,
     ) -> None:
         self._library = library
         self._handle = handle
@@ -162,6 +195,7 @@ class NativeGraph(Generic[N]):
         self._node_to_id = label_to_id
         self._grid_labels = labels if isinstance(labels, _GridNodeLabels) else None
         self._heuristic_fn = heuristic
+        self._heuristic_mode = heuristic_mode
 
     @classmethod
     def from_csr(
@@ -244,13 +278,21 @@ class NativeGraph(Generic[N]):
         height: int,
         depth: int,
         motions: Sequence[Sequence[int]],
-        valid_nodes: Sequence[bool] | NDArray[np.bool_],
+        valid_nodes: Sequence[bool] | NDArray[np.bool_] | None = None,
         node_labels: Sequence[N] | None = None,
         heuristic: Heuristic[N] | None = None,
+        heuristic_mode: Literal["euclidean"] | None = None,
     ) -> NativeGraph[N]:
-        """Build regular 2D or 3D grid adjacency directly in C++."""
+        """Build regular 2D or 3D grid adjacency directly in C++.
+
+        Omit ``valid_nodes`` when every grid cell is valid. Set
+        ``heuristic_mode="euclidean"`` to compute Euclidean heuristics in the
+        native search kernel without materializing one value per node.
+        """
         if dimensions not in (2, 3):
             raise NativeGraphError("grid must have two or three dimensions")
+        if heuristic_mode not in (None, "euclidean"):
+            raise NativeGraphError("heuristic_mode must be None or 'euclidean'")
         if width <= 0 or height <= 0 or depth <= 0 or (dimensions == 2 and depth != 1):
             raise NativeGraphError("grid dimensions must be positive and match dimensionality")
 
@@ -266,8 +308,10 @@ class NativeGraph(Generic[N]):
                 raise NativeGraphError("node_labels length must match the number of grid nodes")
             label_to_id = _make_label_index(labels)
 
-        valid_array = np.ascontiguousarray(valid_nodes, dtype=np.uint8)
-        if valid_array.ndim != 1 or valid_array.size != node_count:
+        valid_array = (
+            None if valid_nodes is None else np.ascontiguousarray(valid_nodes, dtype=np.uint8)
+        )
+        if valid_array is not None and (valid_array.ndim != 1 or valid_array.size != node_count):
             raise NativeGraphError("valid_nodes length must match the number of grid nodes")
 
         motion_rows: list[tuple[int, int, int]] = []
@@ -288,13 +332,18 @@ class NativeGraph(Generic[N]):
         handle = ctypes.c_void_p()
         error_buffer = ctypes.create_string_buffer(512)
         motion_pointer = motion_array.ctypes.data_as(ctypes.POINTER(ctypes.c_int32))
-        valid_pointer = valid_array.ctypes.data_as(ctypes.POINTER(ctypes.c_uint8))
+        valid_pointer = (
+            valid_array.ctypes.data_as(ctypes.POINTER(ctypes.c_uint8))
+            if valid_array is not None
+            else ctypes.POINTER(ctypes.c_uint8)()
+        )
         status = int(
-            library.pp_graph_create_grid(
+            library.pp_graph_create_grid_ex(
                 ctypes.c_uint64(width),
                 ctypes.c_uint64(height),
                 ctypes.c_uint64(depth),
                 ctypes.c_uint64(dimensions),
+                ctypes.c_int(1 if heuristic_mode == "euclidean" else 0),
                 motion_pointer,
                 ctypes.c_size_t(len(motion_rows)),
                 valid_pointer,
@@ -308,7 +357,14 @@ class NativeGraph(Generic[N]):
             raise NativeGraphError(message or "native grid graph creation failed")
 
         graph = cls.__new__(cls)
-        graph._adopt_handle(library, handle, labels, label_to_id, heuristic)
+        graph._adopt_handle(
+            library,
+            handle,
+            labels,
+            label_to_id,
+            heuristic,
+            heuristic_mode,
+        )
         return graph
 
     @property
@@ -331,6 +387,8 @@ class NativeGraph(Generic[N]):
         node_to_id = self._node_to_id
         if node_to_id is not None:
             return node_to_id.get(node)
+        if isinstance(self._node_labels, _IntegerNodeLabels):
+            return self._node_labels.node_id(node)
         grid_labels = self._grid_labels
         return None if grid_labels is None else grid_labels.node_id(node)
 

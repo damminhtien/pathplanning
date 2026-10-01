@@ -143,11 +143,24 @@ class Grid2DSearchSpace:
         """Build this regular grid's CSR adjacency directly in C++."""
         from pathplanning.native import NativeGraph
 
-        valid_nodes = [
-            self.is_valid_node((x_coord, y_coord))
-            for y_coord in range(self.y_range)
-            for x_coord in range(self.x_range)
-        ]
+        has_blockages = (
+            bool(self._blocked_cells)
+            or self._occupancy is not None
+            or self._is_blocked_callback is not None
+        )
+        valid_nodes = (
+            np.fromiter(
+                (
+                    self.is_valid_node((x_coord, y_coord))
+                    for y_coord in range(self.y_range)
+                    for x_coord in range(self.x_range)
+                ),
+                dtype=np.bool_,
+                count=self.x_range * self.y_range,
+            )
+            if has_blockages
+            else None
+        )
         return NativeGraph[GridCell].from_grid(
             dimensions=2,
             width=self.x_range,
@@ -156,6 +169,12 @@ class Grid2DSearchSpace:
             motions=self.motions,
             valid_nodes=valid_nodes,
             heuristic=self.heuristic,
+            heuristic_mode="euclidean"
+            if (
+                getattr(self.heuristic, "__func__", None) is Grid2DSearchSpace.heuristic
+                and type(self).native_heuristic_values is Grid2DSearchSpace.native_heuristic_values
+            )
+            else None,
         )
 
     def obs_map(self) -> set[Point2D]:

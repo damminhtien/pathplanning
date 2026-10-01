@@ -7,6 +7,7 @@
 #include <deque>
 #include <limits>
 #include <memory>
+#include <mutex>
 #include <new>
 #include <queue>
 #include <stdexcept>
@@ -17,25 +18,69 @@
 
 struct pp_native_graph {
     uint64_t node_count = 0;
+    uint64_t grid_width = 0;
+    uint64_t grid_height = 0;
+    uint64_t grid_depth = 0;
+    bool euclidean_grid_heuristic = false;
     std::vector<uint64_t> offsets;
     std::vector<uint64_t> neighbor_ids;
     std::vector<double> edge_costs;
-    std::vector<uint64_t> reverse_offsets;
-    std::vector<uint64_t> reverse_neighbor_ids;
-    std::vector<double> reverse_edge_costs;
+    mutable std::vector<uint64_t> reverse_offsets;
+    mutable std::vector<uint64_t> reverse_neighbor_ids;
+    mutable std::vector<double> reverse_edge_costs;
+    mutable std::once_flag reverse_edges_once;
 };
 
 namespace {
 
-constexpr const char* kVersion = "0.3.0";
+constexpr const char* kVersion = "0.3.1";
 constexpr double kInfinity = std::numeric_limits<double>::infinity();
+constexpr uint64_t kNoGoalId = std::numeric_limits<uint64_t>::max();
 
-struct NodeState {
-    double g_cost = kInfinity;
-    uint64_t parent = 0;
-    bool has_parent = false;
-    bool closed = false;
+// Keep hot costs separate from parent/flag data. The previous AoS layout
+// padded each state to 24 bytes; these three arrays use 17 bytes per node.
+struct SearchStates {
+    explicit SearchStates(size_t node_count)
+        : g_costs(node_count, kInfinity), parents(node_count, 0), flags(node_count, 0) {}
+
+    double& g_cost(uint64_t node_id) { return g_costs[static_cast<size_t>(node_id)]; }
+    double g_cost(uint64_t node_id) const { return g_costs[static_cast<size_t>(node_id)]; }
+
+    uint64_t parent(uint64_t node_id) const { return parents[static_cast<size_t>(node_id)]; }
+
+    bool has_parent(uint64_t node_id) const {
+        return (flags[static_cast<size_t>(node_id)] & kHasParent) != 0;
+    }
+
+    bool is_closed(uint64_t node_id) const {
+        return (flags[static_cast<size_t>(node_id)] & kClosed) != 0;
+    }
+
+    void set_parent(uint64_t node_id, uint64_t parent_id) {
+        const size_t index = static_cast<size_t>(node_id);
+        parents[index] = parent_id;
+        flags[index] |= kHasParent;
+    }
+
+    void mark_closed(uint64_t node_id) { flags[static_cast<size_t>(node_id)] |= kClosed; }
+
+private:
+    static constexpr uint8_t kHasParent = 1;
+    static constexpr uint8_t kClosed = 2;
+
+    std::vector<double> g_costs;
+    std::vector<uint64_t> parents;
+    std::vector<uint8_t> flags;
 };
+
+struct ReverseCsr {
+    std::vector<uint64_t> offsets;
+    std::vector<uint64_t> neighbor_ids;
+    std::vector<double> edge_costs;
+};
+
+ReverseCsr build_reverse_edges(const pp_native_graph* graph);
+void ensure_reverse_edges(const pp_native_graph* graph);
 
 struct QueueEntry {
     double f_score = 0.0;
@@ -111,8 +156,8 @@ void write_error(char* buffer, size_t capacity, const std::string& message) {
 void validate_graph_and_result(
     const pp_native_graph* graph,
     const uint8_t* goal_flags,
-    const double* heuristic_values,
     uint64_t start_id,
+    const pp_search_options* options,
     const pp_search_result* result
 ) {
     if (graph == nullptr) {
@@ -124,11 +169,11 @@ void validate_graph_and_result(
     if (start_id >= graph->node_count) {
         throw std::invalid_argument("start node id is outside the graph");
     }
-    if (goal_flags == nullptr) {
-        throw std::invalid_argument("goal flags must not be null");
+    if (options == nullptr) {
+        throw std::invalid_argument("search options must not be null");
     }
-    if (heuristic_values == nullptr) {
-        throw std::invalid_argument("heuristic values must not be null");
+    if (!options->has_goal_id && goal_flags == nullptr) {
+        throw std::invalid_argument("goal flags must not be null");
     }
     if (result == nullptr) {
         throw std::invalid_argument("result must not be null");
@@ -162,7 +207,7 @@ void validate_search_options(const pp_search_options* options, uint64_t node_cou
         if (!options->has_goal_id) {
             throw std::invalid_argument("bidirectional search requires an exact goal id");
         }
-        if (options->goal_id >= node_count) {
+        if (options->goal_id != kNoGoalId && options->goal_id >= node_count) {
             throw std::invalid_argument("goal node id is outside the graph");
         }
     }
@@ -181,6 +226,9 @@ void validate_search_options(const pp_search_options* options, uint64_t node_cou
 
 AdjacencyView adjacency(const pp_native_graph* graph, bool reverse) {
     if (reverse) {
+        if (graph->reverse_offsets.empty()) {
+            throw std::invalid_argument("reverse adjacency is required for backward search");
+        }
         return {
             &graph->reverse_offsets,
             &graph->reverse_neighbor_ids,
@@ -190,17 +238,45 @@ AdjacencyView adjacency(const pp_native_graph* graph, bool reverse) {
     return {&graph->offsets, &graph->neighbor_ids, &graph->edge_costs};
 }
 
+bool is_goal(const uint8_t* goal_flags, const pp_search_options* options, uint64_t node_id) {
+    return options->has_goal_id ? node_id == options->goal_id : goal_flags[node_id] != 0;
+}
+
 bool over_expansion_budget(const pp_search_options* options, uint64_t expanded) {
     return options->has_max_expansions && expanded >= options->max_expansions;
 }
 
-double compute_heuristic(const double* heuristic_values, uint64_t node_id, double weight) {
-    const double value = heuristic_values[node_id];
-    return weight * (std::isfinite(value) ? value : 0.0);
+double compute_heuristic(
+    const pp_native_graph* graph,
+    const double* heuristic_values,
+    uint64_t node_id,
+    const pp_search_options* options,
+    double weight
+) {
+    if (weight == 0.0) {
+        return 0.0;
+    }
+    if (heuristic_values != nullptr) {
+        const double value = heuristic_values[node_id];
+        return weight * (std::isfinite(value) ? value : 0.0);
+    }
+    if (!graph->euclidean_grid_heuristic || !options->has_goal_id ||
+        options->goal_id >= graph->node_count) {
+        return 0.0;
+    }
+
+    const uint64_t plane_size = graph->grid_width * graph->grid_height;
+    const double dx = static_cast<double>(node_id % graph->grid_width) -
+        static_cast<double>(options->goal_id % graph->grid_width);
+    const double dy = static_cast<double>((node_id / graph->grid_width) % graph->grid_height) -
+        static_cast<double>((options->goal_id / graph->grid_width) % graph->grid_height);
+    const double dz = static_cast<double>(node_id / plane_size) -
+        static_cast<double>(options->goal_id / plane_size);
+    return weight * std::sqrt(dx * dx + dy * dy + dz * dz);
 }
 
 std::vector<uint64_t> reconstruct_path(
-    const std::vector<NodeState>& states,
+    const SearchStates& states,
     uint64_t start_id,
     uint64_t reached_id
 ) {
@@ -209,11 +285,10 @@ std::vector<uint64_t> reconstruct_path(
     reversed.push_back(current);
 
     while (current != start_id) {
-        const NodeState& state = states[static_cast<size_t>(current)];
-        if (!state.has_parent) {
+        if (!states.has_parent(current)) {
             throw std::runtime_error("missing parent while reconstructing path");
         }
-        current = state.parent;
+        current = states.parent(current);
         reversed.push_back(current);
     }
 
@@ -222,8 +297,8 @@ std::vector<uint64_t> reconstruct_path(
 }
 
 std::vector<uint64_t> reconstruct_bidirectional_path(
-    const std::vector<NodeState>& forward_states,
-    const std::vector<NodeState>& backward_states,
+    const SearchStates& forward_states,
+    const SearchStates& backward_states,
     uint64_t start_id,
     uint64_t goal_id,
     uint64_t meet_id
@@ -232,11 +307,10 @@ std::vector<uint64_t> reconstruct_bidirectional_path(
 
     uint64_t current = meet_id;
     while (current != goal_id) {
-        const NodeState& state = backward_states[static_cast<size_t>(current)];
-        if (!state.has_parent) {
+        if (!backward_states.has_parent(current)) {
             throw std::runtime_error("missing backward parent while reconstructing path");
         }
-        current = state.parent;
+        current = backward_states.parent(current);
         path.push_back(current);
     }
     return path;
@@ -296,8 +370,8 @@ int run_linear_search(
     pp_search_result* result
 ) {
     const size_t node_count = static_cast<size_t>(graph->node_count);
-    std::vector<NodeState> states(node_count);
-    states[static_cast<size_t>(start_id)].g_cost = 0.0;
+    SearchStates states(node_count);
+    states.g_cost(start_id) = 0.0;
 
     std::deque<uint64_t> frontier;
     frontier.push_back(start_id);
@@ -314,14 +388,14 @@ int run_linear_search(
             frontier.pop_front();
         }
 
-        NodeState& state = states[static_cast<size_t>(node_id)];
+        const double state_g_cost = states.g_cost(node_id);
         ++expanded;
-        if (goal_flags[node_id] != 0) {
+        if (is_goal(goal_flags, options, node_id)) {
             set_success_result(
                 result,
                 expanded,
                 discovered,
-                state.g_cost,
+                state_g_cost,
                 reconstruct_path(states, start_id, node_id)
             );
             return 0;
@@ -340,19 +414,17 @@ int run_linear_search(
                 return;
             }
             const uint64_t neighbor_id = (*edges.neighbor_ids)[static_cast<size_t>(edge_index)];
-            NodeState& neighbor_state = states[static_cast<size_t>(neighbor_id)];
-            if (std::isfinite(neighbor_state.g_cost)) {
+            if (std::isfinite(states.g_cost(neighbor_id))) {
                 return;
             }
 
-            const double tentative = state.g_cost + edge_cost;
+            const double tentative = state_g_cost + edge_cost;
             if (!std::isfinite(tentative)) {
                 return;
             }
 
-            neighbor_state.g_cost = tentative;
-            neighbor_state.parent = node_id;
-            neighbor_state.has_parent = true;
+            states.g_cost(neighbor_id) = tentative;
+            states.set_parent(neighbor_id, node_id);
             frontier.push_back(neighbor_id);
             ++discovered;
         };
@@ -381,9 +453,9 @@ int run_best_first_search(
     pp_search_result* result
 ) {
     const size_t node_count = static_cast<size_t>(graph->node_count);
-    std::vector<NodeState> states(node_count);
+    SearchStates states(node_count);
     std::priority_queue<QueueEntry, std::vector<QueueEntry>, QueueEntryGreater> open;
-    states[static_cast<size_t>(start_id)].g_cost = 0.0;
+    states.g_cost(start_id) = 0.0;
 
     const bool greedy = options->algorithm == PP_SEARCH_GREEDY_BEST_FIRST;
     const bool use_heuristic =
@@ -393,7 +465,8 @@ int run_best_first_search(
     const double heuristic_weight = use_heuristic ? options->heuristic_weight : 0.0;
 
     uint64_t order = 0;
-    const double start_h = compute_heuristic(heuristic_values, start_id, heuristic_weight);
+    const double start_h =
+        compute_heuristic(graph, heuristic_values, start_id, options, heuristic_weight);
     open.push(QueueEntry{start_h, start_h, order++, start_id});
 
     uint64_t expanded = 0;
@@ -404,19 +477,18 @@ int run_best_first_search(
         const QueueEntry entry = open.top();
         open.pop();
 
-        NodeState& state = states[static_cast<size_t>(entry.node_id)];
-        if (state.closed) {
+        if (states.is_closed(entry.node_id)) {
             continue;
         }
 
-        state.closed = true;
+        states.mark_closed(entry.node_id);
         ++expanded;
-        if (goal_flags[entry.node_id] != 0) {
+        if (is_goal(goal_flags, options, entry.node_id)) {
             set_success_result(
                 result,
                 expanded,
                 discovered,
-                state.g_cost,
+                states.g_cost(entry.node_id),
                 reconstruct_path(states, start_id, entry.node_id)
             );
             return 0;
@@ -436,31 +508,35 @@ int run_best_first_search(
             }
 
             const uint64_t neighbor_id = (*edges.neighbor_ids)[static_cast<size_t>(edge_index)];
-            const double tentative = state.g_cost + edge_cost;
+            const double tentative = states.g_cost(entry.node_id) + edge_cost;
             if (!std::isfinite(tentative)) {
                 continue;
             }
 
-            NodeState& neighbor_state = states[static_cast<size_t>(neighbor_id)];
-            if (neighbor_state.closed) {
+            if (states.is_closed(neighbor_id)) {
                 continue;
             }
             if (greedy) {
-                if (std::isfinite(neighbor_state.g_cost)) {
+                if (std::isfinite(states.g_cost(neighbor_id))) {
                     continue;
                 }
-            } else if (tentative >= neighbor_state.g_cost) {
+            } else if (tentative >= states.g_cost(neighbor_id)) {
                 continue;
             }
 
-            if (!std::isfinite(neighbor_state.g_cost)) {
+            if (!std::isfinite(states.g_cost(neighbor_id))) {
                 ++discovered;
             }
-            neighbor_state.g_cost = tentative;
-            neighbor_state.parent = entry.node_id;
-            neighbor_state.has_parent = true;
+            states.g_cost(neighbor_id) = tentative;
+            states.set_parent(neighbor_id, entry.node_id);
 
-            const double h_score = compute_heuristic(heuristic_values, neighbor_id, heuristic_weight);
+            const double h_score = compute_heuristic(
+                graph,
+                heuristic_values,
+                neighbor_id,
+                options,
+                heuristic_weight
+            );
             const double f_score = greedy ? h_score : tentative + h_score;
             open.push(QueueEntry{f_score, h_score, order++, neighbor_id});
         }
@@ -474,8 +550,8 @@ BidirectionalExpansion expand_bidirectional_frontier(
     const pp_native_graph* graph,
     bool reverse,
     std::priority_queue<QueueEntry, std::vector<QueueEntry>, QueueEntryGreater>* heap,
-    std::vector<NodeState>* states_this,
-    const std::vector<NodeState>& states_other,
+    SearchStates* states_this,
+    const SearchStates& states_other,
     uint64_t* tie_breaker,
     uint64_t* discovered_this,
     uint64_t* expanded
@@ -485,18 +561,17 @@ BidirectionalExpansion expand_bidirectional_frontier(
         const QueueEntry entry = heap->top();
         heap->pop();
 
-        NodeState& state = (*states_this)[static_cast<size_t>(entry.node_id)];
-        if (state.closed) {
+        if (states_this->is_closed(entry.node_id)) {
             continue;
         }
 
-        state.closed = true;
+        states_this->mark_closed(entry.node_id);
         ++(*expanded);
         BidirectionalExpansion outcome;
         outcome.expanded = true;
-        const NodeState& other_state = states_other[static_cast<size_t>(entry.node_id)];
-        if (std::isfinite(other_state.g_cost)) {
-            outcome.best_cost = state.g_cost + other_state.g_cost;
+        const double other_cost = states_other.g_cost(entry.node_id);
+        if (std::isfinite(other_cost)) {
+            outcome.best_cost = states_this->g_cost(entry.node_id) + other_cost;
             outcome.meet_id = entry.node_id;
             outcome.has_meet = true;
         }
@@ -509,27 +584,26 @@ BidirectionalExpansion expand_bidirectional_frontier(
                 continue;
             }
             const uint64_t neighbor_id = (*edges.neighbor_ids)[static_cast<size_t>(edge_index)];
-            const double tentative = state.g_cost + edge_cost;
+            const double tentative = states_this->g_cost(entry.node_id) + edge_cost;
             if (!std::isfinite(tentative)) {
                 continue;
             }
 
-            NodeState& neighbor_state = (*states_this)[static_cast<size_t>(neighbor_id)];
-            if (neighbor_state.closed || tentative >= neighbor_state.g_cost) {
+            if (states_this->is_closed(neighbor_id) ||
+                tentative >= states_this->g_cost(neighbor_id)) {
                 continue;
             }
 
-            if (!std::isfinite(neighbor_state.g_cost)) {
+            if (!std::isfinite(states_this->g_cost(neighbor_id))) {
                 ++(*discovered_this);
             }
-            neighbor_state.g_cost = tentative;
-            neighbor_state.parent = entry.node_id;
-            neighbor_state.has_parent = true;
+            states_this->g_cost(neighbor_id) = tentative;
+            states_this->set_parent(neighbor_id, entry.node_id);
             heap->push(QueueEntry{tentative, 0.0, (*tie_breaker)++, neighbor_id});
 
-            const NodeState& other_neighbor = states_other[static_cast<size_t>(neighbor_id)];
-            if (std::isfinite(other_neighbor.g_cost)) {
-                const double candidate = tentative + other_neighbor.g_cost;
+            const double other_neighbor_cost = states_other.g_cost(neighbor_id);
+            if (std::isfinite(other_neighbor_cost)) {
+                const double candidate = tentative + other_neighbor_cost;
                 if (candidate < outcome.best_cost) {
                     outcome.best_cost = candidate;
                     outcome.meet_id = neighbor_id;
@@ -546,13 +620,12 @@ BidirectionalExpansion expand_bidirectional_frontier(
 
 int run_bidirectional_search(
     const pp_native_graph* graph,
-    const uint8_t* goal_flags,
     uint64_t start_id,
     const pp_search_options* options,
     pp_search_result* result
 ) {
     const uint64_t goal_id = options->goal_id;
-    if (goal_flags[goal_id] == 0) {
+    if (goal_id >= graph->node_count) {
         set_failure_result(result, PP_SEARCH_STOP_NO_PROGRESS, 0, 1);
         return 0;
     }
@@ -562,10 +635,11 @@ int run_bidirectional_search(
     }
 
     const size_t node_count = static_cast<size_t>(graph->node_count);
-    std::vector<NodeState> forward_states(node_count);
-    std::vector<NodeState> backward_states(node_count);
-    forward_states[static_cast<size_t>(start_id)].g_cost = 0.0;
-    backward_states[static_cast<size_t>(goal_id)].g_cost = 0.0;
+    SearchStates forward_states(node_count);
+    SearchStates backward_states(node_count);
+    forward_states.g_cost(start_id) = 0.0;
+    backward_states.g_cost(goal_id) = 0.0;
+    ensure_reverse_edges(graph);
     uint64_t forward_discovered = 1;
     uint64_t backward_discovered = 1;
 
@@ -708,30 +782,47 @@ int run_anytime_astar_search(
     return 0;
 }
 
-void build_reverse_edges(pp_native_graph* graph) {
+ReverseCsr build_reverse_edges(const pp_native_graph* graph) {
     const size_t node_count = static_cast<size_t>(graph->node_count);
-    graph->reverse_offsets.assign(node_count + 1, 0);
+    ReverseCsr reverse;
+    reverse.offsets.assign(node_count + 1, 0);
     for (uint64_t neighbor_id : graph->neighbor_ids) {
-        ++graph->reverse_offsets[static_cast<size_t>(neighbor_id) + 1];
+        ++reverse.offsets[static_cast<size_t>(neighbor_id) + 1];
     }
-    for (size_t node_id = 1; node_id < graph->reverse_offsets.size(); ++node_id) {
-        graph->reverse_offsets[node_id] += graph->reverse_offsets[node_id - 1];
+    for (size_t node_id = 1; node_id < reverse.offsets.size(); ++node_id) {
+        reverse.offsets[node_id] += reverse.offsets[node_id - 1];
     }
 
-    graph->reverse_neighbor_ids.resize(graph->neighbor_ids.size());
-    graph->reverse_edge_costs.resize(graph->edge_costs.size());
-    std::vector<uint64_t> positions = graph->reverse_offsets;
+    reverse.neighbor_ids.resize(graph->neighbor_ids.size());
+    reverse.edge_costs.resize(graph->edge_costs.size());
     for (uint64_t source_id = 0; source_id < graph->node_count; ++source_id) {
         const uint64_t edge_begin = graph->offsets[static_cast<size_t>(source_id)];
         const uint64_t edge_end = graph->offsets[static_cast<size_t>(source_id) + 1];
         for (uint64_t edge_index = edge_begin; edge_index < edge_end; ++edge_index) {
             const uint64_t target_id = graph->neighbor_ids[static_cast<size_t>(edge_index)];
-            const uint64_t reverse_index = positions[static_cast<size_t>(target_id)]++;
-            graph->reverse_neighbor_ids[static_cast<size_t>(reverse_index)] = source_id;
-            graph->reverse_edge_costs[static_cast<size_t>(reverse_index)] =
+            const uint64_t reverse_index = reverse.offsets[static_cast<size_t>(target_id)]++;
+            reverse.neighbor_ids[static_cast<size_t>(reverse_index)] = source_id;
+            reverse.edge_costs[static_cast<size_t>(reverse_index)] =
                 graph->edge_costs[static_cast<size_t>(edge_index)];
         }
     }
+
+    // The prefix offsets served as insertion cursors above; shift them back to
+    // row boundaries without allocating a second node-sized cursor array.
+    for (size_t node_id = node_count; node_id > 0; --node_id) {
+        reverse.offsets[node_id] = reverse.offsets[node_id - 1];
+    }
+    reverse.offsets[0] = 0;
+    return reverse;
+}
+
+void ensure_reverse_edges(const pp_native_graph* graph) {
+    std::call_once(graph->reverse_edges_once, [graph]() {
+        ReverseCsr reverse = build_reverse_edges(graph);
+        graph->reverse_offsets = std::move(reverse.offsets);
+        graph->reverse_neighbor_ids = std::move(reverse.neighbor_ids);
+        graph->reverse_edge_costs = std::move(reverse.edge_costs);
+    });
 }
 
 }  // namespace
@@ -792,7 +883,6 @@ extern "C" int pp_graph_create_csr(
             );
             graph->edge_costs.assign(edge_costs, edge_costs + static_cast<size_t>(edge_count));
         }
-        build_reverse_edges(graph.get());
         *out_graph = graph.release();
         if (error_message != nullptr && error_capacity > 0) {
             error_message[0] = '\0';
@@ -807,11 +897,12 @@ extern "C" int pp_graph_create_csr(
     }
 }
 
-extern "C" int pp_graph_create_grid(
+extern "C" int pp_graph_create_grid_ex(
     uint64_t width,
     uint64_t height,
     uint64_t depth,
     uint64_t dimensions,
+    int euclidean_heuristic,
     const int32_t* motions,
     size_t motion_count,
     const uint8_t* valid_nodes,
@@ -832,9 +923,6 @@ extern "C" int pp_graph_create_grid(
         }
         if (motion_count == 0 || motions == nullptr) {
             throw std::invalid_argument("grid motions must not be empty");
-        }
-        if (valid_nodes == nullptr) {
-            throw std::invalid_argument("grid valid-node mask must not be null");
         }
         const uint64_t max_coordinate =
             static_cast<uint64_t>(std::numeric_limits<int64_t>::max());
@@ -877,15 +965,26 @@ extern "C" int pp_graph_create_grid(
         std::vector<uint64_t> neighbor_ids;
         std::vector<double> edge_costs;
         offsets.reserve(static_cast<size_t>(node_count) + 1);
-        if (!valid_motions.empty() && node_count <= 1'000'000 / valid_motions.size()) {
-            const size_t edge_capacity =
-                static_cast<size_t>(node_count) * valid_motions.size();
+        size_t valid_node_count = static_cast<size_t>(node_count);
+        if (valid_nodes != nullptr) {
+            valid_node_count = static_cast<size_t>(std::count_if(
+                valid_nodes,
+                valid_nodes + static_cast<size_t>(node_count),
+                [](uint8_t is_valid) { return is_valid != 0; }
+            ));
+        }
+        const bool dense_grid =
+            valid_nodes == nullptr || valid_node_count >= node_count - node_count / 4;
+        if (dense_grid && !valid_motions.empty() &&
+            valid_node_count <= neighbor_ids.max_size() / valid_motions.size() &&
+            valid_node_count <= edge_costs.max_size() / valid_motions.size()) {
+            const size_t edge_capacity = valid_node_count * valid_motions.size();
             neighbor_ids.reserve(edge_capacity);
             edge_costs.reserve(edge_capacity);
         }
         offsets.push_back(0);
         for (uint64_t node_id = 0; node_id < node_count; ++node_id) {
-            if (valid_nodes[node_id] != 0) {
+            if (valid_nodes == nullptr || valid_nodes[node_id] != 0) {
                 const uint64_t x = node_id % width;
                 const uint64_t y = (node_id / width) % height;
                 const uint64_t z = node_id / (width * height);
@@ -901,7 +1000,7 @@ extern "C" int pp_graph_create_grid(
                     const uint64_t neighbor_id =
                         static_cast<uint64_t>(next_x) +
                         width * (static_cast<uint64_t>(next_y) + height * static_cast<uint64_t>(next_z));
-                    if (valid_nodes[neighbor_id] == 0) {
+                    if (valid_nodes != nullptr && valid_nodes[neighbor_id] == 0) {
                         continue;
                     }
                     neighbor_ids.push_back(neighbor_id);
@@ -913,10 +1012,13 @@ extern "C" int pp_graph_create_grid(
 
         auto graph = std::make_unique<pp_native_graph>();
         graph->node_count = node_count;
+        graph->grid_width = width;
+        graph->grid_height = height;
+        graph->grid_depth = depth;
+        graph->euclidean_grid_heuristic = euclidean_heuristic != 0;
         graph->offsets = std::move(offsets);
         graph->neighbor_ids = std::move(neighbor_ids);
         graph->edge_costs = std::move(edge_costs);
-        build_reverse_edges(graph.get());
         *out_graph = graph.release();
         if (error_message != nullptr && error_capacity > 0) {
             error_message[0] = '\0';
@@ -929,6 +1031,33 @@ extern "C" int pp_graph_create_grid(
         write_error(error_message, error_capacity, "unknown native grid creation error");
         return 1;
     }
+}
+
+extern "C" int pp_graph_create_grid(
+    uint64_t width,
+    uint64_t height,
+    uint64_t depth,
+    uint64_t dimensions,
+    const int32_t* motions,
+    size_t motion_count,
+    const uint8_t* valid_nodes,
+    pp_native_graph** out_graph,
+    char* error_message,
+    size_t error_capacity
+) {
+    return pp_graph_create_grid_ex(
+        width,
+        height,
+        depth,
+        dimensions,
+        0,
+        motions,
+        motion_count,
+        valid_nodes,
+        out_graph,
+        error_message,
+        error_capacity
+    );
 }
 
 extern "C" void pp_graph_free(pp_native_graph* graph) {
@@ -944,7 +1073,13 @@ extern "C" int pp_native_search_plan(
     pp_search_result* result
 ) {
     try {
-        validate_graph_and_result(graph, goal_flags, heuristic_values, start_id, result);
+        validate_graph_and_result(
+            graph,
+            goal_flags,
+            start_id,
+            options,
+            result
+        );
         validate_search_options(options, graph->node_count);
         reset_result(result);
 
@@ -965,7 +1100,7 @@ extern "C" int pp_native_search_plan(
                     result
                 );
             case PP_SEARCH_BIDIRECTIONAL_ASTAR:
-                return run_bidirectional_search(graph, goal_flags, start_id, options, result);
+                return run_bidirectional_search(graph, start_id, options, result);
             case PP_SEARCH_ANYTIME_ASTAR:
                 return run_anytime_astar_search(
                     graph,
