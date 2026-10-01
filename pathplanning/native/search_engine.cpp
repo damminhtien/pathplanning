@@ -37,19 +37,24 @@ constexpr const char* kVersion = "0.3.1";
 constexpr double kInfinity = std::numeric_limits<double>::infinity();
 constexpr uint64_t kNoGoalId = std::numeric_limits<uint64_t>::max();
 
-// Keep hot costs separate from parent/flag data. The previous AoS layout
-// padded each state to 24 bytes; these three arrays use 17 bytes per node.
+// Keep costs separate from parent/flag data. Graphs up to UINT32_MAX nodes use
+// 32-bit parents; larger graphs retain 64-bit parents.
+template <typename ParentId>
 struct SearchStates {
     explicit SearchStates(size_t node_count)
-        : g_costs(node_count, kInfinity), parents(node_count, 0), flags(node_count, 0) {}
+        : g_costs(node_count, kInfinity),
+          parents(node_count, std::numeric_limits<ParentId>::max()),
+          flags(node_count, 0) {}
 
     double& g_cost(uint64_t node_id) { return g_costs[static_cast<size_t>(node_id)]; }
     double g_cost(uint64_t node_id) const { return g_costs[static_cast<size_t>(node_id)]; }
 
-    uint64_t parent(uint64_t node_id) const { return parents[static_cast<size_t>(node_id)]; }
+    uint64_t parent(uint64_t node_id) const {
+        return parents[static_cast<size_t>(node_id)];
+    }
 
     bool has_parent(uint64_t node_id) const {
-        return (flags[static_cast<size_t>(node_id)] & kHasParent) != 0;
+        return parents[static_cast<size_t>(node_id)] != std::numeric_limits<ParentId>::max();
     }
 
     bool is_closed(uint64_t node_id) const {
@@ -57,19 +62,16 @@ struct SearchStates {
     }
 
     void set_parent(uint64_t node_id, uint64_t parent_id) {
-        const size_t index = static_cast<size_t>(node_id);
-        parents[index] = parent_id;
-        flags[index] |= kHasParent;
+        parents[static_cast<size_t>(node_id)] = static_cast<ParentId>(parent_id);
     }
 
     void mark_closed(uint64_t node_id) { flags[static_cast<size_t>(node_id)] |= kClosed; }
 
 private:
-    static constexpr uint8_t kHasParent = 1;
-    static constexpr uint8_t kClosed = 2;
+    static constexpr uint8_t kClosed = 1;
 
     std::vector<double> g_costs;
-    std::vector<uint64_t> parents;
+    std::vector<ParentId> parents;
     std::vector<uint8_t> flags;
 };
 
@@ -275,8 +277,9 @@ double compute_heuristic(
     return weight * std::sqrt(dx * dx + dy * dy + dz * dz);
 }
 
+template <typename ParentId>
 std::vector<uint64_t> reconstruct_path(
-    const SearchStates& states,
+    const SearchStates<ParentId>& states,
     uint64_t start_id,
     uint64_t reached_id
 ) {
@@ -296,9 +299,10 @@ std::vector<uint64_t> reconstruct_path(
     return reversed;
 }
 
+template <typename ParentId>
 std::vector<uint64_t> reconstruct_bidirectional_path(
-    const SearchStates& forward_states,
-    const SearchStates& backward_states,
+    const SearchStates<ParentId>& forward_states,
+    const SearchStates<ParentId>& backward_states,
     uint64_t start_id,
     uint64_t goal_id,
     uint64_t meet_id
@@ -362,6 +366,7 @@ void set_success_result(
     store_path(result, path);
 }
 
+template <typename ParentId>
 int run_linear_search(
     const pp_native_graph* graph,
     const uint8_t* goal_flags,
@@ -370,7 +375,7 @@ int run_linear_search(
     pp_search_result* result
 ) {
     const size_t node_count = static_cast<size_t>(graph->node_count);
-    SearchStates states(node_count);
+    SearchStates<ParentId> states(node_count);
     states.g_cost(start_id) = 0.0;
 
     std::deque<uint64_t> frontier;
@@ -444,6 +449,7 @@ int run_linear_search(
     return 0;
 }
 
+template <typename ParentId>
 int run_best_first_search(
     const pp_native_graph* graph,
     const uint8_t* goal_flags,
@@ -453,7 +459,7 @@ int run_best_first_search(
     pp_search_result* result
 ) {
     const size_t node_count = static_cast<size_t>(graph->node_count);
-    SearchStates states(node_count);
+    SearchStates<ParentId> states(node_count);
     std::priority_queue<QueueEntry, std::vector<QueueEntry>, QueueEntryGreater> open;
     states.g_cost(start_id) = 0.0;
 
@@ -546,12 +552,13 @@ int run_best_first_search(
     return 0;
 }
 
+template <typename ParentId>
 BidirectionalExpansion expand_bidirectional_frontier(
     const pp_native_graph* graph,
     bool reverse,
     std::priority_queue<QueueEntry, std::vector<QueueEntry>, QueueEntryGreater>* heap,
-    SearchStates* states_this,
-    const SearchStates& states_other,
+    SearchStates<ParentId>* states_this,
+    const SearchStates<ParentId>& states_other,
     uint64_t* tie_breaker,
     uint64_t* discovered_this,
     uint64_t* expanded
@@ -618,6 +625,7 @@ BidirectionalExpansion expand_bidirectional_frontier(
     return BidirectionalExpansion{};
 }
 
+template <typename ParentId>
 int run_bidirectional_search(
     const pp_native_graph* graph,
     uint64_t start_id,
@@ -635,8 +643,8 @@ int run_bidirectional_search(
     }
 
     const size_t node_count = static_cast<size_t>(graph->node_count);
-    SearchStates forward_states(node_count);
-    SearchStates backward_states(node_count);
+    SearchStates<ParentId> forward_states(node_count);
+    SearchStates<ParentId> backward_states(node_count);
     forward_states.g_cost(start_id) = 0.0;
     backward_states.g_cost(goal_id) = 0.0;
     ensure_reverse_edges(graph);
@@ -727,6 +735,7 @@ int run_bidirectional_search(
     return 0;
 }
 
+template <typename ParentId>
 int run_anytime_astar_search(
     const pp_native_graph* graph,
     const uint8_t* goal_flags,
@@ -747,7 +756,7 @@ int run_anytime_astar_search(
 
         pp_search_result candidate;
         reset_result(&candidate);
-        const int status = run_best_first_search(
+        const int status = run_best_first_search<ParentId>(
             graph,
             goal_flags,
             heuristic_values,
@@ -780,6 +789,47 @@ int run_anytime_astar_search(
 
     set_success_result(result, total_iters, total_nodes, best_cost, best_path);
     return 0;
+}
+
+template <typename ParentId>
+int run_search_by_algorithm(
+    const pp_native_graph* graph,
+    const uint8_t* goal_flags,
+    const double* heuristic_values,
+    uint64_t start_id,
+    const pp_search_options* options,
+    pp_search_result* result
+) {
+    switch (options->algorithm) {
+        case PP_SEARCH_BFS:
+        case PP_SEARCH_DFS:
+            return run_linear_search<ParentId>(graph, goal_flags, start_id, options, result);
+        case PP_SEARCH_GREEDY_BEST_FIRST:
+        case PP_SEARCH_ASTAR:
+        case PP_SEARCH_DIJKSTRA:
+        case PP_SEARCH_WEIGHTED_ASTAR:
+            return run_best_first_search<ParentId>(
+                graph,
+                goal_flags,
+                heuristic_values,
+                start_id,
+                options,
+                result
+            );
+        case PP_SEARCH_BIDIRECTIONAL_ASTAR:
+            return run_bidirectional_search<ParentId>(graph, start_id, options, result);
+        case PP_SEARCH_ANYTIME_ASTAR:
+            return run_anytime_astar_search<ParentId>(
+                graph,
+                goal_flags,
+                heuristic_values,
+                start_id,
+                options,
+                result
+            );
+        default:
+            throw std::invalid_argument("unknown search algorithm");
+    }
 }
 
 ReverseCsr build_reverse_edges(const pp_native_graph* graph) {
@@ -1083,36 +1133,25 @@ extern "C" int pp_native_search_plan(
         validate_search_options(options, graph->node_count);
         reset_result(result);
 
-        switch (options->algorithm) {
-            case PP_SEARCH_BFS:
-            case PP_SEARCH_DFS:
-                return run_linear_search(graph, goal_flags, start_id, options, result);
-            case PP_SEARCH_GREEDY_BEST_FIRST:
-            case PP_SEARCH_ASTAR:
-            case PP_SEARCH_DIJKSTRA:
-            case PP_SEARCH_WEIGHTED_ASTAR:
-                return run_best_first_search(
-                    graph,
-                    goal_flags,
-                    heuristic_values,
-                    start_id,
-                    options,
-                    result
-                );
-            case PP_SEARCH_BIDIRECTIONAL_ASTAR:
-                return run_bidirectional_search(graph, start_id, options, result);
-            case PP_SEARCH_ANYTIME_ASTAR:
-                return run_anytime_astar_search(
-                    graph,
-                    goal_flags,
-                    heuristic_values,
-                    start_id,
-                    options,
-                    result
-                );
-            default:
-                throw std::invalid_argument("unknown search algorithm");
+        // Keep max(ParentId) available as the no-parent sentinel.
+        if (graph->node_count <= std::numeric_limits<uint32_t>::max()) {
+            return run_search_by_algorithm<uint32_t>(
+                graph,
+                goal_flags,
+                heuristic_values,
+                start_id,
+                options,
+                result
+            );
         }
+        return run_search_by_algorithm<uint64_t>(
+            graph,
+            goal_flags,
+            heuristic_values,
+            start_id,
+            options,
+            result
+        );
     } catch (const std::exception& exc) {
         set_error(result, exc.what());
         return 1;
