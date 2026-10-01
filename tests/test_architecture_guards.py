@@ -132,18 +132,20 @@ def test_importing_public_api_does_not_load_matplotlib() -> None:
     )
 
 
-def test_sampling_registry_contains_expected_algorithms() -> None:
-    """Sampling registry should expose the full supported planner set."""
+def test_sampling_registry_contains_only_implemented_algorithms() -> None:
+    """Sampling registry should expose only the implemented planner algorithms."""
     from pathplanning.registry import SAMPLING_PLANNERS
 
     expected = {
         "rrt",
         "rrt_star",
-        "informed_rrt_star",
-        "bit_star",
-        "fmt_star",
-        "rrt_connect",
-        "abit_star",
     }
-    missing = sorted(expected.difference(SAMPLING_PLANNERS))
-    assert not missing, "Sampling registry is missing supported algorithms:\n" + "\n".join(missing)
+    assert set(SAMPLING_PLANNERS) == expected
+
+
+def test_bidirectional_registry_name_matches_its_kernel() -> None:
+    """The bidirectional Dijkstra kernel must not be registered as A*."""
+    from pathplanning.registry import SEARCH_PLANNERS
+
+    assert "bidirectional_dijkstra" in SEARCH_PLANNERS
+    assert "bidirectional_astar" not in SEARCH_PLANNERS

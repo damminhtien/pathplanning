@@ -109,16 +109,30 @@ def test_native_graph_reuses_csr_and_supports_directed_bidirectional_search() ->
     )
     problem = DiscreteProblem(graph=graph, start=0, goal=2)
 
-    forward = plan_discrete(problem, planner="bidirectional_astar")
+    forward = plan_discrete(problem, planner="bidirectional_dijkstra")
     backward = plan_discrete(
         DiscreteProblem(graph=graph, start=2, goal=0),
-        planner="bidirectional_astar",
+        planner="bidirectional_dijkstra",
     )
 
     assert forward.success
     assert forward.stats["path_cost"] == pytest.approx(5.0)
     assert np.array_equal(forward.path[:, 0], np.array([0.0, 1.0, 2.0]))
     assert not backward.success
+
+
+def test_bidirectional_dijkstra_requires_an_exact_goal() -> None:
+    class GoalPredicate:
+        def is_goal(self, node: int) -> bool:
+            return node == 1
+
+    graph = NativeGraph.from_edges(nodes=[0, 1], edges=[(0, 1, 1.0)])
+
+    with pytest.raises(ValueError, match="requires an exact goal node"):
+        plan_discrete(
+            DiscreteProblem(graph=graph, start=0, goal=GoalPredicate()),
+            planner="bidirectional_dijkstra",
+        )
 
 
 def test_builtin_grid_constructs_native_adjacency_without_python_edge_calls() -> None:
@@ -179,7 +193,7 @@ def test_native_graph_uses_implicit_integer_labels_and_exact_goal() -> None:
     assert result.stats["path_cost"] == pytest.approx(2.0)
 
 
-@pytest.mark.parametrize("planner", ["astar", "bidirectional_astar"])
+@pytest.mark.parametrize("planner", ["astar", "bidirectional_dijkstra"])
 def test_native_graph_missing_exact_goal_is_unreachable(planner: str) -> None:
     graph = NativeGraph.from_csr([0, 1, 1], [1], [1.0])
 

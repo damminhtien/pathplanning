@@ -1,4 +1,4 @@
-"""Headless BIT* interface over core continuous-space contracts."""
+"""Legacy BIT* interface; the implementation currently delegates to RRT*."""
 
 from __future__ import annotations
 
@@ -24,10 +24,9 @@ from pathplanning.planners.sampling.rrt_star import IndexFactory, RrtStarPlanner
 
 
 class BitStar:
-    """Contract-driven BIT* entrypoint.
+    """Compatibility wrapper that executes the shared RRT* implementation.
 
-    The implementation delegates to the shared RRT* engine to keep planner modules
-    environment-agnostic and import-safe while retaining the public class surface.
+    This class does not implement BIT* and is not registered as a supported planner.
     """
 
     def __init__(
@@ -53,7 +52,7 @@ class BitStar:
         )
 
     def plan(self, start: Sequence[float] | State, goal_region: GoalRegion[State]) -> PlanResult:
-        """Plan a path using contract-based sampling interfaces."""
+        """Plan with RRT* through the legacy BIT* wrapper."""
         return self._delegate.plan(start, goal_region)
 
     def run(self, start: Sequence[float] | State, goal_region: GoalRegion[State]) -> PlanResult:
@@ -67,7 +66,7 @@ def plan_bit_star(
     params: RrtParams | Mapping[str, object] | None = None,
     rng: RNG | None = None,
 ) -> PlanResult:
-    """Plan one ``ContinuousProblem`` with BIT*."""
+    """Compatibility entry point that plans with RRT*, not BIT*."""
     resolved_params = coerce_rrt_params(problem, params)
     planner = BitStar(
         problem.space,

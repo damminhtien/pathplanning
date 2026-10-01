@@ -1,4 +1,4 @@
-"""Headless informed sampler wrapper over core continuous-space contracts."""
+"""Legacy Informed RRT* interface; the implementation delegates to RRT*."""
 
 from __future__ import annotations
 
@@ -25,11 +25,10 @@ from pathplanning.planners.sampling.rrt_star import IndexFactory, RrtStarPlanner
 
 
 class InformedRrtStar:
-    """Contract-driven Informed RRT* interface.
+    """Compatibility wrapper that executes the shared RRT* implementation.
 
-    This implementation keeps the module import-safe and environment-agnostic by
-    delegating planning to the generic ``RrtStarPlanner``. It preserves the
-    class-level API while removing hard dependencies on legacy environment files.
+    This class does not implement informed sampling and is not registered as a
+    supported planner.
     """
 
     def __init__(
@@ -55,7 +54,7 @@ class InformedRrtStar:
         )
 
     def plan(self, start: Sequence[float] | State, goal_region: GoalRegion[State]) -> PlanResult:
-        """Plan a path by informed sampling over the provided contracts."""
+        """Plan with RRT* through the legacy Informed RRT* wrapper."""
         return self._delegate.plan(start, goal_region)
 
     def informed_rrt(
@@ -73,7 +72,7 @@ def plan_informed_rrt_star(
     params: RrtParams | Mapping[str, object] | None = None,
     rng: RNG | None = None,
 ) -> PlanResult:
-    """Plan one ``ContinuousProblem`` with Informed RRT*."""
+    """Compatibility entry point that plans with RRT*, without informed sampling."""
     resolved_params = coerce_rrt_params(problem, params)
     planner = InformedRrtStar(
         problem.space,

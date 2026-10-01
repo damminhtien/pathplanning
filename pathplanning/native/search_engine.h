@@ -28,7 +28,7 @@ typedef enum pp_search_algorithm {
     PP_SEARCH_ASTAR = 4,
     PP_SEARCH_DIJKSTRA = 5,
     PP_SEARCH_WEIGHTED_ASTAR = 6,
-    PP_SEARCH_BIDIRECTIONAL_ASTAR = 7,
+    PP_SEARCH_BIDIRECTIONAL_DIJKSTRA = 7,
     PP_SEARCH_ANYTIME_ASTAR = 8,
 } pp_search_algorithm;
 

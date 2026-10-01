@@ -63,7 +63,7 @@ Example gallery:
 
 <p align="center">
   <img src="./assets/gif/search/Astar.gif" alt="A* planning animation" width="360"/>
-  <img src="./assets/gif/search/Bi-Astar.gif" alt="Bidirectional A* planning animation" width="360"/>
+  <img src="./assets/gif/search/Bi-Astar.gif" alt="Bidirectional search animation" width="360"/>
 </p>
 <p align="center">
   <img src="./assets/gif/sampling/RRT_2D.gif" alt="RRT 2D planning animation" width="360"/>

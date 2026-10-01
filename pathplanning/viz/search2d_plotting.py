@@ -113,7 +113,7 @@ class Plotting:
         visited_backward: Sequence[Point],
         title: str,
     ) -> None:
-        """Animate bidirectional A* with forward and backward frontiers."""
+        """Animate bidirectional search with forward and backward frontiers."""
         self._ensure_figure()
         self.plot_grid(title)
         self.plot_visited_bidirectional(visited_forward, visited_backward)

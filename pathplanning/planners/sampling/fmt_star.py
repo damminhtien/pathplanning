@@ -1,4 +1,4 @@
-"""Headless FMT* interface over core continuous-space contracts."""
+"""Legacy FMT* interface; the implementation currently delegates to RRT."""
 
 from __future__ import annotations
 
@@ -18,10 +18,9 @@ from pathplanning.planners.sampling.rrt import IndexFactory, RrtPlanner
 
 
 class FmtStar:
-    """Contract-driven FMT* entrypoint.
+    """Compatibility wrapper that executes the shared RRT implementation.
 
-    This lightweight implementation reuses the generic RRT planner backend so
-    planner modules depend only on abstract space/goal interfaces.
+    This class does not implement FMT* and is not registered as a supported planner.
     """
 
     def __init__(
@@ -43,7 +42,7 @@ class FmtStar:
         )
 
     def plan(self, start: Sequence[float] | State, goal_region: GoalRegion[State]) -> PlanResult:
-        """Plan a path using contract-based sampling interfaces."""
+        """Plan with RRT through the legacy FMT* wrapper."""
         return self._delegate.plan(start, goal_region)
 
     def run(self, start: Sequence[float] | State, goal_region: GoalRegion[State]) -> PlanResult:
@@ -57,7 +56,7 @@ def plan_fmt_star(
     params: RrtParams | Mapping[str, object] | None = None,
     rng: RNG | None = None,
 ) -> PlanResult:
-    """Plan one ``ContinuousProblem`` with FMT*."""
+    """Compatibility entry point that plans with RRT, not FMT*."""
     resolved_params = coerce_rrt_params(problem, params)
     planner = FmtStar(problem.space, resolved_params, resolve_rng(rng))
     return planner.plan(problem.start, problem.goal)

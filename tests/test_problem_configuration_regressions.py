@@ -86,11 +86,7 @@ class _WaypointRewardObjective:
         return float(path_length - (10.0 if uses_waypoint else 0.0))
 
 
-@pytest.mark.parametrize(
-    "planner_name",
-    ["rrt_star", "informed_rrt_star", "bit_star", "abit_star"],
-)
-def test_rrt_star_family_uses_problem_objective_and_problem_params(planner_name: str) -> None:
+def test_rrt_star_uses_problem_objective_and_problem_params() -> None:
     space = _SequenceSpace([[2.0, 0.0], [2.0, 2.0]])
     problem = ContinuousProblem(
         space=space,
@@ -105,7 +101,7 @@ def test_rrt_star_family_uses_problem_objective_and_problem_params(planner_name:
         },
     )
 
-    result = plan_continuous(problem, planner=planner_name, params={"max_iters": 2}, seed=5)
+    result = plan_continuous(problem, planner="rrt_star", params={"max_iters": 2}, seed=5)
 
     assert result.success
     assert result.path is not None

@@ -74,20 +74,21 @@ Defined in `pathplanning/core/contracts.py` and typed with `S`, `N`, `RNG` from 
 
 - `pathplanning.api.plan_discrete(...)`
   - accepts `DiscreteProblem[...]`
-  - dispatches to registry discrete planners (`astar`, `dijkstra`)
+  - dispatches to registry discrete planners, including `astar`, `dijkstra`, and
+    `bidirectional_dijkstra`
 - `pathplanning.api.plan_continuous(...)`
   - accepts `ContinuousProblem[...]`
-  - dispatches to registry continuous planners (`rrt`, `rrt_star`, etc.)
+  - dispatches to the implemented registry planners (`rrt`, `rrt_star`)
 
 ### Search planners
 
-- `pathplanning.planners.search.entrypoints.plan_astar`
+- `pathplanning.planners.search.astar.plan_astar`
   - `DiscreteProblem[N]` + `DiscreteGraph[N]`
   - optional `HeuristicDiscreteGraph[N]`
-- `pathplanning.planners.search.entrypoints.plan_dijkstra`
+- `pathplanning.planners.search.dijkstra.plan_dijkstra`
   - `DiscreteProblem[N]` + `DiscreteGraph[N]`
-- `pathplanning.search2d.Search2D`
-  - contract-first 2D facade over `DiscreteGraph[tuple[int, int]]`
+- `pathplanning.planners.search.bidirectional_dijkstra.plan_bidirectional_dijkstra`
+  - exact-goal search over forward and reverse native CSR adjacency
 
 ### Sampling planners
 
@@ -98,10 +99,16 @@ Defined in `pathplanning/core/contracts.py` and typed with `S`, `N`, `RNG` from 
   - same contracts as `RrtPlanner`
 - `pathplanning.planners.sampling.dynamic_rrt.DynamicRRT3D`
   - contract-driven dynamic wrapper around `RrtPlanner`
-- `pathplanning.planners.sampling.rrt_grid2d.Rrt`
-  - compatibility class backed by `RrtPlanner` + `ContinuousSpace`
-- `pathplanning.planners.sampling.bit_star.BitStar`, `...informed_rrt_star.InformedRrtStar`, `...fmt_star.FmtStar`, `...abit_star.AbitStar`, `...rrt_connect.RrtConnect`
-  - import-safe wrappers delegating to contract-driven core planners
+- `pathplanning.planners.sampling.bit_star.BitStar`,
+  `...informed_rrt_star.InformedRrtStar`, `...fmt_star.FmtStar`,
+  `...abit_star.AbitStar`, `...rrt_connect.RrtConnect`
+  - compatibility wrappers only: they delegate to RRT or RRT* and are not
+    registered under those algorithm names
+
+### Search algorithm labels
+
+- `bidirectional_dijkstra` expands two uniform-cost frontiers over forward and reverse CSR adjacency.
+- It requires an exact goal node. The previous `bidirectional_astar` registry name was inaccurate because the kernel did not use a heuristic.
 
 ## Reference environment implementations
 

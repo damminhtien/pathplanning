@@ -1,4 +1,4 @@
-"""Headless ABIT* interface over core continuous-space contracts."""
+"""Legacy ABIT* interface; the implementation currently delegates to RRT*."""
 
 from __future__ import annotations
 
@@ -24,10 +24,9 @@ from pathplanning.planners.sampling.rrt_star import IndexFactory, RrtStarPlanner
 
 
 class AbitStar:
-    """Contract-driven ABIT* entrypoint.
+    """Compatibility wrapper that executes the shared RRT* implementation.
 
-    This lightweight implementation keeps the module import-safe and
-    environment-agnostic by delegating to the generic RRT* engine.
+    This class does not implement ABIT* and is not registered as a supported planner.
     """
 
     def __init__(
@@ -51,7 +50,7 @@ class AbitStar:
         )
 
     def plan(self, start: Sequence[float] | State, goal_region: GoalRegion[State]) -> PlanResult:
-        """Plan a path using contract-based sampling interfaces."""
+        """Plan with RRT* through the legacy ABIT* wrapper."""
         return self._delegate.plan(start, goal_region)
 
     def run(self, start: Sequence[float] | State, goal_region: GoalRegion[State]) -> PlanResult:
@@ -65,7 +64,7 @@ def plan_abit_star(
     params: RrtParams | Mapping[str, object] | None = None,
     rng: RNG | None = None,
 ) -> PlanResult:
-    """Plan one ``ContinuousProblem`` with ABIT*."""
+    """Compatibility entry point that plans with RRT*, not ABIT*."""
     resolved_params = coerce_rrt_params(problem, params)
     planner = AbitStar(
         problem.space,

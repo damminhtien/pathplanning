@@ -193,7 +193,7 @@ void validate_search_options(const pp_search_options* options, uint64_t node_cou
         case PP_SEARCH_ASTAR:
         case PP_SEARCH_DIJKSTRA:
         case PP_SEARCH_WEIGHTED_ASTAR:
-        case PP_SEARCH_BIDIRECTIONAL_ASTAR:
+        case PP_SEARCH_BIDIRECTIONAL_DIJKSTRA:
         case PP_SEARCH_ANYTIME_ASTAR:
             break;
         default:
@@ -205,7 +205,7 @@ void validate_search_options(const pp_search_options* options, uint64_t node_cou
     if (options->has_max_expansions && options->max_expansions == 0) {
         throw std::invalid_argument("max_expansions must be > 0 when enabled");
     }
-    if (options->algorithm == PP_SEARCH_BIDIRECTIONAL_ASTAR) {
+    if (options->algorithm == PP_SEARCH_BIDIRECTIONAL_DIJKSTRA) {
         if (!options->has_goal_id) {
             throw std::invalid_argument("bidirectional search requires an exact goal id");
         }
@@ -816,7 +816,7 @@ int run_search_by_algorithm(
                 options,
                 result
             );
-        case PP_SEARCH_BIDIRECTIONAL_ASTAR:
+        case PP_SEARCH_BIDIRECTIONAL_DIJKSTRA:
             return run_bidirectional_search<ParentId>(graph, start_id, options, result);
         case PP_SEARCH_ANYTIME_ASTAR:
             return run_anytime_astar_search<ParentId>(

@@ -39,7 +39,7 @@ _ALGORITHM_GREEDY_BEST_FIRST = 3
 _ALGORITHM_ASTAR = 4
 _ALGORITHM_DIJKSTRA = 5
 _ALGORITHM_WEIGHTED_ASTAR = 6
-_ALGORITHM_BIDIRECTIONAL_ASTAR = 7
+_ALGORITHM_BIDIRECTIONAL_DIJKSTRA = 7
 _ALGORITHM_ANYTIME_ASTAR = 8
 _DEFAULT_MAX_MATERIALIZED_NODES = 1_000_000
 _NO_GOAL_ID = (1 << 64) - 1
@@ -426,15 +426,15 @@ def run_native_greedy_best_first(
     )
 
 
-def run_native_bidirectional_astar(
+def run_native_bidirectional_dijkstra(
     problem: DiscreteProblem[N],
     *,
     max_expansions: int | None,
 ) -> PlanResult:
-    """Run the native bidirectional search kernel."""
+    """Run the native bidirectional Dijkstra kernel."""
     return run_native_search(
         problem,
-        algorithm=_ALGORITHM_BIDIRECTIONAL_ASTAR,
+        algorithm=_ALGORITHM_BIDIRECTIONAL_DIJKSTRA,
         max_expansions=max_expansions,
         use_heuristic=False,
         require_exact_goal=True,
@@ -483,7 +483,7 @@ __all__ = [
     "native_search_available",
     "run_native_anytime_astar",
     "run_native_best_first",
-    "run_native_bidirectional_astar",
+    "run_native_bidirectional_dijkstra",
     "run_native_breadth_first",
     "run_native_depth_first",
     "run_native_greedy_best_first",

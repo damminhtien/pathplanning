@@ -1,24 +1,20 @@
-"""Bidirectional A* discrete-search planner."""
+"""Legacy import path for the bidirectional Dijkstra planner.
+
+This module is kept for source compatibility. The implementation is
+bidirectional Dijkstra and does not use a heuristic.
+"""
 
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import TypeVar, cast
+from typing import TypeVar
 
 from pathplanning.core.contracts import DiscreteProblem
 from pathplanning.core.results import PlanResult
 from pathplanning.core.types import RNG
-from pathplanning.planners.search._internal.common import coerce_max_expansions
-from pathplanning.planners.search._internal.native import run_native_bidirectional_astar
+from pathplanning.planners.search.bidirectional_dijkstra import plan_bidirectional_dijkstra
 
 N = TypeVar("N")
-
-
-def _coerce_exact_goal(problem: DiscreteProblem[N]) -> N | None:
-    goal_value = problem.goal
-    if hasattr(goal_value, "is_goal"):
-        return None
-    return cast(N, goal_value)
 
 
 def plan_bidirectional_astar(
@@ -27,16 +23,8 @@ def plan_bidirectional_astar(
     params: Mapping[str, object] | None = None,
     rng: RNG | None = None,
 ) -> PlanResult:
-    """Plan a path for one ``DiscreteProblem`` with bidirectional A*."""
-    _ = rng
-    if _coerce_exact_goal(problem) is None:
-        from pathplanning.planners.search.astar import plan_astar
-
-        return plan_astar(problem, params=params, rng=rng)
-    return run_native_bidirectional_astar(
-        problem,
-        max_expansions=coerce_max_expansions(params),
-    )
+    """Compatibility alias; runs bidirectional Dijkstra, not bidirectional A*."""
+    return plan_bidirectional_dijkstra(problem, params=params, rng=rng)
 
 
 __all__ = ["plan_bidirectional_astar"]

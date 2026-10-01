@@ -1,4 +1,4 @@
-"""Headless RRT-Connect interface over core continuous-space contracts."""
+"""Legacy RRT-Connect interface; the implementation currently delegates to RRT."""
 
 from __future__ import annotations
 
@@ -18,10 +18,9 @@ from pathplanning.planners.sampling.rrt import IndexFactory, RrtPlanner
 
 
 class RrtConnect:
-    """Contract-driven RRT-Connect entrypoint.
+    """Compatibility wrapper that executes the shared RRT implementation.
 
-    This implementation keeps planner modules environment-agnostic and
-    delegates to the shared RRT planner core.
+    This class does not implement RRT-Connect and is not registered as supported.
     """
 
     def __init__(
@@ -43,7 +42,7 @@ class RrtConnect:
         )
 
     def plan(self, start: Sequence[float] | State, goal_region: GoalRegion[State]) -> PlanResult:
-        """Plan a path using contract-based sampling interfaces."""
+        """Plan with RRT through the legacy RRT-Connect wrapper."""
         return self._delegate.plan(start, goal_region)
 
     def run(self, start: Sequence[float] | State, goal_region: GoalRegion[State]) -> PlanResult:
@@ -57,7 +56,7 @@ def plan_rrt_connect(
     params: RrtParams | Mapping[str, object] | None = None,
     rng: RNG | None = None,
 ) -> PlanResult:
-    """Plan one ``ContinuousProblem`` with RRT-Connect."""
+    """Compatibility entry point that plans with RRT, not RRT-Connect."""
     resolved_params = coerce_rrt_params(problem, params)
     planner = RrtConnect(problem.space, resolved_params, resolve_rng(rng))
     return planner.plan(problem.start, problem.goal)

@@ -18,11 +18,12 @@ def test_package_import_and_symbols() -> None:
     assert pp.Stats is not None
 
 
-def test_unknown_planner_is_rejected() -> None:
+@pytest.mark.parametrize("planner", ["abit_star", "bidirectional_astar"])
+def test_unknown_planner_is_rejected(planner: str) -> None:
     problem = DiscreteProblem(
         graph=Grid2DSearchSpace(width=5, height=5),
         start=(0, 0),
         goal=(4, 4),
     )
     with pytest.raises(KeyError):
-        pp.plan_discrete(problem, planner="abit_star")
+        pp.plan_discrete(problem, planner=planner)
