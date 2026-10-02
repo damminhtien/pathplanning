@@ -46,6 +46,7 @@ def _problem(sample_count: int = 64, batch_size: int = 16) -> ContinuousProblem[
             "goal_sample_rate": 1.0,
             "sample_count": sample_count,
             "batch_size": batch_size,
+            "allow_python_callbacks": True,
         },
     )
 

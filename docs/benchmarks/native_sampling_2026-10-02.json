@@ -1,0 +1,246 @@
+{
+  "metadata": {
+    "c_compiler": {
+      "configured": "clang",
+      "executable": "/usr/local/opt/llvm/bin/clang",
+      "version": "Homebrew clang version 23.1.0"
+    },
+    "cxx_compiler": {
+      "configured": "clang++",
+      "executable": "/usr/local/opt/llvm/bin/clang++",
+      "version": "Homebrew clang version 23.1.0"
+    },
+    "logical_cpu_count": 8,
+    "machine": "x86_64",
+    "native_compile_flags": {
+      "c": [
+        "-std=c11",
+        "-O3"
+      ],
+      "c++": [
+        "-std=c++17",
+        "-O3"
+      ]
+    },
+    "numpy": "2.5.3",
+    "platform": "macOS-26.7.1-x86_64-i386-64bit",
+    "processor": "Intel(R) Core(TM) i7-1068NG7 CPU @ 2.30GHz",
+    "python": "3.12.14 (main, Aug 12 2026, 13:57:54) [Clang 17.0.0 (clang-1700.3.19.1)]"
+  },
+  "results": [
+    {
+      "api_setup_and_ffi_median_s": 0.0002962260005006101,
+      "full_api_max_s": 0.0005690279995178571,
+      "full_api_median_s": 0.00041252700066252146,
+      "full_api_min_s": 0.00036421199911274016,
+      "native_kernel_median_s": 0.00011499999891384505,
+      "nodes_median": 121,
+      "path_cost_median": 14.820068171737608,
+      "planner": "rrt",
+      "runs": 5,
+      "space_path": "native_model",
+      "success_rate": 1.0
+    },
+    {
+      "api_setup_and_ffi_median_s": 0.00022540199825016316,
+      "full_api_max_s": 0.014379476000613067,
+      "full_api_median_s": 0.013094997999360203,
+      "full_api_min_s": 0.009050333001141553,
+      "native_kernel_median_s": 0.01293699999951059,
+      "nodes_median": 105,
+      "path_cost_median": 14.612246421616463,
+      "planner": "rrt",
+      "runs": 5,
+      "space_path": "python_callbacks",
+      "success_rate": 1.0
+    },
+    {
+      "api_setup_and_ffi_median_s": 0.0003720210006576963,
+      "full_api_max_s": 0.004051714000524953,
+      "full_api_median_s": 0.0035274900001240894,
+      "full_api_min_s": 0.003438210998865543,
+      "native_kernel_median_s": 0.0032359999986510957,
+      "nodes_median": 919,
+      "path_cost_median": 12.145082248164686,
+      "planner": "rrt_star",
+      "runs": 5,
+      "space_path": "native_model",
+      "success_rate": 1.0
+    },
+    {
+      "api_setup_and_ffi_median_s": 0.00026635799986252096,
+      "full_api_max_s": 0.3488743580001028,
+      "full_api_median_s": 0.32530623599996034,
+      "full_api_min_s": 0.31026718500106654,
+      "native_kernel_median_s": 0.32509200000095007,
+      "nodes_median": 927,
+      "path_cost_median": 12.132366447733887,
+      "planner": "rrt_star",
+      "runs": 5,
+      "space_path": "python_callbacks",
+      "success_rate": 1.0
+    },
+    {
+      "api_setup_and_ffi_median_s": 0.0004057200021634344,
+      "full_api_max_s": 0.004818539000552846,
+      "full_api_median_s": 0.0045608420005009975,
+      "full_api_min_s": 0.004280499000742566,
+      "native_kernel_median_s": 0.004166000000623171,
+      "nodes_median": 917,
+      "path_cost_median": 12.26582704801425,
+      "planner": "informed_rrt_star",
+      "runs": 5,
+      "space_path": "native_model",
+      "success_rate": 1.0
+    },
+    {
+      "api_setup_and_ffi_median_s": 0.0002946460008388385,
+      "full_api_max_s": 0.5710709880004288,
+      "full_api_median_s": 0.5350006460012082,
+      "full_api_min_s": 0.5068074820010224,
+      "native_kernel_median_s": 0.5347060000003694,
+      "nodes_median": 921,
+      "path_cost_median": 12.188630076815187,
+      "planner": "informed_rrt_star",
+      "runs": 5,
+      "space_path": "python_callbacks",
+      "success_rate": 1.0
+    },
+    {
+      "api_setup_and_ffi_median_s": 0.000521026000569691,
+      "full_api_max_s": 0.0014257839993661037,
+      "full_api_median_s": 0.0011504649992275517,
+      "full_api_min_s": 0.0008031609995668987,
+      "native_kernel_median_s": 0.0005280000004859176,
+      "nodes_median": 258,
+      "path_cost_median": 12.989479922778893,
+      "planner": "fmt_star",
+      "runs": 5,
+      "space_path": "native_model",
+      "success_rate": 1.0
+    },
+    {
+      "api_setup_and_ffi_median_s": 0.0003077380006288877,
+      "full_api_max_s": 0.024208737999288132,
+      "full_api_median_s": 0.021258470998873236,
+      "full_api_min_s": 0.020312337001087144,
+      "native_kernel_median_s": 0.02087500000016007,
+      "nodes_median": 258,
+      "path_cost_median": 12.679249193520551,
+      "planner": "fmt_star",
+      "runs": 5,
+      "space_path": "python_callbacks",
+      "success_rate": 1.0
+    },
+    {
+      "api_setup_and_ffi_median_s": 0.00040124500083038583,
+      "full_api_max_s": 0.0021433530000649625,
+      "full_api_median_s": 0.0011492450012156041,
+      "full_api_min_s": 0.0009977760000765556,
+      "native_kernel_median_s": 0.0008189999989554053,
+      "nodes_median": 258,
+      "path_cost_median": 12.40778382825289,
+      "planner": "bit_star",
+      "runs": 5,
+      "space_path": "native_model",
+      "success_rate": 1.0
+    },
+    {
+      "api_setup_and_ffi_median_s": 0.0002843940001184819,
+      "full_api_max_s": 0.05244473799939442,
+      "full_api_median_s": 0.04363159099921177,
+      "full_api_min_s": 0.023700390000158222,
+      "native_kernel_median_s": 0.04330300000037823,
+      "nodes_median": 258,
+      "path_cost_median": 12.432836942822235,
+      "planner": "bit_star",
+      "runs": 5,
+      "space_path": "python_callbacks",
+      "success_rate": 1.0
+    },
+    {
+      "api_setup_and_ffi_median_s": 0.00033571399944776203,
+      "full_api_max_s": 0.0007317039999179542,
+      "full_api_median_s": 0.0006665360015176702,
+      "full_api_min_s": 0.0006073639997339342,
+      "native_kernel_median_s": 0.00030299999889393803,
+      "nodes_median": 258,
+      "path_cost_median": 13.679395082347291,
+      "planner": "abit_star",
+      "runs": 5,
+      "space_path": "native_model",
+      "success_rate": 1.0
+    },
+    {
+      "api_setup_and_ffi_median_s": 0.00024112099890771788,
+      "full_api_max_s": 0.015588838001349359,
+      "full_api_median_s": 0.004966176000380074,
+      "full_api_min_s": 0.004371121000076528,
+      "native_kernel_median_s": 0.004786999999851105,
+      "nodes_median": 258,
+      "path_cost_median": 13.621469992836031,
+      "planner": "abit_star",
+      "runs": 5,
+      "space_path": "python_callbacks",
+      "success_rate": 1.0
+    },
+    {
+      "api_setup_and_ffi_median_s": 0.00026697800058173016,
+      "full_api_max_s": 0.000421906999690691,
+      "full_api_median_s": 0.0003039780003746273,
+      "full_api_min_s": 0.00023801299903425388,
+      "native_kernel_median_s": 4.600000102072954e-05,
+      "nodes_median": 48,
+      "path_cost_median": 14.294500236606009,
+      "planner": "rrt_connect",
+      "runs": 5,
+      "space_path": "native_model",
+      "success_rate": 1.0
+    },
+    {
+      "api_setup_and_ffi_median_s": 0.0001524339986644918,
+      "full_api_max_s": 0.00884843399944657,
+      "full_api_median_s": 0.008339627000168548,
+      "full_api_min_s": 0.006718604001434869,
+      "native_kernel_median_s": 0.008142000000589178,
+      "nodes_median": 50,
+      "path_cost_median": 15.309105288448679,
+      "planner": "rrt_connect",
+      "runs": 5,
+      "space_path": "python_callbacks",
+      "success_rate": 1.0
+    }
+  ],
+  "settings": {
+    "batch_size": 64,
+    "bounds": {
+      "x_range": [
+        0.0,
+        10.0
+      ],
+      "y_range": [
+        0.0,
+        10.0
+      ]
+    },
+    "collision_step": 0.25,
+    "goal_sample_rate": 0.08,
+    "max_iters": 1000,
+    "obstacles": {
+      "obs_rectangle": [
+        [
+          4.0,
+          4.0,
+          2.0,
+          2.0
+        ]
+      ]
+    },
+    "repeats": 5,
+    "rrt_star_radius_gamma": 8.0,
+    "sample_count": 256,
+    "seed": 7,
+    "step_size": 0.5,
+    "warmups": 1
+  }
+}

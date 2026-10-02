@@ -48,7 +48,12 @@ class OpenPlane2D:
 def test_sampling2d_rrt_runtime_smoke() -> None:
     planner = RrtPlanner(
         space=OpenPlane2D(),
-        params=RrtParams(step_size=0.5, goal_sample_rate=0.05, max_iters=200),
+        params=RrtParams(
+            step_size=0.5,
+            goal_sample_rate=0.05,
+            max_iters=200,
+            allow_python_callbacks=True,
+        ),
         rng=np.random.default_rng(0),
     )
     goal_region = GoalState(

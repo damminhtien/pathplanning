@@ -55,6 +55,7 @@ class DynamicRRT3DConfig:
     way_point_sample_probability: float = 0.02
     dynamic_step_limit: int = 8
     nearest_rebuild_threshold: int = 64
+    allow_python_callbacks: bool = False
 
 
 class NearestNodeIndex(Protocol):

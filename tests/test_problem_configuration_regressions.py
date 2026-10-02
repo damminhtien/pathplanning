@@ -98,6 +98,7 @@ def test_rrt_star_uses_problem_objective_and_problem_params() -> None:
             "step_size": 10.0,
             "goal_sample_rate": 0.0,
             "collision_step": 0.05,
+            "allow_python_callbacks": True,
         },
     )
 
@@ -119,7 +120,12 @@ def test_rrt_does_not_mutate_read_only_space_collision_step() -> None:
     space = _SequenceSpace([[2.0, 0.0]])
     planner = RrtPlanner(
         space,
-        RrtParams(max_iters=1, step_size=10.0, collision_step=0.05),
+        RrtParams(
+            max_iters=1,
+            step_size=10.0,
+            collision_step=0.05,
+            allow_python_callbacks=True,
+        ),
         np.random.default_rng(2),
     )
 

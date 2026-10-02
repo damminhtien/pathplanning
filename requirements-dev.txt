@@ -9,8 +9,10 @@ pre-commit>=3.7,<5.0
 
 # Test framework
 pytest>=8.0,<9.0
+scipy>=1.9,<2.0
 
 # Packaging
+setuptools>=69,<70
 build>=1.2,<2.0
 twine>=5.1,<6.0
 

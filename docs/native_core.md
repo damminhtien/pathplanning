@@ -12,8 +12,8 @@ flowchart LR
     ADAPTER -->|C ABI via ctypes| SEARCH[search_engine.cpp<br/>C++17]
     ADAPTER -->|C ABI via ctypes| CONTINUOUS[continuous_engine.c<br/>C11]
     GRAPH[NativeGraph or Python graph] -->|CSR arrays / one-time snapshot| SEARCH
-    BUILTIN[Built-in continuous spaces] -->|bounds and obstacle arrays| CONTINUOUS
-    CUSTOM[Custom Python space, goal, objective] -->|compatibility callbacks| CONTINUOUS
+    BUILTIN[Built-in or declared native space model] -->|bounds and obstacle arrays| CONTINUOUS
+    CUSTOM[Opted-in custom Python space, goal, objective] -->|compatibility callbacks| CONTINUOUS
 ```
 
 ### Discrete graph search
@@ -53,13 +53,18 @@ Public planner modules retain their Python API and delegate the search work to
 this adapter.
 
 For the built-in `ContinuousSpace3D` and `Grid2DSamplingSpace` types, bounds and
-obstacle primitives are copied into contiguous arrays once per plan. The C
-engine then performs sampling, distance, steering, state checks, and motion
-checks directly. An arbitrary Python space, goal predicate, or supported RRT*
-objective remains available through compatibility callbacks. Those custom
-callbacks can cross into Python during planning; the built-in fast path avoids
-that boundary in its expansion loop. Python subclasses that override built-in
-behavior use the callback path as well.
+obstacle primitives are copied into contiguous arrays once per plan. A custom
+space can implement `to_native_model()` and return
+`NativeContinuousSpaceModel` with the same bounds and supported box, sphere, and
+oriented-box primitives. The C engine then performs sampling, distance,
+steering, state checks, motion checks, and search directly. Python subclasses
+that override built-in behavior can provide their own native model.
+
+Python callbacks are disabled by default. A custom Python space, goal predicate,
+or supported RRT* objective that has no native representation requires
+`RrtParams(allow_python_callbacks=True)`. This explicit compatibility path can
+cross into Python during planning. The result stats report whether callbacks
+were used and whether a native space model was supplied.
 
 `DynamicRRT3D` keeps its existing Python-facing tree collections for callers,
 while C performs pruning, nearest-node queries, edge checks, and growth. The
@@ -80,10 +85,9 @@ from the returned arrays.
 - Native continuous calls currently accept dimensions from 1 through 1024.
   The built-in continuous spaces covered by the native model are 2D and 3D.
 
-The planner API preserves generic Python space contracts. Native execution does
-not make arbitrary Python callbacks native: callers who need callback-free
-expansion should use a built-in native space or provide a future native space
-model through the C ABI.
+The planner API preserves generic Python space contracts. For callback-free
+expansion, use a built-in native space or implement the
+`NativeContinuousSpaceProvider` protocol and return a `NativeContinuousSpaceModel`.
 
 ## Building and Loading
 
@@ -112,17 +116,21 @@ The registry and its public callables are listed in
 [`SUPPORTED_ALGORITHMS.md`](../SUPPORTED_ALGORITHMS.md). `DynamicRRT3D` is a
 separate stateful API rather than a registry entry.
 
-`rrt_star` accepts a custom path objective. The native engine evaluates that
-objective through the callback interface when comparing parent and rewire
-candidates. `informed_rrt_star`, `fmt_star`, `bit_star`, and `abit_star` require
+`rrt_star` accepts a custom path objective when Python callbacks are explicitly
+enabled. The native engine evaluates that objective through the callback
+interface when comparing parent and rewire candidates. `informed_rrt_star`,
+`fmt_star`, `bit_star`, and `abit_star` require
 an exact point goal, Euclidean distance, and additive path length; they reject
 custom objectives because their bounds rely on those assumptions.
 
 ## Benchmark Scope
 
-`scripts/benchmark_planners.py` runs representative 2D A*, 2D RRT, and 3D
-weighted A* cases. It reports end-to-end runtime for every row. The discrete
-search rows also report graph initialization and native search times; the
-sampling row currently has no separate C-kernel timer. The script's timings are
-not a planner-wide performance claim. Compare repeated runs on the same host,
-and include the full Python API path when measuring application latency.
+`scripts/benchmark_native_sampling.py` runs every registry sampling planner
+through the full API using both a built-in native model and an equivalent
+callback-backed space. It records end-to-end and C-kernel medians, setup/FFI
+time, success rate, node count, path cost, compiler versions, and host details.
+The 2026-10-02 run is documented in
+[`docs/benchmarks/native_sampling_2026-10-02.md`](benchmarks/native_sampling_2026-10-02.md).
+`scripts/benchmark_planners.py` remains the representative mixed benchmark for
+2D A*, 2D RRT, and 3D weighted A*. Results characterize these workloads; they
+are not a planner-wide speedup claim. Compare repeated runs on the same host.

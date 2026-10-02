@@ -54,7 +54,12 @@ def test_rrt_goal_connection_returns_valid_path() -> None:
     space = OpenPlane2D()
     planner = RrtPlanner(
         space=space,
-        params=RrtParams(step_size=step_len, goal_sample_rate=1.0, max_iters=10),
+        params=RrtParams(
+            step_size=step_len,
+            goal_sample_rate=1.0,
+            max_iters=10,
+            allow_python_callbacks=True,
+        ),
         rng=rng,
     )
     goal_region = GoalState(state=goal, radius=1e-9, distance_fn=space.distance)

@@ -32,12 +32,16 @@ class RrtParams:
     batch_size: int = 64
     abit_inflation_parameter: float = 10.0
     abit_truncation_parameter: float = 5.0
+    allow_python_callbacks: bool = False
 
     def __post_init__(self) -> None:
         self.validate()
 
     def validate(self) -> RrtParams:
         """Validate parameter values and return ``self`` for chaining."""
+        if type(self.allow_python_callbacks) is not bool:
+            raise TypeError("allow_python_callbacks must be a bool")
+
         if isinstance(self.max_iters, bool) or type(self.max_iters) is not int:
             raise TypeError("max_iters must be an integer")
         if self.max_iters <= 0:

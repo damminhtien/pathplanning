@@ -13,6 +13,7 @@ from pathplanning.core.params import RrtParams
 from pathplanning.core.results import PlanResult, StopReason
 from pathplanning.core.types import RNG
 from pathplanning.native._ffi import load_continuous_library
+from pathplanning.native.continuous_model import NativeContinuousSpaceModel
 
 
 class _Callbacks(ctypes.Structure):
@@ -161,18 +162,17 @@ def _pointer(values: np.ndarray) -> _Point:
 
 
 def _native_space_model(space: ContinuousSpace[State], dimension: int) -> _OwnedSpaceModel | None:
-    """Serialize the built-in continuous spaces into C-owned planner inputs."""
+    """Serialize built-in or explicitly declared Euclidean spaces into C inputs."""
     from pathplanning.spaces.continuous_3d import ContinuousSpace3D
     from pathplanning.spaces.grid2d import Grid2DSamplingSpace
 
     boxes: list[tuple[list[float], list[float]]] = []
     spheres: list[tuple[list[float], float]] = []
     obbs: list[tuple[list[float], list[float], list[float]]] = []
+    descriptor: NativeContinuousSpaceModel | None = None
     if type(space) is ContinuousSpace3D:
         if dimension != 3:
             raise ValueError("ContinuousSpace3D requires three-dimensional states")
-        lower = np.ascontiguousarray(space.lower_bound, dtype=np.float64)
-        upper = np.ascontiguousarray(space.upper_bound, dtype=np.float64)
         boxes.extend(
             (np.asarray(item.min_corner).tolist(), np.asarray(item.max_corner).tolist())
             for item in space.aabbs
@@ -188,33 +188,91 @@ def _native_space_model(space: ContinuousSpace[State], dimension: int) -> _Owned
             )
             for item in space.obbs
         )
+        descriptor = NativeContinuousSpaceModel(
+            lower_bounds=space.lower_bound,
+            upper_bounds=space.upper_bound,
+            box_minima=[item[0] for item in boxes],
+            box_maxima=[item[1] for item in boxes],
+            sphere_centers=[item[0] for item in spheres],
+            sphere_radii=[item[1] for item in spheres],
+            obb_centers=[item[0] for item in obbs],
+            obb_extents=[item[1] for item in obbs],
+            obb_orientations=[item[2] for item in obbs],
+        )
     elif type(space) is Grid2DSamplingSpace:
         if dimension != 2:
             raise ValueError("Grid2DSamplingSpace requires two-dimensional states")
-        lower = np.asarray([space.x_range[0], space.y_range[0]], dtype=np.float64)
-        upper = np.asarray([space.x_range[1], space.y_range[1]], dtype=np.float64)
         delta = float(space.delta)
         for ox, oy, width, height in (*space.obs_boundary, *space.obs_rectangle):
             boxes.append(([ox - delta, oy - delta], [ox + width + delta, oy + height + delta]))
         spheres.extend(([cx, cy], float(radius) + delta) for cx, cy, radius in space.obs_circle)
+        descriptor = NativeContinuousSpaceModel(
+            lower_bounds=[space.x_range[0], space.y_range[0]],
+            upper_bounds=[space.x_range[1], space.y_range[1]],
+            box_minima=[item[0] for item in boxes],
+            box_maxima=[item[1] for item in boxes],
+            sphere_centers=[item[0] for item in spheres],
+            sphere_radii=[item[1] for item in spheres],
+        )
     else:
-        return None
+        provider = getattr(space, "to_native_model", None)
+        if not callable(provider):
+            return None
+        descriptor = provider()
+        if not isinstance(descriptor, NativeContinuousSpaceModel):
+            raise TypeError("to_native_model() must return NativeContinuousSpaceModel")
 
-    box_minima = np.ascontiguousarray([item[0] for item in boxes], dtype=np.float64).reshape(
-        -1, dimension
-    )
-    box_maxima = np.ascontiguousarray([item[1] for item in boxes], dtype=np.float64).reshape(
-        -1, dimension
-    )
-    sphere_centers = np.ascontiguousarray([item[0] for item in spheres], dtype=np.float64).reshape(
-        -1, dimension
-    )
-    sphere_radii = np.ascontiguousarray([item[1] for item in spheres], dtype=np.float64)
-    obb_centers = np.ascontiguousarray([item[0] for item in obbs], dtype=np.float64).reshape(-1, 3)
-    obb_extents = np.ascontiguousarray([item[1] for item in obbs], dtype=np.float64).reshape(-1, 3)
-    obb_orientations = np.ascontiguousarray([item[2] for item in obbs], dtype=np.float64).reshape(
-        -1, 9
-    )
+    def vector(name: str, values: object) -> np.ndarray:
+        result = np.asarray(values, dtype=np.float64)
+        if result.shape != (dimension,) or not np.all(np.isfinite(result)):
+            raise ValueError(f"native model {name} must be a finite vector of length {dimension}")
+        return np.ascontiguousarray(result)
+
+    def matrix(name: str, values: object, width: int) -> np.ndarray:
+        result = np.asarray(values, dtype=np.float64)
+        if result.size == 0:
+            return np.empty((0, width), dtype=np.float64)
+        if result.ndim != 2 or result.shape[1] != width or not np.all(np.isfinite(result)):
+            raise ValueError(f"native model {name} must be a finite matrix with {width} columns")
+        return np.ascontiguousarray(result)
+
+    lower = vector("lower_bounds", descriptor.lower_bounds)
+    upper = vector("upper_bounds", descriptor.upper_bounds)
+    if np.any(lower >= upper):
+        raise ValueError("native model lower_bounds must be smaller than upper_bounds")
+
+    box_minima = matrix("box_minima", descriptor.box_minima, dimension)
+    box_maxima = matrix("box_maxima", descriptor.box_maxima, dimension)
+    if box_minima.shape != box_maxima.shape or np.any(box_minima > box_maxima):
+        raise ValueError("native model box_minima and box_maxima must match and be ordered")
+
+    sphere_centers = matrix("sphere_centers", descriptor.sphere_centers, dimension)
+    sphere_radii = np.asarray(descriptor.sphere_radii, dtype=np.float64)
+    if sphere_radii.size == 0:
+        sphere_radii = np.empty((0,), dtype=np.float64)
+    if (
+        sphere_radii.ndim != 1
+        or sphere_radii.shape[0] != sphere_centers.shape[0]
+        or not np.all(np.isfinite(sphere_radii))
+        or np.any(sphere_radii < 0.0)
+    ):
+        raise ValueError(
+            "native model sphere_radii must match centers and be finite and non-negative"
+        )
+    sphere_radii = np.ascontiguousarray(sphere_radii)
+
+    obb_centers = matrix("obb_centers", descriptor.obb_centers, 3)
+    obb_extents = matrix("obb_extents", descriptor.obb_extents, 3)
+    obb_orientations = matrix("obb_orientations", descriptor.obb_orientations, 9)
+    if dimension != 3 and any(
+        values.shape[0] for values in (obb_centers, obb_extents, obb_orientations)
+    ):
+        raise ValueError("native model OBB obstacles require three-dimensional states")
+    if not (obb_centers.shape[0] == obb_extents.shape[0] == obb_orientations.shape[0]) or np.any(
+        obb_extents <= 0.0
+    ):
+        raise ValueError("native model OBB arrays must match and have positive extents")
+
     arrays = (
         lower,
         upper,
@@ -231,14 +289,14 @@ def _native_space_model(space: ContinuousSpace[State], dimension: int) -> _Owned
         _pointer(upper),
         _pointer(box_minima),
         _pointer(box_maxima),
-        len(boxes),
+        box_minima.shape[0],
         _pointer(sphere_centers),
         _pointer(sphere_radii),
-        len(spheres),
+        sphere_centers.shape[0],
         _pointer(obb_centers),
         _pointer(obb_extents),
         _pointer(obb_orientations),
-        len(obbs),
+        obb_centers.shape[0],
     )
     return _OwnedSpaceModel(arrays, model)
 
@@ -278,11 +336,28 @@ def run_native_continuous(
     native_goal = False
     goal_radius = 0.0
     if isinstance(goal_region, GoalState) and has_goal_point:
-        if goal_region.distance_fn is None:
+        if goal_region.distance_fn is None and goal_region.radius == 0.0:
             native_goal = True
         elif owned_space is not None and goal_region.distance_fn == space.distance:
             native_goal = True
             goal_radius = float(goal_region.radius)
+
+    requires_python_callbacks = owned_space is None or not native_goal or objective is not None
+    if requires_python_callbacks and not parameters.allow_python_callbacks:
+        reasons = []
+        if owned_space is None:
+            reasons.append(
+                "space has no native model; implement to_native_model() or use a built-in space"
+            )
+        if not native_goal:
+            reasons.append("goal requires a Python predicate or distance callback")
+        if objective is not None:
+            reasons.append("objective requires a Python callback")
+        raise ValueError(
+            "Python callbacks are disabled for native planning ("
+            + "; ".join(reasons)
+            + "). Set RrtParams(allow_python_callbacks=True) to opt in."
+        )
 
     callback_errors: list[BaseException] = []
 
@@ -365,13 +440,13 @@ def run_native_continuous(
         return guarded(call, math.nan)
 
     callback_objects = (
-        _Sample(sample),
-        _StateValid(state_valid),
-        _MotionValid(motion_valid),
-        _Distance(distance),
-        _Steer(steer),
-        _Goal(is_goal),
-        _GoalDistance(goal_distance),
+        _Sample(sample) if owned_space is None else _Sample(),
+        _StateValid(state_valid) if owned_space is None else _StateValid(),
+        _MotionValid(motion_valid) if owned_space is None else _MotionValid(),
+        _Distance(distance) if owned_space is None else _Distance(),
+        _Steer(steer) if owned_space is None else _Steer(),
+        _Goal(is_goal) if not native_goal else _Goal(),
+        _GoalDistance(goal_distance) if not native_goal else _GoalDistance(),
         _Objective(path_objective) if objective is not None else _Objective(),
     )
     native_model_pointer = (
@@ -462,6 +537,8 @@ def run_native_continuous(
             "batches": float(native_result.batches),
             "motion_checks": float(native_result.motion_checks),
             "rewires": float(native_result.rewires),
+            "python_callbacks": float(requires_python_callbacks),
+            "native_space_model": float(owned_space is not None),
         }
         if native_result.success:
             stats["path_cost"] = float(native_result.path_cost)
@@ -511,6 +588,14 @@ def run_native_dynamic_rrt(
         np.uint32, copy=False
     )
     owned_space = _native_space_model(space, dimension)
+    allow_python_callbacks = getattr(config, "allow_python_callbacks", False)
+    if type(allow_python_callbacks) is not bool:
+        raise TypeError("allow_python_callbacks must be a bool")
+    if owned_space is None and not allow_python_callbacks:
+        raise ValueError(
+            "DynamicRRT3D requires a built-in or declared native space model. "
+            "Implement to_native_model() or set allow_python_callbacks=True."
+        )
     callback_errors: list[BaseException] = []
 
     def guarded(function, failure):
@@ -565,11 +650,11 @@ def run_native_dynamic_rrt(
         return guarded(call, -1)
 
     callback_objects = (
-        _Sample(sample),
-        _StateValid(state_valid),
-        _MotionValid(motion_valid),
-        _Distance(distance),
-        _Steer(steer),
+        _Sample(sample) if owned_space is None else _Sample(),
+        _StateValid(state_valid) if owned_space is None else _StateValid(),
+        _MotionValid(motion_valid) if owned_space is None else _MotionValid(),
+        _Distance(distance) if owned_space is None else _Distance(),
+        _Steer(steer) if owned_space is None else _Steer(),
         _Goal(),
         _GoalDistance(),
         _Objective(),

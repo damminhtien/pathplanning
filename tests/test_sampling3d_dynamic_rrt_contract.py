@@ -5,11 +5,40 @@ from __future__ import annotations
 import subprocess
 import sys
 
+import numpy as np
+import pytest
+
 from pathplanning.planners.sampling.dynamic_rrt import (
     BruteForceNearestNodeIndex,
     DynamicRRT3D,
+    DynamicRRT3DConfig,
     KDTreeNearestNodeIndex,
 )
+
+
+class _CallbackSpace3D:
+    def __init__(self) -> None:
+        self.sample_calls = 0
+
+    def sample_free(self, rng: np.random.Generator) -> np.ndarray:
+        self.sample_calls += 1
+        return rng.uniform(0.0, 1.0, size=3)
+
+    def is_state_valid(self, _state: np.ndarray) -> bool:
+        return True
+
+    def is_motion_valid(self, _start: np.ndarray, _end: np.ndarray) -> bool:
+        return True
+
+    def distance(self, start: np.ndarray, end: np.ndarray) -> float:
+        return float(np.linalg.norm(end - start))
+
+    def steer(self, start: np.ndarray, target: np.ndarray, step_size: float) -> np.ndarray:
+        delta = target - start
+        distance = float(np.linalg.norm(delta))
+        if distance <= step_size:
+            return target
+        return start + delta * (step_size / distance)
 
 
 def test_dynamic_rrt_import_is_headless_safe() -> None:
@@ -68,3 +97,32 @@ def test_dynamic_rrt_nearest_backends_are_consistent() -> None:
 
     target = (7.8, 3.4, 2.7)
     assert brute.nearest(target) == kd_tree.nearest(target)
+
+
+def test_dynamic_rrt_custom_space_requires_callback_opt_in() -> None:
+    planner = DynamicRRT3D(
+        environment=_CallbackSpace3D(),
+        config=DynamicRRT3DConfig(max_iterations=0),
+        start=[0.0, 0.0, 0.0],
+        goal=[1.0, 1.0, 1.0],
+    )
+    planner.init_rrt()
+
+    with pytest.raises(ValueError, match="requires a built-in or declared native space model"):
+        planner.grow_rrt()
+
+
+def test_dynamic_rrt_custom_space_callbacks_can_be_explicitly_enabled() -> None:
+    space = _CallbackSpace3D()
+    planner = DynamicRRT3D(
+        environment=space,
+        config=DynamicRRT3DConfig(max_iterations=0, allow_python_callbacks=True),
+        start=[0.0, 0.0, 0.0],
+        goal=[1.0, 1.0, 1.0],
+    )
+    planner.init_rrt()
+
+    planner.grow_rrt()
+
+    assert planner.nodes[0] == (0.0, 0.0, 0.0)
+    assert space.sample_calls > 0

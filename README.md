@@ -59,13 +59,32 @@ also runs tree pruning and growth in the native C engine. The discrete registry
 includes native `bidirectional_dijkstra` and `bidirectional_astar`; the other
 registered discrete searches also run through the C++ graph-search core.
 
-Sampling planners execute their search loops, trees, queues, and nearest-neighbor
-queries in C. Python validates inputs, converts built-in spaces to native data,
-and adapts path results. User-defined spaces, goal predicates, and RRT* path
-objectives remain Python callbacks at the compatibility boundary.
+Sampling planners execute their search loops, trees, queues, geometry checks,
+and nearest-neighbor queries in C. Python validates inputs, converts built-in
+spaces or an explicit `NativeContinuousSpaceModel` to native data, and adapts
+path results. Python callbacks are disabled by default; pass
+`RrtParams(allow_python_callbacks=True)` to use a custom space, goal predicate,
+or RRT* objective that has no native representation.
 
 See [Native Planning Core](docs/native_core.md) for the architecture, callback
 boundary, build requirements, and benchmark scope.
+
+### Native model for a custom space
+
+A custom space can avoid Python callbacks by returning native bounds and
+supported obstacle arrays from `to_native_model()`:
+
+```python
+from pathplanning.native import NativeContinuousSpaceModel
+
+class UnitLineSpace:
+    def to_native_model(self) -> NativeContinuousSpaceModel:
+        return NativeContinuousSpaceModel(lower_bounds=[0.0], upper_bounds=[1.0])
+```
+
+The space's operations must have the same uniform sampling, Euclidean distance,
+steering, and collision semantics as the returned model. Otherwise, enable the
+Python compatibility path explicitly with `RrtParams(allow_python_callbacks=True)`.
 
 ## Visual Preview
 
@@ -200,9 +219,12 @@ The built-in 2D and 3D grids pass their valid-node mask and motion set to C++,
 which builds their CSR adjacency without Python edge callbacks.
 
 Discrete search results include `graph_init_s` and `native_search_s` stats, and
-`elapsed_s` covers graph preparation, native search, and path adaptation. The
-benchmark script reports these phases for discrete cases. Its sampling case
-reports end-to-end time only, so it does not isolate C-kernel speed.
+`elapsed_s` covers graph preparation, native search, and path adaptation. Run
+`python scripts/benchmark_native_sampling.py` to compare full-API sampling
+latency for native space models and callback-backed spaces. The report includes
+the C-kernel timer, setup/FFI time, compiler and host metadata, success rate,
+node count, and path cost. `python scripts/benchmark_planners.py` remains the
+representative mixed discrete/sampling benchmark.
 
 ## Run Demos
 

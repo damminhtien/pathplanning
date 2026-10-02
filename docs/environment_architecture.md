@@ -96,7 +96,7 @@ Defined in `pathplanning/core/contracts.py` and typed with `S`, `N`, `RNG` from 
 
 - `pathplanning.planners.sampling.rrt.RrtPlanner`
   - `ContinuousSpace[State]`, `GoalRegion[State]`
-  - built-in 2D and 3D spaces are serialized once and checked directly in C; custom spaces use the compatibility callbacks
+  - built-in and explicitly modeled spaces are serialized once and checked directly in C; custom Python behavior requires explicit callback opt-in
 - `pathplanning.planners.sampling.rrt_star.RrtStarPlanner`
   - same contracts as `RrtPlanner`
 - `pathplanning.planners.sampling.dynamic_rrt.DynamicRRT3D`
@@ -121,11 +121,12 @@ their search. BIT* and ABIT* use `sample_count` and `batch_size`; FMT* uses
 The native C++ graph-search engine owns CSR storage, search state, and frontier
 queues. The native C sampling engine owns planner expansion loops, tree storage,
 edge queues, and its incremental nearest-neighbor forest. Python adapts API
-values and results. User-defined continuous spaces, goals, and supported RRT*
-objectives use callbacks; the built-in 2D and 3D spaces are passed as native
-bounds and obstacle arrays. A custom discrete graph is snapshotted before
-search, with goal and heuristic values prepared once per node, so the C++ search
-loop does not call Python.
+values and results. Built-in continuous spaces and spaces implementing
+`NativeContinuousSpaceProvider` pass bounds and supported obstacle arrays to C.
+Custom Python spaces, goals, and supported RRT* objectives use callbacks only
+when `RrtParams(allow_python_callbacks=True)` is set. A custom discrete graph
+is snapshotted before search, with goal and heuristic values prepared once per
+node, so the C++ search loop does not call Python.
 
 See [`native_core.md`](native_core.md) for the C/C++ ABI split, callback costs,
 memory layout, build commands, and benchmark coverage. See
