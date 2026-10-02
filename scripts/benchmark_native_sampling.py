@@ -1,23 +1,20 @@
-"""Measure the full Python API and C kernel for native sampling planners."""
+"""Compare native-model and callback space paths with the shared v1 contract."""
 
 from __future__ import annotations
 
 import argparse
-from dataclasses import asdict, dataclass
 import json
-import os
 from pathlib import Path
-import platform
-import shlex
-import shutil
-import statistics
-import subprocess
 import sys
-import sysconfig
 import time
 from typing import Any
 
+from benchmark_contract import create_report, execute_run, utc_now, write_report
 import numpy as np
+
+_REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
+if str(_REPOSITORY_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPOSITORY_ROOT))
 
 from pathplanning.api import plan_continuous
 from pathplanning.core.contracts import ContinuousProblem, GoalState
@@ -47,79 +44,49 @@ class _CallbackGrid2DSamplingSpace(Grid2DSamplingSpace):
     """Force the public Python-space callback path with identical behavior."""
 
 
-@dataclass(frozen=True)
-class SamplingBenchmarkRow:
-    planner: str
-    space_path: str
-    full_api_median_s: float
-    full_api_min_s: float
-    full_api_max_s: float
-    native_kernel_median_s: float
-    api_setup_and_ffi_median_s: float
-    success_rate: float
-    nodes_median: int
-    path_cost_median: float | None
-    runs: int
-
-
-def _compiler_info(env_name: str, config_key: str) -> dict[str, str | None]:
-    configured = os.environ.get(env_name) or str(sysconfig.get_config_var(config_key) or "")
-    pieces = shlex.split(configured)
-    executable = shutil.which(pieces[0]) if pieces else None
-    version = None
-    if executable is not None:
-        try:
-            completed = subprocess.run(
-                [executable, "--version"],
-                check=False,
-                capture_output=True,
-                text=True,
-                timeout=5,
-            )
-            output = completed.stdout or completed.stderr
-            version = output.splitlines()[0].strip() if output else None
-        except (OSError, subprocess.TimeoutExpired):
-            version = None
-    return {"configured": configured or None, "executable": executable, "version": version}
-
-
-def _processor_name() -> str | None:
-    if platform.system() == "Darwin":
-        try:
-            completed = subprocess.run(
-                ["sysctl", "-n", "machdep.cpu.brand_string"],
-                check=False,
-                capture_output=True,
-                text=True,
-                timeout=2,
-            )
-            model = completed.stdout.strip()
-            if completed.returncode == 0 and model:
-                return model
-        except (OSError, subprocess.TimeoutExpired):
-            pass
-    processor = platform.processor()
-    if processor.lower() in {"", "i386", "i686"}:
-        processor = platform.uname().machine
-    return processor or None
-
-
-def environment_metadata() -> dict[str, Any]:
-    """Describe the host and configured native toolchain for benchmark results."""
-    return {
-        "platform": platform.platform(),
-        "machine": platform.machine(),
-        "processor": _processor_name(),
-        "logical_cpu_count": os.cpu_count(),
-        "python": sys.version,
-        "numpy": np.__version__,
-        "c_compiler": _compiler_info("CC", "CC"),
-        "cxx_compiler": _compiler_info("CXX", "CXX"),
-        "native_compile_flags": {
-            "c": ["-std=c11", "-O3"],
-            "c++": ["-std=c++17", "-O3"],
-        },
-    }
+def _workloads(max_iters: int, sample_count: int) -> list[dict[str, Any]]:
+    return [
+        {
+            "case_id": planner,
+            "planner": planner,
+            "scenario": {
+                "space": "Grid2DSamplingSpace",
+                **_BOUNDS,
+                **_OBSTACLES,
+                "obs_boundary": (),
+                "obs_circle": (),
+                "delta": 0.5,
+                "collision_step": _COLLISION_STEP,
+                "max_sample_tries": 10_000,
+                "start": (1.0, 1.0),
+                "goal": (9.0, 9.0),
+                "goal_policy": (
+                    "exact_euclidean" if planner in _EXACT_GOAL_PLANNERS else "radius_0.25"
+                ),
+            },
+            "params": {
+                "max_iters": max_iters,
+                "step_size": _STEP_SIZE,
+                "goal_sample_rate": 0.08,
+                "time_budget_s": None,
+                "max_sample_tries": 2_000,
+                "collision_step": _COLLISION_STEP,
+                "goal_reach_tolerance": 1e-9,
+                "rrt_star_radius_gamma": _RADIUS_GAMMA,
+                "rrt_star_radius_bias": 1.0,
+                "rrt_star_radius_max_factor": 6.0,
+                "sample_count": sample_count,
+                "batch_size": max(16, sample_count // 4),
+                "abit_inflation_parameter": 10.0,
+                "abit_truncation_parameter": 5.0,
+            },
+            "variants": {
+                "native_model": {"allow_python_callbacks": False},
+                "python_callbacks": {"allow_python_callbacks": True},
+            },
+        }
+        for planner in _PLANNERS
+    ]
 
 
 def _run_once(
@@ -134,7 +101,11 @@ def _run_once(
     space = space_type(
         **_BOUNDS,
         **_OBSTACLES,
+        obs_boundary=(),
+        obs_circle=(),
+        delta=0.5,
         collision_step=_COLLISION_STEP,
+        max_sample_tries=10_000,
     )
     problem = ContinuousProblem(
         space=space,
@@ -149,25 +120,57 @@ def _run_once(
         max_iters=max_iters,
         step_size=_STEP_SIZE,
         goal_sample_rate=0.08,
+        time_budget_s=None,
         max_sample_tries=2_000,
         collision_step=_COLLISION_STEP,
+        goal_reach_tolerance=1e-9,
         rrt_star_radius_gamma=_RADIUS_GAMMA,
+        rrt_star_radius_bias=1.0,
+        rrt_star_radius_max_factor=6.0,
         sample_count=sample_count,
         batch_size=max(16, sample_count // 4),
+        abit_inflation_parameter=10.0,
+        abit_truncation_parameter=5.0,
         allow_python_callbacks=callbacks,
     )
 
     started = time.perf_counter()
     result = plan_continuous(problem, planner=planner, params=params, seed=seed)
     full_api_s = time.perf_counter() - started
+    native_kernel_s = float(result.stats["elapsed_s"])
     return {
-        "full_api_s": full_api_s,
-        "native_kernel_s": float(result.stats["elapsed_s"]),
-        "success": result.success,
-        "nodes": result.nodes,
-        "path_cost": result.stats.get("path_cost"),
-        "python_callbacks": int(result.stats["python_callbacks"]),
+        "measurements": {
+            "full_api_s": full_api_s,
+            "native_kernel_s": native_kernel_s,
+            "setup_and_ffi_s": max(0.0, full_api_s - native_kernel_s),
+            "nodes": result.nodes,
+            "path_cost": result.stats.get("path_cost"),
+        },
+        "outcomes": {"success": result.success},
+        "details": {"python_callbacks": int(result.stats["python_callbacks"])},
     }
+
+
+def _run_validated(
+    planner: str,
+    *,
+    mode: str,
+    callbacks: bool,
+    seed: int,
+    max_iters: int,
+    sample_count: int,
+) -> dict[str, Any]:
+    observation = _run_once(
+        planner,
+        callbacks=callbacks,
+        seed=seed,
+        max_iters=max_iters,
+        sample_count=sample_count,
+    )
+    expected_callbacks = int(mode == "python_callbacks")
+    if observation["details"]["python_callbacks"] != expected_callbacks:
+        raise RuntimeError(f"{planner}/{mode} used an unexpected execution path")
+    return observation
 
 
 def _benchmark_pair(
@@ -178,60 +181,53 @@ def _benchmark_pair(
     warmups: int,
     max_iters: int,
     sample_count: int,
-) -> list[SamplingBenchmarkRow]:
-    observations: dict[str, list[dict[str, Any]]] = {"native_model": [], "python_callbacks": []}
+) -> list[dict[str, Any]]:
     modes = (("native_model", False), ("python_callbacks", True))
+    records = []
 
-    for _ in range(warmups):
-        for _mode, callbacks in modes:
-            _run_once(
-                planner,
-                callbacks=callbacks,
-                seed=seed,
-                max_iters=max_iters,
-                sample_count=sample_count,
+    for warmup_index in range(warmups):
+        warmup_seed = seed + repeats + warmup_index
+        for mode, callbacks in modes:
+            records.append(
+                execute_run(
+                    case_id=planner,
+                    variant_id=mode,
+                    phase="warmup",
+                    repeat_index=warmup_index,
+                    seed=warmup_seed,
+                    run=lambda mode=mode, callbacks=callbacks, seed=warmup_seed: _run_validated(
+                        planner,
+                        mode=mode,
+                        callbacks=callbacks,
+                        seed=seed,
+                        max_iters=max_iters,
+                        sample_count=sample_count,
+                    ),
+                )
             )
 
-    for run_index in range(repeats):
-        ordered_modes = modes if run_index % 2 == 0 else tuple(reversed(modes))
+    for repeat_index in range(repeats):
+        run_seed = seed + repeat_index
+        ordered_modes = modes if repeat_index % 2 == 0 else tuple(reversed(modes))
         for mode, callbacks in ordered_modes:
-            observation = _run_once(
-                planner,
-                callbacks=callbacks,
-                seed=seed + run_index,
-                max_iters=max_iters,
-                sample_count=sample_count,
+            records.append(
+                execute_run(
+                    case_id=planner,
+                    variant_id=mode,
+                    phase="measure",
+                    repeat_index=repeat_index,
+                    seed=run_seed,
+                    run=lambda mode=mode, callbacks=callbacks, seed=run_seed: _run_validated(
+                        planner,
+                        mode=mode,
+                        callbacks=callbacks,
+                        seed=seed,
+                        max_iters=max_iters,
+                        sample_count=sample_count,
+                    ),
+                )
             )
-            expected_callbacks = int(mode == "python_callbacks")
-            if observation["python_callbacks"] != expected_callbacks:
-                raise RuntimeError(f"{planner}/{mode} used an unexpected execution path")
-            observations[mode].append(observation)
-
-    rows: list[SamplingBenchmarkRow] = []
-    for mode, _callbacks in modes:
-        runs = observations[mode]
-        api_times = [item["full_api_s"] for item in runs]
-        kernel_times = [item["native_kernel_s"] for item in runs]
-        path_costs = [item["path_cost"] for item in runs if item["path_cost"] is not None]
-        rows.append(
-            SamplingBenchmarkRow(
-                planner=planner,
-                space_path=mode,
-                full_api_median_s=statistics.median(api_times),
-                full_api_min_s=min(api_times),
-                full_api_max_s=max(api_times),
-                native_kernel_median_s=statistics.median(kernel_times),
-                api_setup_and_ffi_median_s=statistics.median(
-                    max(0.0, api_time - kernel_time)
-                    for api_time, kernel_time in zip(api_times, kernel_times, strict=True)
-                ),
-                success_rate=sum(bool(item["success"]) for item in runs) / len(runs),
-                nodes_median=int(statistics.median(item["nodes"] for item in runs)),
-                path_cost_median=(statistics.median(path_costs) if path_costs else None),
-                runs=repeats,
-            )
-        )
-    return rows
+    return records
 
 
 def run_benchmarks(
@@ -241,14 +237,17 @@ def run_benchmarks(
     warmups: int = 1,
     max_iters: int = 1_000,
     sample_count: int = 256,
+    output_path: str | Path | None = None,
 ) -> dict[str, Any]:
-    """Run every registry sampling planner through both native and callback paths."""
+    """Run registry sampling planners through both equivalent space paths."""
     if repeats <= 0 or warmups < 0 or max_iters <= 0 or sample_count <= 0:
         raise ValueError("repeats/max_iters/sample_count must be positive and warmups non-negative")
-    rows = [
-        row
+    started_at_utc = utc_now()
+    started_monotonic = time.perf_counter()
+    runs = [
+        run
         for planner in _PLANNERS
-        for row in _benchmark_pair(
+        for run in _benchmark_pair(
             planner,
             seed=seed,
             repeats=repeats,
@@ -257,29 +256,77 @@ def run_benchmarks(
             sample_count=sample_count,
         )
     ]
-    return {
-        "metadata": environment_metadata(),
-        "settings": {
+    return create_report(
+        benchmark_id="native_sampling_paths",
+        settings={
             "seed": seed,
             "repeats": repeats,
             "warmups": warmups,
+            "measured_seed_rule": "seed + repeat_index; paired by seed across variants",
+            "warmup_seed_rule": "seed + repeats + warmup_index; paired by seed across variants",
             "max_iters": max_iters,
             "sample_count": sample_count,
             "batch_size": max(16, sample_count // 4),
             "step_size": _STEP_SIZE,
             "goal_sample_rate": 0.08,
+            "max_sample_tries": 2_000,
             "collision_step": _COLLISION_STEP,
             "rrt_star_radius_gamma": _RADIUS_GAMMA,
             "bounds": _BOUNDS,
             "obstacles": _OBSTACLES,
+            "paired_order": "alternate variant order on each measured repeat",
         },
-        "results": [asdict(row) for row in rows],
-    }
+        workloads=_workloads(max_iters, sample_count),
+        runs=runs,
+        started_at_utc=started_at_utc,
+        started_monotonic=started_monotonic,
+        output_path=output_path,
+    )
+
+
+def _print_table(report: dict[str, Any]) -> None:
+    environment = report["identity"]["environment"]
+    print(
+        f"Host: {environment['platform']} | "
+        f"CPU: {environment['processor'] or environment['machine']}"
+    )
+    print(f"Python: {environment['python'].split()[0]} | NumPy: {environment['numpy']}")
+    print(f"C compiler: {environment['c_compiler']['version']}")
+    print(f"C++ compiler: {environment['cxx_compiler']['version']}")
+    header = (
+        f"{'planner':20} {'space_path':18} {'full_api_med_ms':>15} {'C_kernel_med_ms':>15} "
+        f"{'setup_ffi_med_ms':>17} {'success':>9} {'nodes_med':>10} {'runs':>9}"
+    )
+    print(header)
+    print("-" * len(header))
+    for row in report["results"]:
+        metrics = row["metrics"]
+
+        def median_ms(name: str) -> str:
+            metric = metrics.get(name)
+            return f"{metric['median'] * 1_000:.3f}" if metric is not None else "n/a"
+
+        api = metrics.get("full_api_s")
+        nodes = metrics.get("nodes")
+        success = row["success_rate"]
+        api_ms = f"{api['median'] * 1_000:.3f}" if api else "n/a"
+        nodes_text = f"{nodes['median']:.0f}" if nodes else "n/a"
+        print(
+            f"{row['case_id']:20} {row['variant_id']:18} "
+            f"{api_ms:>15} "
+            f"{median_ms('native_kernel_s'):>15} "
+            f"{median_ms('setup_and_ffi_s'):>17} "
+            f"{(f'{success:.0%}' if success is not None else 'n/a'):>9} "
+            f"{nodes_text:>10} "
+            f"{row['completed_count']:4d}/{row['attempt_count']:<4d}"
+        )
+    if report["status"] != "completed":
+        print(f"Report status: {report['status']}")
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Compare full-API sampling latency for native and callback space paths."
+        description="Compare full-API sampling latency for native and callback spaces."
     )
     parser.add_argument("--seed", type=int, default=7)
     parser.add_argument("--repeats", type=int, default=5)
@@ -287,7 +334,7 @@ def main() -> None:
     parser.add_argument("--max-iters", type=int, default=1_000)
     parser.add_argument("--sample-count", type=int, default=256)
     parser.add_argument("--json", action="store_true", help="Print the full JSON report.")
-    parser.add_argument("--output", help="Also write the full JSON report to this path.")
+    parser.add_argument("--output", help="Atomically write the full JSON report to this path.")
     args = parser.parse_args()
 
     report = run_benchmarks(
@@ -296,36 +343,14 @@ def main() -> None:
         warmups=args.warmups,
         max_iters=args.max_iters,
         sample_count=args.sample_count,
+        output_path=args.output,
     )
-    serialized = json.dumps(report, indent=2, sort_keys=True)
     if args.output:
-        Path(args.output).parent.mkdir(parents=True, exist_ok=True)
-        with open(args.output, "w", encoding="utf-8") as output_file:
-            output_file.write(serialized)
-            output_file.write("\n")
+        write_report(args.output, report)
     if args.json:
-        print(serialized)
+        print(json.dumps(report, indent=2, sort_keys=True, allow_nan=False))
         return
-    metadata = report["metadata"]
-    print(f"Host: {metadata['platform']} | CPU: {metadata['processor'] or metadata['machine']}")
-    print(f"Python: {sys.version.split()[0]} | NumPy: {np.__version__}")
-    print(f"C compiler: {metadata['c_compiler']['version']}")
-    print(f"C++ compiler: {metadata['cxx_compiler']['version']}")
-    header = (
-        f"{'planner':20} {'space_path':18} {'full_api_ms':>12} {'C_kernel_ms':>12} "
-        f"{'setup_ffi_ms':>13} {'success':>9} {'nodes':>8}"
-    )
-    print(header)
-    print("-" * len(header))
-    for row in report["results"]:
-        print(
-            f"{row['planner']:20} {row['space_path']:18} "
-            f"{row['full_api_median_s'] * 1_000:12.3f} "
-            f"{row['native_kernel_median_s'] * 1_000:12.3f} "
-            f"{row['api_setup_and_ffi_median_s'] * 1_000:13.3f} "
-            f"{row['success_rate']:8.0%} "
-            f"{row['nodes_median']:8d}"
-        )
+    _print_table(report)
 
 
 if __name__ == "__main__":

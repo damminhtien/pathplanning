@@ -127,12 +127,12 @@ custom objectives because their bounds rely on those assumptions.
 
 ## Benchmark Scope
 
-`scripts/benchmark_native_sampling.py` runs every registry sampling planner
-through the full API using both a built-in native model and an equivalent
-callback-backed space. It records end-to-end and C-kernel medians, setup/FFI
-time, success rate, node count, path cost, compiler versions, and host details.
-The 2026-10-02 run is documented in
-[`docs/benchmarks/native_sampling_2026-10-02.md`](benchmarks/native_sampling_2026-10-02.md).
-`scripts/benchmark_planners.py` remains the representative mixed benchmark for
-2D A*, 2D RRT, and 3D weighted A*. Results characterize these workloads; they
-are not a planner-wide speedup claim. Compare repeated runs on the same host.
+Both `scripts/benchmark_native_sampling.py` and
+`scripts/benchmark_planners.py` emit the shared v1 report, including raw
+measured and warm-up runs, seed and workload settings, environment and source
+provenance, and explicit summary denominators. The 2026-10-02 native sampling
+report predates that contract and remains summary-only historical evidence.
+See [the benchmark contract](benchmark_contract.md). Its results are documented
+in [`docs/benchmarks/native_sampling_2026-10-02.md`](benchmarks/native_sampling_2026-10-02.md).
+The planner benchmark covers 2D A*, 2D RRT, and 3D weighted A*. Results
+characterize these workloads; they are not a planner-wide speedup claim.

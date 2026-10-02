@@ -221,12 +221,14 @@ The built-in 2D and 3D grids pass their valid-node mask and motion set to C++,
 which builds their CSR adjacency without Python edge callbacks.
 
 Discrete search results include `graph_init_s` and `native_search_s` stats, and
-`elapsed_s` covers graph preparation, native search, and path adaptation. Run
-`python scripts/benchmark_native_sampling.py` to compare full-API sampling
-latency for native space models and callback-backed spaces. The report includes
-the C-kernel timer, setup/FFI time, compiler and host metadata, success rate,
-node count, and path cost. `python scripts/benchmark_planners.py` remains the
-representative mixed discrete/sampling benchmark.
+`elapsed_s` covers graph preparation, native search, and path adaptation. The
+two canonical benchmark commands emit the versioned
+`pathplanning_benchmark_v1` report with raw per-run observations, summaries,
+seed/workload settings, source and native artifact fingerprints, and host
+metadata. Use `--output path/to/report.json` to save it atomically or `--json`
+to print it. Reports saved under `benchmark-results/` are excluded from source
+fingerprints. See [the benchmark contract](docs/benchmark_contract.md) for the
+schema and interpretation limits.
 
 ## Run Demos
 
@@ -235,7 +237,8 @@ Run from repository root.
 ```bash
 python examples/worlds/custom_grid_world.py
 python examples/worlds/demo_3d_world.py
-python scripts/benchmark_planners.py
+python scripts/benchmark_planners.py --output benchmark-results/planners.json
+python scripts/benchmark_native_sampling.py --output benchmark-results/native-sampling.json
 ```
 
 ## Developer Workflow

@@ -6,6 +6,11 @@ space operations through Python callbacks. Both variants run through
 `plan_continuous`; the report separates end-to-end API time from the C engine's
 timer.
 
+This report predates the shared v1 benchmark contract. It preserves aggregate
+results only; it does not include the original per-run observations or source
+fingerprint. Do not treat it as a v1 report. New runs use the schema documented
+in [the benchmark contract](../benchmark_contract.md).
+
 ## Setup
 
 - Host: macOS 26.7.1, Intel Core i7-1068NG7, 8 logical CPUs

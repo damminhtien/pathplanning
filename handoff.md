@@ -53,7 +53,7 @@ Author: AI Agent
 1. Built the native extension with Python 3.12 and C++17.
 2. `python -m pytest -q`: 93 passed.
 3. `ruff check .`, `ruff format --check .`, `pyright`, and `git diff --check`: passed.
-4. `scripts/benchmark_planners.py --json` reports medians over five runs by default and separates graph initialization from native search.
+4. `scripts/benchmark_planners.py` now emits the shared v1 benchmark report, retaining every measured and warm-up run with seeds and source/native artifact provenance. Its default five measured repetitions still summarize graph initialization and native search separately.
 5. Compared five-run end-to-end medians against the parent commit on the same Python 3.12 host: 2D A* 15.02 ms to 1.27 ms; 3D weighted A* 3.15 ms to 2.34 ms.
 
 ### Risks / Follow-ups
