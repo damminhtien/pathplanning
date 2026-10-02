@@ -36,3 +36,17 @@ additive path length. They reject custom objectives because the search bounds
 rely on additive path length.
 `fmt_star` uses `sample_count` as its fixed sample set size. `bit_star` and
 `abit_star` use `sample_count` across batches and `batch_size` per batch.
+
+## Native Execution
+
+All registry-backed discrete searches use the C++ graph-search engine. All
+registry-backed continuous planners use the C sampling engine; Python planner
+modules validate inputs and adapt the public API to the native C ABI. For the
+built-in continuous spaces, geometry and collision checks run directly in C.
+Custom Python spaces, goal predicates, and RRT* objectives retain compatibility
+callbacks and may cross the Python boundary during planning.
+
+`DynamicRRT3D` is a stateful Python API outside the registry matrix. Its tree
+pruning, edge checks, nearest-node search, and growth run in the same native C
+sampling engine. See [`docs/native_core.md`](docs/native_core.md) for data
+ownership, build steps, callback behavior, and benchmark limitations.

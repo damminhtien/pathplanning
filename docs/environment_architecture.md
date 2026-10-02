@@ -121,9 +121,15 @@ their search. BIT* and ABIT* use `sample_count` and `batch_size`; FMT* uses
 The native C++ graph-search engine owns CSR storage, search state, and frontier
 queues. The native C sampling engine owns planner expansion loops, tree storage,
 edge queues, and its incremental nearest-neighbor forest. Python adapts API
-values and results. User-defined spaces, goals, and supported RRT* objectives
-use callbacks; the built-in 2D and 3D spaces are passed as native bounds and
-obstacle arrays.
+values and results. User-defined continuous spaces, goals, and supported RRT*
+objectives use callbacks; the built-in 2D and 3D spaces are passed as native
+bounds and obstacle arrays. A custom discrete graph is snapshotted before
+search, with goal and heuristic values prepared once per node, so the C++ search
+loop does not call Python.
+
+See [`native_core.md`](native_core.md) for the C/C++ ABI split, callback costs,
+memory layout, build commands, and benchmark coverage. See
+[`rrt3d_refactor.md`](rrt3d_refactor.md) for the stateful `DynamicRRT3D` API.
 
 ### Search algorithm labels
 

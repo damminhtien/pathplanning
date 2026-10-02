@@ -1,6 +1,6 @@
 # AI Agent Operating Manual
 
-Last updated: 2026-02-12 (version `0.2.0`)
+Last updated: 2026-10-02 (version `0.2.0`)
 
 This document defines how AI agents should operate in `PathPlanning`.
 
@@ -17,7 +17,9 @@ Deliver safe, production-quality improvements while preserving deterministic pla
 ## Repository Context (Current)
 
 - `pathplanning/planners/search`: search algorithms and facades
-- `pathplanning/planners/sampling`: sampling algorithms
+- `pathplanning/planners/sampling`: Python APIs over the native C sampling engine
+- `pathplanning/native/search_engine.cpp`: C++17 discrete graph-search core
+- `pathplanning/native/continuous_engine.c`: C11 sampling and dynamic RRT core
 - `pathplanning/spaces`: canonical space/environment implementations
 - `pathplanning/nn`: nearest-neighbor indexing
 - `pathplanning/data_structures`: tree/storage primitives
@@ -29,11 +31,16 @@ Deliver safe, production-quality improvements while preserving deterministic pla
 Run from repo root:
 
 ```bash
+make build-ext
 ruff check .
 ruff format --check .
 pyright
 pytest -q
 ```
+
+Source builds require Python `>=3.10`, a C11 compiler, and a C++17 compiler.
+The public native ABI and callback boundary are described in
+`docs/native_core.md`.
 
 Import-safety smoke checks (recommended on refactors):
 

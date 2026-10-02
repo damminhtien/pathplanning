@@ -6,6 +6,10 @@ All notable changes to this project are documented in this file.
 
 ### Changed
 
+- Moved RRT, RRT*, Informed RRT*, FMT*, BIT*, ABIT*, RRT-Connect, and DynamicRRT3D tree operations into a native C sampling engine; Python planner modules are API adapters.
+- Retained the existing C++ graph-search engine and built the C and C++ cores as separate extension libraries behind C ABIs.
+- Added direct native bounds, sampling, distance, steering, and collision paths for built-in continuous spaces; custom Python spaces, goals, and supported objectives retain callback compatibility.
+- Documented native architecture, data ownership, build requirements, supported planner backends, and the benchmark's current scope.
 - Moved discrete search to reusable C++-owned CSR graphs and precomputed goal/heuristic arrays.
 - Kept the Python graph protocol through a one-time finite-graph snapshot before search.
 - Retained the callback C ABI as a compatibility shim that snapshots before running a native kernel.

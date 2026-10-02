@@ -57,10 +57,18 @@ Track durable decisions so future agents do not re-litigate baseline choices.
 - Status: accepted
 - Decision: Any version bump updates `pyproject.toml`, `README.md`, `CHANGELOG.md`, and agentic state files in the same change.
 
+## DEC-010: Keep planner algorithms in native C/C++ with a Python API boundary
+- Date: 2026-10-02
+- Status: accepted
+- Context: Discrete search already uses a native C++ engine; continuous sampling planners still spent expansion time in Python.
+- Decision: Preserve the C++ graph-search engine and implement continuous planner loops and dynamic RRT tree operations in a separate C11 engine. Keep Python for contracts, input conversion, FFI, result adaptation, and callbacks required by custom spaces, goals, and supported objectives.
+- Consequence: Build and ship two native extension libraries with separate compiler standards. Built-in spaces use native bounds/obstacle models; custom Python behavior may cross the callback boundary during planning. Benchmark end-to-end API time before making performance claims.
+
 ## Update Log
 
 - 2026-02-11: Synced release metadata and agentic files for version `0.1.2`.
 - 2026-02-12: Completed `0.2.0` metadata/docs sync and architecture doc refresh.
+- 2026-10-02: Recorded the native C/C++ planner architecture and Python callback boundary.
 
 ## Decision Template
 

@@ -1,106 +1,75 @@
-# 3D RRT Refactor Notes
+# Dynamic RRT3D
 
-## Scope
+This note documents the current stateful 3D RRT API and its native backend.
+The Python-facing planner lives in
+`pathplanning/planners/sampling/dynamic_rrt.py`; the C implementation is
+`pp_dynamic_rrt_plan` in `pathplanning/native/continuous_engine.c`.
 
-This document describes the production refactor applied to the 3D sampling stack
-(`pathplanning/sampling_based_planning/rrt_3d`).
+## Ownership and Execution
 
-Goals:
-- keep planners import-safe in headless environments
-- provide deterministic execution for tests and reproducibility
-- reduce environment hard-coupling via explicit contracts
-- keep tree growth and nearest-neighbor search in the native C engine
-- preserve runtime behavior unless fixing a correctness bug
+`DynamicRRT3D` keeps the existing Python API and public tree views (`nodes`,
+`parent_by_node`, `edges`, and `node_state`). `grow_rrt`, `trim_rrt`,
+`regrow_rrt`, and `find_affected_edges` serialize the tree as state and parent
+arrays, call the native C planner, then rebuild the Python views from returned
+arrays.
 
-## Architecture Changes
+The C engine performs pruning, incoming-edge validity checks, nearest-node
+queries, sampling, steering, tree growth, and goal connection. It uses
+contiguous state and parent arrays with an incremental KD forest. The optional
+`NearestNodeIndex` implementation still serves direct Python calls to
+`planner.nearest(...)`; the native growth loop does not call that Python index.
 
-### DynamicRRT3D core contract
+The built-in `ContinuousSpace3D` representation is copied into native bounds
+and obstacle arrays before planning. A custom `ContinuousSpace` uses the
+compatibility callbacks for sampling, state checks, motion checks, distance,
+and steering, so those operations can enter Python during a native run.
 
-`DynamicRRT3D` now supports explicit runtime contracts:
-- `DynamicRRT3DConfig`: planner constants and thresholds
-- `environment` injection in constructor
-- `rng` injection (or `DynamicRRT3D.with_seed(...)`) for deterministic sampling
-- native C tree pruning, nearest-neighbor queries, and growth
+`find_affected_edges(obstacle)` inspects the planner's current `space`; it does
+not apply the `obstacle` argument itself. Update the environment's obstacle
+model first, then call `find_affected_edges`, `invalidate_nodes`, `trim_rrt`, or
+`regrow_rrt` as needed.
 
-Standalone nearest-query adapters remain available for callers that use the
-object-level `nearest(...)` helper:
-- `BruteForceNearestNodeIndex`
-- `KDTreeNearestNodeIndex` (batched `scipy.spatial.cKDTree` rebuild)
+## Basic Usage
 
-The planning loop uses the native incremental KD forest. Built-in
-`ContinuousSpace3D` obstacles are copied into native arrays before planning;
-custom spaces use compatibility callbacks.
+Build the native extensions before running from a source checkout:
 
-### Headless import safety
-
-`dynamic_rrt_3d` no longer imports plotting utilities at module import time.
-Plot utilities are imported lazily inside visualization paths.
-
-`utils_3d` now exposes a lazy wrapper for `visualization(...)` to avoid importing
-`plot_util_3d` during core module import.
-
-### Legacy wrapper removal
-
-Legacy compatibility wrappers (`rrt` / `rrtstar`) were removed.
-Registry-supported RRT entrypoints now map directly to:
-- `RrtPlanner` in `pathplanning.sampling_based_planning.rrt_3d.rrt`
-- `RrtStarPlanner` in `pathplanning.sampling_based_planning.rrt_3d.rrt_star`
-
-### Environment3D canonical naming
-
-`Environment3D` now stores canonical snake_case obstacle fields:
-- `aabb`
-- `aabb_pyrr`
-- `obb`
-
-Legacy names (`AABB`, `AABB_pyrr`, `OBB`) are still available as compatibility
-properties.
-
-## Correctness Fixes
-
-- Fixed mutable default argument in `utils_3d.path(...)`.
-- Fixed recursive sampling bias propagation in `utils_3d.sampleFree(...)`.
-- Fixed `rrt_star_3d` timer scope bug (`starttime` now defined in `run`).
-
-## Migration Guide
-
-### DynamicRRT3D usage
-
-Before:
-```python
-planner = DynamicRRT3D()
+```bash
+make build-ext
 ```
 
-After (deterministic):
+Create a reproducible planner with an explicit space and RNG seed:
+
 ```python
-planner = DynamicRRT3D.with_seed(7)
+from pathplanning.planners.sampling.dynamic_rrt import DynamicRRT3D, DynamicRRT3DConfig
+from pathplanning.spaces.continuous_3d import ContinuousSpace3D
+
+space = ContinuousSpace3D(lower_bound=[0, 0, 0], upper_bound=[20, 20, 6])
+config = DynamicRRT3DConfig(step_size=0.25, max_iterations=10_000)
+planner = DynamicRRT3D.with_seed(7, environment=space, config=config)
+planner.init_rrt()
+planner.grow_rrt()
+path_result = planner.path()
 ```
 
-After (explicit contract):
-```python
-config = DynamicRRT3DConfig(step_size=0.25, max_iterations=10000)
-planner = DynamicRRT3D(environment=my_env, config=config, rng=my_rng)
-```
+`path_result` is `None` when the goal was not connected. When connected, it
+contains the goal-to-start edge list and its accumulated Euclidean length.
 
-### Environment fields
+## Configuration
 
-Preferred:
-```python
-env.aabb
-env.aabb_pyrr
-env.obb
-```
+`DynamicRRT3DConfig` contains step size, iteration limit, goal and waypoint
+sampling probabilities, a legacy dynamic-step setting, and the rebuild
+threshold for the Python-facing nearest-neighbor helper. The native planner
+uses step size, iteration limit, and the sampling probabilities; its KD forest
+has its own native batching strategy.
 
-Compatibility (deprecated):
-```python
-env.AABB
-env.AABB_pyrr
-env.OBB
-```
+`DynamicRRT3D` is a stateful convenience API and is not a registry entry. The
+registry-based `rrt` planner uses the standard `ContinuousProblem` and
+`plan_continuous(...)` API instead. See
+[`native_core.md`](native_core.md) for the native ABI, supported spaces, and
+callback boundary.
 
-## Test Coverage Added
+## Visualization
 
-- dynamic RRT import remains headless-safe
-- dynamic RRT choose-target behavior is deterministic with fixed seed
-- brute-force and KDTree nearest backends agree on nearest-node results
-- Environment3D canonical/deprecated contract behavior is validated
+`DynamicRRT3D.visualization()` is a deprecated no-op. Use the plotting helpers
+under `pathplanning.viz` explicitly when rendering is needed; planner execution
+does not import or invoke plotting code.

@@ -29,6 +29,7 @@ Current codebase organization:
 .
 ├── pathplanning/
 │   ├── core/
+│   ├── native/       # C++ graph search and C sampling engines
 │   ├── planners/
 │   │   ├── search/
 │   │   └── sampling/
@@ -55,12 +56,16 @@ See `SUPPORTED_ALGORITHMS.md` for the canonical matrix.
 The continuous registry provides `rrt`, `rrt_star`, `informed_rrt_star`,
 `fmt_star`, `bit_star`, `abit_star`, and `rrt_connect`. Stateful `DynamicRRT3D`
 also runs tree pruning and growth in the native C engine. The discrete registry
-includes native `bidirectional_dijkstra` and `bidirectional_astar`.
+includes native `bidirectional_dijkstra` and `bidirectional_astar`; the other
+registered discrete searches also run through the C++ graph-search core.
 
 Sampling planners execute their search loops, trees, queues, and nearest-neighbor
 queries in C. Python validates inputs, converts built-in spaces to native data,
 and adapts path results. User-defined spaces, goal predicates, and RRT* path
 objectives remain Python callbacks at the compatibility boundary.
+
+See [Native Planning Core](docs/native_core.md) for the architecture, callback
+boundary, build requirements, and benchmark scope.
 
 ## Visual Preview
 
@@ -196,7 +201,8 @@ which builds their CSR adjacency without Python edge callbacks.
 
 Discrete search results include `graph_init_s` and `native_search_s` stats, and
 `elapsed_s` covers graph preparation, native search, and path adaptation. The
-benchmark script reports both phases alongside end-to-end runtime.
+benchmark script reports these phases for discrete cases. Its sampling case
+reports end-to-end time only, so it does not isolate C-kernel speed.
 
 ## Run Demos
 

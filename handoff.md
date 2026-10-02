@@ -4,6 +4,33 @@ Use this file to transfer context between AI agents or from agent to human revie
 
 ## Latest Handoff
 
+Date: 2026-10-02
+Author: AI Agent
+
+### Scope Completed
+
+1. Preserved the existing C++17 discrete search core in `pathplanning/native/search_engine.cpp`.
+2. Added a C11 sampling core for RRT, RRT*, Informed RRT*, FMT*, BIT*, ABIT*, RRT-Connect, and DynamicRRT3D tree operations.
+3. Kept Python planner modules as API/FFI adapters; built-in continuous spaces use native models, while custom spaces, goals, and supported objectives retain Python callbacks.
+4. Built `_search_engine` and `_continuous_engine` as separate extensions with C ABIs. Core migration commit: `d54e7dc`.
+5. Updated the architecture, support, build, contribution, state, and handoff documentation. Added `docs/native_core.md` as the detailed reference.
+
+### Validation Performed
+
+1. C11 and C++17 syntax checks with `-Wall -Wextra -Werror` passed.
+2. `make build-ext` completed; direct loading found graph-search ABI version `0.4.0` and continuous ABI version `1.0.0`.
+3. Ruff, format checks, `compileall`, and `git diff --check` passed.
+4. The full pytest suite and native sampling benchmarks were not run. No sampling speedup claim has been established.
+5. Graphify updated successfully. Its AST parser reports that it cannot fully extract the two C ABI headers; both compilers accepted the headers and implementations.
+
+### Risks / Follow-ups
+
+1. Custom Python spaces, goals, and supported RRT* objectives can invoke Python callbacks during native planning. Built-in continuous spaces use the callback-free native path.
+2. The benchmark script times the complete sampling API path but does not expose a separate sampling-kernel timer or paired pre-migration baseline.
+3. The local default `python` is 3.9 although the package requires Python `>=3.10`; direct C ABI loading passed, but package-level import under the supported Python version was not verified in this environment.
+
+## Previous Handoff — 2026-10-01
+
 Date: 2026-10-01
 Author: AI Agent
 
@@ -34,7 +61,7 @@ Author: AI Agent
 1. Custom Python graphs are fully snapshotted before each query and default to a 1,000,000-node limit; reuse `NativeGraph` for repeated queries or larger graphs.
 2. The benchmark timings are local and do not include compiler or hardware metadata; use them for same-host comparisons.
 
-## Previous Handoff
+## Previous Handoff — 2026-02-12
 
 Date: 2026-02-12
 Author: AI Agent

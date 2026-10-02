@@ -1,5 +1,8 @@
 ## Baseline Run - 2026-02-12
 
+> Historical run record from before the native C/C++ planner migration. Keep
+> the results below as recorded; they are not current validation results.
+
 ### 1) `python -m pytest -q`
 
 ```text
@@ -36,4 +39,3 @@
    Files: `pathplanning/sampling_based_planning/rrt_2d/plotting.py`, `pathplanning/search_based_planning/plan2d/utils/plotting.py`
 10. 3D geometry/collision utility kernel (ray, distance, inside checks, line-vs-shape checks, collide gate)
    Files: `pathplanning/sampling_based_planning/rrt_3d/utils_3d.py`, `pathplanning/search_based_planning/search_3d/utils_3d.py`, `pathplanning/sampling_based_planning/rrt_2d/utils.py`
-

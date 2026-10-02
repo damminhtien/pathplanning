@@ -1,7 +1,8 @@
 # Typing Policy
 
-This repository enforces typing incrementally with `pyright` as the primary checker.
-`pyright` is the authoritative type checker for merge decisions.
+This repository enforces Python typing incrementally with `pyright` as the
+primary checker. The exact include and strict lists live in
+`pyrightconfig.json`; update this document whenever those lists change.
 
 ## Goals
 
@@ -16,18 +17,22 @@ This repository enforces typing incrementally with `pyright` as the primary chec
 - Global mode: `basic` for broad coverage.
 - Strict scope:
   - `pathplanning/core`
-  - `pathplanning/env`
-  - `pathplanning/sampling_based_planning`
-  - `pathplanning/registry.py`
+  - `pathplanning/spaces/continuous_3d.py`
+  - `pathplanning/spaces/continuous_nd.py`
+  - `pathplanning/spaces/grid2d.py`
+  - `pathplanning/nn/index.py`
+  - `pathplanning/data_structures/tree_array.py`
+  - `pathplanning/planners/sampling/rrt.py`
+  - `pathplanning/planners/sampling/rrt_star.py`
   - `pathplanning/api.py`
-  - `pathplanning/__init__.py`
-- Basic scope:
-  - `pathplanning/viz`
-  - `examples`
-  - `pathplanning/_legacy`
-  - wrapper/demo-heavy modules while they are being migrated
+  - `pathplanning/registry.py`
+- The broad `include` list also checks supporting adapters, visualization
+  helpers, and selected examples in basic mode. Tests are excluded.
 
-This model gives full-repo signal without blocking progress on legacy code.
+The native C/C++ implementation is compiled by `make build-ext`; `pyright`
+checks the Python declarations and adapters, not C/C++ types or ABI layout.
+Keep the C headers and matching `ctypes.Structure` definitions synchronized as
+described in `native_core.md`.
 
 ## Public API Requirements
 
@@ -52,6 +57,6 @@ This model gives full-repo signal without blocking progress on legacy code.
 
 ## Migration Plan
 
-1. Move one legacy module family into strict scope at a time.
-2. Keep each migration in small commits with `pytest -q` green.
-3. Expand `pyright` strict list only after module family is clean.
+1. Move one module family into strict scope at a time.
+2. Keep behavior migrations covered by deterministic tests.
+3. Expand `pyright` strict list only after the module family is clean.

@@ -1,5 +1,9 @@
 # Refactor Baseline Report
 
+> Historical snapshot from the 2026-02-12 package layout, before the native
+> C/C++ planner migration. The paths and measurements below describe that
+> baseline; use `state.md` and `docs/native_core.md` for the current architecture.
+
 ## Commands Run
 
 - `python -m pytest -q`

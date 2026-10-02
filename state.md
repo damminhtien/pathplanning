@@ -1,48 +1,61 @@
 # Project State
 
-Last updated: 2026-02-12
+Last updated: 2026-10-02
 Branch: `main`
 
 ## Current Snapshot
 
 - Project: `PathPlanning`
-- Package: `pathplanning`
-- Version: `0.2.0`
+- Package: `pathplanning` (`0.2.0`)
 - Canonical repository: `https://github.com/damminhtien/pathplanning`
 - Python requirement: `>=3.10`
-- Runtime deps: `requirements.txt`
-- Dev deps: `requirements-dev.txt`
+- Source build toolchain: C11 and C++17 compilers
+- Runtime dependencies: `requirements.txt`
+- Development dependencies: `requirements-dev.txt`
 
 ## Production API Surface
 
-Registry-backed supported algorithms:
+The registry-backed production planners are enumerated in
+[`SUPPORTED_ALGORITHMS.md`](SUPPORTED_ALGORITHMS.md). The current matrix covers
+discrete BFS, DFS, greedy best-first, A*, Dijkstra, weighted A*, anytime A*,
+bidirectional Dijkstra, and bidirectional A*, plus continuous RRT, RRT*,
+Informed RRT*, FMT*, BIT*, ABIT*, and RRT-Connect.
 
-1. `sampling3d.rrt` -> `pathplanning.planners.sampling.rrt:RrtPlanner`
-2. `sampling3d.rrt_star` -> `pathplanning.planners.sampling.rrt_star:RrtStarPlanner`
+`DynamicRRT3D` is a separate stateful public API, not a registry entry.
 
 ## Architecture Snapshot
 
-- Shared space/environment layer: `pathplanning/spaces`
-- Shared NN index: `pathplanning/nn/index.py`
-- Shared tree storage: `pathplanning/data_structures/tree_array.py`
-- Shared priority queue: `pathplanning/utils/priority_queue.py`
-- Geometry math: `pathplanning/geometry`
-- Plotting helpers: `pathplanning/viz`
+- Discrete graph search, CSR storage, and frontier queues run in the C++17 core
+  at `pathplanning/native/search_engine.cpp`.
+- Continuous sampling planner loops and DynamicRRT3D pruning/growth run in the
+  C11 core at `pathplanning/native/continuous_engine.c`.
+- Python owns contracts, registry dispatch, input/result adaptation, and the
+  compatibility callbacks for custom Python spaces, goals, and objectives.
+- Built-in continuous spaces pass bounds and obstacle arrays to C once per
+  plan; their sampling and collision checks run natively.
+- Native architecture, data ownership, build requirements, and limitations are
+  detailed in [`docs/native_core.md`](docs/native_core.md).
 
-## Validation Baseline
+## Latest Native-Core Change
 
-Most recent full run observed:
+Core migration commit: `d54e7dc` (`Move continuous planner cores to native C`).
+The existing C++ search engine was retained. The C and C++ engines build as
+separate libraries and export C ABIs for the thin Python adapters.
 
-- `pytest -q` -> `67 passed`
+## Validation and Evidence
 
-## Active Risks / Gaps
+For the native-core migration, C/C++ syntax checks with warnings as errors,
+extension builds, direct C ABI loading, Ruff, Python compilation, and
+`git diff --check` passed. The full pytest suite and a sampling performance
+benchmark were not run as part of that migration; do not claim measured
+end-to-end speedups until benchmark evidence is recorded.
 
-1. CI workflow still references some legacy paths and should be aligned with the new layout.
-2. Production registry scope is intentionally narrow; adding algorithms requires explicit registry + test coverage updates.
-3. Several root docs were previously stale and require periodic synchronization after large refactors.
+## Active Risks and Gaps
 
-## Next High-Value Tasks
-
-1. Align `.github/workflows/pylint.yml` targets with `planners/spaces/geometry` layout.
-2. Expand typed/registry-backed production surface beyond current 3D RRT pair.
-3. Add benchmark baselines for key search and sampling planners.
+1. Custom Python spaces, goal predicates, and supported RRT* objectives still
+   invoke Python callbacks during native planner operations. Built-in space
+   models use callback-free native sampling and collision checks.
+2. The benchmark currently has representative discrete and sampling rows, but
+   only discrete rows expose separate graph-init/native-search timings.
+3. Graphify's AST parser does not fully extract the two native C ABI headers;
+   C and C++ compilers accept the headers and source files.
