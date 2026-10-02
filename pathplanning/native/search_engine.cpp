@@ -33,7 +33,7 @@ struct pp_native_graph {
 
 namespace {
 
-constexpr const char* kVersion = "0.3.1";
+constexpr const char* kVersion = "0.4.0";
 constexpr double kInfinity = std::numeric_limits<double>::infinity();
 constexpr uint64_t kNoGoalId = std::numeric_limits<uint64_t>::max();
 
@@ -194,6 +194,7 @@ void validate_search_options(const pp_search_options* options, uint64_t node_cou
         case PP_SEARCH_DIJKSTRA:
         case PP_SEARCH_WEIGHTED_ASTAR:
         case PP_SEARCH_BIDIRECTIONAL_DIJKSTRA:
+        case PP_SEARCH_BIDIRECTIONAL_ASTAR:
         case PP_SEARCH_ANYTIME_ASTAR:
             break;
         default:
@@ -205,7 +206,8 @@ void validate_search_options(const pp_search_options* options, uint64_t node_cou
     if (options->has_max_expansions && options->max_expansions == 0) {
         throw std::invalid_argument("max_expansions must be > 0 when enabled");
     }
-    if (options->algorithm == PP_SEARCH_BIDIRECTIONAL_DIJKSTRA) {
+    if (options->algorithm == PP_SEARCH_BIDIRECTIONAL_DIJKSTRA ||
+        options->algorithm == PP_SEARCH_BIDIRECTIONAL_ASTAR) {
         if (!options->has_goal_id) {
             throw std::invalid_argument("bidirectional search requires an exact goal id");
         }
@@ -736,6 +738,173 @@ int run_bidirectional_search(
 }
 
 template <typename ParentId>
+int run_bidirectional_astar_search(
+    const pp_native_graph* graph,
+    const double* heuristic_values,
+    uint64_t start_id,
+    const pp_search_options* options,
+    pp_search_result* result
+) {
+    const uint64_t goal_id = options->goal_id;
+    if (goal_id >= graph->node_count) {
+        set_failure_result(result, PP_SEARCH_STOP_NO_PROGRESS, 0, 1);
+        return 0;
+    }
+    if (start_id == goal_id) {
+        set_success_result(result, 0, 1, 0.0, std::vector<uint64_t>{start_id});
+        return 0;
+    }
+
+    auto potential = [&](uint64_t node_id) {
+        return compute_heuristic(graph, heuristic_values, node_id, options, 1.0);
+    };
+    // A consistent potential makes every reduced edge non-negative. Validate
+    // the whole CSR once so the bidirectional stopping bound remains sound.
+    for (uint64_t source = 0; source < graph->node_count; ++source) {
+        const uint64_t edge_begin = graph->offsets[static_cast<size_t>(source)];
+        const uint64_t edge_end = graph->offsets[static_cast<size_t>(source) + 1];
+        const double source_h = potential(source);
+        for (uint64_t edge = edge_begin; edge < edge_end; ++edge) {
+            const double cost = graph->edge_costs[static_cast<size_t>(edge)];
+            if (!std::isfinite(cost)) {
+                continue;
+            }
+            const uint64_t target = graph->neighbor_ids[static_cast<size_t>(edge)];
+            const double target_h = potential(target);
+            const double reduced_cost = cost + target_h - source_h;
+            const double tolerance = 1e-12 * std::max(
+                1.0,
+                std::max(std::abs(cost), std::max(std::abs(source_h), std::abs(target_h)))
+            );
+            if (reduced_cost < -tolerance) {
+                throw std::invalid_argument(
+                    "bidirectional_astar requires a consistent heuristic"
+                );
+            }
+        }
+    }
+
+    const size_t node_count = static_cast<size_t>(graph->node_count);
+    SearchStates<ParentId> forward_states(node_count);
+    SearchStates<ParentId> backward_states(node_count);
+    forward_states.g_cost(start_id) = 0.0;
+    backward_states.g_cost(goal_id) = 0.0;
+    ensure_reverse_edges(graph);
+    uint64_t forward_discovered = 1;
+    uint64_t backward_discovered = 1;
+
+    std::priority_queue<QueueEntry, std::vector<QueueEntry>, QueueEntryGreater> forward_heap;
+    std::priority_queue<QueueEntry, std::vector<QueueEntry>, QueueEntryGreater> backward_heap;
+    uint64_t tie_breaker = 0;
+    forward_heap.push(QueueEntry{0.0, 0.0, tie_breaker++, start_id});
+    backward_heap.push(QueueEntry{0.0, 0.0, tie_breaker++, goal_id});
+
+    double best_reduced_cost = kInfinity;
+    uint64_t meet_id = 0;
+    bool has_meet = false;
+    uint64_t expanded = 0;
+
+    while (!forward_heap.empty() && !backward_heap.empty()) {
+        if (over_expansion_budget(options, expanded)) {
+            break;
+        }
+
+        const bool reverse = forward_heap.top().f_score > backward_heap.top().f_score;
+        auto* heap = reverse ? &backward_heap : &forward_heap;
+        auto* states_this = reverse ? &backward_states : &forward_states;
+        const auto& states_other = reverse ? forward_states : backward_states;
+        const AdjacencyView edges = adjacency(graph, reverse);
+        const QueueEntry entry = heap->top();
+        heap->pop();
+        if (states_this->is_closed(entry.node_id)) {
+            continue;
+        }
+        states_this->mark_closed(entry.node_id);
+        ++expanded;
+
+        const double other_cost = states_other.g_cost(entry.node_id);
+        if (std::isfinite(other_cost)) {
+            const double candidate = states_this->g_cost(entry.node_id) + other_cost;
+            if (candidate < best_reduced_cost) {
+                best_reduced_cost = candidate;
+                meet_id = entry.node_id;
+                has_meet = true;
+            }
+        }
+
+        const uint64_t edge_begin = (*edges.offsets)[static_cast<size_t>(entry.node_id)];
+        const uint64_t edge_end = (*edges.offsets)[static_cast<size_t>(entry.node_id) + 1];
+        const double current_h = potential(entry.node_id);
+        for (uint64_t edge = edge_begin; edge < edge_end; ++edge) {
+            const double cost = (*edges.edge_costs)[static_cast<size_t>(edge)];
+            if (!std::isfinite(cost)) {
+                continue;
+            }
+            const uint64_t neighbor = (*edges.neighbor_ids)[static_cast<size_t>(edge)];
+            const double neighbor_h = potential(neighbor);
+            const double reduced_cost = reverse
+                ? cost + current_h - neighbor_h
+                : cost + neighbor_h - current_h;
+            const double reduced_nonnegative = std::max(0.0, reduced_cost);
+            const double tentative = states_this->g_cost(entry.node_id) + reduced_nonnegative;
+            if (!std::isfinite(tentative) || states_this->is_closed(neighbor) ||
+                tentative >= states_this->g_cost(neighbor)) {
+                continue;
+            }
+            if (!std::isfinite(states_this->g_cost(neighbor))) {
+                if (reverse) {
+                    ++backward_discovered;
+                } else {
+                    ++forward_discovered;
+                }
+            }
+            states_this->g_cost(neighbor) = tentative;
+            states_this->set_parent(neighbor, entry.node_id);
+            heap->push(QueueEntry{tentative, 0.0, tie_breaker++, neighbor});
+            const double opposite_cost = states_other.g_cost(neighbor);
+            if (std::isfinite(opposite_cost) && tentative + opposite_cost < best_reduced_cost) {
+                best_reduced_cost = tentative + opposite_cost;
+                meet_id = neighbor;
+                has_meet = true;
+            }
+        }
+
+        const double forward_bound = forward_heap.empty() ? kInfinity : forward_heap.top().f_score;
+        const double backward_bound = backward_heap.empty() ? kInfinity : backward_heap.top().f_score;
+        if (has_meet && forward_bound + backward_bound >= best_reduced_cost) {
+            break;
+        }
+    }
+
+    const uint64_t discovered = forward_discovered + backward_discovered;
+    if (!has_meet) {
+        set_failure_result(
+            result,
+            options->has_max_expansions ? PP_SEARCH_STOP_MAX_ITERS : PP_SEARCH_STOP_NO_PROGRESS,
+            expanded,
+            discovered
+        );
+        return 0;
+    }
+
+    const double original_cost = best_reduced_cost + potential(start_id) - potential(goal_id);
+    set_success_result(
+        result,
+        expanded,
+        discovered,
+        original_cost,
+        reconstruct_bidirectional_path(
+            forward_states,
+            backward_states,
+            start_id,
+            goal_id,
+            meet_id
+        )
+    );
+    return 0;
+}
+
+template <typename ParentId>
 int run_anytime_astar_search(
     const pp_native_graph* graph,
     const uint8_t* goal_flags,
@@ -818,6 +987,14 @@ int run_search_by_algorithm(
             );
         case PP_SEARCH_BIDIRECTIONAL_DIJKSTRA:
             return run_bidirectional_search<ParentId>(graph, start_id, options, result);
+        case PP_SEARCH_BIDIRECTIONAL_ASTAR:
+            return run_bidirectional_astar_search<ParentId>(
+                graph,
+                heuristic_values,
+                start_id,
+                options,
+                result
+            );
         case PP_SEARCH_ANYTIME_ASTAR:
             return run_anytime_astar_search<ParentId>(
                 graph,

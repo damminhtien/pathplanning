@@ -12,6 +12,7 @@ from pathplanning.api import plan_discrete
 from pathplanning.core.contracts import DiscreteProblem
 from pathplanning.native import NativeGraph, NativeGraphError
 from pathplanning.native._ffi import SearchOptions, SearchResult, load_native_library
+from pathplanning.planners.search._internal.native import NativeSearchError
 from pathplanning.spaces.grid2d import Grid2DSearchSpace
 
 
@@ -119,6 +120,58 @@ def test_native_graph_reuses_csr_and_supports_directed_bidirectional_search() ->
     assert forward.stats["path_cost"] == pytest.approx(5.0)
     assert np.array_equal(forward.path[:, 0], np.array([0.0, 1.0, 2.0]))
     assert not backward.success
+
+
+def test_bidirectional_astar_uses_consistent_heuristic_and_preserves_optimal_cost() -> None:
+    class HeuristicGraph:
+        adjacency = {
+            0: [(1, 1.0), (2, 1.0), (3, 5.0)],
+            1: [(3, 1.0)],
+            2: [(3, 1.0)],
+            3: [],
+        }
+        heuristic_values = {0: 2.0, 1: 1.0, 2: 1.0, 3: 0.0}
+
+        def neighbors(self, node: int) -> tuple[int, ...]:
+            return tuple(target for target, _ in self.adjacency[node])
+
+        def edge_cost(self, source: int, target: int) -> float:
+            return next(cost for neighbor, cost in self.adjacency[source] if neighbor == target)
+
+        def heuristic(self, node: int, _goal: int) -> float:
+            return self.heuristic_values[node]
+
+    result = plan_discrete(
+        DiscreteProblem(graph=HeuristicGraph(), start=0, goal=3),
+        planner="bidirectional_astar",
+    )
+
+    assert result.success
+    assert result.stats["path_cost"] == pytest.approx(2.0)
+    assert result.path is not None
+    assert result.path[0, 0] == 0.0
+    assert result.path[-1, 0] == 3.0
+
+
+def test_bidirectional_astar_rejects_inconsistent_heuristics() -> None:
+    class InconsistentGraph:
+        adjacency = {0: [(1, 1.0)], 1: [(2, 1.0)], 2: []}
+        heuristic_values = {0: 0.0, 1: 10.0, 2: 0.0}
+
+        def neighbors(self, node: int) -> tuple[int, ...]:
+            return tuple(target for target, _ in self.adjacency[node])
+
+        def edge_cost(self, source: int, target: int) -> float:
+            return next(cost for neighbor, cost in self.adjacency[source] if neighbor == target)
+
+        def heuristic(self, node: int, _goal: int) -> float:
+            return self.heuristic_values[node]
+
+    with pytest.raises(NativeSearchError, match="consistent heuristic"):
+        plan_discrete(
+            DiscreteProblem(graph=InconsistentGraph(), start=0, goal=2),
+            planner="bidirectional_astar",
+        )
 
 
 def test_bidirectional_dijkstra_requires_an_exact_goal() -> None:

@@ -286,6 +286,10 @@ class RrtStarPlanner:
                 else:
                     self._recompute_objective_subtree(near_index, tree, children)
 
+    def _after_iteration(self, tree: ArrayTree, goal_indices: list[int]) -> None:
+        """Allow specialized RRT* variants to update query-dependent sampling state."""
+        _ = (tree, goal_indices)
+
     def plan(self, start: Sequence[float] | State, goal_region: GoalRegion[State]) -> PlanResult:
         """Compute a collision-free path from ``start`` into ``goal_region``."""
         self.params.validate()
@@ -384,6 +388,7 @@ class RrtStarPlanner:
             goal_checks += 1
             if goal.predicate(tree.node(new_index)):
                 goal_indices.append(new_index)
+            self._after_iteration(tree, goal_indices)
 
         if goal_indices:
             best_goal_index = min(goal_indices, key=lambda idx: tree.cost[idx])

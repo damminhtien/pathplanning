@@ -41,6 +41,7 @@ _ALGORITHM_DIJKSTRA = 5
 _ALGORITHM_WEIGHTED_ASTAR = 6
 _ALGORITHM_BIDIRECTIONAL_DIJKSTRA = 7
 _ALGORITHM_ANYTIME_ASTAR = 8
+_ALGORITHM_BIDIRECTIONAL_ASTAR = 9
 _DEFAULT_MAX_MATERIALIZED_NODES = 1_000_000
 _NO_GOAL_ID = (1 << 64) - 1
 _MAX_PRECOMPUTED_HEURISTIC_NODES = 65_536
@@ -441,6 +442,21 @@ def run_native_bidirectional_dijkstra(
     )
 
 
+def run_native_bidirectional_astar(
+    problem: DiscreteProblem[N],
+    *,
+    max_expansions: int | None,
+) -> PlanResult:
+    """Run native bidirectional A* with a consistent graph heuristic."""
+    return run_native_search(
+        problem,
+        algorithm=_ALGORITHM_BIDIRECTIONAL_ASTAR,
+        max_expansions=max_expansions,
+        use_heuristic=True,
+        require_exact_goal=True,
+    )
+
+
 def run_native_anytime_astar(
     problem: DiscreteProblem[N],
     *,
@@ -484,6 +500,7 @@ __all__ = [
     "run_native_anytime_astar",
     "run_native_best_first",
     "run_native_bidirectional_dijkstra",
+    "run_native_bidirectional_astar",
     "run_native_breadth_first",
     "run_native_depth_first",
     "run_native_greedy_best_first",

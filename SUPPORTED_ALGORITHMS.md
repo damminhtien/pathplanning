@@ -13,27 +13,26 @@ Status values:
 | `discrete`   | `greedy_best_first` | `pathplanning.planners.search.greedy_best_first` | `plan_greedy_best_first` | supported |
 | `discrete`   | `astar`             | `pathplanning.planners.search.astar`        | `plan_astar`            | supported |
 | `discrete`   | `bidirectional_dijkstra` | `pathplanning.planners.search.bidirectional_dijkstra` | `plan_bidirectional_dijkstra` | supported |
+| `discrete`   | `bidirectional_astar` | `pathplanning.planners.search.bidirectional_astar` | `plan_bidirectional_astar` | supported |
 | `discrete`   | `dijkstra`          | `pathplanning.planners.search.dijkstra`     | `plan_dijkstra`         | supported |
 | `discrete`   | `weighted_astar`    | `pathplanning.planners.search.weighted_astar` | `plan_weighted_astar` | supported |
 | `discrete`   | `anytime_astar`     | `pathplanning.planners.search.anytime_astar` | `plan_anytime_astar` | supported |
 | `continuous` | `rrt`               | `pathplanning.planners.sampling.rrt`        | `plan_rrt`              | supported |
 | `continuous` | `rrt_star`          | `pathplanning.planners.sampling.rrt_star`   | `plan_rrt_star`         | supported |
+| `continuous` | `informed_rrt_star` | `pathplanning.planners.sampling.informed_rrt_star` | `plan_informed_rrt_star` | supported |
+| `continuous` | `fmt_star`          | `pathplanning.planners.sampling.fmt_star`   | `plan_fmt_star`         | supported |
+| `continuous` | `bit_star`          | `pathplanning.planners.sampling.bit_star`   | `plan_bit_star`         | supported |
+| `continuous` | `abit_star`         | `pathplanning.planners.sampling.abit_star`  | `plan_abit_star`        | supported |
+| `continuous` | `rrt_connect`       | `pathplanning.planners.sampling.rrt_connect` | `plan_rrt_connect`      | supported |
 
 `bidirectional_dijkstra` uses two Dijkstra frontiers and does not evaluate a
-heuristic. It requires an exact goal node. The old registered name
-`bidirectional_astar` has been removed because it described a different
-algorithm; the old module path remains as a clearly documented import alias.
+heuristic. `bidirectional_astar` runs the same native kernel over potential-
+reweighted edges and requires a consistent heuristic. Both require an exact
+goal node.
 
-## Compatibility entry points not registered as supported
-
-These import paths remain available for source compatibility, but each delegates
-to another algorithm. They are excluded from the registry and from the supported
-planner surface:
-
-| Legacy name | Actual implementation |
-| ----------- | --------------------- |
-| `informed_rrt_star` | RRT* without informed sampling |
-| `bit_star` | RRT* |
-| `abit_star` | RRT* |
-| `fmt_star` | RRT |
-| `rrt_connect` | RRT |
+The optimal continuous planners `informed_rrt_star`, `fmt_star`, `bit_star`,
+and `abit_star` require exact point goals, Euclidean state-space distance, and
+additive path length. They reject custom objectives because the search bounds
+rely on additive path length.
+`fmt_star` uses `sample_count` as its fixed sample set size. `bit_star` and
+`abit_star` use `sample_count` across batches and `batch_size` per batch.

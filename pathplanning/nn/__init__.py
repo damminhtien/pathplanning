@@ -1,6 +1,8 @@
 """Nearest-neighbor index abstractions and implementations."""
 
 from pathplanning.nn.index import (
+    DynamicNnIndex,
+    IncrementalNnIndex,
     KDTreeIndex,
     KDTreeNnIndex,
     NaiveIndex,
@@ -10,6 +12,8 @@ from pathplanning.nn.index import (
 
 __all__ = [
     "NearestNeighborIndex",
+    "IncrementalNnIndex",
+    "DynamicNnIndex",
     "NaiveNnIndex",
     "KDTreeNnIndex",
     "NaiveIndex",

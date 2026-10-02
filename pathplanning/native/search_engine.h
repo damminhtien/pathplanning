@@ -30,6 +30,7 @@ typedef enum pp_search_algorithm {
     PP_SEARCH_WEIGHTED_ASTAR = 6,
     PP_SEARCH_BIDIRECTIONAL_DIJKSTRA = 7,
     PP_SEARCH_ANYTIME_ASTAR = 8,
+    PP_SEARCH_BIDIRECTIONAL_ASTAR = 9,
 } pp_search_algorithm;
 
 // Legacy callback input is retained for ABI compatibility. Its graph is

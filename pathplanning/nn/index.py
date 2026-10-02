@@ -139,6 +139,100 @@ class KDTreeNnIndex:
         return np.asarray(indices, dtype=np.int64)
 
 
+class IncrementalNnIndex:
+    """Append-only nearest-neighbor index using logarithmic static-tree blocks.
+
+    Each point belongs to one block. Binary-size merges rebuild each point only
+    logarithmically many times, while queries inspect O(log n) cKDTree blocks.
+    If SciPy is unavailable, the same structure falls back to vectorized NumPy
+    scans without changing its linear storage bound.
+    """
+
+    def __init__(self, dim: int) -> None:
+        self._dim = dim
+        self._size = 0
+        self._levels: list[tuple[Mat, NDArray[np.int64], NearestNeighborIndex] | None] = []
+
+    def build(self, points: Mat) -> None:
+        self._size = 0
+        self._levels.clear()
+        self.append(points)
+
+    def append(self, points: Mat) -> None:
+        new_points = _as_matrix(points, self._dim)
+        if new_points.shape[0] == 0:
+            return
+        block_points = new_points.copy()
+        block_ids = np.arange(
+            self._size,
+            self._size + block_points.shape[0],
+            dtype=np.int64,
+        )
+        self._size += int(block_points.shape[0])
+        level = 0
+        while True:
+            if level == len(self._levels):
+                self._levels.append(None)
+            existing = self._levels[level]
+            if existing is None:
+                index = self._make_index(block_points)
+                self._levels[level] = (block_points, block_ids, index)
+                return
+            prior_points, prior_ids, _ = existing
+            self._levels[level] = None
+            block_points = np.concatenate((prior_points, block_points), axis=0)
+            block_ids = np.concatenate((prior_ids, block_ids))
+            level += 1
+
+    def _make_index(self, points: Mat) -> NearestNeighborIndex:
+        try:
+            index = KDTreeNnIndex(self._dim)
+            index.build(points)
+            return index
+        except RuntimeError:
+            index = NaiveNnIndex(self._dim)
+            index.build(points)
+            return index
+
+    def nearest(self, q: Vec) -> NodeId:
+        if self._size == 0:
+            raise ValueError("nearest() called on empty index")
+        query = _as_point(q, self._dim)
+        best_id = -1
+        best_distance = np.inf
+        for block_points, block_ids, index in self._iter_blocks():
+            local_id = index.nearest(query)
+            delta = block_points[local_id] - query
+            distance_sq = float(delta @ delta)
+            if distance_sq < best_distance:
+                best_distance = distance_sq
+                best_id = int(block_ids[local_id])
+        return best_id
+
+    def radius(self, q: Vec, r: float) -> NDArray[np.int64]:
+        if r < 0:
+            raise ValueError("radius must be non-negative")
+        if self._size == 0:
+            return np.empty((0,), dtype=np.int64)
+        query = _as_point(q, self._dim)
+        result: list[NDArray[np.int64]] = []
+        for block_points, block_ids, index in self._iter_blocks():
+            local_ids = index.radius(query, r)
+            if local_ids.size:
+                deltas = block_points[local_ids] - query
+                distances_sq = np.einsum("ij,ij->i", deltas, deltas)
+                selected = local_ids[distances_sq <= float(r) ** 2]
+                if selected.size:
+                    result.append(block_ids[selected])
+        if not result:
+            return np.empty((0,), dtype=np.int64)
+        return np.concatenate(result)
+
+    def _iter_blocks(self) -> list[tuple[Mat, NDArray[np.int64], NearestNeighborIndex]]:
+        return [block for block in self._levels if block is not None]
+
+
 # Stable aliases for existing imports.
 NaiveIndex = NaiveNnIndex
 KDTreeIndex = KDTreeNnIndex
+DynamicNnIndex = IncrementalNnIndex

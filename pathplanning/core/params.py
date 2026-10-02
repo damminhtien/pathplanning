@@ -28,6 +28,10 @@ class RrtParams:
     rrt_star_radius_gamma: float = 2.0
     rrt_star_radius_bias: float = 1.0
     rrt_star_radius_max_factor: float = 6.0
+    sample_count: int = 512
+    batch_size: int = 64
+    abit_inflation_parameter: float = 10.0
+    abit_truncation_parameter: float = 5.0
 
     def __post_init__(self) -> None:
         self.validate()
@@ -84,5 +88,22 @@ class RrtParams:
             raise TypeError("rrt_star_radius_max_factor must be a finite real number")
         if self.rrt_star_radius_max_factor <= 0:
             raise ValueError("rrt_star_radius_max_factor must be > 0")
+
+        for name in ("sample_count", "batch_size"):
+            value = getattr(self, name)
+            if isinstance(value, bool) or type(value) is not int:
+                raise TypeError(f"{name} must be an integer")
+            if value <= 0:
+                raise ValueError(f"{name} must be > 0")
+
+        if not _is_valid_real(self.abit_inflation_parameter):
+            raise TypeError("abit_inflation_parameter must be a finite real number")
+        if self.abit_inflation_parameter < 0:
+            raise ValueError("abit_inflation_parameter must be >= 0")
+
+        if not _is_valid_real(self.abit_truncation_parameter):
+            raise TypeError("abit_truncation_parameter must be a finite real number")
+        if self.abit_truncation_parameter < 0:
+            raise ValueError("abit_truncation_parameter must be >= 0")
 
         return self

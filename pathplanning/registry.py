@@ -9,10 +9,16 @@ from pathplanning.core.contracts import ContinuousProblem, DiscreteProblem, Stat
 from pathplanning.core.params import RrtParams
 from pathplanning.core.results import PlanResult
 from pathplanning.core.types import RNG
+from pathplanning.planners.sampling.abit_star import plan_abit_star
+from pathplanning.planners.sampling.bit_star import plan_bit_star
+from pathplanning.planners.sampling.fmt_star import plan_fmt_star
+from pathplanning.planners.sampling.informed_rrt_star import plan_informed_rrt_star
 from pathplanning.planners.sampling.rrt import plan_rrt
+from pathplanning.planners.sampling.rrt_connect import plan_rrt_connect
 from pathplanning.planners.sampling.rrt_star import plan_rrt_star
 from pathplanning.planners.search.anytime_astar import plan_anytime_astar
 from pathplanning.planners.search.astar import plan_astar
+from pathplanning.planners.search.bidirectional_astar import plan_bidirectional_astar
 from pathplanning.planners.search.bidirectional_dijkstra import plan_bidirectional_dijkstra
 from pathplanning.planners.search.breadth_first_search import plan_breadth_first_search
 from pathplanning.planners.search.depth_first_search import plan_depth_first_search
@@ -53,6 +59,7 @@ SEARCH_PLANNERS: Mapping[str, DiscretePlannerCallable] = {
     "greedy_best_first": plan_greedy_best_first,
     "astar": plan_astar,
     "bidirectional_dijkstra": plan_bidirectional_dijkstra,
+    "bidirectional_astar": plan_bidirectional_astar,
     "dijkstra": plan_dijkstra,
     "weighted_astar": plan_weighted_astar,
     "anytime_astar": plan_anytime_astar,
@@ -61,6 +68,11 @@ SEARCH_PLANNERS: Mapping[str, DiscretePlannerCallable] = {
 SAMPLING_PLANNERS: Mapping[str, ContinuousPlannerCallable] = {
     "rrt": plan_rrt,
     "rrt_star": plan_rrt_star,
+    "informed_rrt_star": plan_informed_rrt_star,
+    "fmt_star": plan_fmt_star,
+    "bit_star": plan_bit_star,
+    "abit_star": plan_abit_star,
+    "rrt_connect": plan_rrt_connect,
 }
 
 

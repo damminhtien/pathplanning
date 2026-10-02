@@ -75,10 +75,10 @@ Defined in `pathplanning/core/contracts.py` and typed with `S`, `N`, `RNG` from 
 - `pathplanning.api.plan_discrete(...)`
   - accepts `DiscreteProblem[...]`
   - dispatches to registry discrete planners, including `astar`, `dijkstra`, and
-    `bidirectional_dijkstra`
+    `bidirectional_dijkstra`, and `bidirectional_astar`
 - `pathplanning.api.plan_continuous(...)`
   - accepts `ContinuousProblem[...]`
-  - dispatches to the implemented registry planners (`rrt`, `rrt_star`)
+  - dispatches to RRT, RRT*, Informed RRT*, FMT*, BIT*, ABIT*, and RRT-Connect
 
 ### Search planners
 
@@ -89,6 +89,8 @@ Defined in `pathplanning/core/contracts.py` and typed with `S`, `N`, `RNG` from 
   - `DiscreteProblem[N]` + `DiscreteGraph[N]`
 - `pathplanning.planners.search.bidirectional_dijkstra.plan_bidirectional_dijkstra`
   - exact-goal search over forward and reverse native CSR adjacency
+- `pathplanning.planners.search.bidirectional_astar.plan_bidirectional_astar`
+  - exact-goal search using a consistent heuristic and potential-reweighted CSR edges
 
 ### Sampling planners
 
@@ -99,16 +101,28 @@ Defined in `pathplanning/core/contracts.py` and typed with `S`, `N`, `RNG` from 
   - same contracts as `RrtPlanner`
 - `pathplanning.planners.sampling.dynamic_rrt.DynamicRRT3D`
   - contract-driven dynamic wrapper around `RrtPlanner`
-- `pathplanning.planners.sampling.bit_star.BitStar`,
-  `...informed_rrt_star.InformedRrtStar`, `...fmt_star.FmtStar`,
-  `...abit_star.AbitStar`, `...rrt_connect.RrtConnect`
-  - compatibility wrappers only: they delegate to RRT or RRT* and are not
-    registered under those algorithm names
+- `pathplanning.planners.sampling.informed_rrt_star.InformedRrtStar`
+  - RRT* with direct prolate-hyperspheroid sampling after the first solution
+- `pathplanning.planners.sampling.fmt_star.FmtStar`
+  - fixed-sample lazy dynamic-programming tree construction
+- `pathplanning.planners.sampling.bit_star.BITStar`
+  - batched samples and ordered edge search in an implicit random geometric graph
+- `pathplanning.planners.sampling.abit_star.ABITStar`
+  - BIT* search with decreasing heuristic inflation and truncation across batches
+- `pathplanning.planners.sampling.rrt_connect.RrtConnect`
+  - alternating start/goal trees with greedy connection attempts
+
+FMT*, BIT*, ABIT*, and Informed RRT* require exact point goals, Euclidean
+state-space distance, and additive path length. They reject custom objectives
+because those objectives do not provide the additive lower bounds required by
+their search. BIT* and ABIT* use `sample_count` and `batch_size`; FMT* uses
+`sample_count` for its fixed set.
 
 ### Search algorithm labels
 
 - `bidirectional_dijkstra` expands two uniform-cost frontiers over forward and reverse CSR adjacency.
-- It requires an exact goal node. The previous `bidirectional_astar` registry name was inaccurate because the kernel did not use a heuristic.
+- `bidirectional_astar` applies a consistent heuristic as a potential, then runs native bidirectional Dijkstra on non-negative reduced costs. It checks consistency over the prepared graph before search.
+- Both bidirectional search planners require an exact goal node.
 
 ## Reference environment implementations
 

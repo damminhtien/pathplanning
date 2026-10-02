@@ -1,61 +1,34 @@
-"""Legacy ABIT* interface; the implementation currently delegates to RRT*."""
+"""ABIT*: anytime BIT* with heuristic inflation and search truncation."""
 
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
+from collections.abc import Mapping
 
-import numpy as np
-
-from pathplanning.core.contracts import (
-    ContinuousProblem,
-    ContinuousSpace,
-    GoalRegion,
-    Objective,
-    State,
-)
+from pathplanning.core.contracts import ContinuousProblem, State
 from pathplanning.core.params import RrtParams
 from pathplanning.core.results import PlanResult
 from pathplanning.core.types import RNG
+from pathplanning.planners.sampling._internal.bit_engine import (
+    BatchInformedTreePlanner,
+    IndexFactory,
+)
+from pathplanning.planners.sampling._internal.continuous import validate_objective
 from pathplanning.planners.sampling._internal.problem_adapter import (
     coerce_rrt_params,
     resolve_rng,
 )
-from pathplanning.planners.sampling.rrt_star import IndexFactory, RrtStarPlanner
 
 
-class AbitStar:
-    """Compatibility wrapper that executes the shared RRT* implementation.
+class ABITStar(BatchInformedTreePlanner):
+    """Anytime BIT* that reduces inflation and truncation across sample batches."""
 
-    This class does not implement ABIT* and is not registered as a supported planner.
-    """
+    planner_name = "ABIT*"
 
-    def __init__(
-        self,
-        space: ContinuousSpace[State],
-        params: RrtParams,
-        rng: np.random.Generator,
-        *,
-        nn_index_factory: IndexFactory | None = None,
-        objective: Objective[State] | None = None,
-    ) -> None:
-        self.space = space
-        self.params = params.validate()
-        self.rng = rng
-        self._delegate = RrtStarPlanner(
-            space=space,
-            params=self.params,
-            rng=rng,
-            nn_index_factory=nn_index_factory,
-            objective=objective,
-        )
-
-    def plan(self, start: Sequence[float] | State, goal_region: GoalRegion[State]) -> PlanResult:
-        """Plan with RRT* through the legacy ABIT* wrapper."""
-        return self._delegate.plan(start, goal_region)
-
-    def run(self, start: Sequence[float] | State, goal_region: GoalRegion[State]) -> PlanResult:
-        """Backward-compatible alias for ``plan``."""
-        return self.plan(start, goal_region)
+    def _search_factors(self, batch_number: int) -> tuple[float, float]:
+        q = float(batch_number + 1)
+        inflation = 1.0 + self.params.abit_inflation_parameter / q
+        truncation = 1.0 + self.params.abit_truncation_parameter / q
+        return inflation, truncation
 
 
 def plan_abit_star(
@@ -64,15 +37,13 @@ def plan_abit_star(
     params: RrtParams | Mapping[str, object] | None = None,
     rng: RNG | None = None,
 ) -> PlanResult:
-    """Compatibility entry point that plans with RRT*, not ABIT*."""
+    """Plan with anytime BIT* for exact goals and additive path length."""
+    validate_objective(problem.objective, "ABIT*")
     resolved_params = coerce_rrt_params(problem, params)
-    planner = AbitStar(
-        problem.space,
-        resolved_params,
-        resolve_rng(rng),
-        objective=problem.objective,
+    return ABITStar(problem.space, resolved_params, resolve_rng(rng)).plan(
+        problem.start,
+        problem.goal,
     )
-    return planner.plan(problem.start, problem.goal)
 
 
-__all__ = ["AbitStar", "plan_abit_star"]
+__all__ = ["ABITStar", "IndexFactory", "plan_abit_star"]

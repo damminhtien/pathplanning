@@ -52,6 +52,10 @@ Production API support is intentionally small and planner-registry driven.
 
 See `SUPPORTED_ALGORITHMS.md` for the canonical matrix.
 
+The continuous registry provides `rrt`, `rrt_star`, `informed_rrt_star`,
+`fmt_star`, `bit_star`, `abit_star`, and `rrt_connect`. The discrete registry
+includes native `bidirectional_dijkstra` and `bidirectional_astar`.
+
 ## Visual Preview
 
 Animations are stored at:
@@ -144,6 +148,29 @@ graph = NativeGraph.from_edges(
 problem = DiscreteProblem(graph=graph, start=0, goal=3)
 result = plan_discrete(problem, planner="astar")
 ```
+
+For an exact point goal, the informed sampling planners can be selected through
+the same API:
+
+```python
+from pathplanning.api import plan_continuous
+from pathplanning.core.contracts import ContinuousProblem, GoalState
+from pathplanning.spaces.continuous_3d import ContinuousSpace3D
+
+space = ContinuousSpace3D(lower_bound=[0, 0, 0], upper_bound=[10, 10, 10])
+problem = ContinuousProblem(
+    space=space,
+    start=[1.0, 1.0, 1.0],
+    goal=GoalState(state=[9.0, 9.0, 1.0]),
+    params={"sample_count": 1_000, "batch_size": 100},
+)
+result = plan_continuous(problem, planner="bit_star", seed=7)
+```
+
+`fmt_star`, `bit_star`, `abit_star`, and `informed_rrt_star` optimize additive
+path length and reject custom objectives. `bidirectional_astar` requires an
+exact goal and a consistent graph heuristic; its native kernel validates the
+heuristic on the prepared graph before searching.
 
 For bulk input, pass CSR row offsets, neighbor IDs, and edge costs to
 `NativeGraph.from_csr`. This also accepts arrays from a SciPy CSR matrix through

@@ -139,13 +139,18 @@ def test_sampling_registry_contains_only_implemented_algorithms() -> None:
     expected = {
         "rrt",
         "rrt_star",
+        "informed_rrt_star",
+        "fmt_star",
+        "bit_star",
+        "abit_star",
+        "rrt_connect",
     }
     assert set(SAMPLING_PLANNERS) == expected
 
 
-def test_bidirectional_registry_name_matches_its_kernel() -> None:
-    """The bidirectional Dijkstra kernel must not be registered as A*."""
+def test_bidirectional_registry_names_match_their_kernels() -> None:
+    """Both bidirectional search kernels are registered by their real names."""
     from pathplanning.registry import SEARCH_PLANNERS
 
     assert "bidirectional_dijkstra" in SEARCH_PLANNERS
-    assert "bidirectional_astar" not in SEARCH_PLANNERS
+    assert "bidirectional_astar" in SEARCH_PLANNERS

@@ -196,12 +196,16 @@ class GoalState(Generic[S]):
 
     def contains(self, x: S) -> bool:
         if self.distance_fn is None:
-            return x == self.state
+            equal = x == self.state
+            try:
+                return bool(equal)
+            except ValueError:
+                return bool(equal.all())
         return self.distance_fn(x, self.state) <= self.radius
 
     def distance_to_goal(self, x: S) -> Float:
         if self.distance_fn is None:
-            return 0.0 if x == self.state else float("inf")
+            return 0.0 if self.contains(x) else float("inf")
         return self.distance_fn(x, self.state)
 
 
