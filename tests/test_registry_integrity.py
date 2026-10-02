@@ -10,7 +10,16 @@ from pathlib import Path
 import subprocess
 import sys
 
-from pathplanning.registry import SAMPLING_PLANNERS, SEARCH_PLANNERS
+import pytest
+
+from pathplanning.registry import (
+    PLANNER_REGISTRY,
+    SAMPLING_PLANNERS,
+    SEARCH_PLANNERS,
+    _build_registry,
+    get_continuous_planner,
+    get_discrete_planner,
+)
 
 
 def _module_source_path(module_name: str) -> Path:
@@ -76,10 +85,10 @@ def _imports_matplotlib(source_text: str) -> bool:
 
 
 def _iter_registry_entries() -> list[tuple[str, str, object]]:
-    rows: list[tuple[str, str, object]] = []
-    rows.extend(("discrete", planner_name, fn) for planner_name, fn in SEARCH_PLANNERS.items())
-    rows.extend(("continuous", planner_name, fn) for planner_name, fn in SAMPLING_PLANNERS.items())
-    return rows
+    return [
+        (spec.problem_kind, planner_name, spec.planner)
+        for planner_name, spec in PLANNER_REGISTRY.items()
+    ]
 
 
 def test_registered_planner_modules_are_usable() -> None:
@@ -136,12 +145,51 @@ def test_importing_all_registered_planner_modules_is_headless() -> None:
     )
 
 
-def test_registry_names_are_unique_per_problem_kind() -> None:
-    """Registry should not duplicate planner names within each problem kind."""
-    discrete_names = list(SEARCH_PLANNERS)
-    continuous_names = list(SAMPLING_PLANNERS)
-    assert len(discrete_names) == len(set(discrete_names))
-    assert len(continuous_names) == len(set(continuous_names))
+def test_legacy_registry_mappings_derive_from_specs() -> None:
+    """Compatibility mappings should be derived from the canonical registry."""
+    expected_search = {
+        name: spec.planner
+        for name, spec in PLANNER_REGISTRY.items()
+        if spec.problem_kind == "discrete"
+    }
+    expected_sampling = {
+        name: spec.planner
+        for name, spec in PLANNER_REGISTRY.items()
+        if spec.problem_kind == "continuous"
+    }
+    assert dict(SEARCH_PLANNERS) == expected_search
+    assert dict(SAMPLING_PLANNERS) == expected_sampling
 
-    for planner_fn in [*SEARCH_PLANNERS.values(), *SAMPLING_PLANNERS.values()]:
+    for _, _, planner_fn in _iter_registry_entries():
         inspect.signature(planner_fn)
+
+
+def test_registry_rejects_duplicate_planner_names() -> None:
+    """Duplicate IDs must fail at registry construction rather than overwrite."""
+    spec = next(spec for spec in PLANNER_REGISTRY.values() if spec.problem_kind == "discrete")
+    with pytest.raises(ValueError, match="Duplicate planner name"):
+        _build_registry((("duplicate", spec), ("duplicate", spec)))
+
+
+def test_dispatch_resolves_planners_from_canonical_registry() -> None:
+    """Kind-specific dispatch must use the implementation recorded in each spec."""
+    for name, spec in PLANNER_REGISTRY.items():
+        if spec.problem_kind == "discrete":
+            assert get_discrete_planner(name) is spec.planner
+            with pytest.raises(KeyError, match="Unknown continuous planner"):
+                get_continuous_planner(name)
+        else:
+            assert get_continuous_planner(name) is spec.planner
+            with pytest.raises(KeyError, match="Unknown discrete planner"):
+                get_discrete_planner(name)
+
+
+def test_supported_planner_document_matches_registry() -> None:
+    """The checked-in support matrix must be generated from planner metadata."""
+    result = subprocess.run(
+        [sys.executable, "scripts/generate_supported_algorithms.py", "--check"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 0, f"{result.stdout}{result.stderr}"

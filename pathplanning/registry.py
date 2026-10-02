@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import Any, Literal, Protocol
+from dataclasses import dataclass
+from types import MappingProxyType
+from typing import Any, Literal, Protocol, Union, cast
 
 from pathplanning.core.contracts import ContinuousProblem, DiscreteProblem, State
 from pathplanning.core.params import RrtParams
@@ -53,69 +55,166 @@ class ContinuousPlannerCallable(Protocol):
     ) -> PlanResult: ...
 
 
-SEARCH_PLANNERS: Mapping[str, DiscretePlannerCallable] = {
-    "bfs": plan_breadth_first_search,
-    "dfs": plan_depth_first_search,
-    "greedy_best_first": plan_greedy_best_first,
-    "astar": plan_astar,
-    "bidirectional_dijkstra": plan_bidirectional_dijkstra,
-    "bidirectional_astar": plan_bidirectional_astar,
-    "dijkstra": plan_dijkstra,
-    "weighted_astar": plan_weighted_astar,
-    "anytime_astar": plan_anytime_astar,
-}
+PlannerCallable = Union[DiscretePlannerCallable, ContinuousPlannerCallable]
 
-SAMPLING_PLANNERS: Mapping[str, ContinuousPlannerCallable] = {
-    "rrt": plan_rrt,
-    "rrt_star": plan_rrt_star,
-    "informed_rrt_star": plan_informed_rrt_star,
-    "fmt_star": plan_fmt_star,
-    "bit_star": plan_bit_star,
-    "abit_star": plan_abit_star,
-    "rrt_connect": plan_rrt_connect,
-}
+
+@dataclass(frozen=True, slots=True)
+class PlannerSpec:
+    """Metadata and implementation for one registered production planner."""
+
+    problem_kind: ProblemKind
+    planner: PlannerCallable
+    constraints: tuple[str, ...] = ()
+
+
+_OPTIMAL_SAMPLING_CONSTRAINTS = (
+    "require exact point goals, Euclidean state-space distance, and additive path length; "
+    "custom objectives are rejected because the search bounds rely on additive path length.",
+)
+
+# Keep every production planner declaration here. The compatibility mappings below,
+# public listings, dispatch, tests, and the supported-planner document derive from it.
+_PLANNER_SPECS: tuple[tuple[str, PlannerSpec], ...] = (
+    ("bfs", PlannerSpec("discrete", plan_breadth_first_search)),
+    ("dfs", PlannerSpec("discrete", plan_depth_first_search)),
+    ("greedy_best_first", PlannerSpec("discrete", plan_greedy_best_first)),
+    ("astar", PlannerSpec("discrete", plan_astar)),
+    (
+        "bidirectional_dijkstra",
+        PlannerSpec(
+            "discrete",
+            plan_bidirectional_dijkstra,
+            (
+                "uses two Dijkstra frontiers and does not evaluate a heuristic; it requires an exact goal node.",
+            ),
+        ),
+    ),
+    (
+        "bidirectional_astar",
+        PlannerSpec(
+            "discrete",
+            plan_bidirectional_astar,
+            (
+                "runs the same native kernel over potential-reweighted edges and requires a consistent "
+                "heuristic and an exact goal node.",
+            ),
+        ),
+    ),
+    ("dijkstra", PlannerSpec("discrete", plan_dijkstra)),
+    ("weighted_astar", PlannerSpec("discrete", plan_weighted_astar)),
+    ("anytime_astar", PlannerSpec("discrete", plan_anytime_astar)),
+    ("rrt", PlannerSpec("continuous", plan_rrt)),
+    ("rrt_star", PlannerSpec("continuous", plan_rrt_star)),
+    (
+        "informed_rrt_star",
+        PlannerSpec("continuous", plan_informed_rrt_star, _OPTIMAL_SAMPLING_CONSTRAINTS),
+    ),
+    (
+        "fmt_star",
+        PlannerSpec(
+            "continuous",
+            plan_fmt_star,
+            (*_OPTIMAL_SAMPLING_CONSTRAINTS, "uses `sample_count` as its fixed sample set size."),
+        ),
+    ),
+    (
+        "bit_star",
+        PlannerSpec(
+            "continuous",
+            plan_bit_star,
+            (
+                *_OPTIMAL_SAMPLING_CONSTRAINTS,
+                "use `sample_count` across batches and `batch_size` per batch.",
+            ),
+        ),
+    ),
+    (
+        "abit_star",
+        PlannerSpec(
+            "continuous",
+            plan_abit_star,
+            (
+                *_OPTIMAL_SAMPLING_CONSTRAINTS,
+                "use `sample_count` across batches and `batch_size` per batch.",
+            ),
+        ),
+    ),
+    ("rrt_connect", PlannerSpec("continuous", plan_rrt_connect)),
+)
+
+
+def _build_registry(entries: tuple[tuple[str, PlannerSpec], ...]) -> Mapping[str, PlannerSpec]:
+    registry: dict[str, PlannerSpec] = {}
+    for name, spec in entries:
+        if name in registry:
+            raise ValueError(f"Duplicate planner name: {name}")
+        registry[name] = spec
+    return MappingProxyType(registry)
+
+
+PLANNER_REGISTRY = _build_registry(_PLANNER_SPECS)
+
+# Legacy views for callers that import the old mappings. Keep dispatch and
+# metadata consumers on PLANNER_REGISTRY so these cannot become another source.
+SEARCH_PLANNERS: Mapping[str, DiscretePlannerCallable] = MappingProxyType(
+    {
+        name: cast(DiscretePlannerCallable, spec.planner)
+        for name, spec in PLANNER_REGISTRY.items()
+        if spec.problem_kind == "discrete"
+    }
+)
+SAMPLING_PLANNERS: Mapping[str, ContinuousPlannerCallable] = MappingProxyType(
+    {
+        name: cast(ContinuousPlannerCallable, spec.planner)
+        for name, spec in PLANNER_REGISTRY.items()
+        if spec.problem_kind == "continuous"
+    }
+)
 
 
 def list_planners(problem_kind: ProblemKind | None = None) -> list[str]:
     """Return registered planner names, optionally filtered by kind."""
-    if problem_kind is None:
-        return sorted([*SEARCH_PLANNERS, *SAMPLING_PLANNERS])
-    if problem_kind == "discrete":
-        return sorted(SEARCH_PLANNERS)
-    return sorted(SAMPLING_PLANNERS)
+    return sorted(
+        name
+        for name, spec in PLANNER_REGISTRY.items()
+        if problem_kind is None or spec.problem_kind == problem_kind
+    )
 
 
 def planner_modules(problem_kind: ProblemKind | None = None) -> list[str]:
     """Return unique Python modules that implement registered planners."""
-    if problem_kind == "discrete":
-        callables = SEARCH_PLANNERS.values()
-    elif problem_kind == "continuous":
-        callables = SAMPLING_PLANNERS.values()
-    else:
-        callables = [*SEARCH_PLANNERS.values(), *SAMPLING_PLANNERS.values()]
-    return sorted({planner_fn.__module__ for planner_fn in callables})
+    return sorted(
+        {
+            getattr(spec.planner, "__module__")
+            for spec in PLANNER_REGISTRY.values()
+            if problem_kind is None or spec.problem_kind == problem_kind
+        }
+    )
 
 
 def get_discrete_planner(planner: str) -> DiscretePlannerCallable:
     """Resolve one discrete planner by name."""
-    try:
-        return SEARCH_PLANNERS[planner]
-    except KeyError as exc:
-        raise KeyError(f"Unknown discrete planner: '{planner}'") from exc
+    spec = PLANNER_REGISTRY.get(planner)
+    if spec is None or spec.problem_kind != "discrete":
+        raise KeyError(f"Unknown discrete planner: '{planner}'")
+    return cast(DiscretePlannerCallable, spec.planner)
 
 
 def get_continuous_planner(planner: str) -> ContinuousPlannerCallable:
     """Resolve one continuous planner by name."""
-    try:
-        return SAMPLING_PLANNERS[planner]
-    except KeyError as exc:
-        raise KeyError(f"Unknown continuous planner: '{planner}'") from exc
+    spec = PLANNER_REGISTRY.get(planner)
+    if spec is None or spec.problem_kind != "continuous":
+        raise KeyError(f"Unknown continuous planner: '{planner}'")
+    return cast(ContinuousPlannerCallable, spec.planner)
 
 
 __all__ = [
     "ProblemKind",
     "DiscretePlannerCallable",
     "ContinuousPlannerCallable",
+    "PlannerCallable",
+    "PlannerSpec",
+    "PLANNER_REGISTRY",
     "SEARCH_PLANNERS",
     "SAMPLING_PLANNERS",
     "list_planners",
