@@ -122,6 +122,11 @@ class ContinuousSpace3D(ContinuousSpace[Vec]):
     def dimension(self) -> int:
         return self.dim
 
+    @property
+    def distance_metric(self) -> str:
+        """Identify the metric used by the native nearest-neighbor index."""
+        return "euclidean"
+
     def in_bounds(self, point: Sequence[Float] | FloatArray) -> bool:
         return in_bounds_nd(point, self.lower_bound, self.upper_bound, dim=self.dim)
 

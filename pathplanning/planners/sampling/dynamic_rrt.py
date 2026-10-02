@@ -11,6 +11,7 @@ from numpy.typing import NDArray
 from scipy.spatial import cKDTree
 
 from pathplanning.core.contracts import ContinuousSpace, State
+from pathplanning.native.continuous import run_native_dynamic_rrt
 from pathplanning.spaces.continuous_3d import AABB, ContinuousSpace3D, Sphere
 
 Node: TypeAlias = tuple[float, float, float]
@@ -185,7 +186,7 @@ def steer_node(initparams: Any, x: Node, y: Node) -> tuple[Node, float]:
 
 
 class DynamicRRT3D:
-    """Dynamic RRT planner that depends only on ``ContinuousSpace`` contracts."""
+    """Python interface for the native C dynamic RRT planner."""
 
     def __init__(
         self,
@@ -300,54 +301,86 @@ class DynamicRRT3D:
         return extended, collide
 
     def grow_rrt(self) -> None:
-        """Grow the RRT until the goal is reached or iteration limit is hit."""
-        self.ind = 0
-        while self.ind <= self.maxiter:
-            target = self.choose_target()
-            nearest = self.nearest(target)
-            extended, collide = self.extend(nearest, target)
-            if not collide:
-                self.add_node(nearest, extended)
-                if get_dist(extended, self.xt) <= self.stepsize:
-                    goal_motion_valid = self.space.is_motion_valid(
-                        _as_state(extended), _as_state(self.xt)
-                    )
-                    if goal_motion_valid:
-                        self.add_node(extended, self.xt)
-                        self.node_state[self.xt] = "valid"
-                        self.done = True
-                        break
-                self.i += 1
-            self.ind += 1
+        """Grow the tree in the C engine until the goal or iteration limit."""
+        self._run_native()
 
     def regrow_rrt(self) -> None:
-        """Trim invalid subtrees and regrow the tree."""
-        self.trim_rrt()
-        self.grow_rrt()
+        """Prune invalid subtrees and continue growing them in the C engine."""
+        self._run_native()
 
     def trim_rrt(self) -> None:
-        """Remove invalid nodes induced by dynamic obstacle updates."""
-        kept: list[Node] = [self.x0]
-        for node in self.nodes[1:]:
-            parent = self.parent_by_node.get(node)
-            if parent is None:
+        """Remove invalid nodes induced by dynamic obstacle updates in C."""
+        self._run_native(max_iterations=0, prune_only=True)
+
+    def _run_native(self, *, max_iterations: int | None = None, prune_only: bool = False) -> None:
+        if not self.nodes:
+            self.init_rrt()
+        parent_ids = self._native_parent_ids()
+        old_count = len(self.nodes)
+        states, parents, success, iterations, _invalid_nodes = run_native_dynamic_rrt(
+            self.space,
+            self.x0,
+            self.xt,
+            self.nodes,
+            parent_ids,
+            self.config,
+            self.rng,
+            max_iterations=max_iterations,
+            prune_only=prune_only,
+        )
+        self._adopt_native_tree(states, parents)
+        self.done = success
+        self.ind = iterations
+        self.i += max(0, len(self.nodes) - old_count)
+
+    def _native_parent_ids(self) -> list[int]:
+        node_ids = {node: index for index, node in enumerate(self.nodes)}
+        parent_ids = [-1] * len(self.nodes)
+        for node, parent in self.parent_by_node.items():
+            child_id = node_ids.get(node)
+            parent_id = node_ids.get(parent)
+            if child_id is not None and parent_id is not None:
+                parent_ids[child_id] = parent_id
+        return parent_ids
+
+    def _adopt_native_tree(self, states: NDArray[np.float64], parents: NDArray[np.uint32]) -> None:
+        self.nodes = [_as_node(state) for state in states]
+        parent_by_node: dict[Node, Node] = {}
+        edges: set[Edge] = set()
+        for index, parent_id_raw in enumerate(parents):
+            parent_id = int(parent_id_raw)
+            if parent_id == np.iinfo(np.uint32).max:
                 continue
-            if self.node_state.get(parent) == "invalid":
-                self.node_state[node] = "invalid"
-            if self.node_state.get(node) != "invalid":
-                kept.append(node)
-        self.create_tree_from_nodes(kept)
+            child, parent = self.nodes[index], self.nodes[parent_id]
+            parent_by_node[child] = parent
+            edges.add((child, parent))
+        self.parent_by_node = parent_by_node
+        self.edges = edges
+        self.node_state = {node: "valid" for node in self.nodes}
+        self._nearest_index.reset(self.nodes)
 
     def find_affected_edges(self, obstacle: Obstacle) -> list[Edge]:
         """Find edges that are no longer valid after an obstacle update."""
         _ = obstacle
-        affected: list[Edge] = []
-        for edge in self.edges:
-            child, parent = edge
-            collide = not self.space.is_motion_valid(_as_state(child), _as_state(parent))
-            if collide:
-                affected.append(edge)
-        return affected
+        if len(self.nodes) < 2:
+            return []
+        parent_ids = self._native_parent_ids()
+        _, _, _, _, invalid_nodes = run_native_dynamic_rrt(
+            self.space,
+            self.x0,
+            self.xt,
+            self.nodes,
+            parent_ids,
+            self.config,
+            self.rng,
+            max_iterations=0,
+            prune_only=True,
+        )
+        return [
+            (self.nodes[node_id], self.nodes[parent_ids[node_id]])
+            for node_id in map(int, invalid_nodes)
+            if 0 < node_id < len(self.nodes) and parent_ids[node_id] >= 0
+        ]
 
     def invalidate_nodes(self, obstacle: Obstacle) -> None:
         """Mark nodes invalid if their incoming edges now collide."""

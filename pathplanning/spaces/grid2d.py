@@ -148,19 +148,21 @@ class Grid2DSearchSpace:
             or self._occupancy is not None
             or self._is_blocked_callback is not None
         )
-        valid_nodes = (
-            np.fromiter(
-                (
-                    self.is_valid_node((x_coord, y_coord))
-                    for y_coord in range(self.y_range)
-                    for x_coord in range(self.x_range)
-                ),
-                dtype=np.bool_,
-                count=self.x_range * self.y_range,
-            )
-            if has_blockages
-            else None
-        )
+        valid_nodes = None
+        if has_blockages:
+            valid_nodes = np.ones(self.x_range * self.y_range, dtype=np.bool_)
+            if self._occupancy is not None:
+                valid_nodes &= ~self._occupancy.reshape(-1)
+            for x_coord, y_coord in self._blocked_cells:
+                if self._in_bounds((x_coord, y_coord)):
+                    valid_nodes[y_coord * self.x_range + x_coord] = False
+            if self._is_blocked_callback is not None:
+                for y_coord in range(self.y_range):
+                    row_start = y_coord * self.x_range
+                    for x_coord in range(self.x_range):
+                        node_id = row_start + x_coord
+                        if valid_nodes[node_id] and self._is_blocked_callback((x_coord, y_coord)):
+                            valid_nodes[node_id] = False
         return NativeGraph[GridCell].from_grid(
             dimensions=2,
             width=self.x_range,
@@ -189,6 +191,8 @@ class Grid2DSearchSpace:
 
 class Grid2DSamplingSpace:
     """Reference 2D continuous space with configurable obstacle primitives."""
+
+    distance_metric = "euclidean"
 
     def __init__(
         self,

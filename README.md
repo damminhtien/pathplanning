@@ -13,9 +13,9 @@ with reusable planner contracts and optional visualization utilities.
 
 Current codebase organization:
 
-- `pathplanning/native`: C++ discrete-search core exposed through a stable C ABI
+- `pathplanning/native`: C++ graph-search and C sampling-planner cores exposed through a stable C ABI
 - `pathplanning/planners/search`: Python planner wrappers around the native search core
-- `pathplanning/planners/sampling`: dimension-agnostic sampling-planner cores
+- `pathplanning/planners/sampling`: thin Python interfaces for native sampling planners
 - `pathplanning/spaces`: canonical environment/configuration-space layer
 - `pathplanning/nn`: nearest-neighbor index abstractions
 - `pathplanning/data_structures`: reusable tree/storage structures
@@ -53,8 +53,14 @@ Production API support is intentionally small and planner-registry driven.
 See `SUPPORTED_ALGORITHMS.md` for the canonical matrix.
 
 The continuous registry provides `rrt`, `rrt_star`, `informed_rrt_star`,
-`fmt_star`, `bit_star`, `abit_star`, and `rrt_connect`. The discrete registry
+`fmt_star`, `bit_star`, `abit_star`, and `rrt_connect`. Stateful `DynamicRRT3D`
+also runs tree pruning and growth in the native C engine. The discrete registry
 includes native `bidirectional_dijkstra` and `bidirectional_astar`.
+
+Sampling planners execute their search loops, trees, queues, and nearest-neighbor
+queries in C. Python validates inputs, converts built-in spaces to native data,
+and adapts path results. User-defined spaces, goal predicates, and RRT* path
+objectives remain Python callbacks at the compatibility boundary.
 
 ## Visual Preview
 
@@ -86,7 +92,8 @@ pip install --upgrade pip
 pip install .
 ```
 
-Python `>=3.10` and a C++17 compiler are required when building from source.
+Python `>=3.10`, a C11 compiler, and a C++17 compiler are required when building
+from source. Graph search runs in C++; continuous planner kernels run in C.
 
 ## Package API
 

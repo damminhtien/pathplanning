@@ -1,0 +1,674 @@
+"""Thin Python binding for the native C sampling planner engine."""
+
+from __future__ import annotations
+
+import ctypes
+import math
+from typing import Any
+
+import numpy as np
+
+from pathplanning.core.contracts import ContinuousSpace, GoalRegion, Objective, State
+from pathplanning.core.params import RrtParams
+from pathplanning.core.results import PlanResult, StopReason
+from pathplanning.core.types import RNG
+from pathplanning.native._ffi import load_continuous_library
+
+
+class _Callbacks(ctypes.Structure):
+    pass
+
+
+_Point = ctypes.POINTER(ctypes.c_double)
+_Sample = ctypes.CFUNCTYPE(ctypes.c_int, ctypes.c_void_p, _Point, ctypes.c_size_t)
+_StateValid = ctypes.CFUNCTYPE(ctypes.c_int, ctypes.c_void_p, _Point, ctypes.c_size_t)
+_MotionValid = ctypes.CFUNCTYPE(
+    ctypes.c_int, ctypes.c_void_p, _Point, _Point, ctypes.c_size_t, ctypes.c_double
+)
+_Distance = ctypes.CFUNCTYPE(ctypes.c_double, ctypes.c_void_p, _Point, _Point, ctypes.c_size_t)
+_Steer = ctypes.CFUNCTYPE(
+    ctypes.c_int, ctypes.c_void_p, _Point, _Point, ctypes.c_size_t, ctypes.c_double, _Point
+)
+_Goal = ctypes.CFUNCTYPE(ctypes.c_int, ctypes.c_void_p, _Point, ctypes.c_size_t)
+_GoalDistance = ctypes.CFUNCTYPE(ctypes.c_double, ctypes.c_void_p, _Point, ctypes.c_size_t)
+_Objective = ctypes.CFUNCTYPE(
+    ctypes.c_double, ctypes.c_void_p, _Point, ctypes.c_size_t, ctypes.c_size_t
+)
+
+
+class _SpaceModel(ctypes.Structure):
+    _fields_ = [
+        ("lower_bounds", _Point),
+        ("upper_bounds", _Point),
+        ("box_minima", _Point),
+        ("box_maxima", _Point),
+        ("box_count", ctypes.c_size_t),
+        ("sphere_centers", _Point),
+        ("sphere_radii", _Point),
+        ("sphere_count", ctypes.c_size_t),
+        ("obb_centers", _Point),
+        ("obb_extents", _Point),
+        ("obb_orientations", _Point),
+        ("obb_count", ctypes.c_size_t),
+    ]
+
+
+class _OwnedSpaceModel:
+    """Keep converted obstacle arrays alive for the duration of the C call."""
+
+    def __init__(self, arrays: tuple[np.ndarray, ...], model: _SpaceModel) -> None:
+        self.arrays = arrays
+        self.model = model
+
+
+_Callbacks._fields_ = [
+    ("user_data", ctypes.c_void_p),
+    ("sample_free", _Sample),
+    ("state_valid", _StateValid),
+    ("motion_valid", _MotionValid),
+    ("distance", _Distance),
+    ("steer", _Steer),
+    ("is_goal", _Goal),
+    ("goal_distance", _GoalDistance),
+    ("path_objective", _Objective),
+    ("native_space", ctypes.POINTER(_SpaceModel)),
+    ("native_goal", ctypes.c_int),
+    ("goal_radius", ctypes.c_double),
+]
+
+
+class _Options(ctypes.Structure):
+    _fields_ = [
+        ("algorithm", ctypes.c_int),
+        ("max_iters", ctypes.c_uint64),
+        ("sample_count", ctypes.c_uint64),
+        ("batch_size", ctypes.c_uint64),
+        ("max_sample_tries", ctypes.c_uint64),
+        ("seed", ctypes.c_uint64),
+        ("step_size", ctypes.c_double),
+        ("goal_sample_rate", ctypes.c_double),
+        ("collision_step", ctypes.c_double),
+        ("goal_reach_tolerance", ctypes.c_double),
+        ("rrt_star_radius_gamma", ctypes.c_double),
+        ("rrt_star_radius_max_factor", ctypes.c_double),
+        ("abit_inflation_parameter", ctypes.c_double),
+        ("abit_truncation_parameter", ctypes.c_double),
+        ("time_budget_s", ctypes.c_double),
+        ("use_euclidean_index", ctypes.c_int),
+    ]
+
+
+class _Result(ctypes.Structure):
+    _fields_ = [
+        ("success", ctypes.c_int),
+        ("stop_reason", ctypes.c_int),
+        ("iters", ctypes.c_uint64),
+        ("nodes", ctypes.c_uint64),
+        ("sample_count", ctypes.c_uint64),
+        ("batches", ctypes.c_uint64),
+        ("motion_checks", ctypes.c_uint64),
+        ("rewires", ctypes.c_uint64),
+        ("path_cost", ctypes.c_double),
+        ("elapsed_s", ctypes.c_double),
+        ("path", _Point),
+        ("path_length", ctypes.c_size_t),
+        ("dimension", ctypes.c_size_t),
+        ("error_message", ctypes.c_char_p),
+    ]
+
+
+class _DynamicResult(ctypes.Structure):
+    _fields_ = [
+        ("plan", _Result),
+        ("tree_points", _Point),
+        ("tree_parents", ctypes.POINTER(ctypes.c_uint32)),
+        ("tree_count", ctypes.c_size_t),
+        ("invalid_nodes", ctypes.POINTER(ctypes.c_uint32)),
+        ("invalid_count", ctypes.c_size_t),
+    ]
+
+
+_ALGORITHMS = {
+    "rrt": 1,
+    "rrt_star": 2,
+    "informed_rrt_star": 3,
+    "fmt_star": 4,
+    "bit_star": 5,
+    "abit_star": 6,
+    "rrt_connect": 7,
+}
+_STOP_REASONS = {
+    0: StopReason.SUCCESS,
+    1: StopReason.TIME_BUDGET,
+    2: StopReason.MAX_ITERS,
+    3: StopReason.NO_PROGRESS,
+}
+
+
+def _array(pointer: _Point, dimension: int) -> np.ndarray:
+    return np.ctypeslib.as_array(pointer, shape=(dimension,))
+
+
+def _copy_state(value: object, name: str, dimension: int) -> np.ndarray:
+    state = np.asarray(value, dtype=np.float64)
+    if state.shape != (dimension,) or not np.all(np.isfinite(state)):
+        raise ValueError(f"{name} must be a finite state vector of length {dimension}")
+    return np.ascontiguousarray(state)
+
+
+def _pointer(values: np.ndarray) -> _Point:
+    return values.ctypes.data_as(_Point) if values.size else _Point()
+
+
+def _native_space_model(space: ContinuousSpace[State], dimension: int) -> _OwnedSpaceModel | None:
+    """Serialize the built-in continuous spaces into C-owned planner inputs."""
+    from pathplanning.spaces.continuous_3d import ContinuousSpace3D
+    from pathplanning.spaces.grid2d import Grid2DSamplingSpace
+
+    boxes: list[tuple[list[float], list[float]]] = []
+    spheres: list[tuple[list[float], float]] = []
+    obbs: list[tuple[list[float], list[float], list[float]]] = []
+    if type(space) is ContinuousSpace3D:
+        if dimension != 3:
+            raise ValueError("ContinuousSpace3D requires three-dimensional states")
+        lower = np.ascontiguousarray(space.lower_bound, dtype=np.float64)
+        upper = np.ascontiguousarray(space.upper_bound, dtype=np.float64)
+        boxes.extend(
+            (np.asarray(item.min_corner).tolist(), np.asarray(item.max_corner).tolist())
+            for item in space.aabbs
+        )
+        spheres.extend(
+            (np.asarray(item.center).tolist(), float(item.radius)) for item in space.spheres
+        )
+        obbs.extend(
+            (
+                np.asarray(item.center).tolist(),
+                np.asarray(item.extents).tolist(),
+                np.asarray(item.orientation).reshape(-1).tolist(),
+            )
+            for item in space.obbs
+        )
+    elif type(space) is Grid2DSamplingSpace:
+        if dimension != 2:
+            raise ValueError("Grid2DSamplingSpace requires two-dimensional states")
+        lower = np.asarray([space.x_range[0], space.y_range[0]], dtype=np.float64)
+        upper = np.asarray([space.x_range[1], space.y_range[1]], dtype=np.float64)
+        delta = float(space.delta)
+        for ox, oy, width, height in (*space.obs_boundary, *space.obs_rectangle):
+            boxes.append(([ox - delta, oy - delta], [ox + width + delta, oy + height + delta]))
+        spheres.extend(([cx, cy], float(radius) + delta) for cx, cy, radius in space.obs_circle)
+    else:
+        return None
+
+    box_minima = np.ascontiguousarray([item[0] for item in boxes], dtype=np.float64).reshape(
+        -1, dimension
+    )
+    box_maxima = np.ascontiguousarray([item[1] for item in boxes], dtype=np.float64).reshape(
+        -1, dimension
+    )
+    sphere_centers = np.ascontiguousarray([item[0] for item in spheres], dtype=np.float64).reshape(
+        -1, dimension
+    )
+    sphere_radii = np.ascontiguousarray([item[1] for item in spheres], dtype=np.float64)
+    obb_centers = np.ascontiguousarray([item[0] for item in obbs], dtype=np.float64).reshape(-1, 3)
+    obb_extents = np.ascontiguousarray([item[1] for item in obbs], dtype=np.float64).reshape(-1, 3)
+    obb_orientations = np.ascontiguousarray([item[2] for item in obbs], dtype=np.float64).reshape(
+        -1, 9
+    )
+    arrays = (
+        lower,
+        upper,
+        box_minima,
+        box_maxima,
+        sphere_centers,
+        sphere_radii,
+        obb_centers,
+        obb_extents,
+        obb_orientations,
+    )
+    model = _SpaceModel(
+        _pointer(lower),
+        _pointer(upper),
+        _pointer(box_minima),
+        _pointer(box_maxima),
+        len(boxes),
+        _pointer(sphere_centers),
+        _pointer(sphere_radii),
+        len(spheres),
+        _pointer(obb_centers),
+        _pointer(obb_extents),
+        _pointer(obb_orientations),
+        len(obbs),
+    )
+    return _OwnedSpaceModel(arrays, model)
+
+
+def run_native_continuous(
+    space: ContinuousSpace[State],
+    start: object,
+    goal_region: GoalRegion[State],
+    params: RrtParams,
+    rng: RNG,
+    *,
+    planner: str,
+    objective: Objective[State] | None = None,
+) -> PlanResult:
+    """Run a planner in C, adapting space operations at the API boundary."""
+    if planner not in _ALGORITHMS:
+        raise KeyError(f"Unknown native continuous planner: {planner}")
+    parameters = params.validate()
+    start_array = np.asarray(start, dtype=np.float64)
+    if start_array.ndim != 1 or start_array.size == 0:
+        raise ValueError("start must be a non-empty 1D state vector")
+    dimension = int(start_array.size)
+    start_state = _copy_state(start_array, "start", dimension)
+    owned_space = _native_space_model(space, dimension)
+
+    goal_value = getattr(goal_region, "state", None)
+    has_goal_point = goal_value is not None
+    goal_state = _copy_state(goal_value, "goal", dimension) if has_goal_point else None
+    if planner in {"informed_rrt_star", "fmt_star", "bit_star", "abit_star", "rrt_connect"}:
+        from pathplanning.planners.sampling._internal.continuous import exact_goal_state
+
+        goal_state = _copy_state(exact_goal_state(goal_region, dim=dimension), "goal", dimension)
+        has_goal_point = True
+
+    from pathplanning.core.contracts import GoalState
+
+    native_goal = False
+    goal_radius = 0.0
+    if isinstance(goal_region, GoalState) and has_goal_point:
+        if goal_region.distance_fn is None:
+            native_goal = True
+        elif owned_space is not None and goal_region.distance_fn == space.distance:
+            native_goal = True
+            goal_radius = float(goal_region.radius)
+
+    callback_errors: list[BaseException] = []
+
+    def guarded(function, failure):
+        try:
+            return function()
+        except BaseException as exc:  # ctypes callbacks cannot propagate Python exceptions.
+            callback_errors.append(exc)
+            return failure
+
+    def sample(_user_data, out_state, dim):
+        def call():
+            value = _copy_state(space.sample_free(rng), "sample", int(dim))
+            np.copyto(_array(out_state, int(dim)), value)
+            return 0
+
+        return guarded(call, -1)
+
+    def state_valid(_user_data, point, dim):
+        return guarded(lambda: int(bool(space.is_state_valid(_array(point, int(dim)).copy()))), -1)
+
+    def motion_valid(_user_data, first, second, dim, step):
+        def call():
+            a, b = _array(first, int(dim)).copy(), _array(second, int(dim)).copy()
+            checker = getattr(space, "is_motion_valid_with_step", None)
+            valid = checker(a, b, float(step)) if callable(checker) else space.is_motion_valid(a, b)
+            return int(bool(valid))
+
+        return guarded(call, -1)
+
+    def distance(_user_data, first, second, dim):
+        return guarded(
+            lambda: float(
+                space.distance(_array(first, int(dim)).copy(), _array(second, int(dim)).copy())
+            ),
+            math.nan,
+        )
+
+    def steer(_user_data, first, target, dim, step_size, out_state):
+        def call():
+            value = _copy_state(
+                space.steer(
+                    _array(first, int(dim)).copy(),
+                    _array(target, int(dim)).copy(),
+                    float(step_size),
+                ),
+                "steered state",
+                int(dim),
+            )
+            np.copyto(_array(out_state, int(dim)), value)
+            return 0
+
+        return guarded(call, -1)
+
+    def is_goal(_user_data, point, dim):
+        return guarded(lambda: int(bool(goal_region.contains(_array(point, int(dim)).copy()))), -1)
+
+    def goal_distance(_user_data, point, dim):
+        def call():
+            state = _array(point, int(dim)).copy()
+            method = getattr(goal_region, "distance_to_goal", None)
+            if callable(method):
+                return float(method(state))
+            if goal_state is not None:
+                return float(space.distance(state, goal_state))
+            return math.inf
+
+        return guarded(call, math.nan)
+
+    def path_objective(_user_data, path_pointer, path_length, dim):
+        def call():
+            length, width = int(path_length), int(dim)
+            points = (
+                np.ctypeslib.as_array(path_pointer, shape=(length * width,))
+                .copy()
+                .reshape(length, width)
+            )
+            return float(objective.path_cost(tuple(points), space))
+
+        return guarded(call, math.nan)
+
+    callback_objects = (
+        _Sample(sample),
+        _StateValid(state_valid),
+        _MotionValid(motion_valid),
+        _Distance(distance),
+        _Steer(steer),
+        _Goal(is_goal),
+        _GoalDistance(goal_distance),
+        _Objective(path_objective) if objective is not None else _Objective(),
+    )
+    native_model_pointer = (
+        ctypes.pointer(owned_space.model)
+        if owned_space is not None
+        else ctypes.POINTER(_SpaceModel)()
+    )
+    callbacks = _Callbacks(
+        None,
+        *callback_objects,
+        native_model_pointer,
+        int(native_goal),
+        goal_radius,
+    )
+    seed = int(rng.integers(0, np.iinfo(np.uint64).max, dtype=np.uint64))
+    euclidean_index = (
+        owned_space is not None or getattr(space, "distance_metric", None) == "euclidean"
+    )
+    if planner in {"informed_rrt_star", "fmt_star", "bit_star", "abit_star"}:
+        from pathplanning.planners.sampling._internal.continuous import euclidean_distance
+
+        euclidean_distance(space, start_state, goal_state)
+        euclidean_index = True
+
+    options = _Options(
+        _ALGORITHMS[planner],
+        parameters.max_iters,
+        parameters.sample_count,
+        parameters.batch_size,
+        parameters.max_sample_tries,
+        seed,
+        parameters.step_size,
+        parameters.goal_sample_rate,
+        parameters.collision_step,
+        parameters.goal_reach_tolerance,
+        parameters.rrt_star_radius_gamma,
+        parameters.rrt_star_radius_max_factor,
+        parameters.abit_inflation_parameter,
+        parameters.abit_truncation_parameter,
+        0.0 if parameters.time_budget_s is None else parameters.time_budget_s,
+        int(euclidean_index),
+    )
+    library = load_continuous_library()
+    library.pp_continuous_plan.argtypes = [
+        ctypes.POINTER(_Callbacks),
+        _Point,
+        _Point,
+        ctypes.c_size_t,
+        ctypes.c_int,
+        ctypes.POINTER(_Options),
+        ctypes.POINTER(_Result),
+    ]
+    library.pp_continuous_plan.restype = ctypes.c_int
+    library.pp_continuous_free_result.argtypes = [ctypes.POINTER(_Result)]
+    library.pp_continuous_free_result.restype = None
+    native_start = start_state.ctypes.data_as(_Point)
+    native_goal = goal_state.ctypes.data_as(_Point) if goal_state is not None else _Point()
+    native_result = _Result()
+    status = library.pp_continuous_plan(
+        ctypes.byref(callbacks),
+        native_start,
+        native_goal,
+        dimension,
+        int(has_goal_point),
+        ctypes.byref(options),
+        ctypes.byref(native_result),
+    )
+    try:
+        if callback_errors:
+            raise callback_errors[0]
+        if status != 0 or native_result.stop_reason == 4:
+            message = (
+                native_result.error_message.decode("utf-8", errors="replace")
+                if native_result.error_message
+                else "native continuous planner failed"
+            )
+            raise RuntimeError(message)
+        path = None
+        if native_result.success and native_result.path:
+            flat_path = np.ctypeslib.as_array(
+                native_result.path,
+                shape=(int(native_result.path_length) * dimension,),
+            ).copy()
+            path = flat_path.reshape(int(native_result.path_length), dimension)
+        stats = {
+            "elapsed_s": float(native_result.elapsed_s),
+            "sample_count": float(native_result.sample_count),
+            "batches": float(native_result.batches),
+            "motion_checks": float(native_result.motion_checks),
+            "rewires": float(native_result.rewires),
+        }
+        if native_result.success:
+            stats["path_cost"] = float(native_result.path_cost)
+            if objective is not None:
+                stats["objective_cost"] = float(native_result.path_cost)
+        if parameters.time_budget_s is not None:
+            stats["time_budget_s"] = float(parameters.time_budget_s)
+        return PlanResult(
+            success=bool(native_result.success),
+            path=path,
+            best_path=path if native_result.success else None,
+            stop_reason=_STOP_REASONS.get(int(native_result.stop_reason), StopReason.NO_PROGRESS),
+            iters=int(native_result.iters),
+            nodes=int(native_result.nodes),
+            stats=stats,
+        )
+    finally:
+        library.pp_continuous_free_result(ctypes.byref(native_result))
+
+
+def run_native_dynamic_rrt(
+    space: ContinuousSpace[State],
+    start: object,
+    goal: object,
+    initial_points: object,
+    initial_parents: object,
+    config: Any,
+    rng: RNG,
+    *,
+    max_iterations: int | None = None,
+    prune_only: bool = False,
+) -> tuple[np.ndarray, np.ndarray, bool, int, np.ndarray]:
+    """Prune and grow a dynamic RRT tree in C, returning its compact state."""
+    start_array = np.asarray(start, dtype=np.float64)
+    if start_array.ndim != 1 or start_array.size != 3:
+        raise ValueError("DynamicRRT3D requires three-dimensional start states")
+    dimension = int(start_array.size)
+    start_state = _copy_state(start_array, "start", dimension)
+    goal_state = _copy_state(goal, "goal", dimension)
+    points = np.ascontiguousarray(initial_points, dtype=np.float64).reshape(-1, dimension)
+    parent_values = np.asarray(initial_parents, dtype=np.int64)
+    if points.shape[0] == 0 or parent_values.shape != (points.shape[0],):
+        raise ValueError("initial dynamic RRT tree and parents must have matching non-empty sizes")
+    if np.any(parent_values < -1) or np.any(parent_values >= np.arange(points.shape[0])):
+        raise ValueError("dynamic RRT parents must refer to an earlier node")
+    parents = np.where(parent_values < 0, np.iinfo(np.uint32).max, parent_values).astype(
+        np.uint32, copy=False
+    )
+    owned_space = _native_space_model(space, dimension)
+    callback_errors: list[BaseException] = []
+
+    def guarded(function, failure):
+        try:
+            return function()
+        except BaseException as exc:  # ctypes callbacks cannot propagate Python exceptions.
+            callback_errors.append(exc)
+            return failure
+
+    def sample(_user_data, out_state, dim):
+        def call():
+            value = _copy_state(space.sample_free(rng), "sample", int(dim))
+            np.copyto(_array(out_state, int(dim)), value)
+            return 0
+
+        return guarded(call, -1)
+
+    def state_valid(_user_data, point, dim):
+        return guarded(lambda: int(bool(space.is_state_valid(_array(point, int(dim)).copy()))), -1)
+
+    def motion_valid(_user_data, first, second, dim, step):
+        def call():
+            a, b = _array(first, int(dim)).copy(), _array(second, int(dim)).copy()
+            checker = getattr(space, "is_motion_valid_with_step", None)
+            valid = checker(a, b, float(step)) if callable(checker) else space.is_motion_valid(a, b)
+            return int(bool(valid))
+
+        return guarded(call, -1)
+
+    def distance(_user_data, first, second, dim):
+        return guarded(
+            lambda: float(
+                space.distance(_array(first, int(dim)).copy(), _array(second, int(dim)).copy())
+            ),
+            math.nan,
+        )
+
+    def steer(_user_data, first, target, dim, step_size, out_state):
+        def call():
+            value = _copy_state(
+                space.steer(
+                    _array(first, int(dim)).copy(),
+                    _array(target, int(dim)).copy(),
+                    float(step_size),
+                ),
+                "steered state",
+                int(dim),
+            )
+            np.copyto(_array(out_state, int(dim)), value)
+            return 0
+
+        return guarded(call, -1)
+
+    callback_objects = (
+        _Sample(sample),
+        _StateValid(state_valid),
+        _MotionValid(motion_valid),
+        _Distance(distance),
+        _Steer(steer),
+        _Goal(),
+        _GoalDistance(),
+        _Objective(),
+    )
+    native_model_pointer = (
+        ctypes.pointer(owned_space.model)
+        if owned_space is not None
+        else ctypes.POINTER(_SpaceModel)()
+    )
+    callbacks = _Callbacks(
+        None,
+        *callback_objects,
+        native_model_pointer,
+        1,
+        0.0,
+    )
+    max_sample_tries = int(getattr(space, "max_sample_tries", 1_000))
+    iteration_limit = int(config.max_iterations if max_iterations is None else max_iterations)
+    if iteration_limit < 0 or iteration_limit >= np.iinfo(np.uint64).max:
+        raise ValueError("dynamic RRT max_iterations is outside the supported range")
+    options = _Options(
+        _ALGORITHMS["rrt"],
+        iteration_limit,
+        1,
+        1,
+        max_sample_tries,
+        0 if prune_only else int(rng.integers(0, np.iinfo(np.uint64).max, dtype=np.uint64)),
+        float(config.step_size),
+        float(config.goal_sample_probability),
+        float(getattr(space, "collision_step", 0.1)),
+        0.0,
+        2.0,
+        6.0,
+        10.0,
+        5.0,
+        0.0,
+        1,
+    )
+    library = load_continuous_library()
+    library.pp_dynamic_rrt_plan.argtypes = [
+        ctypes.POINTER(_Callbacks),
+        _Point,
+        _Point,
+        _Point,
+        ctypes.POINTER(ctypes.c_uint32),
+        ctypes.c_size_t,
+        ctypes.c_size_t,
+        ctypes.POINTER(_Options),
+        ctypes.c_double,
+        ctypes.c_int,
+        ctypes.POINTER(_DynamicResult),
+    ]
+    library.pp_dynamic_rrt_plan.restype = ctypes.c_int
+    library.pp_dynamic_rrt_free_result.argtypes = [ctypes.POINTER(_DynamicResult)]
+    library.pp_dynamic_rrt_free_result.restype = None
+    native_result = _DynamicResult()
+    status = library.pp_dynamic_rrt_plan(
+        ctypes.byref(callbacks),
+        start_state.ctypes.data_as(_Point),
+        goal_state.ctypes.data_as(_Point),
+        points.ctypes.data_as(_Point),
+        parents.ctypes.data_as(ctypes.POINTER(ctypes.c_uint32)),
+        len(points),
+        dimension,
+        ctypes.byref(options),
+        float(config.way_point_sample_probability),
+        int(prune_only),
+        ctypes.byref(native_result),
+    )
+    try:
+        if callback_errors:
+            raise callback_errors[0]
+        if status != 0 or native_result.plan.stop_reason == 4:
+            message = (
+                native_result.plan.error_message.decode("utf-8", errors="replace")
+                if native_result.plan.error_message
+                else "native dynamic RRT failed"
+            )
+            raise RuntimeError(message)
+        count = int(native_result.tree_count)
+        states = (
+            np.ctypeslib.as_array(native_result.tree_points, shape=(count * dimension,))
+            .copy()
+            .reshape(count, dimension)
+        )
+        parent_ids = np.ctypeslib.as_array(native_result.tree_parents, shape=(count,)).copy()
+        invalid_nodes = np.ctypeslib.as_array(
+            native_result.invalid_nodes,
+            shape=(int(native_result.invalid_count),),
+        ).copy()
+        return (
+            states,
+            parent_ids,
+            bool(native_result.plan.success),
+            int(native_result.plan.iters),
+            invalid_nodes,
+        )
+    finally:
+        library.pp_dynamic_rrt_free_result(ctypes.byref(native_result))
+
+
+__all__ = ["run_native_continuous", "run_native_dynamic_rrt"]

@@ -78,7 +78,7 @@ Defined in `pathplanning/core/contracts.py` and typed with `S`, `N`, `RNG` from 
     `bidirectional_dijkstra`, and `bidirectional_astar`
 - `pathplanning.api.plan_continuous(...)`
   - accepts `ContinuousProblem[...]`
-  - dispatches to RRT, RRT*, Informed RRT*, FMT*, BIT*, ABIT*, and RRT-Connect
+  - dispatches through thin Python wrappers to native C RRT, RRT*, Informed RRT*, FMT*, BIT*, ABIT*, and RRT-Connect kernels
 
 ### Search planners
 
@@ -96,11 +96,11 @@ Defined in `pathplanning/core/contracts.py` and typed with `S`, `N`, `RNG` from 
 
 - `pathplanning.planners.sampling.rrt.RrtPlanner`
   - `ContinuousSpace[State]`, `GoalRegion[State]`
-  - optional `SupportsBatchMotionCheck[State]`
+  - built-in 2D and 3D spaces are serialized once and checked directly in C; custom spaces use the compatibility callbacks
 - `pathplanning.planners.sampling.rrt_star.RrtStarPlanner`
   - same contracts as `RrtPlanner`
 - `pathplanning.planners.sampling.dynamic_rrt.DynamicRRT3D`
-  - contract-driven dynamic wrapper around `RrtPlanner`
+  - Python state/result adapter around native C tree pruning, nearest-neighbor search, and growth
 - `pathplanning.planners.sampling.informed_rrt_star.InformedRrtStar`
   - RRT* with direct prolate-hyperspheroid sampling after the first solution
 - `pathplanning.planners.sampling.fmt_star.FmtStar`
@@ -117,6 +117,13 @@ state-space distance, and additive path length. They reject custom objectives
 because those objectives do not provide the additive lower bounds required by
 their search. BIT* and ABIT* use `sample_count` and `batch_size`; FMT* uses
 `sample_count` for its fixed set.
+
+The native C++ graph-search engine owns CSR storage, search state, and frontier
+queues. The native C sampling engine owns planner expansion loops, tree storage,
+edge queues, and its incremental nearest-neighbor forest. Python adapts API
+values and results. User-defined spaces, goals, and supported RRT* objectives
+use callbacks; the built-in 2D and 3D spaces are passed as native bounds and
+obstacle arrays.
 
 ### Search algorithm labels
 

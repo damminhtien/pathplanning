@@ -119,21 +119,17 @@ class Grid3DSearchSpace:
         """Build this regular voxel grid's CSR adjacency directly in C++."""
         from pathplanning.native import NativeGraph
 
-        has_blockages = bool(self.obs)
-        valid_nodes = (
-            np.fromiter(
-                (
-                    self.is_valid_node((x_coord, y_coord, z_coord))
-                    for z_coord in range(self.z_range)
-                    for y_coord in range(self.y_range)
-                    for x_coord in range(self.x_range)
-                ),
-                dtype=np.bool_,
-                count=self.x_range * self.y_range * self.z_range,
-            )
-            if has_blockages
-            else None
-        )
+        valid_nodes = None
+        if self.obs:
+            valid_nodes = np.ones(self.x_range * self.y_range * self.z_range, dtype=np.bool_)
+            for x_coord, y_coord, z_coord in self.obs:
+                if (
+                    0 <= x_coord < self.x_range
+                    and 0 <= y_coord < self.y_range
+                    and 0 <= z_coord < self.z_range
+                ):
+                    node_id = x_coord + self.x_range * (y_coord + self.y_range * z_coord)
+                    valid_nodes[node_id] = False
         return NativeGraph[Node3D].from_grid(
             dimensions=3,
             width=self.x_range,

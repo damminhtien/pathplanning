@@ -9,7 +9,7 @@ Goals:
 - keep planners import-safe in headless environments
 - provide deterministic execution for tests and reproducibility
 - reduce environment hard-coupling via explicit contracts
-- make nearest-neighbor selection pluggable for scalability
+- keep tree growth and nearest-neighbor search in the native C engine
 - preserve runtime behavior unless fixing a correctness bug
 
 ## Architecture Changes
@@ -20,11 +20,16 @@ Goals:
 - `DynamicRRT3DConfig`: planner constants and thresholds
 - `environment` injection in constructor
 - `rng` injection (or `DynamicRRT3D.with_seed(...)`) for deterministic sampling
-- pluggable nearest index (`NearestNodeIndex` protocol)
+- native C tree pruning, nearest-neighbor queries, and growth
 
-Included nearest backends:
+Standalone nearest-query adapters remain available for callers that use the
+object-level `nearest(...)` helper:
 - `BruteForceNearestNodeIndex`
 - `KDTreeNearestNodeIndex` (batched `scipy.spatial.cKDTree` rebuild)
+
+The planning loop uses the native incremental KD forest. Built-in
+`ContinuousSpace3D` obstacles are copied into native arrays before planning;
+custom spaces use compatibility callbacks.
 
 ### Headless import safety
 

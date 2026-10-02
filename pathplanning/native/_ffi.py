@@ -1,4 +1,4 @@
-"""Private ctypes declarations for the native search engine."""
+"""Private ctypes declarations for native search and sampling engines."""
 
 from __future__ import annotations
 
@@ -35,6 +35,7 @@ class SearchResult(ctypes.Structure):
 
 
 _NATIVE_LIB: ctypes.CDLL | None = None
+_CONTINUOUS_NATIVE_LIB: ctypes.CDLL | None = None
 
 
 def native_directory() -> Path:
@@ -43,7 +44,7 @@ def native_directory() -> Path:
 
 
 def load_native_library() -> ctypes.CDLL:
-    """Load and configure the compiled C ABI library once per process."""
+    """Load and configure the compiled C++ graph-search library once per process."""
     global _NATIVE_LIB
     if _NATIVE_LIB is not None:
         return _NATIVE_LIB
@@ -107,4 +108,38 @@ def load_native_library() -> ctypes.CDLL:
     )
 
 
-__all__ = ["SearchOptions", "SearchResult", "load_native_library"]
+def load_continuous_library() -> ctypes.CDLL:
+    """Load the compiled C sampling-planner library once per process."""
+    global _CONTINUOUS_NATIVE_LIB
+    if _CONTINUOUS_NATIVE_LIB is not None:
+        return _CONTINUOUS_NATIVE_LIB
+
+    candidates = [
+        native_directory() / f"_continuous_engine{suffix}" for suffix in EXTENSION_SUFFIXES
+    ]
+    for candidate in candidates:
+        if not candidate.exists():
+            continue
+        library = ctypes.CDLL(str(candidate))
+        try:
+            library.pp_continuous_plan
+            library.pp_dynamic_rrt_plan
+        except AttributeError as exc:
+            raise RuntimeError(
+                "native continuous engine is stale; run `make build-ext` to rebuild it"
+            ) from exc
+        _CONTINUOUS_NATIVE_LIB = library
+        return library
+
+    searched = ", ".join(str(path) for path in candidates)
+    raise RuntimeError(
+        f"native continuous engine is not built; run `make build-ext`. Searched: {searched}"
+    )
+
+
+__all__ = [
+    "SearchOptions",
+    "SearchResult",
+    "load_continuous_library",
+    "load_native_library",
+]
