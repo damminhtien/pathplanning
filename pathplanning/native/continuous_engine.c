@@ -452,9 +452,10 @@ static int pp_distance(pp_context *ctx, const double *a, const double *b, double
 }
 
 static int pp_valid_state(pp_context *ctx, const double *state) {
-    if (ctx->callbacks->native_space != NULL)
-        return pp_native_state_valid(ctx->callbacks->native_space, state, ctx->dimension);
-    return ctx->callbacks->state_valid(ctx->callbacks->user_data, state, ctx->dimension);
+    int valid = ctx->callbacks->native_space != NULL
+        ? pp_native_state_valid(ctx->callbacks->native_space, state, ctx->dimension)
+        : ctx->callbacks->state_valid(ctx->callbacks->user_data, state, ctx->dimension);
+    return valid == 0 || valid == 1 ? valid : -1;
 }
 
 static int pp_valid_motion(pp_context *ctx, const double *a, const double *b) {
@@ -463,7 +464,7 @@ static int pp_valid_motion(pp_context *ctx, const double *a, const double *b) {
         uint64_t steps, i;
         double sample[1024];
         ++ctx->motion_checks;
-        if (distance == 0.0) return pp_native_state_valid(ctx->callbacks->native_space, a, ctx->dimension);
+        if (distance == 0.0) return pp_valid_state(ctx, a);
         steps = (uint64_t)ceil(distance / ctx->options->collision_step);
         if (steps == 0) steps = 1;
         if (ctx->dimension > sizeof(sample) / sizeof(sample[0])) return -1;
@@ -471,13 +472,19 @@ static int pp_valid_motion(pp_context *ctx, const double *a, const double *b) {
             size_t axis;
             double alpha = (double)i / (double)steps;
             for (axis = 0; axis < ctx->dimension; ++axis) sample[axis] = a[axis] + alpha * (b[axis] - a[axis]);
-            if (!pp_native_state_valid(ctx->callbacks->native_space, sample, ctx->dimension)) return 0;
+            int valid = pp_valid_state(ctx, sample);
+            if (valid < 0) return -1;
+            if (!valid) return 0;
         }
         return 1;
     }
     ++ctx->motion_checks;
-    return ctx->callbacks->motion_valid(ctx->callbacks->user_data, a, b, ctx->dimension,
-                                        ctx->options->collision_step);
+    {
+        int valid = ctx->callbacks->motion_valid(ctx->callbacks->user_data, a, b,
+                                                ctx->dimension,
+                                                ctx->options->collision_step);
+        return valid == 0 || valid == 1 ? valid : -1;
+    }
 }
 
 static int pp_sample(pp_context *ctx, double *out) {
@@ -527,19 +534,30 @@ static int pp_steer(pp_context *ctx, const double *from, const double *to, doubl
 static int pp_is_goal(pp_context *ctx, const double *state) {
     if (ctx->callbacks->native_goal)
         return pp_distance2(state, ctx->goal, ctx->dimension) <= ctx->callbacks->goal_radius * ctx->callbacks->goal_radius;
-    return ctx->callbacks->is_goal(ctx->callbacks->user_data, state, ctx->dimension);
+    {
+        int is_goal = ctx->callbacks->is_goal(ctx->callbacks->user_data, state,
+                                             ctx->dimension);
+        return is_goal == 0 || is_goal == 1 ? is_goal : -1;
+    }
 }
 
-static double pp_goal_distance(pp_context *ctx, const double *state) {
+static int pp_goal_distance(pp_context *ctx, const double *state, double *out) {
     double distance;
-    if (ctx->callbacks->native_goal)
-        return fmax(0.0, sqrt(pp_distance2(state, ctx->goal, ctx->dimension)) - ctx->callbacks->goal_radius);
+    if (ctx->callbacks->native_goal) {
+        *out = fmax(0.0, sqrt(pp_distance2(state, ctx->goal, ctx->dimension)) - ctx->callbacks->goal_radius);
+        return 0;
+    }
     if (ctx->callbacks->goal_distance != NULL) {
         distance = ctx->callbacks->goal_distance(ctx->callbacks->user_data, state, ctx->dimension);
-        return isfinite(distance) && distance >= 0.0 ? distance : PP_C_INF;
+        if (isnan(distance) || distance < 0.0) return -1;
+        *out = isfinite(distance) ? distance : PP_C_INF;
+        return 0;
     }
-    if (!ctx->has_goal_point || pp_distance(ctx, state, ctx->goal, &distance) != 0) return PP_C_INF;
-    return distance;
+    if (!ctx->has_goal_point) {
+        *out = PP_C_INF;
+        return 0;
+    }
+    return pp_distance(ctx, state, ctx->goal, out);
 }
 
 static int pp_timed_out(pp_context *ctx) {
@@ -1154,7 +1172,10 @@ static int pp_run_bit_batch(pp_context *ctx, uint32_t node_count, double best_co
     for (node = 0; node < node_count; ++node) {
         expanded_cost[node] = PP_C_INF; open_cost[node] = PP_C_INF;
         if (isfinite(ctx->nodes.cost[node])) {
-            double h = pp_goal_distance(ctx, pp_point(&ctx->nodes, node));
+            double h;
+            if (pp_goal_distance(ctx, pp_point(&ctx->nodes, node), &h) != 0) {
+                pp_set_error(result, "goal-distance callback failed"); goto done;
+            }
             if (pp_vertex_push(&vertices, node, ctx->nodes.cost[node] + inflation * h, ctx->nodes.cost[node]) != 0) { pp_set_error(result, "out of memory creating BIT* vertex queue"); goto done; }
             open_cost[node] = ctx->nodes.cost[node];
         }
@@ -1197,7 +1218,10 @@ static int pp_run_bit_batch(pp_context *ctx, uint32_t node_count, double best_co
                 double edge_cost, tentative, h;
                 if (source == target) continue;
                 if (pp_distance(ctx, pp_point(&ctx->nodes, source), pp_point(&ctx->nodes, target), &edge_cost) != 0) { pp_set_error(result, "BIT* distance callback failed"); goto done; }
-                tentative = ventry.queued_cost + edge_cost; h = pp_goal_distance(ctx, pp_point(&ctx->nodes, target));
+                tentative = ventry.queued_cost + edge_cost;
+                if (pp_goal_distance(ctx, pp_point(&ctx->nodes, target), &h) != 0) {
+                    pp_set_error(result, "goal-distance callback failed"); goto done;
+                }
                 if (isfinite(best_cost) && tentative + h > truncation * best_cost) continue;
                 if (pp_edge_push(&edges, source, target, tentative + inflation * h, ventry.queued_cost, tentative) != 0) { pp_set_error(result, "out of memory growing BIT* edge queue"); goto done; }
             }
@@ -1207,7 +1231,9 @@ static int pp_run_bit_batch(pp_context *ctx, uint32_t node_count, double best_co
             int valid;
             pp_edge_pop(&edges, &eentry); source = eentry.source; target = eentry.target;
             if (eentry.source_cost != ctx->nodes.cost[source] || eentry.tentative >= ctx->nodes.cost[target]) continue;
-            h = pp_goal_distance(ctx, pp_point(&ctx->nodes, target));
+            if (pp_goal_distance(ctx, pp_point(&ctx->nodes, target), &h) != 0) {
+                pp_set_error(result, "goal-distance callback failed"); goto done;
+            }
             if (isfinite(best_cost) && eentry.tentative + h > truncation * best_cost) continue;
             valid = pp_valid_motion(ctx, pp_point(&ctx->nodes, source), pp_point(&ctx->nodes, target));
             if (valid < 0) { pp_set_error(result, "BIT* motion-validity callback failed"); goto done; }
@@ -1755,3 +1781,5 @@ void pp_dynamic_rrt_free_result(pp_dynamic_rrt_result *result) {
 }
 
 const char *pp_continuous_engine_version(void) { return PP_C_VERSION; }
+
+uint32_t pp_continuous_abi_version(void) { return PP_CONTINUOUS_ABI_VERSION; }

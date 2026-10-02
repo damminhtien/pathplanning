@@ -105,10 +105,12 @@ Both export C ABI functions and are loaded with `ctypes`; Python does not
 implement or dispatch individual expansion steps. `MANIFEST.in` includes the
 `.c`, `.cpp`, and `.h` sources in source distributions.
 
-If a library is missing or its ABI is stale, rebuild with `make build-ext`.
-Changing a C struct requires updating its matching `ctypes.Structure` in
-`_ffi.py` or `continuous.py` in the same change. Native allocations must be
-released by their matching result-free function.
+If a library is missing or incompatible, rebuild with `make build-ext`. The
+exact ABI versions, callback failure rules, and resource ownership contract
+are documented in [Native ABI, ownership, and errors](native_abi.md). Changing
+a C struct requires updating its matching `ctypes.Structure` in `_ffi.py` or
+`continuous.py` and incrementing the corresponding ABI version in the same
+change.
 
 ## Algorithms and Objectives
 

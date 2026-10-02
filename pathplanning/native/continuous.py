@@ -362,6 +362,8 @@ def run_native_continuous(
     callback_errors: list[BaseException] = []
 
     def guarded(function, failure):
+        if callback_errors:
+            return failure
         try:
             return function()
         except BaseException as exc:  # ctypes callbacks cannot propagate Python exceptions.
@@ -599,6 +601,8 @@ def run_native_dynamic_rrt(
     callback_errors: list[BaseException] = []
 
     def guarded(function, failure):
+        if callback_errors:
+            return failure
         try:
             return function()
         except BaseException as exc:  # ctypes callbacks cannot propagate Python exceptions.

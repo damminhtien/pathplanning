@@ -10,6 +10,8 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include "abi_version.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -33,8 +35,10 @@ typedef enum pp_search_algorithm {
     PP_SEARCH_BIDIRECTIONAL_ASTAR = 9,
 } pp_search_algorithm;
 
-// Legacy callback input is retained for ABI compatibility. Its graph is
-// snapshotted before entering a search kernel.
+// Legacy callback input is retained for compatibility. A callback returns 0
+// on success and nonzero on failure; output values are read only on success.
+// out_is_goal must be 0 or 1. Neighbor arrays must remain valid until the next
+// callback invocation; the graph snapshot copies them before then.
 typedef int (*pp_goal_callback)(void* user_data, uint64_t node_id, int* out_is_goal);
 typedef int (*pp_heuristic_callback)(void* user_data, uint64_t node_id, double* out_value);
 typedef int (*pp_neighbors_callback)(
@@ -73,6 +77,8 @@ typedef struct pp_search_options {
     size_t anytime_weight_count;
 } pp_search_options;
 
+// Native-owned path_ids and error_message must only be released by
+// pp_search_free_result.
 typedef struct pp_search_result {
     int success;
     int stop_reason;
@@ -84,6 +90,14 @@ typedef struct pp_search_result {
     char* error_message;
 } pp_search_result;
 
+// Returns PP_SEARCH_ABI_VERSION. This exact-match version covers exported
+// functions, structures, enums, and callback semantics, independently of the
+// package and engine implementation versions.
+uint32_t pp_search_abi_version(void);
+
+// Copies all input arrays before returning. On success, *out_graph is an owned
+// opaque handle and must be released with pp_graph_free exactly once. On
+// failure, the diagnostic is written to the caller-owned bounded buffer.
 int pp_graph_create_csr(
     uint64_t node_count,
     uint64_t edge_count,
@@ -95,6 +109,8 @@ int pp_graph_create_csr(
     size_t error_capacity
 );
 
+// Copies motion and validity arrays before returning and follows the same
+// output-handle and error-buffer ownership rules as pp_graph_create_csr.
 int pp_graph_create_grid(
     uint64_t width,
     uint64_t height,
@@ -122,8 +138,13 @@ int pp_graph_create_grid_ex(
     size_t error_capacity
 );
 
+// Accepts NULL. Frees a graph handle created by this library.
 void pp_graph_free(pp_native_graph* graph);
 
+// Returns zero when the call ran and nonzero on an API/callback error; plan
+// success and stop reason are reported in result. The graph and arrays are
+// borrowed for this call. Result buffers are owned by the result and must be
+// released with pp_search_free_result before the result storage is reused.
 int pp_search_plan(
     const pp_graph_callbacks* graph,
     uint64_t start_id,
@@ -131,6 +152,8 @@ int pp_search_plan(
     pp_search_result* result
 );
 
+// Same result ownership rules as pp_search_plan. The graph and input arrays
+// are borrowed for this call.
 int pp_native_search_plan(
     const pp_native_graph* graph,
     const uint8_t* goal_flags,
@@ -147,6 +170,7 @@ int pp_astar_plan(
     pp_search_result* result
 );
 
+// Accepts NULL; after a result call, releases its owned buffers and resets it.
 void pp_search_free_result(pp_search_result* result);
 
 const char* pp_search_engine_version(void);

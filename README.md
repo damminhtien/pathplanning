@@ -67,7 +67,9 @@ path results. Python callbacks are disabled by default; pass
 or RRT* objective that has no native representation.
 
 See [Native Planning Core](docs/native_core.md) for the architecture, callback
-boundary, build requirements, and benchmark scope.
+boundary, build requirements, and benchmark scope. The [native ABI contract](docs/native_abi.md)
+defines ABI versions, ownership, callback errors, and incompatible-library
+handling.
 
 ### Native model for a custom space
 

@@ -4,6 +4,8 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include "abi_version.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -18,19 +20,36 @@ typedef enum pp_continuous_algorithm {
     PP_CONTINUOUS_RRT_CONNECT = 7
 } pp_continuous_algorithm;
 
+// Return 0 on success and nonzero on failure. out_state is read only on success.
 typedef int (*pp_sample_free_callback)(void *user_data, double *out_state, size_t dimension);
+
+// Return 0 for false, 1 for true, and a negative value or a value greater than
+// 1 for failure.
 typedef int (*pp_state_valid_callback)(void *user_data, const double *state, size_t dimension);
 typedef int (*pp_motion_valid_callback)(void *user_data, const double *start,
                                         const double *end, size_t dimension,
                                         double collision_step);
+
+// Return a finite, non-negative value. Negative or non-finite values fail the
+// plan.
 typedef double (*pp_distance_callback)(void *user_data, const double *start,
                                        const double *end, size_t dimension);
+
+// Return 0 on success and nonzero on failure. out_state is read only on success.
 typedef int (*pp_steer_callback)(void *user_data, const double *start,
                                  const double *target, size_t dimension,
                                  double step_size, double *out_state);
+
+// Return 0 for false, 1 for true, and a negative value or a value greater than
+// 1 for failure.
 typedef int (*pp_goal_callback)(void *user_data, const double *state, size_t dimension);
+
+// Return a non-negative value; positive infinity means no usable estimate.
+// NaN or a negative value fails the plan.
 typedef double (*pp_goal_distance_callback)(void *user_data, const double *state,
                                             size_t dimension);
+
+// Return a finite value. Non-finite values fail the plan.
 typedef double (*pp_path_objective_callback)(void *user_data, const double *path,
                                               size_t path_length, size_t dimension);
 
@@ -109,12 +128,23 @@ typedef struct pp_dynamic_rrt_result {
     size_t invalid_count;
 } pp_dynamic_rrt_result;
 
+// Returns PP_CONTINUOUS_ABI_VERSION. This exact-match version covers exported
+// functions, structures, enums, and callback semantics.
+uint32_t pp_continuous_abi_version(void);
+
+// Inputs, callbacks, user_data, and model arrays are borrowed for the duration
+// of the call. The result owns its path and error_message buffers; call the
+// matching free function after every call, including failures, and before
+// reusing result storage. Error messages can be NULL if allocation fails.
 int pp_continuous_plan(const pp_continuous_callbacks *callbacks,
                        const double *start, const double *goal,
                        size_t dimension, int has_goal_point,
                        const pp_continuous_options *options,
                        pp_continuous_result *result);
 void pp_continuous_free_result(pp_continuous_result *result);
+
+// Uses the same borrowed-input rules. Its result owns the nested plan buffers
+// and tree arrays and must be released with pp_dynamic_rrt_free_result.
 int pp_dynamic_rrt_plan(const pp_continuous_callbacks *callbacks,
                         const double *start, const double *goal,
                         const double *initial_points,

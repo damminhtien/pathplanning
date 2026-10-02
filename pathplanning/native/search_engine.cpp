@@ -1449,6 +1449,9 @@ extern "C" int pp_search_plan(
             if (callbacks->is_goal(callbacks->user_data, original_ids[node_id], &is_goal_value) != 0) {
                 throw std::runtime_error("is_goal callback failed during graph snapshot");
             }
+            if (is_goal_value != 0 && is_goal_value != 1) {
+                throw std::runtime_error("is_goal callback returned a value other than 0 or 1");
+            }
             goal_flags[node_id] = is_goal_value != 0 ? 1 : 0;
 
             if (use_heuristic) {
@@ -1551,6 +1554,10 @@ extern "C" void pp_search_free_result(pp_search_result* result) {
     std::free(result->path_ids);
     std::free(result->error_message);
     reset_result(result);
+}
+
+extern "C" uint32_t pp_search_abi_version(void) {
+    return PP_SEARCH_ABI_VERSION;
 }
 
 extern "C" const char* pp_search_engine_version(void) {
