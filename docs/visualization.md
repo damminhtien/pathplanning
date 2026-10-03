@@ -29,6 +29,27 @@ to draw into an existing axes. Multiple renderers can be used independently.
 If planning failed or the trace ended early, the available final path remains
 visible; a missing path simply leaves the path layer empty.
 
+## Example renders
+
+These figures use the current scene renderer and snapshots from completed
+diagnostic traces. The final route stays visible while search state is replayed.
+Regenerate the checked-in images after building the diagnostic libraries with
+`python scripts/generate_visualization_assets.py`.
+
+### 2D grid search
+
+![A* grid search with visited cells, frontier, obstacles, and final path](../assets/images/astar-2d.png)
+
+![Bidirectional A* with both search fronts and the final route](../assets/images/bidirectional-astar-2d.png)
+
+### 2D and 3D sampling
+
+![RRT tree and path through a 2D scene](../assets/images/rrt-2d.png)
+
+![RRT-Connect trees joined through 2D obstacles](../assets/images/rrt-connect-2d.png)
+
+![RRT-Connect path through 3D box and sphere obstacles](../assets/images/rrt-connect-3d.png)
+
 ## Trace playback
 
 ```python

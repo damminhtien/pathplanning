@@ -95,22 +95,23 @@ The space's operations must have the same uniform sampling, Euclidean distance,
 steering, and collision semantics as the returned model. Otherwise, enable the
 Python compatibility path explicitly with `RrtParams(allow_python_callbacks=True)`.
 
-## Visual Preview
+## Visualization Gallery
 
-Animations are stored at:
-
-- `assets/gif/search`
-- `assets/gif/sampling`
-
-Example gallery:
+Current figures are rendered from native planner results with the `Scene`,
+`render_result`, and trace replay APIs. Search and sampling run first; replay
+data is collected only for these diagnostic snapshots. See the
+[visualization guide](docs/visualization.md) for the API and viewer controls.
 
 <p align="center">
-  <img src="./assets/gif/search/Astar.gif" alt="A* planning animation" width="360"/>
-  <img src="./assets/gif/search/Bi-Astar.gif" alt="Bidirectional search animation" width="360"/>
+  <img src="./assets/images/astar-2d.png" alt="A-star grid search with visited cells, frontier, obstacles, and final path" width="420"/>
+  <img src="./assets/images/bidirectional-astar-2d.png" alt="Bidirectional A-star showing both search fronts and the final path" width="420"/>
 </p>
 <p align="center">
-  <img src="./assets/gif/sampling/RRT_2D.gif" alt="RRT 2D planning animation" width="360"/>
-  <img src="./assets/gif/sampling/RRT_CONNECT_2D.gif" alt="RRT Connect 2D planning animation" width="360"/>
+  <img src="./assets/images/rrt-2d.png" alt="RRT tree, samples, obstacles, and final path in a 2D scene" width="420"/>
+  <img src="./assets/images/rrt-connect-2d.png" alt="RRT-Connect start and goal trees joined by a 2D path" width="420"/>
+</p>
+<p align="center">
+  <img src="./assets/images/rrt-connect-3d.png" alt="RRT-Connect path and trees through a 3D scene with box and sphere obstacles" width="640"/>
 </p>
 
 ## Installation
