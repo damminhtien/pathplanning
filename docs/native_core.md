@@ -92,16 +92,18 @@ expansion, use a built-in native space or implement the
 ## Building and Loading
 
 Source builds require Python `>=3.10`, a C11 compiler, and a C++17 compiler.
-`pip install .` builds both extension libraries as part of package
+`pip install .` builds all four extension libraries as part of package
 installation. For a checkout, build them in place with:
 
 ```bash
 make build-ext
 ```
 
-The build creates `_search_engine` from `search_engine.cpp` and
-`_continuous_engine` from `continuous_engine.c`, with separate compiler flags.
-Both export C ABI functions and are loaded with `ctypes`; Python does not
+The build creates production `_search_engine` and `_continuous_engine`, plus
+`_search_trace_engine` and `_continuous_trace_engine` from the same source files.
+The diagnostic variants compile with `PP_ENABLE_TRACE=1`; the production
+variants omit trace code at compile time. All export C ABI functions and are
+loaded with `ctypes`; Python does not
 implement or dispatch individual expansion steps. `MANIFEST.in` includes the
 `.c`, `.cpp`, and `.h` sources in source distributions.
 
@@ -111,6 +113,14 @@ are documented in [Native ABI, ownership, and errors](native_abi.md). Changing
 a C struct requires updating its matching `ctypes.Structure` in `_ffi.py` or
 `continuous.py` and incrementing the corresponding ABI version in the same
 change.
+
+`TraceOptions` selects a diagnostic library for one planning run. Native code
+records ordered events into a bounded buffer; Python copies them into
+`PlanResult.trace` only after planning returns. Matplotlib and the viewer are
+loaded later by explicit visualization calls. A `NativeGraph` is copied once
+from a borrowed production CSR view into a diagnostic-owned graph handle;
+diagnostic graph storage is outside the trace byte cap. See
+[Visualization](visualization.md) for the viewer and migration guide.
 
 ## Algorithms and Objectives
 

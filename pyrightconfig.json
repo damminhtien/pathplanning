@@ -10,7 +10,7 @@
     "pathplanning/registry.py",
     "pathplanning/planners/sampling/rrt.py",
     "pathplanning/planners/sampling/rrt_star.py",
-    "pathplanning/viz/sampling3d_plotting.py",
+    "pathplanning/viz/replay.py",
     "examples/worlds/demo_3d_world.py"
   ],
   "exclude": [

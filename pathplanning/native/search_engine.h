@@ -11,6 +11,9 @@
 #include <stdint.h>
 
 #include "abi_version.h"
+#if defined(PP_ENABLE_TRACE) && PP_ENABLE_TRACE
+#include "trace_engine.h"
+#endif
 
 #ifdef __cplusplus
 extern "C" {
@@ -65,6 +68,20 @@ typedef struct pp_astar_options {
 
 typedef struct pp_native_graph pp_native_graph;
 
+// Borrowed pointers remain valid until the graph is freed. Keep the owner
+// alive while copying this view into another native library.
+typedef struct pp_graph_csr_view {
+    uint64_t node_count;
+    uint64_t edge_count;
+    const uint64_t* offsets;
+    const uint64_t* neighbor_ids;
+    const double* edge_costs;
+    uint64_t grid_width;
+    uint64_t grid_height;
+    uint64_t grid_depth;
+    int euclidean_grid_heuristic;
+} pp_graph_csr_view;
+
 typedef struct pp_search_options {
     int algorithm;
     int has_max_expansions;
@@ -108,6 +125,9 @@ int pp_graph_create_csr(
     char* error_message,
     size_t error_capacity
 );
+
+// Exports a borrowed view; the arrays are never copied by this call.
+int pp_graph_export_csr_view(const pp_native_graph* graph, pp_graph_csr_view* out_view);
 
 // Copies motion and validity arrays before returning and follows the same
 // output-handle and error-buffer ownership rules as pp_graph_create_csr.
@@ -162,6 +182,34 @@ int pp_native_search_plan(
     const pp_search_options* options,
     pp_search_result* result
 );
+
+#if defined(PP_ENABLE_TRACE) && PP_ENABLE_TRACE
+// Imports a borrowed CSR view into this library's own graph handle.
+int pp_graph_create_csr_view(
+    const pp_graph_csr_view* view,
+    pp_native_graph** out_graph,
+    char* error_message,
+    size_t error_capacity
+);
+
+// Diagnostic-library entry. A full trace stops recording when max_bytes is
+// exhausted, while the search continues. The result and trace are independent
+// native-owned outputs and must each be freed in the same library.
+int pp_native_search_plan_traced(
+    const pp_native_graph* graph,
+    const uint8_t* goal_flags,
+    const double* heuristic_values,
+    uint64_t start_id,
+    const pp_search_options* options,
+    pp_search_result* result,
+    uint64_t max_bytes,
+    pp_trace_result* trace
+);
+
+uint32_t pp_search_trace_abi_version(void);
+uint64_t pp_graph_storage_bytes(const pp_native_graph* graph);
+void pp_search_trace_free_result(pp_trace_result* trace);
+#endif
 
 int pp_astar_plan(
     const pp_graph_callbacks* graph,

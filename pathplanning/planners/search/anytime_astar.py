@@ -8,6 +8,7 @@ from typing import TypeVar
 
 from pathplanning.core.contracts import DiscreteProblem
 from pathplanning.core.results import PlanResult, StopReason
+from pathplanning.core.trace import TraceOptions
 from pathplanning.core.types import RNG
 from pathplanning.planners.search._internal.common import coerce_max_expansions
 from pathplanning.planners.search.weighted_astar import plan_weighted_astar
@@ -46,6 +47,7 @@ def plan_anytime_astar(
     *,
     params: Mapping[str, object] | None = None,
     rng: RNG | None = None,
+    trace: TraceOptions | None = None,
 ) -> PlanResult:
     """Plan a path for one ``DiscreteProblem`` with Anytime A*."""
     weights = _coerce_anytime_weights(params)
@@ -61,8 +63,11 @@ def plan_anytime_astar(
             problem,
             max_expansions=max_expansions,
             weights=weights,
+            trace=trace,
         )
     except NativeSearchUnavailable:
+        if trace is not None:
+            raise
         pass
 
     base_params = dict(params) if params is not None else {}

@@ -8,8 +8,10 @@ its C ABI version.
 
 | Library | ABI constant | Probe function | Supported ABI |
 | --- | --- | --- | --- |
-| C++ graph search | `PP_SEARCH_ABI_VERSION` | `pp_search_abi_version()` | 1 |
+| C++ graph search | `PP_SEARCH_ABI_VERSION` | `pp_search_abi_version()` | 2 |
 | C sampling planners | `PP_CONTINUOUS_ABI_VERSION` | `pp_continuous_abi_version()` | 1 |
+| C++ diagnostic search | `PP_SEARCH_TRACE_ABI_VERSION` | `pp_search_trace_abi_version()` | 1 |
+| C diagnostic sampling | `PP_CONTINUOUS_TRACE_ABI_VERSION` | `pp_continuous_trace_abi_version()` | 1 |
 
 The constants are declared in `pathplanning/native/abi_version.h`. Increment
 an engine's ABI version when an exported function, struct layout, enum value,
@@ -22,6 +24,9 @@ of the library. A missing probe, version mismatch, or missing required export
 raises `NativeLibraryCompatibilityError` with the library path and rebuild
 instruction. A shared-library load failure raises `NativeLibraryLoadError`.
 Both errors fail closed; rebuild or reinstall the package with `make build-ext`.
+The diagnostic libraries are loaded only for `trace=TraceOptions(...)`.
+The production search ABI changed to expose a borrowed CSR view for cloning a
+graph into the diagnostic library; continuous production ABI did not change.
 
 ## Ownership and lifetime
 
@@ -33,11 +38,19 @@ Both errors fail closed; rebuild or reinstall the package with `make build-ext`.
 | Continuous inputs, model arrays, callbacks, and `user_data` | Borrowed for the duration of `pp_continuous_plan()` or `pp_dynamic_rrt_plan()`. The planner retains no callback or input pointer after return. | Keep them alive until the call returns. |
 | `pp_continuous_result` buffers | Result storage belongs to the caller; `path` and `error_message` belong to the native library. | Call `pp_continuous_free_result()` after every call and before reuse. |
 | `pp_dynamic_rrt_result` buffers | The nested plan buffers and tree/invalid-node arrays belong to the native library. | Call `pp_dynamic_rrt_free_result()` after every call and before reuse; do not free nested fields separately. |
+| `pp_graph_csr_view` | Borrowed pointers to a production graph's CSR arrays and grid metadata. | Keep the production graph alive until `pp_graph_create_csr_view()` copies them into the diagnostic library; never share opaque graph handles between libraries. |
+| `pp_trace_result` buffers | Diagnostic library owns event and coordinate arrays. The recording cap includes their allocated capacities and, for continuous planners, the node-ID map. | Copy into Python-owned arrays, then call `pp_search_trace_free_result()` or `pp_continuous_trace_free_result()` from the producing library. |
 
 Free functions accept `NULL` and reset a valid result struct after freeing it.
 Callers must use the matching free function from the same engine library and
 must not free individual result fields. Search and continuous outputs are
 value structs, not opaque result handles.
+
+Diagnostic recording stops at its byte limit or allocation failure and marks
+`truncated`; planning continues. The extra diagnostic graph copy is reported
+separately from the trace cap as the graph struct plus allocated CSR-vector
+capacities; allocator bookkeeping is not included. The production libraries
+contain no trace event recording in their planner loops.
 
 The C++ search implementation uses RAII for internal graph/search state and
 catches exceptions at every exported C boundary. No C++ exception crosses the

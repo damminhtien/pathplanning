@@ -8,6 +8,7 @@ from typing import TypeVar
 
 from pathplanning.core.contracts import DiscreteProblem
 from pathplanning.core.results import PlanResult
+from pathplanning.core.trace import TraceOptions
 from pathplanning.planners.search._internal.native import run_native_best_first
 
 N = TypeVar("N")
@@ -48,6 +49,7 @@ def run_best_first(
     max_expansions: int | None,
     use_heuristic: bool,
     heuristic_weight: float = 1.0,
+    trace: TraceOptions | None = None,
 ) -> PlanResult:
     """Run reusable best-first search through the native C++ core."""
     return run_native_best_first(
@@ -55,6 +57,7 @@ def run_best_first(
         max_expansions=max_expansions,
         use_heuristic=use_heuristic,
         heuristic_weight=heuristic_weight,
+        trace=trace,
     )
 
 

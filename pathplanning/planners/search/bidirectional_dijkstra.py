@@ -7,6 +7,7 @@ from typing import TypeVar
 
 from pathplanning.core.contracts import DiscreteProblem
 from pathplanning.core.results import PlanResult
+from pathplanning.core.trace import TraceOptions
 from pathplanning.core.types import RNG
 from pathplanning.planners.search._internal.common import coerce_max_expansions
 from pathplanning.planners.search._internal.native import run_native_bidirectional_dijkstra
@@ -19,6 +20,7 @@ def plan_bidirectional_dijkstra(
     *,
     params: Mapping[str, object] | None = None,
     rng: RNG | None = None,
+    trace: TraceOptions | None = None,
 ) -> PlanResult:
     """Plan a path with bidirectional Dijkstra for an exact goal node."""
     _ = rng
@@ -27,6 +29,7 @@ def plan_bidirectional_dijkstra(
     return run_native_bidirectional_dijkstra(
         problem,
         max_expansions=coerce_max_expansions(params),
+        trace=trace,
     )
 
 

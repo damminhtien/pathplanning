@@ -70,6 +70,7 @@ callback boundary.
 
 ## Visualization
 
-`DynamicRRT3D.visualization()` is a deprecated no-op. Use the plotting helpers
-under `pathplanning.viz` explicitly when rendering is needed; planner execution
-does not import or invoke plotting code.
+`DynamicRRT3D.grow_rrt`, `regrow_rrt`, and `trim_rrt` accept an optional
+`trace=TraceOptions()` and return the trace for that native run. The planner
+also stores it as `last_trace`. Rendering uses `pathplanning.viz` after the run;
+see [the visualization guide](visualization.md).

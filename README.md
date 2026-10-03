@@ -21,7 +21,7 @@ Current codebase organization:
 - `pathplanning/data_structures`: reusable tree/storage structures
 - `pathplanning/utils`: shared utilities (including priority queue)
 - `pathplanning/geometry`: geometry and trajectory generation utilities
-- `pathplanning/viz`: plotting-only Python helpers with lazy imports
+- `pathplanning/viz`: optional 2D/3D rendering and offline Matplotlib viewer
 
 ## Repository Layout
 
@@ -71,6 +71,12 @@ boundary, build requirements, and benchmark scope. The [native ABI contract](doc
 defines ABI versions, ownership, callback errors, and incompatible-library
 handling.
 
+For a replayable diagnostic run, pass `trace=TraceOptions()` and then call
+`view_result(scene_from_problem(problem), result)`. Normal planning uses a
+production library compiled without trace code. See the
+[visualization guide](docs/visualization.md) for controls, custom scenes, and
+the migration from the old plotting modules.
+
 ### Native model for a custom space
 
 A custom space can avoid Python callbacks by returning native bounds and
@@ -78,6 +84,7 @@ supported obstacle arrays from `to_native_model()`:
 
 ```python
 from pathplanning.native import NativeContinuousSpaceModel
+
 
 class UnitLineSpace:
     def to_native_model(self) -> NativeContinuousSpaceModel:
@@ -237,6 +244,8 @@ Run from repository root.
 ```bash
 python examples/worlds/custom_grid_world.py
 python examples/worlds/demo_3d_world.py
+python examples/viewer_2d.py
+python examples/viewer_3d.py
 python scripts/benchmark_planners.py --output benchmark-results/planners.json
 python scripts/benchmark_native_sampling.py --output benchmark-results/native-sampling.json
 ```

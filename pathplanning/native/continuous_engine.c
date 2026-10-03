@@ -29,6 +29,23 @@ typedef struct {
     uint64_t increment;
 } pp_rng;
 
+#ifdef PP_ENABLE_TRACE
+typedef struct {
+    pp_trace_result *out;
+    uint64_t max_bytes;
+    size_t event_capacity;
+    size_t point_capacity;
+    size_t map_capacity;
+    uint64_t *node_ids;
+    uint64_t pending_sample;
+    uint64_t last_solution_node;
+    double last_solution_cost;
+    uint32_t side;
+    int restoring_initial;
+    uint64_t original_id;
+} pp_trace_buffer;
+#endif
+
 typedef struct {
     double *points;
     double *cost;
@@ -40,6 +57,9 @@ typedef struct {
     uint32_t count;
     uint32_t capacity;
     size_t dimension;
+#ifdef PP_ENABLE_TRACE
+    pp_trace_buffer *trace;
+#endif
 } pp_nodes;
 
 typedef struct {
@@ -79,7 +99,173 @@ typedef struct {
     uint64_t motion_checks;
     uint64_t rewires;
     double started;
+#ifdef PP_ENABLE_TRACE
+    pp_trace_buffer *trace;
+#endif
 } pp_context;
+
+#ifdef PP_ENABLE_TRACE
+// The cap accounts for allocated storage, including the temporary node map.
+// A full or unallocatable trace is a partial diagnostic result, never a plan error.
+static size_t pp_trace_used(const pp_trace_buffer *trace) {
+    return trace->event_capacity * sizeof(pp_trace_event) +
+           trace->point_capacity * trace->out->dimension * sizeof(double) +
+           trace->map_capacity * sizeof(uint64_t);
+}
+
+static int pp_trace_reserve(pp_trace_buffer *trace, size_t requested,
+                            size_t *capacity, size_t item_size, void **storage) {
+    size_t next, used, limit;
+    void *grown;
+    if (trace->out->truncated) return -1;
+    if (requested <= *capacity) return 0;
+    if (item_size == 0 || requested > SIZE_MAX / item_size) goto full;
+    used = pp_trace_used(trace);
+    limit = trace->max_bytes > SIZE_MAX ? SIZE_MAX : (size_t)trace->max_bytes;
+    if (used > limit || requested - *capacity > (limit - used) / item_size) goto full;
+    next = *capacity == 0 ? 4 : *capacity;
+    while (next < requested) {
+        if (next > SIZE_MAX / 2) { next = requested; break; }
+        next *= 2;
+    }
+    if (next - *capacity > (limit - used) / item_size) next = requested;
+    grown = realloc(*storage, next * item_size);
+    if (grown == NULL) goto full;
+    *storage = grown;
+    *capacity = next;
+    return 0;
+full:
+    trace->out->truncated = 1;
+    return -1;
+}
+
+static int pp_trace_append_event(pp_trace_buffer *trace, uint32_t kind,
+                                 uint64_t node, uint64_t parent,
+                                 double value, uint32_t side) {
+    pp_trace_event *event;
+    if (pp_trace_reserve(trace, trace->out->event_count + 1,
+                         &trace->event_capacity, sizeof(pp_trace_event),
+                         (void **)&trace->out->events) != 0) return -1;
+    event = &trace->out->events[trace->out->event_count++];
+    event->kind = kind; event->node = node; event->parent = parent;
+    event->value = value; event->side = side;
+    return 0;
+}
+
+static uint64_t pp_trace_append_point(pp_trace_buffer *trace, const double *point) {
+    size_t id = trace->out->point_count;
+    size_t bytes;
+    if (trace->out->dimension == 0 || trace->out->dimension > SIZE_MAX / sizeof(double)) {
+        trace->out->truncated = 1; return UINT64_MAX;
+    }
+    bytes = trace->out->dimension * sizeof(double);
+    if (pp_trace_reserve(trace, id + 1, &trace->point_capacity,
+                         bytes, (void **)&trace->out->points) != 0) return UINT64_MAX;
+    memcpy(trace->out->points + id * trace->out->dimension, point, bytes);
+    trace->out->point_count = id + 1;
+    return (uint64_t)id;
+}
+
+static int pp_trace_map_node(pp_trace_buffer *trace, uint32_t native_id, uint64_t id) {
+    size_t previous = trace->map_capacity;
+    if (pp_trace_reserve(trace, (size_t)native_id + 1, &trace->map_capacity,
+                         sizeof(uint64_t), (void **)&trace->node_ids) != 0) return -1;
+    for (; previous < trace->map_capacity; ++previous) trace->node_ids[previous] = UINT64_MAX;
+    trace->node_ids[native_id] = id;
+    return 0;
+}
+
+static uint64_t pp_trace_id(const pp_trace_buffer *trace, uint32_t native_id) {
+    return native_id != PP_C_NONE && native_id < trace->map_capacity
+        ? trace->node_ids[native_id] : UINT64_MAX;
+}
+
+static void pp_trace_native_event(pp_trace_buffer *trace, uint32_t kind,
+                                  uint32_t node, uint32_t parent, double value,
+                                  uint32_t side) {
+    uint64_t id, parent_id;
+    if (trace == NULL || trace->out->truncated) return;
+    id = pp_trace_id(trace, node);
+    parent_id = pp_trace_id(trace, parent);
+    if (id == UINT64_MAX || (parent != PP_C_NONE && parent_id == UINT64_MAX)) return;
+    (void)pp_trace_append_event(trace, kind, id, parent_id, value, side);
+}
+
+static void pp_trace_sample(pp_context *ctx, const double *point) {
+    pp_trace_buffer *trace = ctx->trace;
+    uint64_t id;
+    if (trace == NULL || trace->out->truncated) return;
+    id = pp_trace_append_point(trace, point);
+    if (id == UINT64_MAX) return;
+    if (pp_trace_append_event(trace, PP_TRACE_SAMPLE, id, UINT64_MAX, 0.0,
+                              trace->side) == 0) trace->pending_sample = id;
+}
+
+static void pp_trace_new_node(pp_nodes *nodes, uint32_t native_id,
+                              const double *point, uint32_t parent,
+                              double cost, uint8_t flags) {
+    pp_trace_buffer *trace = nodes->trace;
+    uint64_t id;
+    int reused_sample = 0;
+    if (trace == NULL || trace->out->truncated) return;
+    if (trace->restoring_initial) {
+        (void)pp_trace_map_node(trace, native_id, trace->original_id);
+        return;
+    }
+    if (parent == PP_C_NONE && !isfinite(cost) &&
+        trace->pending_sample != UINT64_MAX &&
+        memcmp(trace->out->points + trace->pending_sample * nodes->dimension,
+               point, nodes->dimension * sizeof(double)) == 0) {
+        id = trace->pending_sample;
+        reused_sample = 1;
+    } else {
+        id = pp_trace_append_point(trace, point);
+    }
+    trace->pending_sample = UINT64_MAX;
+    if (id == UINT64_MAX || pp_trace_map_node(trace, native_id, id) != 0) return;
+    if (!reused_sample)
+        pp_trace_native_event(trace, parent == PP_C_NONE && !isfinite(cost)
+                                    ? PP_TRACE_SAMPLE : PP_TRACE_DISCOVER,
+                              native_id, parent, cost, flags & 1u);
+}
+
+static void pp_trace_solution(pp_context *ctx, uint32_t node,
+                              uint32_t bridge, double cost) {
+    pp_trace_buffer *trace = ctx->trace;
+    uint64_t id, bridge_id;
+    if (trace == NULL || trace->out->truncated) return;
+    id = pp_trace_id(trace, node);
+    bridge_id = pp_trace_id(trace, bridge);
+    if (id == UINT64_MAX ||
+        (node == trace->last_solution_node && cost == trace->last_solution_cost)) return;
+    if (pp_trace_append_event(trace, PP_TRACE_SOLUTION, id, bridge_id,
+                              cost, ctx->nodes.flags[node] & 1u) == 0) {
+        trace->last_solution_node = node;
+        trace->last_solution_cost = cost;
+    }
+}
+
+static void pp_trace_phase(pp_context *ctx, double phase) {
+    if (ctx->trace != NULL)
+        (void)pp_trace_append_event(ctx->trace, PP_TRACE_PHASE,
+                                    UINT64_MAX, UINT64_MAX, phase, ctx->trace->side);
+}
+
+static void pp_trace_init(pp_trace_buffer *buffer, pp_trace_result *out,
+                           size_t dimension, uint64_t max_bytes) {
+    memset(out, 0, sizeof(*out));
+    memset(buffer, 0, sizeof(*buffer));
+    out->dimension = dimension;
+    buffer->out = out; buffer->max_bytes = max_bytes;
+    buffer->pending_sample = UINT64_MAX;
+    buffer->last_solution_node = UINT64_MAX;
+}
+
+static void pp_trace_finish(pp_trace_buffer *buffer) {
+    free(buffer->node_ids);
+    buffer->node_ids = NULL;
+}
+#endif
 
 static double pp_now(void) {
     struct timespec value;
@@ -409,6 +595,9 @@ static uint32_t pp_node_add(pp_nodes *nodes, const double *state, uint32_t paren
         nodes->next_sibling[id] = nodes->first_child[parent];
         nodes->first_child[parent] = id;
     }
+#ifdef PP_ENABLE_TRACE
+    pp_trace_new_node(nodes, id, state, parent, cost, flags);
+#endif
     return id;
 }
 
@@ -432,6 +621,9 @@ static void pp_node_attach(pp_nodes *nodes, uint32_t id, uint32_t parent,
     pp_node_detach(nodes, id);
     nodes->parent[id] = parent; nodes->edge_cost[id] = edge_cost; nodes->cost[id] = cost;
     nodes->next_sibling[id] = nodes->first_child[parent]; nodes->first_child[parent] = id;
+#ifdef PP_ENABLE_TRACE
+    pp_trace_native_event(nodes->trace, PP_TRACE_PARENT, id, parent, cost, nodes->flags[id] & 1u);
+#endif
 }
 
 static void pp_nodes_free(pp_nodes *nodes) {
@@ -503,7 +695,13 @@ static int pp_sample(pp_context *ctx, double *out) {
             status = pp_valid_state(ctx, out);
         }
         if (status < 0) return -1;
-        if (status > 0) { ++ctx->samples; return 0; }
+        if (status > 0) {
+            ++ctx->samples;
+#ifdef PP_ENABLE_TRACE
+            pp_trace_sample(ctx, out);
+#endif
+            return 0;
+        }
     }
     return -2;
 }
@@ -636,6 +834,10 @@ static int pp_path_to_result(pp_context *ctx, const uint32_t *ids, size_t length
     result->motion_checks = ctx->motion_checks; result->rewires = ctx->rewires;
     result->path_cost = path_cost; result->elapsed_s = pp_now() - ctx->started;
     result->path = path; result->path_length = length; result->dimension = ctx->dimension;
+#ifdef PP_ENABLE_TRACE
+    if (ctx->options->algorithm != PP_CONTINUOUS_RRT_CONNECT || length == 1)
+        pp_trace_solution(ctx, ids[length - 1], PP_C_NONE, path_cost);
+#endif
     return 0;
 }
 
@@ -722,7 +924,13 @@ static int pp_sample_informed(pp_context *ctx, double best_cost, double *out) {
     double sum = 0.0;
     if (!ctx->has_goal_point || ctx->dimension < 2) return pp_sample(ctx, out);
     c_min = sqrt(pp_distance2(ctx->nodes.points, ctx->goal, ctx->dimension));
-    if (best_cost <= c_min) { memcpy(out, ctx->nodes.points, ctx->dimension * sizeof(double)); return 0; }
+    if (best_cost <= c_min) {
+        memcpy(out, ctx->nodes.points, ctx->dimension * sizeof(double));
+#ifdef PP_ENABLE_TRACE
+        pp_trace_sample(ctx, out);
+#endif
+        return 0;
+    }
     a = best_cost / 2.0;
     b = sqrt(fmax(0.0, best_cost * best_cost - c_min * c_min)) / 2.0;
     normal = (double *)malloc(ctx->dimension * sizeof(double));
@@ -766,6 +974,9 @@ static int pp_sample_informed(pp_context *ctx, double best_cost, double *out) {
         if (valid == 0) return -2;
     }
     ++ctx->samples;
+#ifdef PP_ENABLE_TRACE
+    pp_trace_sample(ctx, out);
+#endif
     return 0;
 }
 
@@ -943,8 +1154,15 @@ static int pp_run_rrt(pp_context *ctx, int optimize, int informed,
         if (pp_timed_out(ctx)) { stop_reason = 1; break; }
         if (to_goal) memcpy(sample, ctx->goal, ctx->dimension * sizeof(double));
         else if (pp_push_sample(ctx, sample, best_cost, informed) != 0) { pp_set_error(result, "failed to sample a valid state"); goto done; }
+#ifdef PP_ENABLE_TRACE
+        if (to_goal) pp_trace_sample(ctx, sample);
+#endif
         if (pp_nearest(ctx, ctx->options->use_euclidean_index ? &ctx->indices[0] : NULL,
                        sample, &nearest) != 0) { pp_set_error(result, "nearest-node query failed"); goto done; }
+#ifdef PP_ENABLE_TRACE
+        pp_trace_native_event(ctx->trace, PP_TRACE_EXPAND, nearest, PP_C_NONE,
+                              (double)ctx->iterations, 0);
+#endif
         if (pp_steer(ctx, pp_point(&ctx->nodes, nearest), sample, candidate, &edge_length) != 0) {
             pp_set_error(result, "distance or steering callback failed"); goto done;
         }
@@ -953,7 +1171,12 @@ static int pp_run_rrt(pp_context *ctx, int optimize, int informed,
             if (found_goal < 0) { pp_set_error(result, "goal callback failed"); goto done; }
             if (found_goal > 0) {
                 if (!optimize) { ++ctx->iterations; status = pp_record_path(ctx, nearest, result); goto done; }
-                if (ctx->nodes.cost[nearest] < best_cost) { best_goal = nearest; best_cost = ctx->nodes.cost[nearest]; }
+                if (ctx->nodes.cost[nearest] < best_cost) {
+                    best_goal = nearest; best_cost = ctx->nodes.cost[nearest];
+#ifdef PP_ENABLE_TRACE
+                    pp_trace_solution(ctx, nearest, PP_C_NONE, best_cost);
+#endif
+                }
             }
             ++ctx->iterations;
             continue;
@@ -1029,6 +1252,9 @@ static int pp_run_rrt(pp_context *ctx, int optimize, int informed,
             for (node = 0; node < ctx->nodes.count; ++node) {
                 if ((ctx->nodes.flags[node] & 2) && ctx->nodes.cost[node] < best_cost) {
                     best_cost = ctx->nodes.cost[node]; best_goal = node;
+#ifdef PP_ENABLE_TRACE
+                    pp_trace_solution(ctx, node, PP_C_NONE, best_cost);
+#endif
                 }
             }
         }
@@ -1064,6 +1290,9 @@ static int pp_run_fmt(pp_context *ctx, pp_continuous_result *result) {
     if (root == PP_C_NONE || goal_id == PP_C_NONE || pp_add_index(ctx, &ctx->indices[0], root) != 0 || pp_add_index(ctx, &ctx->indices[0], goal_id) != 0) {
         pp_set_error(result, "out of memory initializing FMT* tree"); goto done;
     }
+#ifdef PP_ENABLE_TRACE
+    pp_trace_phase(ctx, 1.0);
+#endif
     for (node = 0; node < ctx->options->sample_count; ++node) {
         if (pp_timed_out(ctx)) { stop = 1; break; }
         if (pp_push_sample(ctx, sample, PP_C_INF, 0) != 0) { pp_set_error(result, "failed to generate FMT* samples"); goto done; }
@@ -1101,6 +1330,10 @@ static int pp_run_fmt(pp_context *ctx, pp_continuous_result *result) {
         pp_vertex_pop(&open, &current_entry); current = current_entry.node;
         if (status[current] != 1 || current_entry.queued_cost > ctx->nodes.cost[current] + 1e-12) continue;
         status[current] = 2; ++ctx->iterations;
+#ifdef PP_ENABLE_TRACE
+        pp_trace_native_event(ctx->trace, PP_TRACE_EXPAND, current, PP_C_NONE,
+                              (double)ctx->iterations, 0);
+#endif
         if (current == goal_id) { out = pp_record_path(ctx, goal_id, result); goto done; }
         near.count = 0;
         if (pp_radius_ids(ctx, &ctx->indices[0], pp_point(&ctx->nodes, current), radius, &near) != 0) { pp_set_error(result, "FMT* neighbor query failed"); goto done; }
@@ -1210,6 +1443,10 @@ static int pp_run_bit_batch(pp_context *ctx, uint32_t node_count, double best_co
             open_cost[source] = PP_C_INF;
             if (closed[source] && expanded_cost[source] <= ventry.queued_cost) continue;
             closed[source] = 1; expanded_cost[source] = ventry.queued_cost; ++ctx->iterations; ++batch_expanded;
+#ifdef PP_ENABLE_TRACE
+            pp_trace_native_event(ctx->trace, PP_TRACE_EXPAND, source, PP_C_NONE,
+                                  (double)ctx->iterations, 0);
+#endif
             near.count = 0;
             if (pp_radius_ids(ctx, &ctx->indices[0], pp_point(&ctx->nodes, source),
                               pp_radius(ctx, node_count), &near) != 0) { pp_set_error(result, "BIT* neighbor query failed"); goto done; }
@@ -1243,7 +1480,12 @@ static int pp_run_bit_batch(pp_context *ctx, uint32_t node_count, double best_co
             if (pp_update_descendant_costs(ctx, target) != 0) { pp_set_error(result, "failed to update BIT* subtree costs"); goto done; }
             closed[target] = 0; open_cost[target] = eentry.tentative;
             if (pp_vertex_push(&vertices, target, eentry.tentative + inflation * h, eentry.tentative) != 0) { pp_set_error(result, "out of memory growing BIT* vertex queue"); goto done; }
-            if (target == 1 && eentry.tentative < best_cost) best_cost = eentry.tentative;
+            if (target == 1 && eentry.tentative < best_cost) {
+                best_cost = eentry.tentative;
+#ifdef PP_ENABLE_TRACE
+                pp_trace_solution(ctx, target, PP_C_NONE, best_cost);
+#endif
+            }
         }
         if (pp_timed_out(ctx)) { *timed_out = 1; break; }
     }
@@ -1284,6 +1526,9 @@ static int pp_run_bit(pp_context *ctx, int anytime, pp_continuous_result *result
         }
         if (timed_out) break;
         sample_count += batch_count; node_count = ctx->nodes.count; ++ctx->batches;
+#ifdef PP_ENABLE_TRACE
+        pp_trace_phase(ctx, (double)ctx->batches);
+#endif
         if (pp_run_bit_batch(ctx, node_count, best_cost, inflation, truncation,
                              ctx->options->max_iters - ctx->iterations, result, &timed_out) != 0) goto done;
         if (isfinite(ctx->nodes.cost[goal_id]) && ctx->nodes.cost[goal_id] < best_cost) best_cost = ctx->nodes.cost[goal_id];
@@ -1330,15 +1575,27 @@ static int pp_run_connect(pp_context *ctx, pp_continuous_result *result) {
     for (iteration = 0; iteration < ctx->options->max_iters; ++iteration) {
         uint32_t near_id, new_id, other_id, tree_id = (uint32_t)active_tree;
         int sample_status, valid, connected = 0;
+        int to_goal;
         double edge_length, distance;
         uint64_t connect_step;
         pp_kd_index *active_index = ctx->options->use_euclidean_index ? &ctx->indices[tree_id] : NULL;
         pp_kd_index *other_index = ctx->options->use_euclidean_index ? &ctx->indices[1 - tree_id] : NULL;
         if (pp_timed_out(ctx)) { stop = 1; break; }
-        if (pp_uniform(&ctx->rng) < ctx->options->goal_sample_rate) memcpy(sample, ctx->goal, ctx->dimension * sizeof(double));
+#ifdef PP_ENABLE_TRACE
+        if (ctx->trace != NULL) ctx->trace->side = tree_id;
+#endif
+        to_goal = pp_uniform(&ctx->rng) < ctx->options->goal_sample_rate;
+        if (to_goal) memcpy(sample, ctx->goal, ctx->dimension * sizeof(double));
         else if ((sample_status = pp_push_sample(ctx, sample, PP_C_INF, 0)) != 0) { pp_set_error(result, "failed to sample RRT-Connect target"); goto done; }
+#ifdef PP_ENABLE_TRACE
+        if (to_goal) pp_trace_sample(ctx, sample);
+#endif
         if (pp_nearest_tree(ctx, active_index, sample, (int)tree_id, &near_id) != 0 ||
             pp_steer(ctx, pp_point(&ctx->nodes, near_id), sample, candidate, &edge_length) != 0) { pp_set_error(result, "RRT-Connect nearest or steering operation failed"); goto done; }
+#ifdef PP_ENABLE_TRACE
+        pp_trace_native_event(ctx->trace, PP_TRACE_EXPAND, near_id, PP_C_NONE,
+                              (double)ctx->iterations, tree_id);
+#endif
         if (edge_length <= ctx->options->goal_reach_tolerance) { active_tree = 1 - active_tree; ++ctx->iterations; continue; }
         valid = pp_valid_state(ctx, candidate);
         if (valid < 0) { pp_set_error(result, "state-validity callback failed"); goto done; }
@@ -1352,6 +1609,10 @@ static int pp_run_connect(pp_context *ctx, pp_continuous_result *result) {
         if (pp_nearest_tree(ctx, other_index, pp_point(&ctx->nodes, new_id), (int)(1 - tree_id), &other_id) != 0) { pp_set_error(result, "RRT-Connect opposite-tree query failed"); goto done; }
         for (connect_step = 0; connect_step < ctx->options->max_sample_tries; ++connect_step) {
             const double *other_point = pp_point(&ctx->nodes, other_id);
+#ifdef PP_ENABLE_TRACE
+            pp_trace_native_event(ctx->trace, PP_TRACE_EXPAND, other_id, PP_C_NONE,
+                                  (double)ctx->iterations, 1 - tree_id);
+#endif
             if (pp_distance(ctx, other_point, pp_point(&ctx->nodes, new_id), &distance) != 0) { pp_set_error(result, "distance callback failed"); goto done; }
             if (distance <= ctx->options->goal_reach_tolerance) {
                 valid = pp_valid_motion(ctx, other_point, pp_point(&ctx->nodes, new_id));
@@ -1403,6 +1664,9 @@ static int pp_run_connect(pp_context *ctx, pp_continuous_result *result) {
         {
             double total = ctx->nodes.cost[start_join] + bridge + ctx->nodes.cost[goal_join];
             status = pp_path_to_result(ctx, path, n, total, 0, result);
+#ifdef PP_ENABLE_TRACE
+            if (status == 0) pp_trace_solution(ctx, start_join, goal_join, total);
+#endif
         }
         free(first); free(path); goto done;
     }
@@ -1416,9 +1680,15 @@ done:
     return status;
 }
 
-int pp_continuous_plan(const pp_continuous_callbacks *callbacks, const double *start,
-                       const double *goal, size_t dimension, int has_goal_point,
-                       const pp_continuous_options *options, pp_continuous_result *result) {
+static int pp_continuous_plan_impl(const pp_continuous_callbacks *callbacks,
+                                   const double *start, const double *goal,
+                                   size_t dimension, int has_goal_point,
+                                   const pp_continuous_options *options,
+                                   pp_continuous_result *result
+#ifdef PP_ENABLE_TRACE
+                                   , pp_trace_buffer *trace
+#endif
+                                   ) {
     pp_context ctx;
     int valid, status = -1;
     if (result == NULL) return -1;
@@ -1452,6 +1722,10 @@ int pp_continuous_plan(const pp_continuous_callbacks *callbacks, const double *s
     ctx.callbacks = callbacks; ctx.options = options; ctx.dimension = dimension;
     ctx.has_goal_point = has_goal_point; ctx.goal = goal; ctx.started = pp_now();
     ctx.nodes.dimension = dimension;
+#ifdef PP_ENABLE_TRACE
+    ctx.trace = trace;
+    ctx.nodes.trace = trace;
+#endif
     pp_rng_seed(&ctx.rng, options->seed);
     ctx.indices[0].dimension = dimension; ctx.indices[1].dimension = dimension;
     valid = pp_valid_state(&ctx, start);
@@ -1462,6 +1736,9 @@ int pp_continuous_plan(const pp_continuous_callbacks *callbacks, const double *s
         if (valid < 0) { pp_set_error(result, "state-validity callback failed for goal"); goto done; }
         if (!valid) { pp_set_error(result, "goal must be collision free"); goto done; }
     }
+#ifdef PP_ENABLE_TRACE
+    pp_trace_phase(&ctx, 0.0);
+#endif
     if (pp_nodes_reserve(&ctx.nodes, 2) != 0) { pp_set_error(result, "out of memory creating planner state"); goto done; }
     memcpy(ctx.nodes.points, start, dimension * sizeof(double));
     if (has_goal_point && options->algorithm != PP_CONTINUOUS_RRT &&
@@ -1491,6 +1768,35 @@ done:
     return status;
 }
 
+int pp_continuous_plan(const pp_continuous_callbacks *callbacks, const double *start,
+                       const double *goal, size_t dimension, int has_goal_point,
+                       const pp_continuous_options *options, pp_continuous_result *result) {
+    return pp_continuous_plan_impl(callbacks, start, goal, dimension,
+                                   has_goal_point, options, result
+#ifdef PP_ENABLE_TRACE
+                                   , NULL
+#endif
+                                   );
+}
+
+#ifdef PP_ENABLE_TRACE
+int pp_continuous_plan_traced(const pp_continuous_callbacks *callbacks,
+                              const double *start, const double *goal,
+                              size_t dimension, int has_goal_point,
+                              const pp_continuous_options *options,
+                              pp_continuous_result *result,
+                              uint64_t max_bytes, pp_trace_result *trace) {
+    pp_trace_buffer buffer;
+    int status;
+    if (trace == NULL) return -1;
+    pp_trace_init(&buffer, trace, dimension, max_bytes);
+    status = pp_continuous_plan_impl(callbacks, start, goal, dimension,
+                                     has_goal_point, options, result, &buffer);
+    pp_trace_finish(&buffer);
+    return status;
+}
+#endif
+
 static int pp_dynamic_return_path(pp_context *ctx, uint32_t goal_id,
                                   pp_dynamic_rrt_result *result) {
     uint32_t *ids = (uint32_t *)malloc((size_t)ctx->nodes.count * sizeof(uint32_t));
@@ -1518,15 +1824,19 @@ static int pp_dynamic_return_tree(const pp_nodes *nodes,
     return 0;
 }
 
-int pp_dynamic_rrt_plan(const pp_continuous_callbacks *callbacks,
-                        const double *start, const double *goal,
-                        const double *initial_points,
-                        const uint32_t *initial_parents,
-                        size_t initial_count, size_t dimension,
-                        const pp_continuous_options *options,
-                        double waypoint_sample_rate,
-                        int prune_only,
-                        pp_dynamic_rrt_result *result) {
+static int pp_dynamic_rrt_plan_impl(const pp_continuous_callbacks *callbacks,
+                                    const double *start, const double *goal,
+                                    const double *initial_points,
+                                    const uint32_t *initial_parents,
+                                    size_t initial_count, size_t dimension,
+                                    const pp_continuous_options *options,
+                                    double waypoint_sample_rate,
+                                    int prune_only,
+                                    pp_dynamic_rrt_result *result
+#ifdef PP_ENABLE_TRACE
+                                    , pp_trace_buffer *trace
+#endif
+                                    ) {
     pp_context ctx;
     uint32_t *remap = NULL, *invalid_nodes = NULL, goal_id = PP_C_NONE;
     uint8_t *keep = NULL;
@@ -1583,8 +1893,24 @@ int pp_dynamic_rrt_plan(const pp_continuous_callbacks *callbacks,
     ctx.goal = goal;
     ctx.started = pp_now();
     ctx.nodes.dimension = dimension;
+#ifdef PP_ENABLE_TRACE
+    ctx.trace = trace;
+    ctx.nodes.trace = trace;
+#endif
     ctx.indices[0].dimension = dimension;
     pp_rng_seed(&ctx.rng, options->seed);
+#ifdef PP_ENABLE_TRACE
+    if (ctx.trace != NULL) {
+        pp_trace_phase(&ctx, 0.0);  // Caller-supplied tree before pruning.
+        for (i = 0; i < initial_count && !ctx.trace->out->truncated; ++i) {
+            uint64_t id = pp_trace_append_point(ctx.trace, initial_points + i * dimension);
+            if (id == UINT64_MAX) break;
+            (void)pp_trace_append_event(ctx.trace, PP_TRACE_DISCOVER, id,
+                i == 0 ? UINT64_MAX : (uint64_t)initial_parents[i], 0.0, 0);
+        }
+        pp_trace_phase(&ctx, 1.0);  // Prune invalid edges and descendants.
+    }
+#endif
     remap = (uint32_t *)malloc(initial_count * sizeof(uint32_t));
     keep = (uint8_t *)calloc(initial_count, sizeof(uint8_t));
     invalid_nodes = (uint32_t *)malloc(initial_count * sizeof(uint32_t));
@@ -1617,11 +1943,27 @@ int pp_dynamic_rrt_plan(const pp_continuous_callbacks *callbacks,
                     initial_points + i * dimension, dimension));
             }
         }
-        if (!valid) continue;
+        if (!valid) {
+#ifdef PP_ENABLE_TRACE
+            if (ctx.trace != NULL && !ctx.trace->out->truncated)
+                (void)pp_trace_append_event(ctx.trace, PP_TRACE_PRUNE,
+                    (uint64_t)i, i == 0 ? UINT64_MAX : (uint64_t)old_parent, 0.0, 0);
+#endif
+            continue;
+        }
         keep[i] = 1;
+#ifdef PP_ENABLE_TRACE
+        if (ctx.trace != NULL) {
+            ctx.trace->restoring_initial = 1;
+            ctx.trace->original_id = (uint64_t)i;
+        }
+#endif
         id = pp_node_add(&ctx.nodes, initial_points + i * dimension, parent,
                          i == 0 ? 0.0 : ctx.nodes.cost[parent] + edge_cost,
                          edge_cost, 0);
+#ifdef PP_ENABLE_TRACE
+        if (ctx.trace != NULL) ctx.trace->restoring_initial = 0;
+#endif
         if (id == PP_C_NONE || pp_add_index(&ctx, &ctx.indices[0], id) != 0) {
             pp_set_error(&result->plan, "out of memory restoring dynamic RRT tree");
             goto done;
@@ -1651,6 +1993,9 @@ int pp_dynamic_rrt_plan(const pp_continuous_callbacks *callbacks,
             goto done;
         }
     } else if (!prune_only) {
+#ifdef PP_ENABLE_TRACE
+        pp_trace_phase(&ctx, 2.0);  // Regrowth after the pruned snapshot.
+#endif
         for (iteration = 0; iteration <= options->max_iters; ++iteration) {
             double draw = pp_uniform(&ctx.rng);
             uint32_t nearest, duplicate, id;
@@ -1673,12 +2018,20 @@ int pp_dynamic_rrt_plan(const pp_continuous_callbacks *callbacks,
                     goto done;
                 }
             }
+#ifdef PP_ENABLE_TRACE
+            if (draw < options->goal_sample_rate + waypoint_sample_rate)
+                pp_trace_sample(&ctx, sample);
+#endif
             if (pp_nearest(&ctx, &ctx.indices[0], sample, &nearest) != 0 ||
                 pp_steer(&ctx, pp_point(&ctx.nodes, nearest), sample, candidate, &edge_cost) != 0 ||
                 pp_nearest(&ctx, &ctx.indices[0], candidate, &duplicate) != 0) {
                 pp_set_error(&result->plan, "nearest-node query or steering failed in dynamic RRT");
                 goto done;
             }
+#ifdef PP_ENABLE_TRACE
+            pp_trace_native_event(ctx.trace, PP_TRACE_EXPAND, nearest, PP_C_NONE,
+                                  (double)ctx.iterations, 0);
+#endif
             if (pp_distance2(pp_point(&ctx.nodes, duplicate), candidate, dimension) <= 1e-24) {
                 ++ctx.iterations;
                 continue;
@@ -1765,6 +2118,56 @@ done:
     }
     return status;
 }
+
+int pp_dynamic_rrt_plan(const pp_continuous_callbacks *callbacks,
+                        const double *start, const double *goal,
+                        const double *initial_points,
+                        const uint32_t *initial_parents,
+                        size_t initial_count, size_t dimension,
+                        const pp_continuous_options *options,
+                        double waypoint_sample_rate,
+                        int prune_only,
+                        pp_dynamic_rrt_result *result) {
+    return pp_dynamic_rrt_plan_impl(callbacks, start, goal, initial_points,
+                                     initial_parents, initial_count, dimension,
+                                     options, waypoint_sample_rate, prune_only, result
+#ifdef PP_ENABLE_TRACE
+                                     , NULL
+#endif
+                                     );
+}
+
+#ifdef PP_ENABLE_TRACE
+int pp_dynamic_rrt_plan_traced(const pp_continuous_callbacks *callbacks,
+                               const double *start, const double *goal,
+                               const double *initial_points,
+                               const uint32_t *initial_parents,
+                               size_t initial_count, size_t dimension,
+                               const pp_continuous_options *options,
+                               double waypoint_sample_rate, int prune_only,
+                               pp_dynamic_rrt_result *result,
+                               uint64_t max_bytes, pp_trace_result *trace) {
+    pp_trace_buffer buffer;
+    int status;
+    if (trace == NULL) return -1;
+    pp_trace_init(&buffer, trace, dimension, max_bytes);
+    status = pp_dynamic_rrt_plan_impl(callbacks, start, goal, initial_points,
+                                      initial_parents, initial_count, dimension,
+                                      options, waypoint_sample_rate, prune_only,
+                                      result, &buffer);
+    pp_trace_finish(&buffer);
+    return status;
+}
+
+uint32_t pp_continuous_trace_abi_version(void) { return PP_CONTINUOUS_TRACE_ABI_VERSION; }
+
+void pp_continuous_trace_free_result(pp_trace_result *trace) {
+    if (trace == NULL) return;
+    free(trace->events);
+    free(trace->points);
+    memset(trace, 0, sizeof(*trace));
+}
+#endif
 
 void pp_continuous_free_result(pp_continuous_result *result) {
     if (result == NULL) return;

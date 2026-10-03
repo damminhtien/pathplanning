@@ -37,6 +37,65 @@ constexpr const char* kVersion = "0.4.0";
 constexpr double kInfinity = std::numeric_limits<double>::infinity();
 constexpr uint64_t kNoGoalId = std::numeric_limits<uint64_t>::max();
 
+#if defined(PP_ENABLE_TRACE) && PP_ENABLE_TRACE
+struct TraceRecorder {
+    pp_trace_result* result;
+    size_t capacity = 0;
+    size_t max_events;
+
+    TraceRecorder(pp_trace_result* output, uint64_t max_bytes) : result(output), max_events(0) {
+        const uint64_t allowed = max_bytes / sizeof(pp_trace_event);
+        max_events = allowed > std::numeric_limits<size_t>::max()
+            ? std::numeric_limits<size_t>::max()
+            : static_cast<size_t>(allowed);
+        *result = pp_trace_result{};
+    }
+
+    void append(uint32_t kind, uint64_t node, uint64_t parent, double value, uint32_t side) noexcept {
+        if (result->truncated) {
+            return;
+        }
+        if (result->event_count == capacity) {
+            if (capacity == max_events) {
+                result->truncated = 1;
+                return;
+            }
+            const size_t next = capacity == 0 ? std::min<size_t>(256, max_events)
+                : capacity <= max_events / 2 ? capacity * 2 : max_events;
+            void* grown = std::realloc(result->events, next * sizeof(pp_trace_event));
+            if (grown == nullptr) {
+                result->truncated = 1;
+                return;
+            }
+            result->events = static_cast<pp_trace_event*>(grown);
+            capacity = next;
+        }
+        result->events[result->event_count++] = {node, parent, value, kind, side};
+    }
+};
+
+thread_local TraceRecorder* active_trace = nullptr;
+
+struct TraceScope {
+    explicit TraceScope(TraceRecorder* recorder) : previous(active_trace) {
+        active_trace = recorder;
+    }
+    ~TraceScope() { active_trace = previous; }
+    TraceRecorder* previous;
+};
+
+inline void trace_record(uint32_t kind, uint64_t node, uint64_t parent, double value, uint32_t side) noexcept {
+    if (active_trace != nullptr) {
+        active_trace->append(kind, node, parent, value, side);
+    }
+}
+
+#define PP_TRACE(KIND, NODE, PARENT, VALUE, SIDE) \
+    trace_record((KIND), (NODE), (PARENT), (VALUE), (SIDE))
+#else
+#define PP_TRACE(KIND, NODE, PARENT, VALUE, SIDE) ((void)0)
+#endif
+
 // Keep costs separate from parent/flag data. Graphs up to UINT32_MAX nodes use
 // 32-bit parents; larger graphs retain 64-bit parents.
 template <typename ParentId>
@@ -366,6 +425,8 @@ void set_success_result(
     result->nodes = nodes;
     result->path_cost = path_cost;
     store_path(result, path);
+    PP_TRACE(PP_TRACE_SOLUTION, path.empty() ? 0 : path.back(),
+        path.size() > 1 ? path[path.size() - 2] : kNoGoalId, path_cost, 0);
 }
 
 template <typename ParentId>
@@ -379,6 +440,7 @@ int run_linear_search(
     const size_t node_count = static_cast<size_t>(graph->node_count);
     SearchStates<ParentId> states(node_count);
     states.g_cost(start_id) = 0.0;
+    PP_TRACE(PP_TRACE_DISCOVER, start_id, kNoGoalId, 0.0, 0);
 
     std::deque<uint64_t> frontier;
     frontier.push_back(start_id);
@@ -397,6 +459,8 @@ int run_linear_search(
 
         const double state_g_cost = states.g_cost(node_id);
         ++expanded;
+        PP_TRACE(PP_TRACE_EXPAND, node_id, states.has_parent(node_id) ? states.parent(node_id) : kNoGoalId,
+            state_g_cost, 0);
         if (is_goal(goal_flags, options, node_id)) {
             set_success_result(
                 result,
@@ -434,6 +498,8 @@ int run_linear_search(
             states.set_parent(neighbor_id, node_id);
             frontier.push_back(neighbor_id);
             ++discovered;
+            PP_TRACE(PP_TRACE_DISCOVER, neighbor_id, node_id, tentative, 0);
+            PP_TRACE(PP_TRACE_PARENT, neighbor_id, node_id, tentative, 0);
         };
 
         if (options->algorithm == PP_SEARCH_DFS) {
@@ -464,6 +530,7 @@ int run_best_first_search(
     SearchStates<ParentId> states(node_count);
     std::priority_queue<QueueEntry, std::vector<QueueEntry>, QueueEntryGreater> open;
     states.g_cost(start_id) = 0.0;
+    PP_TRACE(PP_TRACE_DISCOVER, start_id, kNoGoalId, 0.0, 0);
 
     const bool greedy = options->algorithm == PP_SEARCH_GREEDY_BEST_FIRST;
     const bool use_heuristic =
@@ -491,6 +558,9 @@ int run_best_first_search(
 
         states.mark_closed(entry.node_id);
         ++expanded;
+        PP_TRACE(PP_TRACE_EXPAND, entry.node_id,
+            states.has_parent(entry.node_id) ? states.parent(entry.node_id) : kNoGoalId,
+            states.g_cost(entry.node_id), 0);
         if (is_goal(goal_flags, options, entry.node_id)) {
             set_success_result(
                 result,
@@ -532,11 +602,16 @@ int run_best_first_search(
                 continue;
             }
 
-            if (!std::isfinite(states.g_cost(neighbor_id))) {
+            const bool first_discovery = !std::isfinite(states.g_cost(neighbor_id));
+            if (first_discovery) {
                 ++discovered;
             }
             states.g_cost(neighbor_id) = tentative;
             states.set_parent(neighbor_id, entry.node_id);
+            if (first_discovery) {
+                PP_TRACE(PP_TRACE_DISCOVER, neighbor_id, entry.node_id, tentative, 0);
+            }
+            PP_TRACE(PP_TRACE_PARENT, neighbor_id, entry.node_id, tentative, 0);
 
             const double h_score = compute_heuristic(
                 graph,
@@ -576,6 +651,9 @@ BidirectionalExpansion expand_bidirectional_frontier(
 
         states_this->mark_closed(entry.node_id);
         ++(*expanded);
+        PP_TRACE(PP_TRACE_EXPAND, entry.node_id,
+            states_this->has_parent(entry.node_id) ? states_this->parent(entry.node_id) : kNoGoalId,
+            states_this->g_cost(entry.node_id), reverse ? 2 : 1);
         BidirectionalExpansion outcome;
         outcome.expanded = true;
         const double other_cost = states_other.g_cost(entry.node_id);
@@ -603,11 +681,16 @@ BidirectionalExpansion expand_bidirectional_frontier(
                 continue;
             }
 
-            if (!std::isfinite(states_this->g_cost(neighbor_id))) {
+            const bool first_discovery = !std::isfinite(states_this->g_cost(neighbor_id));
+            if (first_discovery) {
                 ++(*discovered_this);
             }
             states_this->g_cost(neighbor_id) = tentative;
             states_this->set_parent(neighbor_id, entry.node_id);
+            if (first_discovery) {
+                PP_TRACE(PP_TRACE_DISCOVER, neighbor_id, entry.node_id, tentative, reverse ? 2 : 1);
+            }
+            PP_TRACE(PP_TRACE_PARENT, neighbor_id, entry.node_id, tentative, reverse ? 2 : 1);
             heap->push(QueueEntry{tentative, 0.0, (*tie_breaker)++, neighbor_id});
 
             const double other_neighbor_cost = states_other.g_cost(neighbor_id);
@@ -649,6 +732,8 @@ int run_bidirectional_search(
     SearchStates<ParentId> backward_states(node_count);
     forward_states.g_cost(start_id) = 0.0;
     backward_states.g_cost(goal_id) = 0.0;
+    PP_TRACE(PP_TRACE_DISCOVER, start_id, kNoGoalId, 0.0, 1);
+    PP_TRACE(PP_TRACE_DISCOVER, goal_id, kNoGoalId, 0.0, 2);
     ensure_reverse_edges(graph);
     uint64_t forward_discovered = 1;
     uint64_t backward_discovered = 1;
@@ -701,6 +786,7 @@ int run_bidirectional_search(
             best_cost = local.best_cost;
             meet_id = local.meet_id;
             has_meet = true;
+            PP_TRACE(PP_TRACE_SOLUTION, meet_id, kNoGoalId, best_cost, 0);
         }
 
         const double forward_bound = forward_heap.empty() ? kInfinity : forward_heap.top().f_score;
@@ -789,6 +875,8 @@ int run_bidirectional_astar_search(
     SearchStates<ParentId> backward_states(node_count);
     forward_states.g_cost(start_id) = 0.0;
     backward_states.g_cost(goal_id) = 0.0;
+    PP_TRACE(PP_TRACE_DISCOVER, start_id, kNoGoalId, 0.0, 1);
+    PP_TRACE(PP_TRACE_DISCOVER, goal_id, kNoGoalId, 0.0, 2);
     ensure_reverse_edges(graph);
     uint64_t forward_discovered = 1;
     uint64_t backward_discovered = 1;
@@ -821,6 +909,9 @@ int run_bidirectional_astar_search(
         }
         states_this->mark_closed(entry.node_id);
         ++expanded;
+        PP_TRACE(PP_TRACE_EXPAND, entry.node_id,
+            states_this->has_parent(entry.node_id) ? states_this->parent(entry.node_id) : kNoGoalId,
+            states_this->g_cost(entry.node_id), reverse ? 2 : 1);
 
         const double other_cost = states_other.g_cost(entry.node_id);
         if (std::isfinite(other_cost)) {
@@ -829,6 +920,8 @@ int run_bidirectional_astar_search(
                 best_reduced_cost = candidate;
                 meet_id = entry.node_id;
                 has_meet = true;
+                PP_TRACE(PP_TRACE_SOLUTION, meet_id, kNoGoalId,
+                    candidate + potential(start_id) - potential(goal_id), 0);
             }
         }
 
@@ -851,7 +944,8 @@ int run_bidirectional_astar_search(
                 tentative >= states_this->g_cost(neighbor)) {
                 continue;
             }
-            if (!std::isfinite(states_this->g_cost(neighbor))) {
+            const bool first_discovery = !std::isfinite(states_this->g_cost(neighbor));
+            if (first_discovery) {
                 if (reverse) {
                     ++backward_discovered;
                 } else {
@@ -860,12 +954,18 @@ int run_bidirectional_astar_search(
             }
             states_this->g_cost(neighbor) = tentative;
             states_this->set_parent(neighbor, entry.node_id);
+            if (first_discovery) {
+                PP_TRACE(PP_TRACE_DISCOVER, neighbor, entry.node_id, tentative, reverse ? 2 : 1);
+            }
+            PP_TRACE(PP_TRACE_PARENT, neighbor, entry.node_id, tentative, reverse ? 2 : 1);
             heap->push(QueueEntry{tentative, 0.0, tie_breaker++, neighbor});
             const double opposite_cost = states_other.g_cost(neighbor);
             if (std::isfinite(opposite_cost) && tentative + opposite_cost < best_reduced_cost) {
                 best_reduced_cost = tentative + opposite_cost;
                 meet_id = neighbor;
                 has_meet = true;
+                PP_TRACE(PP_TRACE_SOLUTION, meet_id, kNoGoalId,
+                    best_reduced_cost + potential(start_id) - potential(goal_id), 0);
             }
         }
 
@@ -919,6 +1019,8 @@ int run_anytime_astar_search(
     std::vector<uint64_t> best_path;
 
     for (size_t index = 0; index < options->anytime_weight_count; ++index) {
+        PP_TRACE(PP_TRACE_PHASE, static_cast<uint64_t>(index), kNoGoalId,
+            options->anytime_weights[index], 0);
         pp_search_options weighted_options = *options;
         weighted_options.algorithm = PP_SEARCH_WEIGHTED_ASTAR;
         weighted_options.heuristic_weight = options->anytime_weights[index];
@@ -1122,6 +1224,107 @@ extern "C" int pp_graph_create_csr(
         write_error(error_message, error_capacity, "unknown native graph creation error");
         return 1;
     }
+}
+
+#if defined(PP_ENABLE_TRACE) && PP_ENABLE_TRACE
+extern "C" int pp_graph_create_csr_view(
+    const pp_graph_csr_view* view,
+    pp_native_graph** out_graph,
+    char* error_message,
+    size_t error_capacity
+) {
+    if (view == nullptr || out_graph == nullptr) {
+        write_error(error_message, error_capacity, "CSR view and out_graph must not be null");
+        return 1;
+    }
+    *out_graph = nullptr;
+    pp_native_graph* raw_graph = nullptr;
+    const int status = pp_graph_create_csr(
+        view->node_count,
+        view->edge_count,
+        view->offsets,
+        view->neighbor_ids,
+        view->edge_costs,
+        &raw_graph,
+        error_message,
+        error_capacity
+    );
+    if (status != 0) {
+        return status;
+    }
+
+    std::unique_ptr<pp_native_graph> graph(raw_graph);
+    try {
+        const bool has_grid_metadata = view->grid_width != 0 || view->grid_height != 0 ||
+            view->grid_depth != 0 || view->euclidean_grid_heuristic != 0;
+        if (has_grid_metadata) {
+            if (view->grid_width == 0 || view->grid_height == 0 || view->grid_depth == 0 ||
+                view->grid_width > view->node_count / view->grid_height ||
+                view->grid_width * view->grid_height > view->node_count / view->grid_depth ||
+                view->grid_width * view->grid_height * view->grid_depth != view->node_count) {
+                throw std::invalid_argument("CSR grid metadata does not match node count");
+            }
+            graph->grid_width = view->grid_width;
+            graph->grid_height = view->grid_height;
+            graph->grid_depth = view->grid_depth;
+            graph->euclidean_grid_heuristic = view->euclidean_grid_heuristic != 0;
+        }
+        *out_graph = graph.release();
+        if (error_message != nullptr && error_capacity > 0) {
+            error_message[0] = '\0';
+        }
+        return 0;
+    } catch (const std::exception& exc) {
+        write_error(error_message, error_capacity, exc.what());
+        return 1;
+    }
+}
+
+extern "C" uint64_t pp_graph_storage_bytes(const pp_native_graph* graph) {
+    if (graph == nullptr) return 0;
+
+    uint64_t total = sizeof(*graph);
+    const auto add_capacity = [&total](size_t count, size_t item_size) {
+        if (item_size != 0 && count > std::numeric_limits<uint64_t>::max() / item_size) {
+            return false;
+        }
+        const uint64_t bytes = static_cast<uint64_t>(count * item_size);
+        if (bytes > std::numeric_limits<uint64_t>::max() - total) return false;
+        total += bytes;
+        return true;
+    };
+
+    if (!add_capacity(graph->offsets.capacity(), sizeof(uint64_t)) ||
+        !add_capacity(graph->neighbor_ids.capacity(), sizeof(uint64_t)) ||
+        !add_capacity(graph->edge_costs.capacity(), sizeof(double)) ||
+        !add_capacity(graph->reverse_offsets.capacity(), sizeof(uint64_t)) ||
+        !add_capacity(graph->reverse_neighbor_ids.capacity(), sizeof(uint64_t)) ||
+        !add_capacity(graph->reverse_edge_costs.capacity(), sizeof(double))) {
+        return std::numeric_limits<uint64_t>::max();
+    }
+    return total;
+}
+#endif
+
+extern "C" int pp_graph_export_csr_view(
+    const pp_native_graph* graph,
+    pp_graph_csr_view* out_view
+) {
+    if (graph == nullptr || out_view == nullptr) {
+        return 1;
+    }
+    *out_view = {
+        graph->node_count,
+        static_cast<uint64_t>(graph->neighbor_ids.size()),
+        graph->offsets.data(),
+        graph->neighbor_ids.data(),
+        graph->edge_costs.data(),
+        graph->grid_width,
+        graph->grid_height,
+        graph->grid_depth,
+        graph->euclidean_grid_heuristic ? 1 : 0,
+    };
+    return 0;
 }
 
 extern "C" int pp_graph_create_grid_ex(
@@ -1337,6 +1540,42 @@ extern "C" int pp_native_search_plan(
         return 1;
     }
 }
+
+#if defined(PP_ENABLE_TRACE) && PP_ENABLE_TRACE
+extern "C" int pp_native_search_plan_traced(
+    const pp_native_graph* graph,
+    const uint8_t* goal_flags,
+    const double* heuristic_values,
+    uint64_t start_id,
+    const pp_search_options* options,
+    pp_search_result* result,
+    uint64_t max_bytes,
+    pp_trace_result* trace
+) {
+    if (trace == nullptr) {
+        set_error(result, "trace result must not be null");
+        return 1;
+    }
+    TraceRecorder recorder(trace, max_bytes);
+    TraceScope scope(&recorder);
+    return pp_native_search_plan(
+        graph, goal_flags, heuristic_values, start_id, options, result
+    );
+}
+
+extern "C" uint32_t pp_search_trace_abi_version(void) {
+    return PP_SEARCH_TRACE_ABI_VERSION;
+}
+
+extern "C" void pp_search_trace_free_result(pp_trace_result* trace) {
+    if (trace == nullptr) {
+        return;
+    }
+    std::free(trace->events);
+    std::free(trace->points);
+    *trace = pp_trace_result{};
+}
+#endif
 
 extern "C" int pp_search_plan(
     const pp_graph_callbacks* callbacks,

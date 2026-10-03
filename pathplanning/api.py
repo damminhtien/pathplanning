@@ -11,6 +11,7 @@ import numpy as np
 from pathplanning.core.contracts import ContinuousProblem, DiscreteProblem, State
 from pathplanning.core.params import RrtParams
 from pathplanning.core.results import PlanResult
+from pathplanning.core.trace import TraceOptions
 from pathplanning.core.types import RNG
 from pathplanning.registry import get_continuous_planner, get_discrete_planner
 
@@ -33,8 +34,11 @@ def plan_discrete(
     params: DiscreteParams | None = None,
     seed: int | None = 0,
     rng: RNG | None = None,
+    trace: TraceOptions | None = None,
 ) -> Result:
     """Run one registered discrete planner on a ``DiscreteProblem``."""
+    if trace is not None and type(trace) is not TraceOptions:
+        raise TypeError("trace must be TraceOptions or None")
     effective_rng = _resolve_rng(seed, rng)
     merged_params = dict(problem.params or {})
     if params is not None:
@@ -42,7 +46,7 @@ def plan_discrete(
     resolved_params = merged_params or None
     resolved_problem = replace(problem, params=resolved_params)
     planner_fn = get_discrete_planner(planner)
-    return planner_fn(resolved_problem, params=resolved_params, rng=effective_rng)
+    return planner_fn(resolved_problem, params=resolved_params, rng=effective_rng, trace=trace)
 
 
 def plan_continuous(
@@ -52,8 +56,11 @@ def plan_continuous(
     params: ContinuousParams | None = None,
     seed: int | None = 0,
     rng: RNG | None = None,
+    trace: TraceOptions | None = None,
 ) -> Result:
     """Run one registered continuous planner on a ``ContinuousProblem``."""
+    if trace is not None and type(trace) is not TraceOptions:
+        raise TypeError("trace must be TraceOptions or None")
     effective_rng = _resolve_rng(seed, rng)
     resolved_params: RrtParams | dict[str, object] | None
     if params is None or isinstance(params, RrtParams):
@@ -62,7 +69,7 @@ def plan_continuous(
         resolved_params = dict(params)
 
     planner_fn = get_continuous_planner(planner)
-    return planner_fn(problem, params=resolved_params, rng=effective_rng)
+    return planner_fn(problem, params=resolved_params, rng=effective_rng, trace=trace)
 
 
 @overload
@@ -73,6 +80,7 @@ def plan(
     params: DiscreteParams | None = None,
     seed: int | None = 0,
     rng: RNG | None = None,
+    trace: TraceOptions | None = None,
 ) -> Result: ...
 
 
@@ -84,6 +92,7 @@ def plan(
     params: ContinuousParams | None = None,
     seed: int | None = 0,
     rng: RNG | None = None,
+    trace: TraceOptions | None = None,
 ) -> Result: ...
 
 
@@ -94,6 +103,7 @@ def plan(
     params: DiscreteParams | ContinuousParams | None = None,
     seed: int | None = 0,
     rng: RNG | None = None,
+    trace: TraceOptions | None = None,
 ) -> Result:
     """Unified planner entrypoint dispatching by problem type."""
     if isinstance(problem, DiscreteProblem):
@@ -106,6 +116,7 @@ def plan(
             params=params,
             seed=seed,
             rng=rng,
+            trace=trace,
         )
 
     resolved_planner = planner if planner is not None else "rrt_star"
@@ -115,6 +126,7 @@ def plan(
         params=params,
         seed=seed,
         rng=rng,
+        trace=trace,
     )
 
 

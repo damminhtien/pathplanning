@@ -7,6 +7,7 @@ from typing import TypeVar
 
 from pathplanning.core.contracts import DiscreteProblem
 from pathplanning.core.results import PlanResult
+from pathplanning.core.trace import TraceOptions
 from pathplanning.core.types import RNG
 from pathplanning.planners.search._internal.common import (
     coerce_max_expansions,
@@ -22,6 +23,7 @@ def plan_weighted_astar(
     *,
     params: Mapping[str, object] | None = None,
     rng: RNG | None = None,
+    trace: TraceOptions | None = None,
 ) -> PlanResult:
     """Plan a path for one ``DiscreteProblem`` with weighted A*."""
     _ = rng
@@ -32,6 +34,7 @@ def plan_weighted_astar(
         max_expansions=max_expansions,
         use_heuristic=True,
         heuristic_weight=weight,
+        trace=trace,
     )
 
 

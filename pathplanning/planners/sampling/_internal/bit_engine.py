@@ -10,6 +10,7 @@ import numpy as np
 from pathplanning.core.contracts import ContinuousProblem, ContinuousSpace, State
 from pathplanning.core.params import RrtParams
 from pathplanning.core.results import PlanResult
+from pathplanning.core.trace import TraceOptions
 from pathplanning.core.types import RNG
 from pathplanning.native.continuous import run_native_continuous
 from pathplanning.nn.index import NearestNeighborIndex
@@ -42,7 +43,7 @@ class BatchInformedTreePlanner:
         self.params = params.validate()
         self.rng = rng
 
-    def plan(self, start: object, goal_region) -> PlanResult:
+    def plan(self, start: object, goal_region, *, trace: TraceOptions | None = None) -> PlanResult:
         return run_native_continuous(
             self.space,
             start,
@@ -50,10 +51,13 @@ class BatchInformedTreePlanner:
             self.params,
             self.rng,
             planner=self.planner_name,
+            trace=trace,
         )
 
 
-def _run(problem: ContinuousProblem[State], params, rng, planner: str) -> PlanResult:
+def _run(
+    problem: ContinuousProblem[State], params, rng, planner: str, trace: TraceOptions | None
+) -> PlanResult:
     validate_objective(problem.objective, "ABIT*" if planner == "abit_star" else "BIT*")
     resolved_params = coerce_rrt_params(problem, params)
     return run_native_continuous(
@@ -63,6 +67,7 @@ def _run(problem: ContinuousProblem[State], params, rng, planner: str) -> PlanRe
         resolved_params,
         resolve_rng(rng),
         planner=planner,
+        trace=trace,
     )
 
 
@@ -71,9 +76,10 @@ def run_bit_star(
     *,
     params: RrtParams | Mapping[str, object] | None = None,
     rng: RNG | None = None,
+    trace: TraceOptions | None = None,
 ) -> PlanResult:
     """Run native BIT* with batched samples and ordered implicit edges."""
-    return _run(problem, params, rng, "bit_star")
+    return _run(problem, params, rng, "bit_star", trace)
 
 
 def run_abit_star(
@@ -81,9 +87,10 @@ def run_abit_star(
     *,
     params: RrtParams | Mapping[str, object] | None = None,
     rng: RNG | None = None,
+    trace: TraceOptions | None = None,
 ) -> PlanResult:
     """Run native ABIT* with decreasing inflation and truncation."""
-    return _run(problem, params, rng, "abit_star")
+    return _run(problem, params, rng, "abit_star", trace)
 
 
 __all__ = ["BatchInformedTreePlanner", "IndexFactory", "run_bit_star", "run_abit_star"]

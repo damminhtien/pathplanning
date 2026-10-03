@@ -6,6 +6,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass, field
 from enum import Enum
 
+from pathplanning.core.trace import PlannerTrace
 from pathplanning.core.types import Mat
 
 
@@ -34,3 +35,4 @@ class PlanResult:
     iters: int
     nodes: int
     stats: Mapping[str, float] = field(default_factory=_default_stats)
+    trace: PlannerTrace | None = None

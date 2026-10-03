@@ -14,8 +14,17 @@ from pathplanning.core.contracts import (
     HeuristicDiscreteGraph,
 )
 from pathplanning.core.results import PlanResult, StopReason
+from pathplanning.core.trace import TraceOptions
 from pathplanning.native import NativeGraph
-from pathplanning.native._ffi import SearchOptions, SearchResult, load_native_library
+from pathplanning.native._ffi import (
+    GraphCsrView,
+    SearchOptions,
+    SearchResult,
+    TraceResult,
+    copy_trace_result,
+    load_native_library,
+    load_search_trace_library,
+)
 
 N = TypeVar("N")
 
@@ -271,9 +280,13 @@ def run_native_search(
     heuristic_weight: float = 1.0,
     require_exact_goal: bool = False,
     anytime_weights: tuple[float, ...] = (),
+    trace: TraceOptions | None = None,
 ) -> PlanResult:
     """Run a native graph-search kernel after one-time graph preparation."""
+    if trace is not None and not isinstance(trace, TraceOptions):
+        raise TypeError("trace must be TraceOptions or None")
     library = _load_library()
+    diagnostic = load_search_trace_library() if trace is not None else None
     if require_exact_goal and hasattr(problem.goal, "is_goal"):
         raise NativeSearchUnavailable("native bidirectional search requires an exact goal")
 
@@ -299,6 +312,9 @@ def run_native_search(
         len(anytime_weights),
     )
     result = SearchResult()
+    trace_result = TraceResult()
+    diagnostic_graph = ctypes.c_void_p()
+    graph_bytes = 0
     goal_pointer = (
         adapter.goal_flags.ctypes.data_as(ctypes.POINTER(ctypes.c_uint8))
         if adapter.goal_flags is not None
@@ -313,16 +329,51 @@ def run_native_search(
 
     try:
         _ = weights_array
-        status = int(
-            library.pp_native_search_plan(
-                adapter.native_graph._native_handle,
-                goal_pointer,
-                heuristic_pointer,
-                ctypes.c_uint64(adapter.start_id),
-                ctypes.byref(options),
-                ctypes.byref(result),
+        if diagnostic is None:
+            status = int(
+                library.pp_native_search_plan(
+                    adapter.native_graph._native_handle,
+                    goal_pointer,
+                    heuristic_pointer,
+                    ctypes.c_uint64(adapter.start_id),
+                    ctypes.byref(options),
+                    ctypes.byref(result),
+                )
             )
-        )
+        else:
+            view = GraphCsrView()
+            if (
+                library.pp_graph_export_csr_view(
+                    adapter.native_graph._native_handle, ctypes.byref(view)
+                )
+                != 0
+            ):
+                raise NativeSearchError("could not export native graph for diagnostic run")
+            error_buffer = ctypes.create_string_buffer(512)
+            status = diagnostic.pp_graph_create_csr_view(
+                ctypes.byref(view),
+                ctypes.byref(diagnostic_graph),
+                error_buffer,
+                ctypes.c_size_t(len(error_buffer)),
+            )
+            if status != 0 or diagnostic_graph.value is None:
+                raise NativeSearchError(
+                    error_buffer.value.decode("utf-8", errors="replace")
+                    or "could not clone graph into diagnostic engine"
+                )
+            status = int(
+                diagnostic.pp_native_search_plan_traced(
+                    diagnostic_graph,
+                    goal_pointer,
+                    heuristic_pointer,
+                    ctypes.c_uint64(adapter.start_id),
+                    ctypes.byref(options),
+                    ctypes.byref(result),
+                    ctypes.c_uint64(trace.max_bytes),
+                    ctypes.byref(trace_result),
+                )
+            )
+            graph_bytes = int(diagnostic.pp_graph_storage_bytes(diagnostic_graph))
         native_search_s = time.perf_counter() - native_start
         if status != 0 or result.stop_reason == 3:
             native_error = (
@@ -349,6 +400,16 @@ def run_native_search(
             if path is not None:
                 stats["path_length"] = float(path.shape[0])
 
+        planner_trace = None
+        if diagnostic is not None:
+            planner_trace = copy_trace_result(
+                trace_result,
+                kind="discrete",
+                node_labels=adapter.id_to_node,
+                graph_bytes=graph_bytes,
+            )
+            stats["trace_graph_bytes"] = float(graph_bytes)
+
         return PlanResult(
             success=bool(result.success),
             path=path,
@@ -357,9 +418,16 @@ def run_native_search(
             iters=int(result.iters),
             nodes=int(result.nodes),
             stats=stats,
+            trace=planner_trace,
         )
     finally:
-        library.pp_search_free_result(ctypes.byref(result))
+        if diagnostic is None:
+            library.pp_search_free_result(ctypes.byref(result))
+        else:
+            diagnostic.pp_search_free_result(ctypes.byref(result))
+            diagnostic.pp_search_trace_free_result(ctypes.byref(trace_result))
+            if diagnostic_graph.value is not None:
+                diagnostic.pp_graph_free(diagnostic_graph)
 
 
 def run_native_best_first(
@@ -368,6 +436,7 @@ def run_native_best_first(
     max_expansions: int | None,
     use_heuristic: bool,
     heuristic_weight: float = 1.0,
+    trace: TraceOptions | None = None,
 ) -> PlanResult:
     """Run the native best-first family kernel."""
     if not use_heuristic:
@@ -382,6 +451,7 @@ def run_native_best_first(
         max_expansions=max_expansions,
         use_heuristic=use_heuristic,
         heuristic_weight=heuristic_weight,
+        trace=trace,
     )
 
 
@@ -389,6 +459,7 @@ def run_native_breadth_first(
     problem: DiscreteProblem[N],
     *,
     max_expansions: int | None,
+    trace: TraceOptions | None = None,
 ) -> PlanResult:
     """Run the native breadth-first kernel."""
     return run_native_search(
@@ -396,6 +467,7 @@ def run_native_breadth_first(
         algorithm=_ALGORITHM_BFS,
         max_expansions=max_expansions,
         use_heuristic=False,
+        trace=trace,
     )
 
 
@@ -403,6 +475,7 @@ def run_native_depth_first(
     problem: DiscreteProblem[N],
     *,
     max_expansions: int | None,
+    trace: TraceOptions | None = None,
 ) -> PlanResult:
     """Run the native depth-first kernel."""
     return run_native_search(
@@ -410,6 +483,7 @@ def run_native_depth_first(
         algorithm=_ALGORITHM_DFS,
         max_expansions=max_expansions,
         use_heuristic=False,
+        trace=trace,
     )
 
 
@@ -417,6 +491,7 @@ def run_native_greedy_best_first(
     problem: DiscreteProblem[N],
     *,
     max_expansions: int | None,
+    trace: TraceOptions | None = None,
 ) -> PlanResult:
     """Run the native greedy best-first kernel."""
     return run_native_search(
@@ -424,6 +499,7 @@ def run_native_greedy_best_first(
         algorithm=_ALGORITHM_GREEDY_BEST_FIRST,
         max_expansions=max_expansions,
         use_heuristic=True,
+        trace=trace,
     )
 
 
@@ -431,6 +507,7 @@ def run_native_bidirectional_dijkstra(
     problem: DiscreteProblem[N],
     *,
     max_expansions: int | None,
+    trace: TraceOptions | None = None,
 ) -> PlanResult:
     """Run the native bidirectional Dijkstra kernel."""
     return run_native_search(
@@ -439,6 +516,7 @@ def run_native_bidirectional_dijkstra(
         max_expansions=max_expansions,
         use_heuristic=False,
         require_exact_goal=True,
+        trace=trace,
     )
 
 
@@ -446,6 +524,7 @@ def run_native_bidirectional_astar(
     problem: DiscreteProblem[N],
     *,
     max_expansions: int | None,
+    trace: TraceOptions | None = None,
 ) -> PlanResult:
     """Run native bidirectional A* with a consistent graph heuristic."""
     return run_native_search(
@@ -454,6 +533,7 @@ def run_native_bidirectional_astar(
         max_expansions=max_expansions,
         use_heuristic=True,
         require_exact_goal=True,
+        trace=trace,
     )
 
 
@@ -462,6 +542,7 @@ def run_native_anytime_astar(
     *,
     max_expansions: int | None,
     weights: tuple[float, ...],
+    trace: TraceOptions | None = None,
 ) -> PlanResult:
     """Run the native Anytime A* kernel."""
     result = run_native_search(
@@ -470,6 +551,7 @@ def run_native_anytime_astar(
         max_expansions=max_expansions,
         use_heuristic=True,
         anytime_weights=weights,
+        trace=trace,
     )
     stats = dict(result.stats)
     stats["attempts"] = float(len(weights))
@@ -481,6 +563,7 @@ def run_native_anytime_astar(
         iters=result.iters,
         nodes=result.nodes,
         stats=stats,
+        trace=result.trace,
     )
 
 

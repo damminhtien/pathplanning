@@ -5,6 +5,9 @@
 #include <stdint.h>
 
 #include "abi_version.h"
+#ifdef PP_ENABLE_TRACE
+#include "trace_engine.h"
+#endif
 
 #ifdef __cplusplus
 extern "C" {
@@ -156,6 +159,28 @@ int pp_dynamic_rrt_plan(const pp_continuous_callbacks *callbacks,
                         pp_dynamic_rrt_result *result);
 void pp_dynamic_rrt_free_result(pp_dynamic_rrt_result *result);
 const char *pp_continuous_engine_version(void);
+
+#ifdef PP_ENABLE_TRACE
+// Diagnostic-only entry points. The caller owns both result buffers and must
+// release them with the matching functions from this diagnostic library.
+uint32_t pp_continuous_trace_abi_version(void);
+int pp_continuous_plan_traced(const pp_continuous_callbacks *callbacks,
+                              const double *start, const double *goal,
+                              size_t dimension, int has_goal_point,
+                              const pp_continuous_options *options,
+                              pp_continuous_result *result,
+                              uint64_t max_bytes, pp_trace_result *trace);
+int pp_dynamic_rrt_plan_traced(const pp_continuous_callbacks *callbacks,
+                               const double *start, const double *goal,
+                               const double *initial_points,
+                               const uint32_t *initial_parents,
+                               size_t initial_count, size_t dimension,
+                               const pp_continuous_options *options,
+                               double waypoint_sample_rate, int prune_only,
+                               pp_dynamic_rrt_result *result,
+                               uint64_t max_bytes, pp_trace_result *trace);
+void pp_continuous_trace_free_result(pp_trace_result *trace);
+#endif
 
 #ifdef __cplusplus
 }

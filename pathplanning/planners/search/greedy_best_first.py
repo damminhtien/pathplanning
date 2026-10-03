@@ -7,6 +7,7 @@ from typing import TypeVar
 
 from pathplanning.core.contracts import DiscreteProblem
 from pathplanning.core.results import PlanResult
+from pathplanning.core.trace import TraceOptions
 from pathplanning.core.types import RNG
 from pathplanning.planners.search._internal.common import coerce_max_expansions
 from pathplanning.planners.search._internal.native import run_native_greedy_best_first
@@ -19,12 +20,14 @@ def plan_greedy_best_first(
     *,
     params: Mapping[str, object] | None = None,
     rng: RNG | None = None,
+    trace: TraceOptions | None = None,
 ) -> PlanResult:
     """Plan a path for one ``DiscreteProblem`` with greedy best-first search."""
     _ = rng
     return run_native_greedy_best_first(
         problem,
         max_expansions=coerce_max_expansions(params),
+        trace=trace,
     )
 
 

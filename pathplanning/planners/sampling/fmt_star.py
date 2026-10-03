@@ -10,6 +10,7 @@ import numpy as np
 from pathplanning.core.contracts import ContinuousProblem, ContinuousSpace, GoalRegion, State
 from pathplanning.core.params import RrtParams
 from pathplanning.core.results import PlanResult
+from pathplanning.core.trace import TraceOptions
 from pathplanning.core.types import RNG
 from pathplanning.native.continuous import run_native_continuous
 from pathplanning.nn.index import NearestNeighborIndex
@@ -40,9 +41,15 @@ class FmtStar:
         self.params = params.validate()
         self.rng = rng
 
-    def plan(self, start: Sequence[float] | State, goal_region: GoalRegion[State]) -> PlanResult:
+    def plan(
+        self,
+        start: Sequence[float] | State,
+        goal_region: GoalRegion[State],
+        *,
+        trace: TraceOptions | None = None,
+    ) -> PlanResult:
         return run_native_continuous(
-            self.space, start, goal_region, self.params, self.rng, planner="fmt_star"
+            self.space, start, goal_region, self.params, self.rng, planner="fmt_star", trace=trace
         )
 
 
@@ -51,6 +58,7 @@ def plan_fmt_star(
     *,
     params: RrtParams | Mapping[str, object] | None = None,
     rng: RNG | None = None,
+    trace: TraceOptions | None = None,
 ) -> PlanResult:
     """Plan with native FMT* for an exact goal and additive path length."""
     validate_objective(problem.objective, "FMT*")
@@ -62,6 +70,7 @@ def plan_fmt_star(
         resolved_params,
         resolve_rng(rng),
         planner="fmt_star",
+        trace=trace,
     )
 
 

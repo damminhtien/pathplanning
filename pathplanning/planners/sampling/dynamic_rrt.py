@@ -11,6 +11,7 @@ from numpy.typing import NDArray
 from scipy.spatial import cKDTree
 
 from pathplanning.core.contracts import ContinuousSpace, State
+from pathplanning.core.trace import PlannerTrace, TraceOptions
 from pathplanning.native.continuous import run_native_dynamic_rrt
 from pathplanning.spaces.continuous_3d import AABB, ContinuousSpace3D, Sphere
 
@@ -230,6 +231,7 @@ class DynamicRRT3D:
         self.parent_by_node: dict[Node, Node] = {}
         self.edges: set[Edge] = set()
         self.path_segments: list[PathEdge] = []
+        self.last_trace: PlannerTrace | None = None
         self.node_state: dict[Node, Literal["valid", "invalid"]] = {}
         self.ind = 0
         self.i = 0
@@ -301,23 +303,30 @@ class DynamicRRT3D:
         collide = not self.space.is_motion_valid(_as_state(parent_node), _as_state(extended))
         return extended, collide
 
-    def grow_rrt(self) -> None:
+    def grow_rrt(self, *, trace: TraceOptions | None = None) -> PlannerTrace | None:
         """Grow the tree in the C engine until the goal or iteration limit."""
-        self._run_native()
+        return self._run_native(trace=trace)
 
-    def regrow_rrt(self) -> None:
+    def regrow_rrt(self, *, trace: TraceOptions | None = None) -> PlannerTrace | None:
         """Prune invalid subtrees and continue growing them in the C engine."""
-        self._run_native()
+        return self._run_native(trace=trace)
 
-    def trim_rrt(self) -> None:
+    def trim_rrt(self, *, trace: TraceOptions | None = None) -> PlannerTrace | None:
         """Remove invalid nodes induced by dynamic obstacle updates in C."""
-        self._run_native(max_iterations=0, prune_only=True)
+        return self._run_native(max_iterations=0, prune_only=True, trace=trace)
 
-    def _run_native(self, *, max_iterations: int | None = None, prune_only: bool = False) -> None:
+    def _run_native(
+        self,
+        *,
+        max_iterations: int | None = None,
+        prune_only: bool = False,
+        trace: TraceOptions | None = None,
+    ) -> PlannerTrace | None:
         if not self.nodes:
             self.init_rrt()
         parent_ids = self._native_parent_ids()
         old_count = len(self.nodes)
+        trace_sink: list[PlannerTrace] = []
         states, parents, success, iterations, _invalid_nodes = run_native_dynamic_rrt(
             self.space,
             self.x0,
@@ -328,11 +337,15 @@ class DynamicRRT3D:
             self.rng,
             max_iterations=max_iterations,
             prune_only=prune_only,
+            trace=trace,
+            trace_sink=trace_sink,
         )
         self._adopt_native_tree(states, parents)
         self.done = success
         self.ind = iterations
         self.i += max(0, len(self.nodes) - old_count)
+        self.last_trace = trace_sink[0] if trace_sink else None
+        return self.last_trace
 
     def _native_parent_ids(self) -> list[int]:
         node_ids = {node: index for index, node in enumerate(self.nodes)}
@@ -432,10 +445,6 @@ class DynamicRRT3D:
         if path_result is None:
             return
         self.path_segments, _ = path_result
-
-    def visualization(self) -> None:
-        """Deprecated no-op. Use plotting helpers from ``pathplanning.viz.rrt_3d``."""
-        return None
 
 
 __all__ = [

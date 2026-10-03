@@ -33,6 +33,7 @@ from .contracts import (
 )
 from .params import RrtParams
 from .results import PlanResult, StopReason
+from .trace import PlannerTrace, TraceOptions
 from .types import RNG, BoolArray, Float, FloatArray, Mat, N, NodeId, S, Vec
 
 __all__ = [
@@ -55,6 +56,8 @@ __all__ = [
     "ContinuousProblem",
     "PlanResult",
     "StopReason",
+    "PlannerTrace",
+    "TraceOptions",
     "RrtParams",
     "State",
     "NearestNeighborIndex",

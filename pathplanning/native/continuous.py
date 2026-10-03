@@ -11,8 +11,14 @@ import numpy as np
 from pathplanning.core.contracts import ContinuousSpace, GoalRegion, Objective, State
 from pathplanning.core.params import RrtParams
 from pathplanning.core.results import PlanResult, StopReason
+from pathplanning.core.trace import PlannerTrace, TraceOptions
 from pathplanning.core.types import RNG
-from pathplanning.native._ffi import load_continuous_library
+from pathplanning.native._ffi import (
+    TraceResult,
+    copy_trace_result,
+    load_continuous_library,
+    load_continuous_trace_library,
+)
 from pathplanning.native.continuous_model import NativeContinuousSpaceModel
 
 
@@ -310,8 +316,11 @@ def run_native_continuous(
     *,
     planner: str,
     objective: Objective[State] | None = None,
+    trace: TraceOptions | None = None,
 ) -> PlanResult:
     """Run a planner in C, adapting space operations at the API boundary."""
+    if trace is not None and not isinstance(trace, TraceOptions):
+        raise TypeError("trace must be TraceOptions or None")
     if planner not in _ALGORITHMS:
         raise KeyError(f"Unknown native continuous planner: {planner}")
     parameters = params.validate()
@@ -491,7 +500,7 @@ def run_native_continuous(
         0.0 if parameters.time_budget_s is None else parameters.time_budget_s,
         int(euclidean_index),
     )
-    library = load_continuous_library()
+    library = load_continuous_library() if trace is None else load_continuous_trace_library()
     library.pp_continuous_plan.argtypes = [
         ctypes.POINTER(_Callbacks),
         _Point,
@@ -504,10 +513,20 @@ def run_native_continuous(
     library.pp_continuous_plan.restype = ctypes.c_int
     library.pp_continuous_free_result.argtypes = [ctypes.POINTER(_Result)]
     library.pp_continuous_free_result.restype = None
+    if trace is not None:
+        library.pp_continuous_plan_traced.argtypes = [
+            *library.pp_continuous_plan.argtypes,
+            ctypes.c_uint64,
+            ctypes.POINTER(TraceResult),
+        ]
+        library.pp_continuous_plan_traced.restype = ctypes.c_int
+        library.pp_continuous_trace_free_result.argtypes = [ctypes.POINTER(TraceResult)]
+        library.pp_continuous_trace_free_result.restype = None
     native_start = start_state.ctypes.data_as(_Point)
     native_goal = goal_state.ctypes.data_as(_Point) if goal_state is not None else _Point()
     native_result = _Result()
-    status = library.pp_continuous_plan(
+    trace_result = TraceResult()
+    call_args = (
         ctypes.byref(callbacks),
         native_start,
         native_goal,
@@ -515,6 +534,13 @@ def run_native_continuous(
         int(has_goal_point),
         ctypes.byref(options),
         ctypes.byref(native_result),
+    )
+    status = (
+        library.pp_continuous_plan(*call_args)
+        if trace is None
+        else library.pp_continuous_plan_traced(
+            *call_args, ctypes.c_uint64(trace.max_bytes), ctypes.byref(trace_result)
+        )
     )
     try:
         if callback_errors:
@@ -548,6 +574,9 @@ def run_native_continuous(
                 stats["objective_cost"] = float(native_result.path_cost)
         if parameters.time_budget_s is not None:
             stats["time_budget_s"] = float(parameters.time_budget_s)
+        planner_trace = (
+            copy_trace_result(trace_result, kind="continuous") if trace is not None else None
+        )
         return PlanResult(
             success=bool(native_result.success),
             path=path,
@@ -556,9 +585,12 @@ def run_native_continuous(
             iters=int(native_result.iters),
             nodes=int(native_result.nodes),
             stats=stats,
+            trace=planner_trace,
         )
     finally:
         library.pp_continuous_free_result(ctypes.byref(native_result))
+        if trace is not None:
+            library.pp_continuous_trace_free_result(ctypes.byref(trace_result))
 
 
 def run_native_dynamic_rrt(
@@ -572,8 +604,12 @@ def run_native_dynamic_rrt(
     *,
     max_iterations: int | None = None,
     prune_only: bool = False,
+    trace: TraceOptions | None = None,
+    trace_sink: list[PlannerTrace] | None = None,
 ) -> tuple[np.ndarray, np.ndarray, bool, int, np.ndarray]:
     """Prune and grow a dynamic RRT tree in C, returning its compact state."""
+    if trace is not None and not isinstance(trace, TraceOptions):
+        raise TypeError("trace must be TraceOptions or None")
     start_array = np.asarray(start, dtype=np.float64)
     if start_array.ndim != 1 or start_array.size != 3:
         raise ValueError("DynamicRRT3D requires three-dimensional start states")
@@ -697,7 +733,7 @@ def run_native_dynamic_rrt(
         0.0,
         1,
     )
-    library = load_continuous_library()
+    library = load_continuous_library() if trace is None else load_continuous_trace_library()
     library.pp_dynamic_rrt_plan.argtypes = [
         ctypes.POINTER(_Callbacks),
         _Point,
@@ -714,8 +750,18 @@ def run_native_dynamic_rrt(
     library.pp_dynamic_rrt_plan.restype = ctypes.c_int
     library.pp_dynamic_rrt_free_result.argtypes = [ctypes.POINTER(_DynamicResult)]
     library.pp_dynamic_rrt_free_result.restype = None
+    if trace is not None:
+        library.pp_dynamic_rrt_plan_traced.argtypes = [
+            *library.pp_dynamic_rrt_plan.argtypes,
+            ctypes.c_uint64,
+            ctypes.POINTER(TraceResult),
+        ]
+        library.pp_dynamic_rrt_plan_traced.restype = ctypes.c_int
+        library.pp_continuous_trace_free_result.argtypes = [ctypes.POINTER(TraceResult)]
+        library.pp_continuous_trace_free_result.restype = None
     native_result = _DynamicResult()
-    status = library.pp_dynamic_rrt_plan(
+    trace_result = TraceResult()
+    call_args = (
         ctypes.byref(callbacks),
         start_state.ctypes.data_as(_Point),
         goal_state.ctypes.data_as(_Point),
@@ -727,6 +773,13 @@ def run_native_dynamic_rrt(
         float(config.way_point_sample_probability),
         int(prune_only),
         ctypes.byref(native_result),
+    )
+    status = (
+        library.pp_dynamic_rrt_plan(*call_args)
+        if trace is None
+        else library.pp_dynamic_rrt_plan_traced(
+            *call_args, ctypes.c_uint64(trace.max_bytes), ctypes.byref(trace_result)
+        )
     )
     try:
         if callback_errors:
@@ -749,6 +802,8 @@ def run_native_dynamic_rrt(
             native_result.invalid_nodes,
             shape=(int(native_result.invalid_count),),
         ).copy()
+        if trace is not None and trace_sink is not None:
+            trace_sink.append(copy_trace_result(trace_result, kind="continuous"))
         return (
             states,
             parent_ids,
@@ -758,6 +813,8 @@ def run_native_dynamic_rrt(
         )
     finally:
         library.pp_dynamic_rrt_free_result(ctypes.byref(native_result))
+        if trace is not None:
+            library.pp_continuous_trace_free_result(ctypes.byref(trace_result))
 
 
 __all__ = ["run_native_continuous", "run_native_dynamic_rrt"]

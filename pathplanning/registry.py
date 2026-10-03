@@ -10,6 +10,7 @@ from typing import Any, Literal, Protocol, Union, cast
 from pathplanning.core.contracts import ContinuousProblem, DiscreteProblem, State
 from pathplanning.core.params import RrtParams
 from pathplanning.core.results import PlanResult
+from pathplanning.core.trace import TraceOptions
 from pathplanning.core.types import RNG
 from pathplanning.planners.sampling.abit_star import plan_abit_star
 from pathplanning.planners.sampling.bit_star import plan_bit_star
@@ -40,6 +41,7 @@ class DiscretePlannerCallable(Protocol):
         *,
         params: Mapping[str, object] | None = None,
         rng: RNG | None = None,
+        trace: TraceOptions | None = None,
     ) -> PlanResult: ...
 
 
@@ -52,6 +54,7 @@ class ContinuousPlannerCallable(Protocol):
         *,
         params: RrtParams | Mapping[str, object] | None = None,
         rng: RNG | None = None,
+        trace: TraceOptions | None = None,
     ) -> PlanResult: ...
 
 

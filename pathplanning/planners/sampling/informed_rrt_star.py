@@ -9,6 +9,7 @@ import numpy as np
 from pathplanning.core.contracts import ContinuousProblem, ContinuousSpace, GoalRegion, State
 from pathplanning.core.params import RrtParams
 from pathplanning.core.results import PlanResult
+from pathplanning.core.trace import TraceOptions
 from pathplanning.core.types import RNG
 from pathplanning.native.continuous import run_native_continuous
 from pathplanning.nn.index import NearestNeighborIndex
@@ -32,9 +33,21 @@ class InformedRrtStar(RrtStarPlanner):
     ) -> None:
         super().__init__(space, params, rng, nn_index_factory, objective=None)
 
-    def plan(self, start: Sequence[float] | State, goal_region: GoalRegion[State]) -> PlanResult:
+    def plan(
+        self,
+        start: Sequence[float] | State,
+        goal_region: GoalRegion[State],
+        *,
+        trace: TraceOptions | None = None,
+    ) -> PlanResult:
         return run_native_continuous(
-            self.space, start, goal_region, self.params, self.rng, planner="informed_rrt_star"
+            self.space,
+            start,
+            goal_region,
+            self.params,
+            self.rng,
+            planner="informed_rrt_star",
+            trace=trace,
         )
 
 
@@ -43,6 +56,7 @@ def plan_informed_rrt_star(
     *,
     params: RrtParams | Mapping[str, object] | None = None,
     rng: RNG | None = None,
+    trace: TraceOptions | None = None,
 ) -> PlanResult:
     """Plan with native Informed RRT* for additive Euclidean path length."""
     validate_objective(problem.objective, "Informed RRT*")
@@ -54,6 +68,7 @@ def plan_informed_rrt_star(
         resolved_params,
         resolve_rng(rng),
         planner="informed_rrt_star",
+        trace=trace,
     )
 
 

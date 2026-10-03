@@ -10,6 +10,7 @@ import numpy as np
 from pathplanning.core.contracts import ContinuousProblem, ContinuousSpace, GoalRegion, State
 from pathplanning.core.params import RrtParams
 from pathplanning.core.results import PlanResult
+from pathplanning.core.trace import TraceOptions
 from pathplanning.core.types import RNG
 from pathplanning.native.continuous import run_native_continuous
 from pathplanning.nn.index import NearestNeighborIndex
@@ -40,9 +41,15 @@ class RrtPlanner:
         self.params = params.validate()
         self.rng = rng
 
-    def plan(self, start: Sequence[float] | State, goal_region: GoalRegion[State]) -> PlanResult:
+    def plan(
+        self,
+        start: Sequence[float] | State,
+        goal_region: GoalRegion[State],
+        *,
+        trace: TraceOptions | None = None,
+    ) -> PlanResult:
         return run_native_continuous(
-            self.space, start, goal_region, self.params, self.rng, planner="rrt"
+            self.space, start, goal_region, self.params, self.rng, planner="rrt", trace=trace
         )
 
 
@@ -51,6 +58,7 @@ def plan_rrt(
     *,
     params: RrtParams | Mapping[str, object] | None = None,
     rng: RNG | None = None,
+    trace: TraceOptions | None = None,
 ) -> PlanResult:
     """Plan one ``ContinuousProblem`` with the native C RRT core."""
     resolved_params = coerce_rrt_params(problem, params)
@@ -61,6 +69,7 @@ def plan_rrt(
         resolved_params,
         resolve_rng(rng),
         planner="rrt",
+        trace=trace,
     )
 
 
