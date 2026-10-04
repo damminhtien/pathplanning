@@ -12,7 +12,7 @@ All notable changes to this project are documented in this file.
 - Documented native architecture, data ownership, build requirements, supported planner backends, and the benchmark's current scope.
 - Moved discrete search to reusable C++-owned CSR graphs and precomputed goal/heuristic arrays.
 - Kept the Python graph protocol through a one-time finite-graph snapshot before search.
-- Retained the callback C ABI as a compatibility shim that snapshots before running a native kernel.
+- Removed the obsolete callback-based search C ABI and bumped the search ABI to version 3.
 - Added `NativeGraph.from_csr` and `NativeGraph.from_edges` for reusable native graph initialization.
 - Added direct C++ CSR construction for built-in 2D and 3D grids, using Python only for the valid-node mask.
 - Added graph initialization and native search timings to discrete planner stats and benchmarks.

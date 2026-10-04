@@ -12,13 +12,18 @@ from pathplanning.core.contracts import GoalState
 from pathplanning.core.params import RrtParams
 from pathplanning.planners.sampling.rrt import RrtPlanner
 from pathplanning.planners.sampling.rrt_star import RrtStarPlanner
-from pathplanning.registry import SAMPLING_PLANNERS
+from pathplanning.registry import PLANNER_REGISTRY
 from pathplanning.spaces.continuous_3d import AABB, ContinuousSpace3D
 
 
 def test_sampling_planners_accept_rng() -> None:
     """All supported sampling planners should accept an injected RNG."""
-    for planner_name, planner_fn in SAMPLING_PLANNERS.items():
+    sampling_planners = {
+        name: spec.planner
+        for name, spec in PLANNER_REGISTRY.items()
+        if spec.problem_kind == "continuous"
+    }
+    for planner_name, planner_fn in sampling_planners.items():
         signature = inspect.signature(planner_fn)
         assert "rng" in signature.parameters, (
             f"continuous:{planner_name} planner callable must accept rng parameter"
@@ -34,7 +39,13 @@ def test_supported_sampling_modules_do_not_use_global_np_random() -> None:
         "np.random.choice",
         "np.random.rand",
     )
-    modules = sorted({planner_fn.__module__ for planner_fn in SAMPLING_PLANNERS.values()})
+    modules = sorted(
+        {
+            spec.planner.__module__
+            for spec in PLANNER_REGISTRY.values()
+            if spec.problem_kind == "continuous"
+        }
+    )
     for module_name in modules:
         module = importlib.import_module(module_name)
         source = Path(module.__file__).read_text(encoding="utf-8")

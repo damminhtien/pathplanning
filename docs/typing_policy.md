@@ -8,7 +8,7 @@ primary checker. The exact include and strict lists live in
 
 - Keep public APIs explicitly typed.
 - Enforce strict typing in production core modules.
-- Allow legacy/demo modules to remain on basic checks during migration.
+- Keep the repository-wide baseline reproducible in local and CI workflows.
 - Keep type-checking reproducible in local and CI workflows.
 
 ## Enforcement Model
@@ -55,8 +55,8 @@ described in `native_core.md`.
   - `pyproject.toml` (`[tool.setuptools.package-data]`)
   - `MANIFEST.in`
 
-## Migration Plan
+## Strict Scope Updates
 
-1. Move one module family into strict scope at a time.
-2. Keep behavior migrations covered by deterministic tests.
-3. Expand `pyright` strict list only after the module family is clean.
+Move one module family into strict scope at a time. Keep behavior changes
+covered by deterministic tests and expand the strict list after the module
+family is clean.

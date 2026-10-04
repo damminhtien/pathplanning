@@ -1,6 +1,6 @@
 NATIVE_BUILD_DIR ?= /tmp/pathplanning-native-build
 
-.PHONY: install install-dev lint format precommit test test-unit test-slow test-all typecheck benchmark build-ext
+.PHONY: install install-dev lint lint-google format precommit test test-unit test-slow test-all typecheck benchmark build-ext
 
 install:
 	pip install .
@@ -14,9 +14,6 @@ lint:
 	ruff format .
 
 lint-google:
-	pylint --rcfile .pylintrc pathplanning/api.py pathplanning/registry.py pathplanning/search2d.py
-
-lint-google-legacy:
 	pylint --rcfile .pylintrc pathplanning
 
 format:

@@ -14,8 +14,6 @@ import pytest
 
 from pathplanning.registry import (
     PLANNER_REGISTRY,
-    SAMPLING_PLANNERS,
-    SEARCH_PLANNERS,
     _build_registry,
     get_continuous_planner,
     get_discrete_planner,
@@ -145,21 +143,8 @@ def test_importing_all_registered_planner_modules_is_headless() -> None:
     )
 
 
-def test_legacy_registry_mappings_derive_from_specs() -> None:
-    """Compatibility mappings should be derived from the canonical registry."""
-    expected_search = {
-        name: spec.planner
-        for name, spec in PLANNER_REGISTRY.items()
-        if spec.problem_kind == "discrete"
-    }
-    expected_sampling = {
-        name: spec.planner
-        for name, spec in PLANNER_REGISTRY.items()
-        if spec.problem_kind == "continuous"
-    }
-    assert dict(SEARCH_PLANNERS) == expected_search
-    assert dict(SAMPLING_PLANNERS) == expected_sampling
-
+def test_registered_planner_signatures_are_inspectable() -> None:
+    """Every canonical registry entry has an inspectable callable signature."""
     for _, _, planner_fn in _iter_registry_entries():
         inspect.signature(planner_fn)
 

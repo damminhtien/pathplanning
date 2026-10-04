@@ -38,34 +38,6 @@ typedef enum pp_search_algorithm {
     PP_SEARCH_BIDIRECTIONAL_ASTAR = 9,
 } pp_search_algorithm;
 
-// Legacy callback input is retained for compatibility. A callback returns 0
-// on success and nonzero on failure; output values are read only on success.
-// out_is_goal must be 0 or 1. Neighbor arrays must remain valid until the next
-// callback invocation; the graph snapshot copies them before then.
-typedef int (*pp_goal_callback)(void* user_data, uint64_t node_id, int* out_is_goal);
-typedef int (*pp_heuristic_callback)(void* user_data, uint64_t node_id, double* out_value);
-typedef int (*pp_neighbors_callback)(
-    void* user_data,
-    uint64_t node_id,
-    const uint64_t** out_neighbor_ids,
-    const double** out_edge_costs,
-    size_t* out_count
-);
-
-typedef struct pp_graph_callbacks {
-    void* user_data;
-    pp_goal_callback is_goal;
-    pp_heuristic_callback heuristic;
-    pp_neighbors_callback neighbors;
-} pp_graph_callbacks;
-
-typedef struct pp_astar_options {
-    int has_max_expansions;
-    uint64_t max_expansions;
-    double heuristic_weight;
-    uint64_t reserve_nodes;
-} pp_astar_options;
-
 typedef struct pp_native_graph pp_native_graph;
 
 // Borrowed pointers remain valid until the graph is freed. Keep the owner
@@ -161,19 +133,10 @@ int pp_graph_create_grid_ex(
 // Accepts NULL. Frees a graph handle created by this library.
 void pp_graph_free(pp_native_graph* graph);
 
-// Returns zero when the call ran and nonzero on an API/callback error; plan
-// success and stop reason are reported in result. The graph and arrays are
-// borrowed for this call. Result buffers are owned by the result and must be
-// released with pp_search_free_result before the result storage is reused.
-int pp_search_plan(
-    const pp_graph_callbacks* graph,
-    uint64_t start_id,
-    const pp_search_options* options,
-    pp_search_result* result
-);
-
-// Same result ownership rules as pp_search_plan. The graph and input arrays
-// are borrowed for this call.
+// Returns zero when the call ran and nonzero on an API error; plan success and
+// stop reason are reported in result. The graph and arrays are borrowed for
+// this call. Result buffers are owned by the result and must be released with
+// pp_search_free_result before the result storage is reused.
 int pp_native_search_plan(
     const pp_native_graph* graph,
     const uint8_t* goal_flags,
@@ -210,13 +173,6 @@ uint32_t pp_search_trace_abi_version(void);
 uint64_t pp_graph_storage_bytes(const pp_native_graph* graph);
 void pp_search_trace_free_result(pp_trace_result* trace);
 #endif
-
-int pp_astar_plan(
-    const pp_graph_callbacks* graph,
-    uint64_t start_id,
-    const pp_astar_options* options,
-    pp_search_result* result
-);
 
 // Accepts NULL; after a result call, releases its owned buffers and resets it.
 void pp_search_free_result(pp_search_result* result);

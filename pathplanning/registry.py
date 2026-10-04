@@ -75,8 +75,8 @@ _OPTIMAL_SAMPLING_CONSTRAINTS = (
     "custom objectives are rejected because the search bounds rely on additive path length.",
 )
 
-# Keep every production planner declaration here. The compatibility mappings below,
-# public listings, dispatch, tests, and the supported-planner document derive from it.
+# Keep every production planner declaration here. Public listings, dispatch, tests,
+# and the supported-planner document derive from this registry.
 _PLANNER_SPECS: tuple[tuple[str, PlannerSpec], ...] = (
     ("bfs", PlannerSpec("discrete", plan_breadth_first_search)),
     ("dfs", PlannerSpec("discrete", plan_depth_first_search)),
@@ -157,23 +157,6 @@ def _build_registry(entries: tuple[tuple[str, PlannerSpec], ...]) -> Mapping[str
 
 PLANNER_REGISTRY = _build_registry(_PLANNER_SPECS)
 
-# Legacy views for callers that import the old mappings. Keep dispatch and
-# metadata consumers on PLANNER_REGISTRY so these cannot become another source.
-SEARCH_PLANNERS: Mapping[str, DiscretePlannerCallable] = MappingProxyType(
-    {
-        name: cast(DiscretePlannerCallable, spec.planner)
-        for name, spec in PLANNER_REGISTRY.items()
-        if spec.problem_kind == "discrete"
-    }
-)
-SAMPLING_PLANNERS: Mapping[str, ContinuousPlannerCallable] = MappingProxyType(
-    {
-        name: cast(ContinuousPlannerCallable, spec.planner)
-        for name, spec in PLANNER_REGISTRY.items()
-        if spec.problem_kind == "continuous"
-    }
-)
-
 
 def list_planners(problem_kind: ProblemKind | None = None) -> list[str]:
     """Return registered planner names, optionally filtered by kind."""
@@ -218,8 +201,6 @@ __all__ = [
     "PlannerCallable",
     "PlannerSpec",
     "PLANNER_REGISTRY",
-    "SEARCH_PLANNERS",
-    "SAMPLING_PLANNERS",
     "list_planners",
     "planner_modules",
     "get_discrete_planner",

@@ -18,8 +18,7 @@
     "dist",
     "build",
     ".venv",
-    "pathplanning.egg-info",
-    "pathplanningv2.egg-info"
+    "pathplanning.egg-info"
   ],
   "typeCheckingMode": "basic",
   "strict": [

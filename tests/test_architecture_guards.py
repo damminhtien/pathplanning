@@ -134,7 +134,7 @@ def test_importing_public_api_does_not_load_matplotlib() -> None:
 
 def test_sampling_registry_contains_only_implemented_algorithms() -> None:
     """Sampling registry should expose only the implemented planner algorithms."""
-    from pathplanning.registry import SAMPLING_PLANNERS
+    from pathplanning.registry import PLANNER_REGISTRY
 
     expected = {
         "rrt",
@@ -145,12 +145,13 @@ def test_sampling_registry_contains_only_implemented_algorithms() -> None:
         "abit_star",
         "rrt_connect",
     }
-    assert set(SAMPLING_PLANNERS) == expected
+    actual = {name for name, spec in PLANNER_REGISTRY.items() if spec.problem_kind == "continuous"}
+    assert actual == expected
 
 
 def test_bidirectional_registry_names_match_their_kernels() -> None:
     """Both bidirectional search kernels are registered by their real names."""
-    from pathplanning.registry import SEARCH_PLANNERS
+    from pathplanning.registry import PLANNER_REGISTRY
 
-    assert "bidirectional_dijkstra" in SEARCH_PLANNERS
-    assert "bidirectional_astar" in SEARCH_PLANNERS
+    assert PLANNER_REGISTRY["bidirectional_dijkstra"].problem_kind == "discrete"
+    assert PLANNER_REGISTRY["bidirectional_astar"].problem_kind == "discrete"

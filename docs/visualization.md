@@ -113,6 +113,6 @@ display blocked cells in that case.
 Replace `search2d_plotting.Plotting` and `sampling2d_plotting.Plotting` with
 `scene_from_problem`, `render_result`, or `view_result`. Replace the old 3D
 `render_tree_state` and `visualization` helpers the same way. Build the scene
-from the actual problem instead of a second default environment. Existing
-curve demos can continue using `geometry_draw.Arrow` and `Car`; pass `ax=`
-when drawing into a specific figure.
+from the actual problem instead of a second default environment. Geometry
+modules return numeric trajectories; they no longer include embedded plotting
+demos.

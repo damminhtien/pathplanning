@@ -48,8 +48,9 @@ Track durable decisions so future agents do not re-litigate baseline choices.
 ## DEC-008: Exclude heavy GIF assets from runtime package
 
 - Date: 2026-02-12
-- Status: accepted
-- Decision: GIF assets live under `assets/gif/*` and are excluded from runtime wheel payload.
+- Status: deprecated
+- Decision: GIF assets were stored under `assets/gif/*` and excluded from runtime wheels.
+- Superseded on 2026-10-04: remove GIF assets and use generated PNG figures under `assets/images/`.
 
 ## DEC-009: Keep release metadata synchronized
 

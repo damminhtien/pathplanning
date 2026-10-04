@@ -11,7 +11,7 @@ import sys
 
 import pytest
 
-from pathplanning.registry import SAMPLING_PLANNERS, SEARCH_PLANNERS, planner_modules
+from pathplanning.registry import PLANNER_REGISTRY, planner_modules
 
 
 def _module_source_path(module_name: str) -> Path:
@@ -119,7 +119,8 @@ def test_import_all_registered_modules_together_does_not_load_matplotlib() -> No
 
 def test_registered_modules_have_non_empty_source_and_concrete_callables() -> None:
     """Registered planner modules should expose concrete callable implementations."""
-    for planner_name, planner_fn in [*SEARCH_PLANNERS.items(), *SAMPLING_PLANNERS.items()]:
+    for planner_name, planner_spec in PLANNER_REGISTRY.items():
+        planner_fn = planner_spec.planner
         module_name = planner_fn.__module__
         source_path = _module_source_path(module_name)
         source_text = source_path.read_text(encoding="utf-8")

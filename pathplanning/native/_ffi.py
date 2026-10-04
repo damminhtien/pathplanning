@@ -118,7 +118,7 @@ _SEARCH_TRACE_LIB: ctypes.CDLL | None = None
 _CONTINUOUS_TRACE_LIB: ctypes.CDLL | None = None
 
 # Keep these exact-match requirements synchronized with abi_version.h.
-_SEARCH_ABI_VERSION = 2
+_SEARCH_ABI_VERSION = 3
 _CONTINUOUS_ABI_VERSION = 1
 _TRACE_ABI_VERSION = 1
 
@@ -210,9 +210,7 @@ def load_native_library() -> ctypes.CDLL:
                 "pp_graph_create_grid_ex",
                 "pp_graph_export_csr_view",
                 "pp_graph_free",
-                "pp_search_plan",
                 "pp_native_search_plan",
-                "pp_astar_plan",
                 "pp_search_free_result",
                 "pp_search_engine_version",
             ),

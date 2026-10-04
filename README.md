@@ -75,7 +75,7 @@ For a replayable diagnostic run, pass `trace=TraceOptions()` and then call
 `view_result(scene_from_problem(problem), result)`. Normal planning uses a
 production library compiled without trace code. See the
 [visualization guide](docs/visualization.md) for controls, custom scenes, and
-the migration from the old plotting modules.
+the plotting API migration notes.
 
 ### Native model for a custom space
 

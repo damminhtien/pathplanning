@@ -2,7 +2,29 @@
 
 Use this file to transfer context between AI agents or from agent to human reviewer.
 
-## Latest Handoff
+## Latest Handoff — 2026-10-04
+
+Date: 2026-10-04
+Author: AI Agent
+
+### Scope Completed
+
+1. Removed all 30 tracked GIF assets and their packaging configuration; visualization docs use the generated PNG gallery.
+2. Removed embedded plotting demos from geometry modules, along with the obsolete geometry drawing and lazy-import helpers. Numeric geometry APIs remain available.
+3. Removed legacy planner registry mappings and the callback-based graph-search C ABI. Search ABI is now version 3; custom graph protocols are converted to CSR before native search.
+4. Removed stale legacy lint, typing, and packaging configuration.
+
+### Validation Performed
+
+1. Full suite: 154 passed. Ruff checks and formatting passed.
+2. Native extensions built successfully; the production search library exports `pp_native_search_plan` and no removed callback entrypoints.
+3. Graphify code graph updated successfully; `git diff --check` passed and no GIF files remain in the repository.
+
+### Risks / Follow-ups
+
+Historical changelog and baseline records still describe the layouts and APIs that existed when those records were written.
+
+## Previous Handoff — 2026-10-02
 
 Date: 2026-10-02
 Author: AI Agent

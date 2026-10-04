@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathplanning.api import plan_discrete
 from pathplanning.core.contracts import DiscreteProblem
-from pathplanning.registry import SEARCH_PLANNERS
+from pathplanning.registry import list_planners
 from pathplanning.spaces.grid2d import Grid2DSearchSpace
 
 
@@ -15,7 +15,7 @@ def test_discrete_registered_planners_smoke() -> None:
         goal=(45, 25),
     )
 
-    for planner_name in SEARCH_PLANNERS:
+    for planner_name in list_planners("discrete"):
         result = plan_discrete(
             problem,
             planner=planner_name,

@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from collections.abc import Iterable
-import ctypes
 
 import numpy as np
 import pytest
@@ -11,7 +10,7 @@ import pytest
 from pathplanning.api import plan_discrete
 from pathplanning.core.contracts import DiscreteProblem
 from pathplanning.native import NativeGraph, NativeGraphError
-from pathplanning.native._ffi import SearchOptions, SearchResult, load_native_library
+from pathplanning.native._ffi import load_native_library
 from pathplanning.planners.search._internal.native import NativeSearchError
 from pathplanning.spaces.grid2d import Grid2DSearchSpace
 
@@ -267,105 +266,9 @@ def test_native_graph_validates_csr_shape_and_endpoints() -> None:
         NativeGraph.from_csr([0, 1], [1], [1.0])
 
 
-def test_legacy_callback_c_abi_snapshots_before_search() -> None:
-    goal_callback = ctypes.CFUNCTYPE(
-        ctypes.c_int,
-        ctypes.c_void_p,
-        ctypes.c_uint64,
-        ctypes.POINTER(ctypes.c_int),
-    )
-    heuristic_callback = ctypes.CFUNCTYPE(
-        ctypes.c_int,
-        ctypes.c_void_p,
-        ctypes.c_uint64,
-        ctypes.POINTER(ctypes.c_double),
-    )
-    neighbors_callback = ctypes.CFUNCTYPE(
-        ctypes.c_int,
-        ctypes.c_void_p,
-        ctypes.c_uint64,
-        ctypes.POINTER(ctypes.POINTER(ctypes.c_uint64)),
-        ctypes.POINTER(ctypes.POINTER(ctypes.c_double)),
-        ctypes.POINTER(ctypes.c_size_t),
-    )
-
-    class GraphCallbacks(ctypes.Structure):
-        _fields_ = [
-            ("user_data", ctypes.c_void_p),
-            ("is_goal", goal_callback),
-            ("heuristic", heuristic_callback),
-            ("neighbors", neighbors_callback),
-        ]
-
-    adjacency = {
-        90: ((70, 1.0), (55, 9.0)),
-        70: ((100, 1.0),),
-        55: ((100, 1.0),),
-        100: (),
-    }
-    callback_counts = {"goal": 0, "heuristic": 0, "neighbors": 0}
-    array_storage: dict[
-        int,
-        tuple[ctypes.Array[ctypes.c_uint64], ctypes.Array[ctypes.c_double]],
-    ] = {}
-
-    @goal_callback
-    def is_goal(_user_data, node_id, out_is_goal) -> int:
-        callback_counts["goal"] += 1
-        out_is_goal[0] = int(node_id == 100)
-        return 0
-
-    @heuristic_callback
-    def heuristic(_user_data, _node_id, out_value) -> int:
-        callback_counts["heuristic"] += 1
-        out_value[0] = 0.0
-        return 0
-
-    @neighbors_callback
-    def neighbors(_user_data, node_id, out_ids, out_costs, out_count) -> int:
-        callback_counts["neighbors"] += 1
-        edges = adjacency[int(node_id)]
-        ids = (ctypes.c_uint64 * len(edges))(*(target for target, _ in edges))
-        costs = (ctypes.c_double * len(edges))(*(cost for _, cost in edges))
-        array_storage[int(node_id)] = (ids, costs)
-        out_ids[0] = ctypes.cast(ids, ctypes.POINTER(ctypes.c_uint64))
-        out_costs[0] = ctypes.cast(costs, ctypes.POINTER(ctypes.c_double))
-        out_count[0] = len(edges)
-        return 0
-
-    callbacks = GraphCallbacks(None, is_goal, heuristic, neighbors)
+def test_search_engine_exports_only_native_graph_planning_entrypoints() -> None:
     library = load_native_library()
-    library.pp_search_plan.argtypes = [
-        ctypes.POINTER(GraphCallbacks),
-        ctypes.c_uint64,
-        ctypes.POINTER(SearchOptions),
-        ctypes.POINTER(SearchResult),
-    ]
-    library.pp_search_plan.restype = ctypes.c_int
-    options = SearchOptions(
-        4,
-        0,
-        0,
-        1.0,
-        0,
-        1,
-        100,
-        ctypes.POINTER(ctypes.c_double)(),
-        0,
-    )
-    result = SearchResult()
 
-    try:
-        status = library.pp_search_plan(
-            ctypes.byref(callbacks),
-            90,
-            ctypes.byref(options),
-            ctypes.byref(result),
-        )
-        assert status == 0
-        assert result.success
-        assert result.path_cost == pytest.approx(2.0)
-        assert [result.path_ids[i] for i in range(result.path_length)] == [90, 70, 100]
-        assert callback_counts == {"goal": 4, "heuristic": 4, "neighbors": 4}
-    finally:
-        library.pp_search_free_result(ctypes.byref(result))
+    assert hasattr(library, "pp_native_search_plan")
+    assert not hasattr(library, "pp_search_plan")
+    assert not hasattr(library, "pp_astar_plan")
