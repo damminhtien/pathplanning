@@ -36,6 +36,186 @@ constexpr const char* kVersion = "0.4.0";
 constexpr double kInfinity = std::numeric_limits<double>::infinity();
 constexpr uint64_t kNoGoalId = std::numeric_limits<uint64_t>::max();
 
+#if defined(PP_ENABLE_METRICS) && PP_ENABLE_METRICS
+enum class MetricAllocationKind { kState, kFrontier, kPath, kResult };
+
+struct MetricRecorder {
+    explicit MetricRecorder(pp_search_metrics* output) : result(output) {
+        *result = pp_search_metrics{};
+        result->struct_size = sizeof(pp_search_metrics);
+        result->capability_bits = PP_METRICS_CAP_WORK_COUNTERS |
+            PP_METRICS_CAP_TRACKED_QUERY_ALLOCATIONS | PP_METRICS_CAP_NO_REOPEN;
+    }
+
+    void allocate(MetricAllocationKind kind, uint64_t bytes) noexcept {
+        uint64_t* live = live_bytes(kind);
+        *live += bytes;
+        uint64_t* peak = peak_bytes(kind);
+        *peak = std::max(*peak, *live);
+        total_live += bytes;
+        result->query_workspace_peak_bytes =
+            std::max(result->query_workspace_peak_bytes, total_live);
+        result->native_requested_bytes_peak = result->query_workspace_peak_bytes;
+    }
+
+    void deallocate(MetricAllocationKind kind, uint64_t bytes) noexcept {
+        *live_bytes(kind) -= bytes;
+        total_live -= bytes;
+    }
+
+    void discover(bool reverse) noexcept {
+        ++result->discovered_first;
+        ++(reverse ? result->discovered_backward : result->discovered_forward);
+    }
+
+    void expand(bool reverse) noexcept {
+        ++result->expanded;
+        ++(reverse ? result->expanded_backward : result->expanded_forward);
+    }
+
+    void frontier_push(bool reverse) noexcept {
+        ++result->frontier_pushes;
+        ++(reverse ? frontier_backward : frontier_forward);
+        update_frontier_peak();
+    }
+
+    void frontier_pop(bool reverse) noexcept {
+        ++result->frontier_pops;
+        --(reverse ? frontier_backward : frontier_forward);
+    }
+
+    pp_search_metrics* result;
+    bool validation_phase = false;
+
+private:
+    uint64_t* live_bytes(MetricAllocationKind kind) noexcept {
+        switch (kind) {
+            case MetricAllocationKind::kState: return &state_live;
+            case MetricAllocationKind::kFrontier: return &frontier_live;
+            case MetricAllocationKind::kPath: return &path_live;
+            case MetricAllocationKind::kResult: return &result_live;
+        }
+        return &result_live;
+    }
+
+    uint64_t* peak_bytes(MetricAllocationKind kind) noexcept {
+        switch (kind) {
+            case MetricAllocationKind::kState: return &result->state_capacity_bytes_peak;
+            case MetricAllocationKind::kFrontier: return &result->frontier_capacity_bytes_peak;
+            case MetricAllocationKind::kPath: return &result->path_workspace_bytes_peak;
+            case MetricAllocationKind::kResult: return &result->result_path_bytes;
+        }
+        return &result->result_path_bytes;
+    }
+
+    void update_frontier_peak() noexcept {
+        result->frontier_peak_forward =
+            std::max(result->frontier_peak_forward, frontier_forward);
+        result->frontier_peak_backward =
+            std::max(result->frontier_peak_backward, frontier_backward);
+        result->frontier_peak_entries =
+            std::max(result->frontier_peak_entries, frontier_forward + frontier_backward);
+    }
+
+    uint64_t state_live = 0;
+    uint64_t frontier_live = 0;
+    uint64_t path_live = 0;
+    uint64_t result_live = 0;
+    uint64_t total_live = 0;
+    uint64_t frontier_forward = 0;
+    uint64_t frontier_backward = 0;
+};
+
+thread_local MetricRecorder* active_metrics = nullptr;
+
+struct MetricScope {
+    explicit MetricScope(MetricRecorder* recorder) : previous(active_metrics) {
+        active_metrics = recorder;
+    }
+    ~MetricScope() { active_metrics = previous; }
+    MetricRecorder* previous;
+};
+
+struct MetricValidationScope {
+    MetricValidationScope() {
+        if (active_metrics != nullptr) {
+            active_metrics->validation_phase = true;
+        }
+    }
+    ~MetricValidationScope() {
+        if (active_metrics != nullptr) {
+            active_metrics->validation_phase = false;
+        }
+    }
+};
+
+template <typename T, MetricAllocationKind Kind>
+struct MetricsAllocator {
+    using value_type = T;
+    using is_always_equal = std::true_type;
+
+    MetricsAllocator() noexcept = default;
+    template <typename U>
+    MetricsAllocator(const MetricsAllocator<U, Kind>&) noexcept {}
+
+    T* allocate(size_t count) {
+        T* memory = std::allocator<T>{}.allocate(count);
+        if (active_metrics != nullptr) {
+            active_metrics->allocate(Kind, static_cast<uint64_t>(count * sizeof(T)));
+        }
+        return memory;
+    }
+
+    void deallocate(T* memory, size_t count) noexcept {
+        if (active_metrics != nullptr) {
+            active_metrics->deallocate(Kind, static_cast<uint64_t>(count * sizeof(T)));
+        }
+        std::allocator<T>{}.deallocate(memory, count);
+    }
+
+    template <typename U>
+    struct rebind { using other = MetricsAllocator<U, Kind>; };
+};
+
+template <typename T, typename U, MetricAllocationKind Kind>
+bool operator==(const MetricsAllocator<T, Kind>&, const MetricsAllocator<U, Kind>&) noexcept {
+    return true;
+}
+
+template <typename T, typename U, MetricAllocationKind Kind>
+bool operator!=(const MetricsAllocator<T, Kind>&, const MetricsAllocator<U, Kind>&) noexcept {
+    return false;
+}
+
+template <typename T>
+using StateVector = std::vector<T, MetricsAllocator<T, MetricAllocationKind::kState>>;
+template <typename T>
+using FrontierVector = std::vector<T, MetricsAllocator<T, MetricAllocationKind::kFrontier>>;
+using LinearFrontier = std::deque<uint64_t, MetricsAllocator<uint64_t, MetricAllocationKind::kFrontier>>;
+using PathVector = std::vector<uint64_t, MetricsAllocator<uint64_t, MetricAllocationKind::kPath>>;
+
+#define PP_METRIC_INC(FIELD) \
+    do { if (active_metrics != nullptr) ++active_metrics->result->FIELD; } while (0)
+#define PP_METRIC_DISCOVER(REVERSE) \
+    do { if (active_metrics != nullptr) active_metrics->discover((REVERSE)); } while (0)
+#define PP_METRIC_EXPAND(REVERSE) \
+    do { if (active_metrics != nullptr) active_metrics->expand((REVERSE)); } while (0)
+#define PP_METRIC_PUSH(REVERSE) \
+    do { if (active_metrics != nullptr) active_metrics->frontier_push((REVERSE)); } while (0)
+#define PP_METRIC_POP(REVERSE) \
+    do { if (active_metrics != nullptr) active_metrics->frontier_pop((REVERSE)); } while (0)
+#else
+template <typename T> using StateVector = std::vector<T>;
+template <typename T> using FrontierVector = std::vector<T>;
+using LinearFrontier = std::deque<uint64_t>;
+using PathVector = std::vector<uint64_t>;
+#define PP_METRIC_INC(FIELD) ((void)0)
+#define PP_METRIC_DISCOVER(REVERSE) ((void)0)
+#define PP_METRIC_EXPAND(REVERSE) ((void)0)
+#define PP_METRIC_PUSH(REVERSE) ((void)0)
+#define PP_METRIC_POP(REVERSE) ((void)0)
+#endif
+
 #if defined(PP_ENABLE_TRACE) && PP_ENABLE_TRACE
 struct TraceRecorder {
     pp_trace_result* result;
@@ -102,7 +282,14 @@ struct SearchStates {
     explicit SearchStates(size_t node_count)
         : g_costs(node_count, kInfinity),
           parents(node_count, std::numeric_limits<ParentId>::max()),
-          flags(node_count, 0) {}
+          flags(node_count, 0) {
+#if defined(PP_ENABLE_METRICS) && PP_ENABLE_METRICS
+        if (active_metrics != nullptr) {
+            active_metrics->result->state_slots_allocated += node_count;
+            active_metrics->result->parent_id_bytes = sizeof(ParentId);
+        }
+#endif
+    }
 
     double& g_cost(uint64_t node_id) { return g_costs[static_cast<size_t>(node_id)]; }
     double g_cost(uint64_t node_id) const { return g_costs[static_cast<size_t>(node_id)]; }
@@ -128,9 +315,9 @@ struct SearchStates {
 private:
     static constexpr uint8_t kClosed = 1;
 
-    std::vector<double> g_costs;
-    std::vector<ParentId> parents;
-    std::vector<uint8_t> flags;
+    StateVector<double> g_costs;
+    StateVector<ParentId> parents;
+    StateVector<uint8_t> flags;
 };
 
 struct ReverseCsr {
@@ -160,6 +347,8 @@ struct QueueEntryGreater {
         return lhs.order > rhs.order;
     }
 };
+
+using HeapQueue = std::priority_queue<QueueEntry, FrontierVector<QueueEntry>, QueueEntryGreater>;
 
 struct AdjacencyView {
     const std::vector<uint64_t>* offsets;
@@ -301,6 +490,7 @@ AdjacencyView adjacency(const pp_native_graph* graph, bool reverse) {
 }
 
 bool is_goal(const uint8_t* goal_flags, const pp_search_options* options, uint64_t node_id) {
+    PP_METRIC_INC(goal_tests);
     return options->has_goal_id ? node_id == options->goal_id : goal_flags[node_id] != 0;
 }
 
@@ -319,6 +509,13 @@ double compute_heuristic(
         return 0.0;
     }
     if (heuristic_values != nullptr) {
+#if defined(PP_ENABLE_METRICS) && PP_ENABLE_METRICS
+        if (active_metrics != nullptr) {
+            ++(active_metrics->validation_phase
+                ? active_metrics->result->validation_heuristic_lookups
+                : active_metrics->result->heuristic_lookups);
+        }
+#endif
         const double value = heuristic_values[node_id];
         return weight * (std::isfinite(value) ? value : 0.0);
     }
@@ -328,6 +525,13 @@ double compute_heuristic(
     }
 
     const uint64_t plane_size = graph->grid_width * graph->grid_height;
+#if defined(PP_ENABLE_METRICS) && PP_ENABLE_METRICS
+    if (active_metrics != nullptr) {
+        ++(active_metrics->validation_phase
+            ? active_metrics->result->validation_heuristic_computations
+            : active_metrics->result->heuristic_computations);
+    }
+#endif
     const double dx = static_cast<double>(node_id % graph->grid_width) -
         static_cast<double>(options->goal_id % graph->grid_width);
     const double dy = static_cast<double>((node_id / graph->grid_width) % graph->grid_height) -
@@ -338,12 +542,12 @@ double compute_heuristic(
 }
 
 template <typename ParentId>
-std::vector<uint64_t> reconstruct_path(
+PathVector reconstruct_path(
     const SearchStates<ParentId>& states,
     uint64_t start_id,
     uint64_t reached_id
 ) {
-    std::vector<uint64_t> reversed;
+    PathVector reversed;
     uint64_t current = reached_id;
     reversed.push_back(current);
 
@@ -360,14 +564,14 @@ std::vector<uint64_t> reconstruct_path(
 }
 
 template <typename ParentId>
-std::vector<uint64_t> reconstruct_bidirectional_path(
+PathVector reconstruct_bidirectional_path(
     const SearchStates<ParentId>& forward_states,
     const SearchStates<ParentId>& backward_states,
     uint64_t start_id,
     uint64_t goal_id,
     uint64_t meet_id
 ) {
-    std::vector<uint64_t> path = reconstruct_path(forward_states, start_id, meet_id);
+    PathVector path = reconstruct_path(forward_states, start_id, meet_id);
 
     uint64_t current = meet_id;
     while (current != goal_id) {
@@ -380,7 +584,7 @@ std::vector<uint64_t> reconstruct_bidirectional_path(
     return path;
 }
 
-void store_path(pp_search_result* result, const std::vector<uint64_t>& path) {
+void store_path(pp_search_result* result, const PathVector& path) {
     if (path.empty()) {
         result->path_ids = nullptr;
         result->path_length = 0;
@@ -392,6 +596,11 @@ void store_path(pp_search_result* result, const std::vector<uint64_t>& path) {
     if (ids == nullptr) {
         throw std::bad_alloc();
     }
+#if defined(PP_ENABLE_METRICS) && PP_ENABLE_METRICS
+    if (active_metrics != nullptr) {
+        active_metrics->allocate(MetricAllocationKind::kResult, static_cast<uint64_t>(bytes));
+    }
+#endif
     std::memcpy(ids, path.data(), bytes);
     result->path_ids = ids;
     result->path_length = path.size();
@@ -416,7 +625,7 @@ void set_success_result(
     uint64_t expanded,
     uint64_t nodes,
     double path_cost,
-    const std::vector<uint64_t>& path
+    const PathVector& path
 ) {
     result->success = 1;
     result->stop_reason = PP_SEARCH_STOP_SUCCESS;
@@ -439,10 +648,12 @@ int run_linear_search(
     const size_t node_count = static_cast<size_t>(graph->node_count);
     SearchStates<ParentId> states(node_count);
     states.g_cost(start_id) = 0.0;
+    PP_METRIC_DISCOVER(false);
     PP_TRACE(PP_TRACE_DISCOVER, start_id, kNoGoalId, 0.0, 0);
 
-    std::deque<uint64_t> frontier;
+    LinearFrontier frontier;
     frontier.push_back(start_id);
+    PP_METRIC_PUSH(false);
     uint64_t expanded = 0;
     uint64_t discovered = 1;
     const AdjacencyView edges = adjacency(graph, false);
@@ -455,9 +666,11 @@ int run_linear_search(
         } else {
             frontier.pop_front();
         }
+        PP_METRIC_POP(false);
 
         const double state_g_cost = states.g_cost(node_id);
         ++expanded;
+        PP_METRIC_EXPAND(false);
         PP_TRACE(PP_TRACE_EXPAND, node_id, states.has_parent(node_id) ? states.parent(node_id) : kNoGoalId,
             state_g_cost, 0);
         if (is_goal(goal_flags, options, node_id)) {
@@ -479,12 +692,14 @@ int run_linear_search(
         const uint64_t edge_begin = (*edges.offsets)[static_cast<size_t>(node_id)];
         const uint64_t edge_end = (*edges.offsets)[static_cast<size_t>(node_id) + 1];
         auto add_neighbor = [&](uint64_t edge_index) {
+            PP_METRIC_INC(edges_examined);
             const double edge_cost = (*edges.edge_costs)[static_cast<size_t>(edge_index)];
             if (!std::isfinite(edge_cost)) {
                 return;
             }
             const uint64_t neighbor_id = (*edges.neighbor_ids)[static_cast<size_t>(edge_index)];
             if (std::isfinite(states.g_cost(neighbor_id))) {
+                PP_METRIC_INC(nonimproving_skips);
                 return;
             }
 
@@ -492,10 +707,14 @@ int run_linear_search(
             if (!std::isfinite(tentative)) {
                 return;
             }
+            PP_METRIC_INC(relaxation_attempts);
 
             states.g_cost(neighbor_id) = tentative;
+            PP_METRIC_INC(relaxation_successes_first);
+            PP_METRIC_DISCOVER(false);
             states.set_parent(neighbor_id, node_id);
             frontier.push_back(neighbor_id);
+            PP_METRIC_PUSH(false);
             ++discovered;
             PP_TRACE(PP_TRACE_DISCOVER, neighbor_id, node_id, tentative, 0);
             PP_TRACE(PP_TRACE_PARENT, neighbor_id, node_id, tentative, 0);
@@ -527,8 +746,9 @@ int run_best_first_search(
 ) {
     const size_t node_count = static_cast<size_t>(graph->node_count);
     SearchStates<ParentId> states(node_count);
-    std::priority_queue<QueueEntry, std::vector<QueueEntry>, QueueEntryGreater> open;
+    HeapQueue open;
     states.g_cost(start_id) = 0.0;
+    PP_METRIC_DISCOVER(false);
     PP_TRACE(PP_TRACE_DISCOVER, start_id, kNoGoalId, 0.0, 0);
 
     const bool greedy = options->algorithm == PP_SEARCH_GREEDY_BEST_FIRST;
@@ -542,6 +762,7 @@ int run_best_first_search(
     const double start_h =
         compute_heuristic(graph, heuristic_values, start_id, options, heuristic_weight);
     open.push(QueueEntry{start_h, start_h, order++, start_id});
+    PP_METRIC_PUSH(false);
 
     uint64_t expanded = 0;
     uint64_t discovered = 1;
@@ -550,13 +771,16 @@ int run_best_first_search(
     while (!open.empty()) {
         const QueueEntry entry = open.top();
         open.pop();
+        PP_METRIC_POP(false);
 
         if (states.is_closed(entry.node_id)) {
+            PP_METRIC_INC(stale_pops);
             continue;
         }
 
         states.mark_closed(entry.node_id);
         ++expanded;
+        PP_METRIC_EXPAND(false);
         PP_TRACE(PP_TRACE_EXPAND, entry.node_id,
             states.has_parent(entry.node_id) ? states.parent(entry.node_id) : kNoGoalId,
             states.g_cost(entry.node_id), 0);
@@ -579,6 +803,7 @@ int run_best_first_search(
         const uint64_t edge_begin = (*edges.offsets)[static_cast<size_t>(entry.node_id)];
         const uint64_t edge_end = (*edges.offsets)[static_cast<size_t>(entry.node_id) + 1];
         for (uint64_t edge_index = edge_begin; edge_index < edge_end; ++edge_index) {
+            PP_METRIC_INC(edges_examined);
             const double edge_cost = (*edges.edge_costs)[static_cast<size_t>(edge_index)];
             if (!std::isfinite(edge_cost)) {
                 continue;
@@ -589,21 +814,29 @@ int run_best_first_search(
             if (!std::isfinite(tentative)) {
                 continue;
             }
+            PP_METRIC_INC(relaxation_attempts);
 
             if (states.is_closed(neighbor_id)) {
+                PP_METRIC_INC(closed_neighbor_skips);
                 continue;
             }
             if (greedy) {
                 if (std::isfinite(states.g_cost(neighbor_id))) {
+                    PP_METRIC_INC(greedy_known_skips);
                     continue;
                 }
             } else if (tentative >= states.g_cost(neighbor_id)) {
+                PP_METRIC_INC(nonimproving_skips);
                 continue;
             }
 
             const bool first_discovery = !std::isfinite(states.g_cost(neighbor_id));
             if (first_discovery) {
                 ++discovered;
+                PP_METRIC_DISCOVER(false);
+                PP_METRIC_INC(relaxation_successes_first);
+            } else {
+                PP_METRIC_INC(relaxation_successes_improved);
             }
             states.g_cost(neighbor_id) = tentative;
             states.set_parent(neighbor_id, entry.node_id);
@@ -621,6 +854,7 @@ int run_best_first_search(
             );
             const double f_score = greedy ? h_score : tentative + h_score;
             open.push(QueueEntry{f_score, h_score, order++, neighbor_id});
+            PP_METRIC_PUSH(false);
         }
     }
 
@@ -632,7 +866,7 @@ template <typename ParentId>
 BidirectionalExpansion expand_bidirectional_frontier(
     const pp_native_graph* graph,
     bool reverse,
-    std::priority_queue<QueueEntry, std::vector<QueueEntry>, QueueEntryGreater>* heap,
+    HeapQueue* heap,
     SearchStates<ParentId>* states_this,
     const SearchStates<ParentId>& states_other,
     uint64_t* tie_breaker,
@@ -643,13 +877,16 @@ BidirectionalExpansion expand_bidirectional_frontier(
     while (!heap->empty()) {
         const QueueEntry entry = heap->top();
         heap->pop();
+        PP_METRIC_POP(reverse);
 
         if (states_this->is_closed(entry.node_id)) {
+            PP_METRIC_INC(stale_pops);
             continue;
         }
 
         states_this->mark_closed(entry.node_id);
         ++(*expanded);
+        PP_METRIC_EXPAND(reverse);
         PP_TRACE(PP_TRACE_EXPAND, entry.node_id,
             states_this->has_parent(entry.node_id) ? states_this->parent(entry.node_id) : kNoGoalId,
             states_this->g_cost(entry.node_id), reverse ? 2 : 1);
@@ -665,6 +902,7 @@ BidirectionalExpansion expand_bidirectional_frontier(
         const uint64_t edge_begin = (*edges.offsets)[static_cast<size_t>(entry.node_id)];
         const uint64_t edge_end = (*edges.offsets)[static_cast<size_t>(entry.node_id) + 1];
         for (uint64_t edge_index = edge_begin; edge_index < edge_end; ++edge_index) {
+            PP_METRIC_INC(edges_examined);
             const double edge_cost = (*edges.edge_costs)[static_cast<size_t>(edge_index)];
             if (!std::isfinite(edge_cost)) {
                 continue;
@@ -674,15 +912,31 @@ BidirectionalExpansion expand_bidirectional_frontier(
             if (!std::isfinite(tentative)) {
                 continue;
             }
+            PP_METRIC_INC(relaxation_attempts);
 
+#if defined(PP_ENABLE_METRICS) && PP_ENABLE_METRICS
+            if (states_this->is_closed(neighbor_id)) {
+                PP_METRIC_INC(closed_neighbor_skips);
+                continue;
+            }
+            if (tentative >= states_this->g_cost(neighbor_id)) {
+                PP_METRIC_INC(nonimproving_skips);
+                continue;
+            }
+#else
             if (states_this->is_closed(neighbor_id) ||
                 tentative >= states_this->g_cost(neighbor_id)) {
                 continue;
             }
+#endif
 
             const bool first_discovery = !std::isfinite(states_this->g_cost(neighbor_id));
             if (first_discovery) {
                 ++(*discovered_this);
+                PP_METRIC_DISCOVER(reverse);
+                PP_METRIC_INC(relaxation_successes_first);
+            } else {
+                PP_METRIC_INC(relaxation_successes_improved);
             }
             states_this->g_cost(neighbor_id) = tentative;
             states_this->set_parent(neighbor_id, entry.node_id);
@@ -691,6 +945,7 @@ BidirectionalExpansion expand_bidirectional_frontier(
             }
             PP_TRACE(PP_TRACE_PARENT, neighbor_id, entry.node_id, tentative, reverse ? 2 : 1);
             heap->push(QueueEntry{tentative, 0.0, (*tie_breaker)++, neighbor_id});
+            PP_METRIC_PUSH(reverse);
 
             const double other_neighbor_cost = states_other.g_cost(neighbor_id);
             if (std::isfinite(other_neighbor_cost)) {
@@ -721,8 +976,10 @@ int run_bidirectional_search(
         set_failure_result(result, PP_SEARCH_STOP_NO_PROGRESS, 0, 1);
         return 0;
     }
+    PP_METRIC_INC(goal_tests);
     if (start_id == goal_id) {
-        set_success_result(result, 0, 1, 0.0, std::vector<uint64_t>{start_id});
+        PP_METRIC_DISCOVER(false);
+        set_success_result(result, 0, 1, 0.0, PathVector{start_id});
         return 0;
     }
 
@@ -731,17 +988,21 @@ int run_bidirectional_search(
     SearchStates<ParentId> backward_states(node_count);
     forward_states.g_cost(start_id) = 0.0;
     backward_states.g_cost(goal_id) = 0.0;
+    PP_METRIC_DISCOVER(false);
+    PP_METRIC_DISCOVER(true);
     PP_TRACE(PP_TRACE_DISCOVER, start_id, kNoGoalId, 0.0, 1);
     PP_TRACE(PP_TRACE_DISCOVER, goal_id, kNoGoalId, 0.0, 2);
     ensure_reverse_edges(graph);
     uint64_t forward_discovered = 1;
     uint64_t backward_discovered = 1;
 
-    std::priority_queue<QueueEntry, std::vector<QueueEntry>, QueueEntryGreater> forward_heap;
-    std::priority_queue<QueueEntry, std::vector<QueueEntry>, QueueEntryGreater> backward_heap;
+    HeapQueue forward_heap;
+    HeapQueue backward_heap;
     uint64_t tie_breaker = 0;
     forward_heap.push(QueueEntry{0.0, 0.0, tie_breaker++, start_id});
     backward_heap.push(QueueEntry{0.0, 0.0, tie_breaker++, goal_id});
+    PP_METRIC_PUSH(false);
+    PP_METRIC_PUSH(true);
 
     double best_cost = kInfinity;
     uint64_t meet_id = 0;
@@ -835,8 +1096,10 @@ int run_bidirectional_astar_search(
         set_failure_result(result, PP_SEARCH_STOP_NO_PROGRESS, 0, 1);
         return 0;
     }
+    PP_METRIC_INC(goal_tests);
     if (start_id == goal_id) {
-        set_success_result(result, 0, 1, 0.0, std::vector<uint64_t>{start_id});
+        PP_METRIC_DISCOVER(false);
+        set_success_result(result, 0, 1, 0.0, PathVector{start_id});
         return 0;
     }
 
@@ -845,11 +1108,15 @@ int run_bidirectional_astar_search(
     };
     // A consistent potential makes every reduced edge non-negative. Validate
     // the whole CSR once so the bidirectional stopping bound remains sound.
+#if defined(PP_ENABLE_METRICS) && PP_ENABLE_METRICS
+    MetricValidationScope validation_scope;
+#endif
     for (uint64_t source = 0; source < graph->node_count; ++source) {
         const uint64_t edge_begin = graph->offsets[static_cast<size_t>(source)];
         const uint64_t edge_end = graph->offsets[static_cast<size_t>(source) + 1];
         const double source_h = potential(source);
         for (uint64_t edge = edge_begin; edge < edge_end; ++edge) {
+            PP_METRIC_INC(validation_edge_checks);
             const double cost = graph->edge_costs[static_cast<size_t>(edge)];
             if (!std::isfinite(cost)) {
                 continue;
@@ -868,23 +1135,32 @@ int run_bidirectional_astar_search(
             }
         }
     }
+#if defined(PP_ENABLE_METRICS) && PP_ENABLE_METRICS
+    if (active_metrics != nullptr) {
+        active_metrics->validation_phase = false;
+    }
+#endif
 
     const size_t node_count = static_cast<size_t>(graph->node_count);
     SearchStates<ParentId> forward_states(node_count);
     SearchStates<ParentId> backward_states(node_count);
     forward_states.g_cost(start_id) = 0.0;
     backward_states.g_cost(goal_id) = 0.0;
+    PP_METRIC_DISCOVER(false);
+    PP_METRIC_DISCOVER(true);
     PP_TRACE(PP_TRACE_DISCOVER, start_id, kNoGoalId, 0.0, 1);
     PP_TRACE(PP_TRACE_DISCOVER, goal_id, kNoGoalId, 0.0, 2);
     ensure_reverse_edges(graph);
     uint64_t forward_discovered = 1;
     uint64_t backward_discovered = 1;
 
-    std::priority_queue<QueueEntry, std::vector<QueueEntry>, QueueEntryGreater> forward_heap;
-    std::priority_queue<QueueEntry, std::vector<QueueEntry>, QueueEntryGreater> backward_heap;
+    HeapQueue forward_heap;
+    HeapQueue backward_heap;
     uint64_t tie_breaker = 0;
     forward_heap.push(QueueEntry{0.0, 0.0, tie_breaker++, start_id});
     backward_heap.push(QueueEntry{0.0, 0.0, tie_breaker++, goal_id});
+    PP_METRIC_PUSH(false);
+    PP_METRIC_PUSH(true);
 
     double best_reduced_cost = kInfinity;
     uint64_t meet_id = 0;
@@ -903,11 +1179,14 @@ int run_bidirectional_astar_search(
         const AdjacencyView edges = adjacency(graph, reverse);
         const QueueEntry entry = heap->top();
         heap->pop();
+        PP_METRIC_POP(reverse);
         if (states_this->is_closed(entry.node_id)) {
+            PP_METRIC_INC(stale_pops);
             continue;
         }
         states_this->mark_closed(entry.node_id);
         ++expanded;
+        PP_METRIC_EXPAND(reverse);
         PP_TRACE(PP_TRACE_EXPAND, entry.node_id,
             states_this->has_parent(entry.node_id) ? states_this->parent(entry.node_id) : kNoGoalId,
             states_this->g_cost(entry.node_id), reverse ? 2 : 1);
@@ -928,6 +1207,7 @@ int run_bidirectional_astar_search(
         const uint64_t edge_end = (*edges.offsets)[static_cast<size_t>(entry.node_id) + 1];
         const double current_h = potential(entry.node_id);
         for (uint64_t edge = edge_begin; edge < edge_end; ++edge) {
+            PP_METRIC_INC(edges_examined);
             const double cost = (*edges.edge_costs)[static_cast<size_t>(edge)];
             if (!std::isfinite(cost)) {
                 continue;
@@ -939,10 +1219,25 @@ int run_bidirectional_astar_search(
                 : cost + neighbor_h - current_h;
             const double reduced_nonnegative = std::max(0.0, reduced_cost);
             const double tentative = states_this->g_cost(entry.node_id) + reduced_nonnegative;
+#if defined(PP_ENABLE_METRICS) && PP_ENABLE_METRICS
+            if (!std::isfinite(tentative)) {
+                continue;
+            }
+            PP_METRIC_INC(relaxation_attempts);
+            if (states_this->is_closed(neighbor)) {
+                PP_METRIC_INC(closed_neighbor_skips);
+                continue;
+            }
+            if (tentative >= states_this->g_cost(neighbor)) {
+                PP_METRIC_INC(nonimproving_skips);
+                continue;
+            }
+#else
             if (!std::isfinite(tentative) || states_this->is_closed(neighbor) ||
                 tentative >= states_this->g_cost(neighbor)) {
                 continue;
             }
+#endif
             const bool first_discovery = !std::isfinite(states_this->g_cost(neighbor));
             if (first_discovery) {
                 if (reverse) {
@@ -950,6 +1245,10 @@ int run_bidirectional_astar_search(
                 } else {
                     ++forward_discovered;
                 }
+                PP_METRIC_DISCOVER(reverse);
+                PP_METRIC_INC(relaxation_successes_first);
+            } else {
+                PP_METRIC_INC(relaxation_successes_improved);
             }
             states_this->g_cost(neighbor) = tentative;
             states_this->set_parent(neighbor, entry.node_id);
@@ -958,6 +1257,7 @@ int run_bidirectional_astar_search(
             }
             PP_TRACE(PP_TRACE_PARENT, neighbor, entry.node_id, tentative, reverse ? 2 : 1);
             heap->push(QueueEntry{tentative, 0.0, tie_breaker++, neighbor});
+            PP_METRIC_PUSH(reverse);
             const double opposite_cost = states_other.g_cost(neighbor);
             if (std::isfinite(opposite_cost) && tentative + opposite_cost < best_reduced_cost) {
                 best_reduced_cost = tentative + opposite_cost;
@@ -1015,7 +1315,7 @@ int run_anytime_astar_search(
     uint64_t total_iters = 0;
     uint64_t total_nodes = 0;
     double best_cost = kInfinity;
-    std::vector<uint64_t> best_path;
+    PathVector best_path;
 
     for (size_t index = 0; index < options->anytime_weight_count; ++index) {
         PP_TRACE(PP_TRACE_PHASE, static_cast<uint64_t>(index), kNoGoalId,
@@ -1225,7 +1525,8 @@ extern "C" int pp_graph_create_csr(
     }
 }
 
-#if defined(PP_ENABLE_TRACE) && PP_ENABLE_TRACE
+#if (defined(PP_ENABLE_TRACE) && PP_ENABLE_TRACE) || \
+    (defined(PP_ENABLE_METRICS) && PP_ENABLE_METRICS)
 extern "C" int pp_graph_create_csr_view(
     const pp_graph_csr_view* view,
     pp_native_graph** out_graph,
@@ -1279,6 +1580,7 @@ extern "C" int pp_graph_create_csr_view(
     }
 }
 
+#if defined(PP_ENABLE_TRACE) && PP_ENABLE_TRACE
 extern "C" uint64_t pp_graph_storage_bytes(const pp_native_graph* graph) {
     if (graph == nullptr) return 0;
 
@@ -1304,6 +1606,7 @@ extern "C" uint64_t pp_graph_storage_bytes(const pp_native_graph* graph) {
     return total;
 }
 #endif
+#endif
 
 extern "C" int pp_graph_export_csr_view(
     const pp_native_graph* graph,
@@ -1322,6 +1625,53 @@ extern "C" int pp_graph_export_csr_view(
         graph->grid_height,
         graph->grid_depth,
         graph->euclidean_grid_heuristic ? 1 : 0,
+    };
+    return 0;
+}
+
+extern "C" int pp_graph_prepare_reverse(
+    const pp_native_graph* graph,
+    char* error_message,
+    size_t error_capacity
+) {
+    if (graph == nullptr) {
+        write_error(error_message, error_capacity, "native graph must not be null");
+        return 1;
+    }
+    try {
+        ensure_reverse_edges(graph);
+        if (error_message != nullptr && error_capacity > 0) {
+            error_message[0] = '\0';
+        }
+        return 0;
+    } catch (const std::exception& exc) {
+        write_error(error_message, error_capacity, exc.what());
+        return 1;
+    } catch (...) {
+        write_error(error_message, error_capacity, "unknown reverse graph preparation error");
+        return 1;
+    }
+}
+
+extern "C" int pp_graph_get_storage_info(
+    const pp_native_graph* graph,
+    pp_graph_storage_info* out_info
+) {
+    if (graph == nullptr || out_info == nullptr ||
+        out_info->struct_size != sizeof(pp_graph_storage_info)) {
+        return 1;
+    }
+    *out_info = pp_graph_storage_info{
+        sizeof(pp_graph_storage_info),
+        sizeof(*graph),
+        static_cast<uint64_t>(graph->offsets.capacity()) * sizeof(uint64_t) +
+            static_cast<uint64_t>(graph->neighbor_ids.capacity()) * sizeof(uint64_t) +
+            static_cast<uint64_t>(graph->edge_costs.capacity()) * sizeof(double),
+        static_cast<uint64_t>(graph->reverse_offsets.capacity()) * sizeof(uint64_t) +
+            static_cast<uint64_t>(graph->reverse_neighbor_ids.capacity()) * sizeof(uint64_t) +
+            static_cast<uint64_t>(graph->reverse_edge_costs.capacity()) * sizeof(double),
+        graph->node_count,
+        static_cast<uint64_t>(graph->neighbor_ids.size()),
     };
     return 0;
 }
@@ -1539,6 +1889,36 @@ extern "C" int pp_native_search_plan(
         return 1;
     }
 }
+
+#if defined(PP_ENABLE_METRICS) && PP_ENABLE_METRICS
+extern "C" int pp_native_search_plan_measured(
+    const pp_native_graph* graph,
+    const uint8_t* goal_flags,
+    const double* heuristic_values,
+    uint64_t start_id,
+    const pp_search_options* options,
+    pp_search_result* result,
+    pp_search_metrics* metrics
+) {
+    if (metrics == nullptr || metrics->struct_size != sizeof(pp_search_metrics)) {
+        set_error(result, "metrics struct size does not match this library");
+        return 1;
+    }
+    MetricRecorder recorder(metrics);
+    MetricScope scope(&recorder);
+    return pp_native_search_plan(
+        graph, goal_flags, heuristic_values, start_id, options, result
+    );
+}
+
+extern "C" uint32_t pp_search_metrics_abi_version(void) {
+    return PP_SEARCH_METRICS_ABI_VERSION;
+}
+
+extern "C" uint64_t pp_search_metrics_struct_size(void) {
+    return sizeof(pp_search_metrics);
+}
+#endif
 
 #if defined(PP_ENABLE_TRACE) && PP_ENABLE_TRACE
 extern "C" int pp_native_search_plan_traced(

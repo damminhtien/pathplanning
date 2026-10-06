@@ -14,6 +14,9 @@
 #if defined(PP_ENABLE_TRACE) && PP_ENABLE_TRACE
 #include "trace_engine.h"
 #endif
+#if defined(PP_ENABLE_METRICS) && PP_ENABLE_METRICS
+#include "search_metrics.h"
+#endif
 
 #ifdef __cplusplus
 extern "C" {
@@ -53,6 +56,17 @@ typedef struct pp_graph_csr_view {
     uint64_t grid_depth;
     int euclidean_grid_heuristic;
 } pp_graph_csr_view;
+
+// Capacity bytes are requested payload bytes, not resident memory. The graph
+// object contains the vector headers and synchronization state.
+typedef struct pp_graph_storage_info {
+    uint64_t struct_size;
+    uint64_t graph_object_bytes;
+    uint64_t base_csr_capacity_bytes;
+    uint64_t reverse_csr_capacity_bytes;
+    uint64_t node_count;
+    uint64_t edge_count;
+} pp_graph_storage_info;
 
 typedef struct pp_search_options {
     int algorithm;
@@ -101,6 +115,19 @@ int pp_graph_create_csr(
 // Exports a borrowed view; the arrays are never copied by this call.
 int pp_graph_export_csr_view(const pp_native_graph* graph, pp_graph_csr_view* out_view);
 
+// Prepare retained reverse adjacency once; repeated calls are idempotent.
+int pp_graph_prepare_reverse(
+    const pp_native_graph* graph,
+    char* error_message,
+    size_t error_capacity
+);
+
+// Set out_info->struct_size before calling. Does not trigger reverse prepare.
+int pp_graph_get_storage_info(
+    const pp_native_graph* graph,
+    pp_graph_storage_info* out_info
+);
+
 // Copies motion and validity arrays before returning and follows the same
 // output-handle and error-buffer ownership rules as pp_graph_create_csr.
 int pp_graph_create_grid(
@@ -146,7 +173,8 @@ int pp_native_search_plan(
     pp_search_result* result
 );
 
-#if defined(PP_ENABLE_TRACE) && PP_ENABLE_TRACE
+#if (defined(PP_ENABLE_TRACE) && PP_ENABLE_TRACE) || \
+    (defined(PP_ENABLE_METRICS) && PP_ENABLE_METRICS)
 // Imports a borrowed CSR view into this library's own graph handle.
 int pp_graph_create_csr_view(
     const pp_graph_csr_view* view,
@@ -158,6 +186,7 @@ int pp_graph_create_csr_view(
 // Diagnostic-library entry. A full trace stops recording when max_bytes is
 // exhausted, while the search continues. The result and trace are independent
 // native-owned outputs and must each be freed in the same library.
+#if defined(PP_ENABLE_TRACE) && PP_ENABLE_TRACE
 int pp_native_search_plan_traced(
     const pp_native_graph* graph,
     const uint8_t* goal_flags,
@@ -172,6 +201,19 @@ int pp_native_search_plan_traced(
 uint32_t pp_search_trace_abi_version(void);
 uint64_t pp_graph_storage_bytes(const pp_native_graph* graph);
 void pp_search_trace_free_result(pp_trace_result* trace);
+#endif
+#endif
+
+#if defined(PP_ENABLE_METRICS) && PP_ENABLE_METRICS
+int pp_native_search_plan_measured(
+    const pp_native_graph* graph,
+    const uint8_t* goal_flags,
+    const double* heuristic_values,
+    uint64_t start_id,
+    const pp_search_options* options,
+    pp_search_result* result,
+    pp_search_metrics* metrics
+);
 #endif
 
 // Accepts NULL; after a result call, releases its owned buffers and resets it.

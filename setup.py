@@ -47,6 +47,14 @@ setup(
             extra_compile_args=["-std=c++17", "-O3"],
         ),
         Extension(
+            "pathplanning.native._search_metrics_engine",
+            sources=["pathplanning/native/search_engine.cpp"],
+            include_dirs=["pathplanning/native"],
+            language="c++",
+            define_macros=[("PP_ENABLE_METRICS", "1")],
+            extra_compile_args=["-std=c++17", "-O3"],
+        ),
+        Extension(
             "pathplanning.native._continuous_trace_engine",
             sources=["pathplanning/native/continuous_engine.c"],
             include_dirs=["pathplanning/native"],

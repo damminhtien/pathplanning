@@ -1,0 +1,18 @@
+{
+  "profile": "scaling",
+  "generator_version": "grid_sweep_v1",
+  "size_sweep": {
+    "side_lengths": [64, 128, 256, 512, 1024],
+    "obstacle_density": 0.2,
+    "seeds": [1, 2, 3, 4, 5],
+    "queries_per_seed": 20,
+    "displacement_bins": 5
+  },
+  "density_sweep": {
+    "side_length": 512,
+    "densities": [0.1, 0.2, 0.3, 0.4],
+    "seeds": [1, 2, 3, 4, 5]
+  },
+  "heuristic_alpha": [0, 0.25, 0.5, 0.75, 1],
+  "corridor_widths": [1, 2, 4, 8]
+}

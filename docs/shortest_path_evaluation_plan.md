@@ -89,7 +89,7 @@ Dataset payload ở cache local; metadata, attribution và profile được lưu
 
 Reference Dijkstra dùng Python heapq trên occupancy gốc, tự duyệt chuyển động; không gọi NativeGraph, grid.neighbors hoặc search kernel. Cache theo map hash + movement profile + start/goal + reference version. Native Dijkstra là candidate/baseline; reference chạy ngoài timer/RSS window.
 
-Validator kiểm tra endpoint, adjacency, obstacle, corner rule rồi tự tính cost bằng cardinal/diagonal counts. Kiểm tra declared_cost so với cost tự tính, rồi so với oracle. Candidate-vs-oracle tolerance: atol=1e-8, rtol=1e-10. Scenario-vs-oracle tolerance là max(floating tolerance, một đơn vị chữ số thập phân cuối của optimum string), để xử lý độ chính xác xuất file khác nhau.
+Validator kiểm tra endpoint, adjacency, obstacle, corner rule rồi tự tính cost bằng cardinal/diagonal counts. Kiểm tra declared_cost so với cost tự tính, rồi so với oracle. Candidate-vs-oracle tolerance: atol=1e-8, rtol=1e-10. Scenario-vs-oracle trước hết cho phép sai số floating và một đơn vị chữ số cuối. MovingAI scenario optima trong bộ dữ liệu kiểm tra tích lũy đường chéo theo `1.414213562`; nếu biểu diễn đó khác `sqrt(2)`, validator suy ra duy nhất số bước cardinal/diagonal từ C* của oracle rồi đối chiếu chuỗi optimum với cùng hằng số và nửa đơn vị chữ số cuối. Sai số biểu diễn này không áp dụng cho candidate-vs-oracle.
 
 Scenario mismatch ngoài tolerance là dataset/reference discrepancy: điều tra trước khi benchmark, không tự gán lỗi candidate. So sánh thuật toán khác nhau bằng path validity/cost. Release-vs-metrics cùng thuật toán/input phải khớp stop reason, path hash, cost, iters và nodes.
 
@@ -228,19 +228,24 @@ Ablation đầu: fresh/reused graph; precomputed/lazy h nếu backend hỗ trợ
 
 Hòa vốn A/B giải từ P_B+Q*q_B <= P_A+Q*q_A. Khi P_B>P_A và q_B<q_A: Q*=ceil((P_B-P_A)/(q_A-q_B)); trường hợp khác có classification riêng. q lấy cùng query distribution, baseline prep/load cũng phải tính; storage budget riêng.
 
-## 10. Report v2, outputs và CLI dự kiến
+## 10. Report v2, outputs và CLI
 
-Builder v2 đặt trong scripts/shortest_path_benchmark/contract.py, dùng lại các helper provenance/environment của benchmark_contract.py và bổ sung hashes cho metrics binary. create_report và SCHEMA_VERSION v1 hiện tại giữ hợp đồng của chúng. Outputs:
+Builder v2 nằm trong `scripts/shortest_path_benchmark/contract.py`, dùng lại
+các helper provenance/environment của `benchmark_contract.py` và bổ sung hashes
+cho metrics binary. `create_report` và `SCHEMA_VERSION` v1 hiện tại giữ hợp
+đồng của chúng. Outputs:
 
 ~~~text
-benchmark-results/<campaign_id>/
-  manifest.json      # inputs, variants, protocol, expected run keys
-  schedule.json      # lịch thực tế
-  oracle.jsonl       # reference metadata và discrepancies
-  runs.jsonl         # streaming observations từng invocation
-  summary.json       # coverage, paired stats, denominators
+benchmark-results/<campaign>/
+  manifest.json
+  schedule_<pass>_<scope>_<graph_state>.json
+  <pass>_<scope>_<graph_state>.json
+  oracle.jsonl
+  runs.jsonl
+  run_summary_<pass>_<scope>_<graph_state>.json
+  summary.json
   report.md
-  plots/
+  plots/*.svg
 ~~~
 
 Row chứa run/workload/variant/campaign IDs, phase/repeat/order/scope/graph_state/budget và input/outcome/work/memory/timing/capabilities/provenance. Giữ exact int >2^53; unavailable/nonfinite là null + reason, không NaN/Infinity.
@@ -249,9 +254,14 @@ JSONL records hoàn chỉnh, checkpoint/flush; resume kiểm tra manifest/binary
 
 CLI nonzero khi correctness/ABI/manifest gate lỗi, crash hoặc thiếu expected observations. Approximate path hợp lệ có gap dương là outcome đúng nếu được khai báo. Missing required metric gây incomplete_measurements.
 
-Báo per-map/family/difficulty, paired work ratios, coverage-vs-budget và Pareto time-memory-quality cùng workload/protocol; coverage và quality được annotate. EBF, transit-node count, estimated diameter/map-dimension proxy là descriptors tùy chọn, không là MVP required metrics.
+Full/scaling campaign cần báo per-map/family/difficulty, paired work ratios,
+coverage-vs-budget và Pareto time-memory-quality cùng workload/protocol; coverage
+và quality phải được annotate. MVP report hiện có aggregate latency/work/memory
+và paired statistics; strata đầy đủ, budget frontier và Pareto report còn thuộc
+SP-09/SP-10. EBF, transit-node count, estimated diameter/map-dimension proxy là
+descriptors tùy chọn, không là MVP required metrics.
 
-Lệnh dự kiến, chưa tồn tại:
+CLI được triển khai:
 
 ~~~text
 python scripts/benchmark_shortest_path.py prepare --profile pilot --manifest <path>
@@ -262,11 +272,18 @@ python scripts/benchmark_shortest_path.py run --manifest <path> --pass memory
 python scripts/benchmark_shortest_path.py analyze --campaign <directory>
 ~~~
 
-Latency/work/memory passes có provenance riêng. Analyzer kiểm tra compatibility keys; ghép ba pass không biến chúng thành số đo đồng thời.
+Latency/work/memory passes có provenance riêng. Analyzer kiểm tra compatibility
+keys; ghép ba pass không biến chúng thành số đo đồng thời. Report Markdown hiển
+thị latency median/P95 và paired speedup; work counter và allocator-memory
+median/P95; fresh-worker RSS cùng occupancy/CSR/retained-graph memory. `summary.json`
+giữ vector đầy đủ với count, median, P95, min, max, IQR, paired ratios và
+bootstrap intervals. RSS có phạm vi vòng đời tiến trình, bao gồm Python, NumPy,
+đọc map và tạo graph; không được diễn giải là memory chỉ riêng search query.
 
 ## 11. Backlog, dependencies và acceptance gates
 
-Path mới dưới đây là dự kiến. Mỗi ticket thành một commit logic; stage explicit paths, bảo toàn worktree khác. Code change chạy Graphify update; generated output giữ ngoài Git.
+Các acceptance gates được giữ lại để phân biệt MVP với các track mở rộng. Code
+change chạy Graphify update; generated output giữ ngoài Git.
 
 | Ticket | Deliverable / file dự kiến | Phụ thuộc | Acceptance |
 | --- | --- | --- | --- |
@@ -281,9 +298,30 @@ Path mới dưới đây là dự kiến. Mỗi ticket thành một commit logic
 | SP-09 | Anytime pass observation, global budget, cooperative incumbent return | SP-08 | Sum work đúng; tổng budget không reset; first/last incumbent kiểm chứng; termination và path availability đúng. |
 | SP-10 | Full/scaling/ablation campaigns và frontier reports | SP-08; SP-09 cho anytime | Cohort/config đóng băng; đủ expected records; bounds và slopes có evidence riêng; mọi failure/limitation xuất hiện trong report. |
 
-SP-01→SP-08 là milestone MVP; SP-09/SP-10 tiếp theo. Tests meaningful dự kiến: test_movingai_workloads.py, test_shortest_path_reference.py, test_native_search_metrics.py, test_shortest_path_benchmark_contract.py, test_shortest_path_benchmark_runner.py. Tận dụng [native graph tests](../tests/test_native_graph_search.py) và [trace parity tests](../tests/test_native_trace.py) cho regression.
+### Trạng thái triển khai, 2026-10-06
 
-Implementation native/API cần build release/metrics/trace, focused tests, ruff/pyright và non-slow suite theo Makefile khi phạm vi yêu cầu; full/slow mở rộng theo failure/risk. Tài liệu này chỉ được kiểm tra format/link; các test mới chưa tồn tại.
+| Ticket | Trạng thái |
+| --- | --- |
+| SP-01–SP-06 | Đã triển khai; contract, MovingAI parser/oracle, native metrics/allocation hooks và runner có test. |
+| SP-07 | MVP report/plot đã triển khai: latency, work counters, allocator memory, process RSS, quality, paired ratios và bootstrap. Full phân tầng per-map/difficulty, coverage-vs-budget và Pareto frontier thuộc SP-09/SP-10. |
+| SP-08 | Pilot end-to-end đã qua: 1,750 workload × 8 biến thể ở work (14,000 observations); 360 workload × 8 biến thể ở latency (20,160 measured + 5,760 warmups) và memory (2,880 observations). Tổng 42,800 observations đều `ok`; không có đường đi sai, thiếu metric bắt buộc hay sai khác oracle chưa giải thích. Output ở `benchmark-results/` bị gitignore và cần tạo lại theo reproduction guide. |
+| SP-09 | Chưa triển khai: anytime pass observations, tổng resource budget và incumbent events. |
+| SP-10 | Một phần: scaling profile/generators, log-log fit và ablation identity helpers đã có; full/scaling/ablation campaigns và Pareto-frontier evidence chưa chạy/chưa hoàn tất. |
+
+SP-01→SP-08 là MVP và pilot đã vượt correctness gates. SP-09/SP-10 vẫn là
+follow-up, không được suy ra đã hoàn thành từ việc các profile hoặc sweep helpers
+tồn tại. Tests hiện có gồm `test_movingai_workloads.py`,
+`test_shortest_path_reference.py`, `test_native_metrics.py`,
+`test_shortest_path_benchmark_contract.py`,
+`test_shortest_path_benchmark_runner.py`,
+`test_shortest_path_benchmark_analysis.py`, và
+`test_shortest_path_scaling.py`. Tận dụng [native graph tests](../tests/test_native_graph_search.py)
+và [trace parity tests](../tests/test_native_trace.py) cho regression.
+
+Native/API validation cần build release/metrics/trace, focused tests, ruff/pyright
+và non-slow suite theo Makefile khi phạm vi yêu cầu; full/slow mở rộng theo
+failure/risk. Pilot này đã chạy focused suite và Ruff; test files ở trên là phần
+triển khai hiện có, không còn là test dự kiến.
 
 ## 12. Các track mở rộng đã giữ
 

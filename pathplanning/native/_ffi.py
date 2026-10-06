@@ -75,6 +75,66 @@ class GraphCsrView(ctypes.Structure):
     ]
 
 
+class GraphStorageInfo(ctypes.Structure):
+    _fields_ = [
+        ("struct_size", ctypes.c_uint64),
+        ("graph_object_bytes", ctypes.c_uint64),
+        ("base_csr_capacity_bytes", ctypes.c_uint64),
+        ("reverse_csr_capacity_bytes", ctypes.c_uint64),
+        ("node_count", ctypes.c_uint64),
+        ("edge_count", ctypes.c_uint64),
+    ]
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.struct_size = ctypes.sizeof(type(self))
+
+
+class SearchMetrics(ctypes.Structure):
+    _fields_ = [("struct_size", ctypes.c_uint64), ("capability_bits", ctypes.c_uint64)] + [
+        (field, ctypes.c_uint64)
+        for field in (
+            "expanded",
+            "expanded_forward",
+            "expanded_backward",
+            "discovered_first",
+            "discovered_forward",
+            "discovered_backward",
+            "edges_examined",
+            "relaxation_attempts",
+            "relaxation_successes_first",
+            "relaxation_successes_improved",
+            "closed_neighbor_skips",
+            "nonimproving_skips",
+            "greedy_known_skips",
+            "frontier_pushes",
+            "frontier_pops",
+            "stale_pops",
+            "frontier_peak_entries",
+            "frontier_peak_forward",
+            "frontier_peak_backward",
+            "goal_tests",
+            "heuristic_lookups",
+            "heuristic_computations",
+            "validation_heuristic_lookups",
+            "validation_heuristic_computations",
+            "validation_edge_checks",
+            "state_slots_allocated",
+            "parent_id_bytes",
+            "state_capacity_bytes_peak",
+            "frontier_capacity_bytes_peak",
+            "path_workspace_bytes_peak",
+            "result_path_bytes",
+            "query_workspace_peak_bytes",
+            "native_requested_bytes_peak",
+        )
+    ]
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.struct_size = ctypes.sizeof(type(self))
+
+
 def copy_trace_result(
     result: TraceResult,
     *,
@@ -115,10 +175,12 @@ def copy_trace_result(
 _NATIVE_LIB: ctypes.CDLL | None = None
 _CONTINUOUS_NATIVE_LIB: ctypes.CDLL | None = None
 _SEARCH_TRACE_LIB: ctypes.CDLL | None = None
+_SEARCH_METRICS_LIB: ctypes.CDLL | None = None
 _CONTINUOUS_TRACE_LIB: ctypes.CDLL | None = None
 
 # Keep these exact-match requirements synchronized with abi_version.h.
-_SEARCH_ABI_VERSION = 3
+_SEARCH_ABI_VERSION = 4
+_SEARCH_METRICS_ABI_VERSION = 1
 _CONTINUOUS_ABI_VERSION = 1
 _TRACE_ABI_VERSION = 1
 
@@ -189,6 +251,20 @@ def native_directory() -> Path:
     return Path(__file__).resolve().parent
 
 
+def _configure_graph_storage_functions(library: ctypes.CDLL) -> None:
+    library.pp_graph_prepare_reverse.argtypes = [
+        ctypes.c_void_p,
+        ctypes.POINTER(ctypes.c_char),
+        ctypes.c_size_t,
+    ]
+    library.pp_graph_prepare_reverse.restype = ctypes.c_int
+    library.pp_graph_get_storage_info.argtypes = [
+        ctypes.c_void_p,
+        ctypes.POINTER(GraphStorageInfo),
+    ]
+    library.pp_graph_get_storage_info.restype = ctypes.c_int
+
+
 def load_native_library() -> ctypes.CDLL:
     """Load and configure the compiled C++ graph-search library once per process."""
     global _NATIVE_LIB
@@ -209,6 +285,8 @@ def load_native_library() -> ctypes.CDLL:
                 "pp_graph_create_grid",
                 "pp_graph_create_grid_ex",
                 "pp_graph_export_csr_view",
+                "pp_graph_prepare_reverse",
+                "pp_graph_get_storage_info",
                 "pp_graph_free",
                 "pp_native_search_plan",
                 "pp_search_free_result",
@@ -247,6 +325,7 @@ def load_native_library() -> ctypes.CDLL:
             ctypes.POINTER(GraphCsrView),
         ]
         library.pp_graph_export_csr_view.restype = ctypes.c_int
+        _configure_graph_storage_functions(library)
         library.pp_native_search_plan.argtypes = [
             ctypes.c_void_p,
             ctypes.POINTER(ctypes.c_uint8),
@@ -373,6 +452,83 @@ def load_search_trace_library() -> ctypes.CDLL:
     return _SEARCH_TRACE_LIB
 
 
+def load_search_metrics_library() -> ctypes.CDLL:
+    """Load the isolated work/memory engine only for diagnostic observations."""
+    global _SEARCH_METRICS_LIB
+    if _SEARCH_METRICS_LIB is not None:
+        return _SEARCH_METRICS_LIB
+
+    candidates = [native_directory() / f"_search_metrics_engine{suffix}" for suffix in EXTENSION_SUFFIXES]
+    for candidate in candidates:
+        if not candidate.exists():
+            continue
+        library = _load_compatible_library(
+            candidate,
+            engine="search metrics",
+            abi_probe_name="pp_search_metrics_abi_version",
+            expected_abi=_SEARCH_METRICS_ABI_VERSION,
+            required_symbols=(
+                "pp_search_abi_version",
+                "pp_search_metrics_struct_size",
+                "pp_graph_create_csr_view",
+                "pp_graph_export_csr_view",
+                "pp_graph_prepare_reverse",
+                "pp_graph_get_storage_info",
+                "pp_graph_free",
+                "pp_native_search_plan_measured",
+                "pp_search_free_result",
+            ),
+        )
+        library.pp_search_abi_version.argtypes = []
+        library.pp_search_abi_version.restype = ctypes.c_uint32
+        if library.pp_search_abi_version() != _SEARCH_ABI_VERSION:
+            raise NativeLibraryCompatibilityError(
+                f"native search metrics library at {candidate} has a mismatched search ABI; "
+                "rebuild with `make build-ext`."
+            )
+        library.pp_search_metrics_struct_size.argtypes = []
+        library.pp_search_metrics_struct_size.restype = ctypes.c_uint64
+        if library.pp_search_metrics_struct_size() != ctypes.sizeof(SearchMetrics):
+            raise NativeLibraryCompatibilityError(
+                f"native search metrics layout at {candidate} does not match Python; "
+                "rebuild with `make build-ext`."
+            )
+        library.pp_graph_create_csr_view.argtypes = [
+            ctypes.POINTER(GraphCsrView),
+            ctypes.POINTER(ctypes.c_void_p),
+            ctypes.POINTER(ctypes.c_char),
+            ctypes.c_size_t,
+        ]
+        library.pp_graph_create_csr_view.restype = ctypes.c_int
+        library.pp_graph_export_csr_view.argtypes = [
+            ctypes.c_void_p,
+            ctypes.POINTER(GraphCsrView),
+        ]
+        library.pp_graph_export_csr_view.restype = ctypes.c_int
+        _configure_graph_storage_functions(library)
+        library.pp_graph_free.argtypes = [ctypes.c_void_p]
+        library.pp_graph_free.restype = None
+        library.pp_native_search_plan_measured.argtypes = [
+            ctypes.c_void_p,
+            ctypes.POINTER(ctypes.c_uint8),
+            ctypes.POINTER(ctypes.c_double),
+            ctypes.c_uint64,
+            ctypes.POINTER(SearchOptions),
+            ctypes.POINTER(SearchResult),
+            ctypes.POINTER(SearchMetrics),
+        ]
+        library.pp_native_search_plan_measured.restype = ctypes.c_int
+        library.pp_search_free_result.argtypes = [ctypes.POINTER(SearchResult)]
+        library.pp_search_free_result.restype = None
+        _SEARCH_METRICS_LIB = library
+        return library
+
+    raise NativeLibraryLoadError(
+        "native search metrics engine is not built; run `make build-ext`. "
+        f"Searched: {', '.join(map(str, candidates))}"
+    )
+
+
 def load_continuous_trace_library() -> ctypes.CDLL:
     """Load the diagnostic C library only when trace recording is requested."""
     global _CONTINUOUS_TRACE_LIB
@@ -398,6 +554,8 @@ __all__ = [
     "SearchOptions",
     "SearchResult",
     "GraphCsrView",
+    "GraphStorageInfo",
+    "SearchMetrics",
     "TraceEvent",
     "TraceResult",
     "copy_trace_result",
@@ -405,4 +563,5 @@ __all__ = [
     "load_continuous_trace_library",
     "load_native_library",
     "load_search_trace_library",
+    "load_search_metrics_library",
 ]

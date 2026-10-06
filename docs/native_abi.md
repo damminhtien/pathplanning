@@ -8,9 +8,10 @@ its C ABI version.
 
 | Library | ABI constant | Probe function | Supported ABI |
 | --- | --- | --- | --- |
-| C++ graph search | `PP_SEARCH_ABI_VERSION` | `pp_search_abi_version()` | 3 |
+| C++ graph search | `PP_SEARCH_ABI_VERSION` | `pp_search_abi_version()` | 4 |
 | C sampling planners | `PP_CONTINUOUS_ABI_VERSION` | `pp_continuous_abi_version()` | 1 |
 | C++ diagnostic search | `PP_SEARCH_TRACE_ABI_VERSION` | `pp_search_trace_abi_version()` | 1 |
+| C++ diagnostic search metrics | `PP_SEARCH_METRICS_ABI_VERSION` | `pp_search_metrics_abi_version()` | 1 |
 | C diagnostic sampling | `PP_CONTINUOUS_TRACE_ABI_VERSION` | `pp_continuous_trace_abi_version()` | 1 |
 
 The constants are declared in `pathplanning/native/abi_version.h`. Increment
@@ -24,10 +25,19 @@ of the library. A missing probe, version mismatch, or missing required export
 raises `NativeLibraryCompatibilityError` with the library path and rebuild
 instruction. A shared-library load failure raises `NativeLibraryLoadError`.
 Both errors fail closed; rebuild or reinstall the package with `make build-ext`.
-The diagnostic libraries are loaded only for `trace=TraceOptions(...)`.
-Search ABI 3 removes the callback-based `pp_search_plan()` and `pp_astar_plan()`
-entrypoints. It also exposes a borrowed CSR view for cloning a graph into the
-diagnostic library. Continuous production ABI did not change.
+The diagnostic libraries are loaded only for trace or explicit search-metrics
+collection. Search ABI 3 removed the callback-based `pp_search_plan()` and
+`pp_astar_plan()` entrypoints. Search ABI 4 adds graph storage inspection and
+idempotent reverse-CSR preparation, and exposes a borrowed CSR view for cloning
+a graph into diagnostic libraries. Continuous production ABI did not change.
+
+The production `_search_engine` is built without `PP_ENABLE_METRICS`; metric
+macros compile to no-ops and search containers use the normal
+`std::vector`/`std::deque` allocators. `_search_metrics_engine` is a separate
+extension built from its own object directory with `PP_ENABLE_METRICS=1` and
+exports the metrics ABI only. The benchmark collects work counters from that
+extension in a separate pass and measures latency through `_search_engine`.
+This isolates counter and allocation-tracking overhead from production timing.
 
 ## Ownership and lifetime
 

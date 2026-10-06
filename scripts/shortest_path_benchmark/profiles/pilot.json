@@ -1,0 +1,29 @@
+{
+  "profile": "pilot",
+  "movement_profile": "land_octile_v1",
+  "selection": {
+    "maps_per_family": 3,
+    "quantile_bins": 5,
+    "work_per_bin": 20,
+    "latency_per_bin": 4,
+    "seed": 7
+  },
+  "latency": {
+    "warmups": 2,
+    "measured_repeats": 7,
+    "scope": "public_api",
+    "graph_state": "reused_graph",
+    "query_timeout_s": 5,
+    "setup_timeout_s": 60
+  },
+  "variants": [
+    "dijkstra",
+    "astar",
+    "bidirectional_dijkstra",
+    "bidirectional_astar",
+    "weighted_astar_1.25",
+    "weighted_astar_1.5",
+    "weighted_astar_2",
+    "greedy_best_first"
+  ]
+}

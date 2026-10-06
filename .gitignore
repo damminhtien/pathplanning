@@ -201,3 +201,5 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+# Reproducible benchmark inputs and generated experiment outputs.
+/benchmark-results/
