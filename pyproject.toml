@@ -40,7 +40,7 @@ dev = [
 ]
 pyrr = ["pyrr>=0.10,<1.0"]
 scipy = ["scipy>=1.9,<2.0"]
-viz = ["matplotlib>=3.7,<4.0"]
+viz = ["matplotlib>=3.7,<4.0", "SciencePlots>=2.0,<3.0"]
 geometry = ["shapely>=2.0,<3.0"]
 
 [project.urls]

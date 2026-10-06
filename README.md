@@ -95,24 +95,35 @@ The space's operations must have the same uniform sampling, Euclidean distance,
 steering, and collision semantics as the returned model. Otherwise, enable the
 Python compatibility path explicitly with `RrtParams(allow_python_callbacks=True)`.
 
-## Visualization Gallery
+## MovingAI Scenario Gallery
 
-Current figures are rendered from native planner results with the `Scene`,
-`render_result`, and trace replay APIs. Search and sampling run first; replay
-data is collected only for these diagnostic snapshots. See the
-[visualization guide](docs/visualization.md) for the API and viewer controls.
+These scenes use real map and start/goal pairs from the
+[Moving AI 2D benchmark collection](https://movingai.com/benchmarks/grids.html).
+Each image shows one matrix, the MovingAI scenario's endpoints, an algorithm's
+route, and its explored/frontier cells. The examples cover maze, room, DAO,
+street, and StarCraft map families under the `land_octile_v1` movement rules.
+
+The gallery chooses a median path-length A* scenario from each family's saved
+work-pass cohort, then replays the named planner with a bounded diagnostic trace
+to draw its search state. Those trace runs create these illustrations only; the
+benchmark's latency figures come from separate production runs with tracing and
+metrics instrumentation disabled. See the
+[scenario and benchmark reproduction steps](docs/shortest_path_benchmark_reproduction.md).
 
 <p align="center">
-  <img src="./assets/images/astar-2d.png" alt="A-star grid search with visited cells, frontier, obstacles, and final path" width="420"/>
-  <img src="./assets/images/bidirectional-astar-2d.png" alt="Bidirectional A-star showing both search fronts and the final path" width="420"/>
+  <img src="./assets/images/movingai-maze-scenario.png" alt="A-star path and explored frontier on the real MovingAI maze512-1-0 map and scenario" width="49%"/>
+  <img src="./assets/images/movingai-room-scenario.png" alt="Bidirectional A-star path and two search fronts on a MovingAI room map scenario" width="49%"/>
 </p>
 <p align="center">
-  <img src="./assets/images/rrt-2d.png" alt="RRT tree, samples, obstacles, and final path in a 2D scene" width="420"/>
-  <img src="./assets/images/rrt-connect-2d.png" alt="RRT-Connect start and goal trees joined by a 2D path" width="420"/>
+  <img src="./assets/images/movingai-dao-scenario.png" alt="Weighted A-star path on a MovingAI Dragon Age Origins grid map scenario" width="49%"/>
+  <img src="./assets/images/movingai-street-scenario.png" alt="A-star path and explored cells on a MovingAI Denver street grid scenario" width="49%"/>
 </p>
 <p align="center">
-  <img src="./assets/images/rrt-connect-3d.png" alt="RRT-Connect path and trees through a 3D scene with box and sphere obstacles" width="640"/>
+  <img src="./assets/images/movingai-sc1-scenario.png" alt="A-star path and explored cells on a MovingAI StarCraft grid map scenario" width="640"/>
 </p>
+
+For interactive traces, custom scenes, and the rendering API, see the
+[visualization guide](docs/visualization.md).
 
 ## Installation
 

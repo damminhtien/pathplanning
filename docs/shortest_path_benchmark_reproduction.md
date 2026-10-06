@@ -43,6 +43,27 @@ python3.12 scripts/benchmark_shortest_path.py analyze \
   --campaign benchmark-results/pilot
 ```
 
+## Regenerate the README scenario gallery
+
+After the work pass has produced `runs.jsonl`, install the optional rendering
+dependencies and replay the selected real map/scenario pairs:
+
+```text
+python3.12 -m pip install -e ".[viz]"
+python3.12 scripts/generate_movingai_scenario_assets.py \
+  --dataset-root benchmark-results/datasets/movingai-v2 \
+  --campaign benchmark-results/pilot/runs.jsonl \
+  --output-dir assets/images
+```
+
+The generator selects the median path-length valid A* scenario from each of
+five MovingAI map families, checks the recorded map hash and scenario
+endpoints, and runs the displayed planner with a bounded trace for the image.
+These offline trace runs do not enter the latency pass. The optional `viz`
+dependencies include Matplotlib and SciencePlots; the figures use SciencePlots'
+`science` style with LaTeX rendering disabled. The raw dataset and campaign
+remain under the ignored `benchmark-results/` directory.
+
 `prepare` freezes the selected map/query identities, source hashes, variant
 definitions, and work/latency/memory cohorts. The pilot chooses up to three
 maps in each available family and at most 20 work queries per map and cost
