@@ -45,6 +45,18 @@ class SearchResult(ctypes.Structure):
     ]
 
 
+class JpsMetrics(ctypes.Structure):
+    _fields_ = [
+        ("struct_size", ctypes.c_uint64),
+        ("motion_checks", ctypes.c_uint64),
+        ("jump_points_expanded", ctypes.c_uint64),
+    ]
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.struct_size = ctypes.sizeof(type(self))
+
+
 class TraceEvent(ctypes.Structure):
     _fields_ = [
         ("node", ctypes.c_uint64),
@@ -185,10 +197,11 @@ _SEARCH_METRICS_LIB: ctypes.CDLL | None = None
 _CONTINUOUS_TRACE_LIB: ctypes.CDLL | None = None
 
 # Keep these exact-match requirements synchronized with abi_version.h.
-_SEARCH_ABI_VERSION = 5
+_SEARCH_ABI_VERSION = 6
 _SEARCH_METRICS_ABI_VERSION = 2
 _CONTINUOUS_ABI_VERSION = 1
-_TRACE_ABI_VERSION = 1
+_SEARCH_TRACE_ABI_VERSION = 2
+_CONTINUOUS_TRACE_ABI_VERSION = 1
 
 
 class NativeLibraryLoadError(RuntimeError):
@@ -295,6 +308,7 @@ def load_native_library() -> ctypes.CDLL:
                 "pp_graph_get_storage_info",
                 "pp_graph_free",
                 "pp_native_search_plan",
+                "pp_native_jps_grid",
                 "pp_search_free_result",
                 "pp_search_engine_version",
             ),
@@ -341,6 +355,20 @@ def load_native_library() -> ctypes.CDLL:
             ctypes.POINTER(SearchResult),
         ]
         library.pp_native_search_plan.restype = ctypes.c_int
+        library.pp_native_jps_grid.argtypes = [
+            ctypes.c_uint64,
+            ctypes.c_uint64,
+            ctypes.POINTER(ctypes.c_uint8),
+            ctypes.c_uint64,
+            ctypes.c_uint64,
+            ctypes.c_uint64,
+            ctypes.c_uint64,
+            ctypes.c_int,
+            ctypes.c_uint64,
+            ctypes.POINTER(SearchResult),
+            ctypes.POINTER(JpsMetrics),
+        ]
+        library.pp_native_jps_grid.restype = ctypes.c_int
         library.pp_search_free_result.argtypes = [ctypes.POINTER(SearchResult)]
         library.pp_search_free_result.restype = None
         library.pp_search_engine_version.argtypes = []
@@ -394,6 +422,7 @@ def _load_trace_library(
     module: str,
     engine: str,
     probe: str,
+    expected_abi: int,
     symbols: tuple[str, ...],
 ) -> ctypes.CDLL:
     candidates = [native_directory() / f"{module}{suffix}" for suffix in EXTENSION_SUFFIXES]
@@ -403,7 +432,7 @@ def _load_trace_library(
                 candidate,
                 engine=f"{engine} trace",
                 abi_probe_name=probe,
-                expected_abi=_TRACE_ABI_VERSION,
+                expected_abi=expected_abi,
                 required_symbols=symbols,
             )
     raise NativeLibraryLoadError(
@@ -420,11 +449,13 @@ def load_search_trace_library() -> ctypes.CDLL:
             "_search_trace_engine",
             "search",
             "pp_search_trace_abi_version",
+            _SEARCH_TRACE_ABI_VERSION,
             (
                 "pp_graph_create_csr_view",
                 "pp_graph_storage_bytes",
                 "pp_graph_free",
                 "pp_native_search_plan_traced",
+                "pp_native_jps_grid_traced",
                 "pp_search_free_result",
                 "pp_search_trace_free_result",
             ),
@@ -451,6 +482,22 @@ def load_search_trace_library() -> ctypes.CDLL:
             ctypes.POINTER(TraceResult),
         ]
         _SEARCH_TRACE_LIB.pp_native_search_plan_traced.restype = ctypes.c_int
+        _SEARCH_TRACE_LIB.pp_native_jps_grid_traced.argtypes = [
+            ctypes.c_uint64,
+            ctypes.c_uint64,
+            ctypes.POINTER(ctypes.c_uint8),
+            ctypes.c_uint64,
+            ctypes.c_uint64,
+            ctypes.c_uint64,
+            ctypes.c_uint64,
+            ctypes.c_int,
+            ctypes.c_uint64,
+            ctypes.c_uint64,
+            ctypes.POINTER(SearchResult),
+            ctypes.POINTER(TraceResult),
+            ctypes.POINTER(JpsMetrics),
+        ]
+        _SEARCH_TRACE_LIB.pp_native_jps_grid_traced.restype = ctypes.c_int
         _SEARCH_TRACE_LIB.pp_search_free_result.argtypes = [ctypes.POINTER(SearchResult)]
         _SEARCH_TRACE_LIB.pp_search_free_result.restype = None
         _SEARCH_TRACE_LIB.pp_search_trace_free_result.argtypes = [ctypes.POINTER(TraceResult)]
@@ -545,6 +592,7 @@ def load_continuous_trace_library() -> ctypes.CDLL:
             "_continuous_trace_engine",
             "continuous",
             "pp_continuous_trace_abi_version",
+            _CONTINUOUS_TRACE_ABI_VERSION,
             (
                 "pp_continuous_plan_traced",
                 "pp_dynamic_rrt_plan_traced",

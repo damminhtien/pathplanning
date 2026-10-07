@@ -33,7 +33,7 @@ struct pp_native_graph {
 
 namespace {
 
-constexpr const char* kVersion = "0.5.0";
+constexpr const char* kVersion = "0.6.0";
 constexpr double kInfinity = std::numeric_limits<double>::infinity();
 constexpr uint64_t kNoGoalId = std::numeric_limits<uint64_t>::max();
 

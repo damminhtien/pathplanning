@@ -223,6 +223,10 @@ result = plan_discrete(
 print(result.success, result.stats.get("reopens", 0.0))
 ```
 
+For uniform-cost 8-connected occupancy grids with corner cutting disabled,
+`jps` compresses straight and diagonal runs into jump-point expansions while
+returning the full cell path. See the [JPS contract and runnable example](docs/algorithms/jps.md).
+
 ### Native graph input
 
 Discrete searches run against a C++-owned CSR graph. For repeated queries or

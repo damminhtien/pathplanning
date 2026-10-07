@@ -26,7 +26,10 @@ setup(
     ext_modules=[
         Extension(
             "pathplanning.native._search_engine",
-            sources=["pathplanning/native/search_engine.cpp"],
+            sources=[
+                "pathplanning/native/search_engine.cpp",
+                "pathplanning/native/jps_grid.cpp",
+            ],
             include_dirs=["pathplanning/native"],
             language="c++",
             extra_compile_args=["-std=c++17", "-O3"],
@@ -40,7 +43,10 @@ setup(
         ),
         Extension(
             "pathplanning.native._search_trace_engine",
-            sources=["pathplanning/native/search_engine.cpp"],
+            sources=[
+                "pathplanning/native/search_engine.cpp",
+                "pathplanning/native/jps_grid.cpp",
+            ],
             include_dirs=["pathplanning/native"],
             language="c++",
             define_macros=[("PP_ENABLE_TRACE", "1")],

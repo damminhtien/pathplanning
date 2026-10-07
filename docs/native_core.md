@@ -19,15 +19,19 @@ flowchart LR
 ### Discrete graph search
 
 `pathplanning/native/search_engine.cpp` owns the native CSR graph representation,
-search state, frontier queues, and search loops. Its public boundary is the C
-ABI declared in `search_engine.h` and called through
-`pathplanning/native/_ffi.py`.
+search state, frontier queues, and generic search loops. The specialized JPS
+kernel in `pathplanning/native/jps_grid.cpp` searches a row-major occupancy mask
+directly, avoiding CSR construction for that planner. Both use the C ABI
+declared in `search_engine.h` and called through `pathplanning/native/_ffi.py`.
 
 `NativeGraph` stores reusable adjacency in CSR form. A Python graph implementing
 the graph protocol is materialized into CSR before search; goal and heuristic
 values are prepared before the C++ search loop starts. The loop does not call
 Python. Built-in 2D and 3D grids provide their dimensions, motions, and valid
 node masks to the native CSR builder. No NetworkX conversion is used.
+JPS is restricted to uniform-cost, 8-connected `Grid2DSearchSpace` instances;
+its adapter snapshots cell validity once and the C++ kernel enforces the
+no-corner-cutting diagonal rule while jumping between search points.
 
 Search state uses dense arrays by node ID for locality: an 8-byte path cost, a
 4-byte parent ID when the graph fits in 32-bit IDs (otherwise 8 bytes), and a

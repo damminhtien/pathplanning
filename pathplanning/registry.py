@@ -27,6 +27,7 @@ from pathplanning.planners.search.breadth_first_search import plan_breadth_first
 from pathplanning.planners.search.depth_first_search import plan_depth_first_search
 from pathplanning.planners.search.dijkstra import plan_dijkstra
 from pathplanning.planners.search.greedy_best_first import plan_greedy_best_first
+from pathplanning.planners.search.jump_point import plan_jps
 from pathplanning.planners.search.reexp_astar import plan_reexp_astar
 from pathplanning.planners.search.weighted_astar import plan_weighted_astar
 
@@ -119,6 +120,17 @@ _PLANNER_SPECS: tuple[tuple[str, PlannerSpec], ...] = (
         ),
     ),
     ("anytime_astar", PlannerSpec("discrete", plan_anytime_astar)),
+    (
+        "jps",
+        PlannerSpec(
+            "discrete",
+            plan_jps,
+            (
+                "requires uniform Grid2DSearchSpace costs, standard 8-connected motions, "
+                "and prohibits diagonal corner cutting.",
+            ),
+        ),
+    ),
     ("rrt", PlannerSpec("continuous", plan_rrt)),
     ("rrt_star", PlannerSpec("continuous", plan_rrt_star)),
     (
