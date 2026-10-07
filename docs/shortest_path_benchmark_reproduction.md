@@ -84,6 +84,24 @@ protocol, schedule seed, timeout, or source identity is rejected for an
 existing pass configuration. `runs.jsonl`, saved schedules, pass configs,
 `manifest.json`, summary, and report make up the campaign record.
 
+## Regenerate the README benchmark figures
+
+After the analyze step has written summary.json, render the latency, work,
+quality, and memory figures used in the README:
+
+~~~text
+python3.12 scripts/generate_shortest_path_summary_assets.py \
+  --summary benchmark-results/pilot/summary.json \
+  --output-dir assets/images
+~~~
+
+This script reads the saved summary only; it does not run planners or create new
+benchmark observations. It uses SciencePlots' science style with LaTeX
+rendering disabled. The latency figure reports the median and P95 of per-query
+medians. Work counters and tracked query workspace summarize the separate
+instrumented work pass. Process RSS summarizes the fresh-worker memory pass and
+includes interpreter, input-loading, and graph-setup memory.
+
 ## Measurement boundaries
 
 Latency uses the production `_search_engine` extension with `PP_ENABLE_METRICS`

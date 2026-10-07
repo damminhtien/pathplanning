@@ -125,6 +125,31 @@ metrics instrumentation disabled. See the
 For interactive traces, custom scenes, and the rendering API, see the
 [visualization guide](docs/visualization.md).
 
+## MovingAI Pilot Benchmark Summary
+
+These SciencePlots figures are rendered from the saved pilot summary at
+benchmark-results/pilot/summary.json. The latency cohort covers 360 queries,
+the work cohort covers 1,750, and the fresh-worker memory cohort covers 360;
+each compares the same eight planner variants. The latency, work, and memory
+passes are separate measurements. Latency shows per-query medians and their
+P95; work counters and query workspace come from the instrumented work pass.
+Process RSS includes Python, map loading, and graph setup, so it is not
+query-only memory. The cost-ratio panel uses 1,749 queries because the
+zero-cost start=goal case has no defined ratio.
+
+<p align="center">
+  <img src="./assets/images/movingai-pilot-latency.png" alt="SciencePlots chart of median and P95 public API latency by planner on the MovingAI pilot" width="100%"/>
+</p>
+<p align="center">
+  <img src="./assets/images/movingai-pilot-work-quality.png" alt="SciencePlots charts of expanded nodes, examined edges, frontier pushes, and mean path-cost ratio by planner on the MovingAI pilot" width="100%"/>
+</p>
+<p align="center">
+  <img src="./assets/images/movingai-pilot-memory.png" alt="SciencePlots charts of tracked query workspace and fresh-worker process RSS by planner on the MovingAI pilot" width="100%"/>
+</p>
+
+Regenerate these figures from the saved campaign with the
+[benchmark reproduction guide](docs/shortest_path_benchmark_reproduction.md).
+
 ## Installation
 
 ```bash
