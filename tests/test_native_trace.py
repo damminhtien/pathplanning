@@ -14,6 +14,7 @@ from pathplanning.planners.sampling.dynamic_rrt import DynamicRRT3D, DynamicRRT3
 from pathplanning.registry import list_planners
 from pathplanning.spaces.continuous_3d import AABB, ContinuousSpace3D
 from pathplanning.spaces.grid2d import Grid2DSamplingSpace, Grid2DSearchSpace
+from pathplanning.spaces.terrain_grid2d import TerrainCostGrid2D
 from pathplanning.viz.replay import ReplayController
 
 
@@ -32,7 +33,8 @@ def _same_plan(first, second) -> None:
 
 @pytest.mark.parametrize("planner", list_planners("discrete"))
 def test_search_trace_matches_production(planner: str) -> None:
-    problem = DiscreteProblem(Grid2DSearchSpace(12, 12), (1, 1), (10, 10))
+    graph = TerrainCostGrid2D(np.ones((12, 12))) if planner == "jpsw" else Grid2DSearchSpace(12, 12)
+    problem = DiscreteProblem(graph, (1, 1), (10, 10))
     params = {"max_expansions": 5_000}
     first = plan_discrete(problem, planner=planner, params=params, seed=13)
     second = plan_discrete(

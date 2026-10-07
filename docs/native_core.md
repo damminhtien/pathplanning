@@ -32,6 +32,11 @@ node masks to the native CSR builder. No NetworkX conversion is used.
 JPS is restricted to uniform-cost, 8-connected `Grid2DSearchSpace` instances;
 its adapter snapshots cell validity once and the C++ kernel enforces the
 no-corner-cutting diagonal rule while jumping between search points.
+JPSW uses `pathplanning/native/jpsw_grid.cpp` and snapshots both validity and
+positive terrain costs. Its adapter requires `TerrainCostGrid2D`, which uses
+the weighted cell-integral edge model. The native kernel applies local weighted
+neighborhood pruning, terrain-boundary jump stops, diagonal branch pruning,
+and prospective-g pruning without materializing a CSR graph.
 
 Search state uses dense arrays by node ID for locality: an 8-byte path cost, a
 4-byte parent ID when the graph fits in 32-bit IDs (otherwise 8 bytes), and a

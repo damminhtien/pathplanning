@@ -227,6 +227,11 @@ For uniform-cost 8-connected occupancy grids with corner cutting disabled,
 `jps` compresses straight and diagonal runs into jump-point expansions while
 returning the full cell path. See the [JPS contract and runnable example](docs/algorithms/jps.md).
 
+For weighted 8-connected terrain grids, `jpsw` applies Weighted Jump Point
+Search to positive per-cell costs and returns the full traversed-cell path.
+Construct a `TerrainCostGrid2D` to use its cardinal and diagonal cell-integral
+cost model; see the [JPSW contract and runnable example](docs/algorithms/jpsw.md).
+
 ### Native graph input
 
 Discrete searches run against a C++-owned CSR graph. For repeated queries or

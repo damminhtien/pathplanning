@@ -117,6 +117,14 @@ typedef struct pp_jps_metrics {
     uint64_t jump_points_expanded;
 } pp_jps_metrics;
 
+typedef struct pp_jpsw_metrics {
+    uint64_t struct_size;
+    uint64_t motion_checks;
+    uint64_t neighborhood_checks;
+    uint64_t prospective_prunes;
+    uint64_t jump_points_expanded;
+} pp_jpsw_metrics;
+
 // Returns PP_SEARCH_ABI_VERSION. This exact-match version covers exported
 // functions, structures, enums, and callback semantics, independently of the
 // package and engine implementation versions.
@@ -213,6 +221,21 @@ int pp_native_jps_grid(
     pp_jps_metrics* metrics
 );
 
+int pp_native_jpsw_grid(
+    uint64_t width,
+    uint64_t height,
+    const uint8_t* valid_nodes,
+    const double* terrain_costs,
+    uint64_t start_x,
+    uint64_t start_y,
+    uint64_t goal_x,
+    uint64_t goal_y,
+    int has_max_expansions,
+    uint64_t max_expansions,
+    pp_search_result* result,
+    pp_jpsw_metrics* metrics
+);
+
 #if defined(PP_ENABLE_TRACE) && PP_ENABLE_TRACE
 int pp_native_jps_grid_traced(
     uint64_t width,
@@ -228,6 +251,23 @@ int pp_native_jps_grid_traced(
     pp_search_result* result,
     pp_trace_result* trace,
     pp_jps_metrics* metrics
+);
+
+int pp_native_jpsw_grid_traced(
+    uint64_t width,
+    uint64_t height,
+    const uint8_t* valid_nodes,
+    const double* terrain_costs,
+    uint64_t start_x,
+    uint64_t start_y,
+    uint64_t goal_x,
+    uint64_t goal_y,
+    int has_max_expansions,
+    uint64_t max_expansions,
+    uint64_t trace_max_bytes,
+    pp_search_result* result,
+    pp_trace_result* trace,
+    pp_jpsw_metrics* metrics
 );
 #endif
 

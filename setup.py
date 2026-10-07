@@ -29,6 +29,7 @@ setup(
             sources=[
                 "pathplanning/native/search_engine.cpp",
                 "pathplanning/native/jps_grid.cpp",
+                "pathplanning/native/jpsw_grid.cpp",
             ],
             include_dirs=["pathplanning/native"],
             language="c++",
@@ -46,6 +47,7 @@ setup(
             sources=[
                 "pathplanning/native/search_engine.cpp",
                 "pathplanning/native/jps_grid.cpp",
+                "pathplanning/native/jpsw_grid.cpp",
             ],
             include_dirs=["pathplanning/native"],
             language="c++",
