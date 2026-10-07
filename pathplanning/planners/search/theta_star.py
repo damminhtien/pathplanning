@@ -33,18 +33,31 @@ def plan_theta_star(
     trace: TraceOptions | None = None,
 ) -> PlanResult:
     """Run native Theta* and return grid-cell waypoints along any-angle segments."""
+    return _plan_any_angle(problem, "theta_star", "Theta*", params=params, rng=rng, trace=trace)
+
+
+def _plan_any_angle(
+    problem: DiscreteProblem[Cell],
+    planner_id: str,
+    planner_name: str,
+    *,
+    params: Mapping[str, object] | None = None,
+    rng: RNG | None = None,
+    trace: TraceOptions | None = None,
+) -> PlanResult:
+    """Run one native any-angle grid search implementation."""
     total_started = time.perf_counter()
     del rng
     graph = _grid(problem)
     if hasattr(problem.goal, "is_goal") or not isinstance(problem.goal, (tuple, list)):
-        raise TypeError("Theta* requires an exact grid-cell goal")
+        raise TypeError(f"{planner_name} requires an exact grid-cell goal")
     if isinstance(graph, TerrainCostGrid2D):
         if getattr(graph.edge_cost, "__func__", None) is not TerrainCostGrid2D.edge_cost:
-            raise ValueError("Theta* requires the built-in terrain grid cost model")
+            raise ValueError(f"{planner_name} requires the built-in terrain grid cost model")
         terrain_source = graph.terrain_costs
     else:
         if getattr(graph.edge_cost, "__func__", None) is not Grid2DSearchSpace.edge_cost:
-            raise ValueError("Theta* requires a built-in uniform or terrain grid cost model")
+            raise ValueError(f"{planner_name} requires a built-in uniform or terrain grid cost model")
         terrain_source = None
 
     start = graph._coerce_cell(problem.start)
@@ -69,11 +82,13 @@ def plan_theta_star(
     native_trace = TraceResult() if trace is not None else None
     trace_max_bytes = 0 if trace is None else trace.max_bytes
     library = load_search_trace_library() if trace is not None else load_native_library()
+    native_symbol = f"pp_native_{planner_id}_grid"
+    native_function = getattr(library, native_symbol)
     valid_pointer = valid_nodes.ctypes.data_as(ctypes.POINTER(ctypes.c_uint8))
     terrain_pointer = terrain_costs.ctypes.data_as(ctypes.POINTER(ctypes.c_double))
     native_started = time.perf_counter()
     if native_trace is None:
-        return_code = library.pp_native_theta_star_grid(
+        return_code = native_function(
             width,
             height,
             valid_pointer,
@@ -88,7 +103,7 @@ def plan_theta_star(
             ctypes.byref(native_metrics),
         )
     else:
-        return_code = library.pp_native_theta_star_grid_traced(
+        return_code = getattr(library, f"{native_symbol}_traced")(
             width,
             height,
             valid_pointer,
@@ -108,7 +123,7 @@ def plan_theta_star(
     try:
         if return_code != 0:
             message = native_result.error_message
-            detail = "unknown native Theta* error" if message is None else message.decode("utf-8")
+            detail = f"unknown native {planner_name} error" if message is None else message.decode("utf-8")
             raise RuntimeError(detail)
         stop_reasons = {
             0: StopReason.SUCCESS,
@@ -119,7 +134,7 @@ def plan_theta_star(
         try:
             reason = stop_reasons[native_result.stop_reason]
         except KeyError as exc:
-            raise RuntimeError("native Theta* returned an unknown stop reason") from exc
+            raise RuntimeError(f"native {planner_name} returned an unknown stop reason") from exc
 
         path = None
         if native_result.success:

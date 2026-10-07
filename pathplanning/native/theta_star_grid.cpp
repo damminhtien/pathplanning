@@ -127,8 +127,15 @@ public:
         );
     }
 
-    bool segment_cost(ThetaPoint from, ThetaPoint to, double* cost) const {
-        ++metrics_->line_of_sight_checks;
+    bool segment_cost(
+        ThetaPoint from,
+        ThetaPoint to,
+        double* cost,
+        bool require_visibility = true
+    ) const {
+        if (require_visibility) {
+            ++metrics_->line_of_sight_checks;
+        }
         if (!valid(from) || !valid(to)) {
             return false;
         }
@@ -166,7 +173,7 @@ public:
                     (2.0 * static_cast<double>(abs_dx));
                 total += (next_t - previous_t) * length * terrain(current);
                 current.x += step_x;
-                if (!valid(current)) {
+                if (require_visibility && !valid(current)) {
                     return false;
                 }
                 ++crossed_x;
@@ -176,7 +183,7 @@ public:
                     (2.0 * static_cast<double>(abs_dy));
                 total += (next_t - previous_t) * length * terrain(current);
                 current.y += step_y;
-                if (!valid(current)) {
+                if (require_visibility && !valid(current)) {
                     return false;
                 }
                 ++crossed_y;
@@ -185,13 +192,14 @@ public:
                 const double next_t = static_cast<double>(x_numerator) /
                     (2.0 * static_cast<double>(abs_dx));
                 total += (next_t - previous_t) * length * terrain(current);
-                if (!valid({current.x + step_x, current.y}) ||
-                    !valid({current.x, current.y + step_y})) {
+                if (require_visibility &&
+                    (!valid({current.x + step_x, current.y}) ||
+                     !valid({current.x, current.y + step_y}))) {
                     return false;
                 }
                 current.x += step_x;
                 current.y += step_y;
-                if (!valid(current)) {
+                if (require_visibility && !valid(current)) {
                     return false;
                 }
                 ++crossed_x;
@@ -201,6 +209,22 @@ public:
         }
         total += (1.0 - previous_t) * length * terrain(current);
         *cost = total;
+        return true;
+    }
+
+    bool adjacent_cost(ThetaPoint from, ThetaPoint to, double* cost) const {
+        const int64_t dx = to.x - from.x;
+        const int64_t dy = to.y - from.y;
+        if (std::abs(dx) > 1 || std::abs(dy) > 1 || (dx == 0 && dy == 0) ||
+            !valid(from) || !valid(to)) {
+            return false;
+        }
+        if (dx != 0 && dy != 0 &&
+            (!valid({from.x + dx, from.y}) || !valid({from.x, from.y + dy}))) {
+            return false;
+        }
+        *cost = std::hypot(static_cast<double>(dx), static_cast<double>(dy)) *
+            0.5 * (terrain(from) + terrain(to));
         return true;
     }
 
@@ -251,6 +275,7 @@ public:
     int plan(
         ThetaPoint start,
         ThetaPoint goal,
+        bool lazy,
         bool has_max_expansions,
         uint64_t max_expansions,
         pp_search_result* result,
@@ -264,6 +289,9 @@ public:
         std::vector<uint8_t> closed(node_count, 0);
         std::priority_queue<ThetaOpenEntry, std::vector<ThetaOpenEntry>, ThetaOpenGreater> queue;
         costs[static_cast<size_t>(start_id)] = 0.0;
+        if (lazy) {
+            parents[static_cast<size_t>(start_id)] = start_id;
+        }
         queue.push({grid_->heuristic(start, goal), 0.0, start_id});
         if (trace != nullptr) {
             trace->record(start_id, kThetaNoParent, 0.0, 1);
@@ -278,42 +306,94 @@ public:
             if (closed[current_index] || entry.g != costs[current_index]) {
                 continue;
             }
+            if (entry.id != goal_id && has_max_expansions && expanded >= max_expansions) {
+                return finish({}, kThetaInfinity, expanded, discovered, PP_SEARCH_STOP_MAX_ITERS, result);
+            }
+            if (lazy && entry.id != start_id) {
+                const uint64_t old_parent_id = parents[current_index];
+                if (old_parent_id == kThetaNoParent) {
+                    throw std::runtime_error("Lazy Theta* node has no parent to validate");
+                }
+                const ThetaPoint current = grid_->point(entry.id);
+                const ThetaPoint old_parent = grid_->point(old_parent_id);
+                double validated_cost = 0.0;
+                if (grid_->segment_cost(old_parent, current, &validated_cost)) {
+                    costs[current_index] = costs[static_cast<size_t>(old_parent_id)] + validated_cost;
+                } else {
+                    double best_cost = kThetaInfinity;
+                    uint64_t best_parent_id = kThetaNoParent;
+                    for (const ThetaDirection direction : kThetaDirections) {
+                        const ThetaPoint neighbor{current.x + direction.x, current.y + direction.y};
+                        if (!grid_->valid(neighbor)) {
+                            continue;
+                        }
+                        const uint64_t neighbor_id = grid_->id(neighbor);
+                        const size_t neighbor_index = static_cast<size_t>(neighbor_id);
+                        if (!closed[neighbor_index]) {
+                            continue;
+                        }
+                        double step_cost = 0.0;
+                        if (!grid_->adjacent_cost(neighbor, current, &step_cost)) {
+                            continue;
+                        }
+                        const double candidate = costs[neighbor_index] + step_cost;
+                        if (candidate < best_cost) {
+                            best_cost = candidate;
+                            best_parent_id = neighbor_id;
+                        }
+                    }
+                    if (best_parent_id == kThetaNoParent) {
+                        throw std::runtime_error("Lazy Theta* could not repair a blocked parent segment");
+                    }
+                    parents[current_index] = best_parent_id;
+                    costs[current_index] = best_cost;
+                    if (trace != nullptr) {
+                        trace->record(entry.id, best_parent_id, best_cost, 3);
+                    }
+                }
+            }
             if (entry.id == goal_id) {
                 if (trace != nullptr) {
-                    trace->record(entry.id, parents[current_index], entry.g, 6);
+                    trace->record(entry.id, parents[current_index], costs[current_index], 6);
                 }
                 return finish(
                     reconstruct_path(start_id, goal_id, parents),
-                    entry.g,
+                    costs[current_index],
                     expanded,
                     discovered,
                     PP_SEARCH_STOP_SUCCESS,
                     result
                 );
             }
-            if (has_max_expansions && expanded >= max_expansions) {
-                return finish({}, kThetaInfinity, expanded, discovered, PP_SEARCH_STOP_MAX_ITERS, result);
-            }
             closed[current_index] = 1;
             ++expanded;
             ++metrics_->expanded_nodes;
             if (trace != nullptr) {
-                trace->record(entry.id, parents[current_index], entry.g, 2);
+                trace->record(entry.id, parents[current_index], costs[current_index], 2);
             }
             const ThetaPoint current = grid_->point(entry.id);
             const uint64_t parent_id = parents[current_index];
             const bool has_parent = parent_id != kThetaNoParent;
             const ThetaPoint parent = has_parent ? grid_->point(parent_id) : current;
+            const double current_cost = costs[current_index];
 
             for (const ThetaDirection direction : kThetaDirections) {
                 const ThetaPoint successor{current.x + direction.x, current.y + direction.y};
                 double step_cost = 0.0;
-                if (!grid_->segment_cost(current, successor, &step_cost)) {
+                if (lazy ? !grid_->adjacent_cost(current, successor, &step_cost)
+                         : !grid_->segment_cost(current, successor, &step_cost)) {
                     continue;
                 }
                 ThetaPoint candidate_parent = current;
-                double candidate = entry.g + step_cost;
-                if (has_parent) {
+                double candidate = current_cost + step_cost;
+                if (lazy) {
+                    // Lazy Theta* defers visibility validation until the successor is expanded.
+                    double shortcut_cost = 0.0;
+                    if (grid_->segment_cost(parent, successor, &shortcut_cost, false)) {
+                        candidate_parent = parent;
+                        candidate = costs[static_cast<size_t>(parent_id)] + shortcut_cost;
+                    }
+                } else if (has_parent) {
                     double shortcut_cost = 0.0;
                     if (grid_->segment_cost(parent, successor, &shortcut_cost)) {
                         candidate_parent = parent;
@@ -395,12 +475,14 @@ int run_theta_star_grid(
     uint64_t goal_y,
     int has_max_expansions,
     uint64_t max_expansions,
+    bool lazy,
     pp_search_result* result,
     pp_theta_metrics* output_metrics,
     ThetaTraceBuffer* trace
 ) {
+    const char* algorithm_name = lazy ? "Lazy Theta*" : "Theta*";
     if (output_metrics == nullptr || output_metrics->struct_size != sizeof(pp_theta_metrics)) {
-        set_error(result, "Theta* metrics struct size mismatch");
+        set_error(result, std::string(algorithm_name) + " metrics struct size mismatch");
         return 1;
     }
     output_metrics->line_of_sight_checks = 0;
@@ -450,6 +532,7 @@ int run_theta_star_grid(
         const int status = search.plan(
             start,
             goal,
+            lazy,
             has_max_expansions != 0,
             max_expansions,
             result,
@@ -463,7 +546,7 @@ int run_theta_star_grid(
         set_error(result, error.what());
         return 1;
     } catch (...) {
-        set_error(result, "unknown Theta* error");
+        set_error(result, std::string("unknown ") + algorithm_name + " error");
         return 1;
     }
 }
@@ -498,6 +581,7 @@ extern "C" int pp_native_theta_star_grid(
         goal_y,
         has_max_expansions,
         max_expansions,
+        false,
         result,
         metrics,
         nullptr
@@ -538,6 +622,7 @@ extern "C" int pp_native_theta_star_grid_traced(
         goal_y,
         has_max_expansions,
         max_expansions,
+        false,
         result,
         metrics,
         &captured
@@ -568,4 +653,104 @@ extern "C" int pp_native_theta_star_grid_traced(
     trace->truncated = captured.truncated() ? 1 : 0;
     return status;
 }
+
+extern "C" int pp_native_lazy_theta_star_grid_traced(
+    uint64_t width,
+    uint64_t height,
+    const uint8_t* valid_nodes,
+    const double* terrain_costs,
+    uint64_t start_x,
+    uint64_t start_y,
+    uint64_t goal_x,
+    uint64_t goal_y,
+    int has_max_expansions,
+    uint64_t max_expansions,
+    uint64_t trace_max_bytes,
+    pp_search_result* result,
+    pp_trace_result* trace,
+    pp_theta_metrics* metrics
+) {
+    if (result == nullptr || trace == nullptr) {
+        return 1;
+    }
+    *trace = pp_trace_result{};
+    const size_t event_capacity = static_cast<size_t>(trace_max_bytes / sizeof(pp_trace_event));
+    ThetaTraceBuffer captured(event_capacity);
+    const int status = run_theta_star_grid(
+        width,
+        height,
+        valid_nodes,
+        terrain_costs,
+        start_x,
+        start_y,
+        goal_x,
+        goal_y,
+        has_max_expansions,
+        max_expansions,
+        true,
+        result,
+        metrics,
+        &captured
+    );
+    const auto& events = captured.events();
+    if (!events.empty()) {
+        trace->events = static_cast<pp_trace_event*>(
+            std::malloc(events.size() * sizeof(pp_trace_event))
+        );
+        if (trace->events == nullptr) {
+            std::free(result->path_ids);
+            result->path_ids = nullptr;
+            result->path_length = 0;
+            set_error(result, "could not allocate Lazy Theta* trace events");
+            return 1;
+        }
+        for (size_t index = 0; index < events.size(); ++index) {
+            trace->events[index] = pp_trace_event{
+                events[index].node,
+                events[index].parent,
+                events[index].value,
+                events[index].kind,
+                events[index].side,
+            };
+        }
+        trace->event_count = events.size();
+    }
+    trace->truncated = captured.truncated() ? 1 : 0;
+    return status;
+}
 #endif
+
+extern "C" int pp_native_lazy_theta_star_grid(
+    uint64_t width,
+    uint64_t height,
+    const uint8_t* valid_nodes,
+    const double* terrain_costs,
+    uint64_t start_x,
+    uint64_t start_y,
+    uint64_t goal_x,
+    uint64_t goal_y,
+    int has_max_expansions,
+    uint64_t max_expansions,
+    pp_search_result* result,
+    pp_theta_metrics* metrics
+) {
+    if (result == nullptr) {
+        return 1;
+    }
+    return run_theta_star_grid(
+        width,
+        height,
+        valid_nodes,
+        terrain_costs,
+        start_x,
+        start_y,
+        goal_x,
+        goal_y,
+        has_max_expansions,
+        max_expansions,
+        true,
+        result,
+        metrics,
+        nullptr
+    );
+}

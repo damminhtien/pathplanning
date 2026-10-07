@@ -236,6 +236,11 @@ For any-angle paths on 8-connected grids, `theta_star` uses conservative line
 of sight and returns cell waypoints joined by validated segments. See the
 [Theta* contract and runnable example](docs/algorithms/theta_star.md).
 
+`lazy_theta_star` delays shortcut visibility checks until the node is expanded
+and repairs blocked shortcuts through a closed neighboring cell. It shares
+Theta*'s conservative corner and terrain-cost rules; see the [Lazy Theta*
+contract and runnable example](docs/algorithms/lazy_theta_star.md).
+
 ### Native graph input
 
 Discrete searches run against a C++-owned CSR graph. For repeated queries or

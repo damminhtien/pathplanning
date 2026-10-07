@@ -29,6 +29,7 @@ from pathplanning.planners.search.dijkstra import plan_dijkstra
 from pathplanning.planners.search.greedy_best_first import plan_greedy_best_first
 from pathplanning.planners.search.jump_point import plan_jps
 from pathplanning.planners.search.jump_point_weighted import plan_jpsw
+from pathplanning.planners.search.lazy_theta_star import plan_lazy_theta_star
 from pathplanning.planners.search.reexp_astar import plan_reexp_astar
 from pathplanning.planners.search.theta_star import plan_theta_star
 from pathplanning.planners.search.weighted_astar import plan_weighted_astar
@@ -152,6 +153,17 @@ _PLANNER_SPECS: tuple[tuple[str, PlannerSpec], ...] = (
             (
                 "requires standard 8-connected Grid2DSearchSpace or TerrainCostGrid2D; "
                 "line of sight rejects blocked cells and corner cutting.",
+            ),
+        ),
+    ),
+    (
+        "lazy_theta_star",
+        PlannerSpec(
+            "discrete",
+            plan_lazy_theta_star,
+            (
+                "requires standard 8-connected Grid2DSearchSpace or TerrainCostGrid2D; "
+                "candidate shortcuts are validated when nodes are expanded.",
             ),
         ),
     ),
