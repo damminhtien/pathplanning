@@ -30,6 +30,7 @@ from pathplanning.planners.search.greedy_best_first import plan_greedy_best_firs
 from pathplanning.planners.search.jump_point import plan_jps
 from pathplanning.planners.search.jump_point_weighted import plan_jpsw
 from pathplanning.planners.search.reexp_astar import plan_reexp_astar
+from pathplanning.planners.search.theta_star import plan_theta_star
 from pathplanning.planners.search.weighted_astar import plan_weighted_astar
 
 ProblemKind = Literal["discrete", "continuous"]
@@ -140,6 +141,17 @@ _PLANNER_SPECS: tuple[tuple[str, PlannerSpec], ...] = (
             (
                 "requires TerrainCostGrid2D with positive finite terrain costs, standard 8-connected "
                 "motions, exact cell goals, and no diagonal corner cutting.",
+            ),
+        ),
+    ),
+    (
+        "theta_star",
+        PlannerSpec(
+            "discrete",
+            plan_theta_star,
+            (
+                "requires standard 8-connected Grid2DSearchSpace or TerrainCostGrid2D; "
+                "line of sight rejects blocked cells and corner cutting.",
             ),
         ),
     ),

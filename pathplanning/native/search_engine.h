@@ -125,6 +125,13 @@ typedef struct pp_jpsw_metrics {
     uint64_t jump_points_expanded;
 } pp_jpsw_metrics;
 
+typedef struct pp_theta_metrics {
+    uint64_t struct_size;
+    uint64_t line_of_sight_checks;
+    uint64_t cells_checked;
+    uint64_t expanded_nodes;
+} pp_theta_metrics;
+
 // Returns PP_SEARCH_ABI_VERSION. This exact-match version covers exported
 // functions, structures, enums, and callback semantics, independently of the
 // package and engine implementation versions.
@@ -236,6 +243,21 @@ int pp_native_jpsw_grid(
     pp_jpsw_metrics* metrics
 );
 
+int pp_native_theta_star_grid(
+    uint64_t width,
+    uint64_t height,
+    const uint8_t* valid_nodes,
+    const double* terrain_costs,
+    uint64_t start_x,
+    uint64_t start_y,
+    uint64_t goal_x,
+    uint64_t goal_y,
+    int has_max_expansions,
+    uint64_t max_expansions,
+    pp_search_result* result,
+    pp_theta_metrics* metrics
+);
+
 #if defined(PP_ENABLE_TRACE) && PP_ENABLE_TRACE
 int pp_native_jps_grid_traced(
     uint64_t width,
@@ -268,6 +290,23 @@ int pp_native_jpsw_grid_traced(
     pp_search_result* result,
     pp_trace_result* trace,
     pp_jpsw_metrics* metrics
+);
+
+int pp_native_theta_star_grid_traced(
+    uint64_t width,
+    uint64_t height,
+    const uint8_t* valid_nodes,
+    const double* terrain_costs,
+    uint64_t start_x,
+    uint64_t start_y,
+    uint64_t goal_x,
+    uint64_t goal_y,
+    int has_max_expansions,
+    uint64_t max_expansions,
+    uint64_t trace_max_bytes,
+    pp_search_result* result,
+    pp_trace_result* trace,
+    pp_theta_metrics* metrics
 );
 #endif
 

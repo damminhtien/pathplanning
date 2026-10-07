@@ -232,6 +232,10 @@ Search to positive per-cell costs and returns the full traversed-cell path.
 Construct a `TerrainCostGrid2D` to use its cardinal and diagonal cell-integral
 cost model; see the [JPSW contract and runnable example](docs/algorithms/jpsw.md).
 
+For any-angle paths on 8-connected grids, `theta_star` uses conservative line
+of sight and returns cell waypoints joined by validated segments. See the
+[Theta* contract and runnable example](docs/algorithms/theta_star.md).
+
 ### Native graph input
 
 Discrete searches run against a C++-owned CSR graph. For repeated queries or

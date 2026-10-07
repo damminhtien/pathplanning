@@ -8,9 +8,9 @@ its C ABI version.
 
 | Library | ABI constant | Probe function | Supported ABI |
 | --- | --- | --- | --- |
-| C++ graph search | `PP_SEARCH_ABI_VERSION` | `pp_search_abi_version()` | 7 |
+| C++ graph search | `PP_SEARCH_ABI_VERSION` | `pp_search_abi_version()` | 8 |
 | C sampling planners | `PP_CONTINUOUS_ABI_VERSION` | `pp_continuous_abi_version()` | 1 |
-| C++ diagnostic search | `PP_SEARCH_TRACE_ABI_VERSION` | `pp_search_trace_abi_version()` | 3 |
+| C++ diagnostic search | `PP_SEARCH_TRACE_ABI_VERSION` | `pp_search_trace_abi_version()` | 4 |
 | C++ diagnostic search metrics | `PP_SEARCH_METRICS_ABI_VERSION` | `pp_search_metrics_abi_version()` | 2 |
 | C diagnostic sampling | `PP_CONTINUOUS_TRACE_ABI_VERSION` | `pp_continuous_trace_abi_version()` | 1 |
 
@@ -45,6 +45,11 @@ caller-owned `pp_jpsw_metrics` counters. Search trace ABI 3 adds the matching
 `pp_native_jpsw_grid_traced()` entrypoint. Both accept row-major validity and
 terrain-cost arrays and return full row-major cell paths through the owned
 `pp_search_result` buffer.
+Search ABI 8 adds direct occupancy and terrain-grid
+`pp_native_theta_star_grid()` search with caller-owned `pp_theta_metrics`
+counters. Search trace ABI 4 adds `pp_native_theta_star_grid_traced()`. The
+result contains waypoint cells selected by Theta*, not an expansion of each
+any-angle segment into grid cells.
 
 The production `_search_engine` is built without `PP_ENABLE_METRICS`; metric
 macros compile to no-ops and search containers use the normal
@@ -63,6 +68,7 @@ This isolates counter and allocation-tracking overhead from production timing.
 | `pp_search_result` buffers | Result storage belongs to the caller; `path_ids` and `error_message` are allocated by the native library on success or failure. | Call `pp_search_free_result()` after every call and before reusing the result storage. It frees buffers and resets the struct. |
 | `pp_jps_metrics` | Caller-owned JPS counters; set `struct_size` before calling. | No release is required. |
 | `pp_jpsw_metrics` | Caller-owned JPSW counters; set `struct_size` before calling. | No release is required. |
+| `pp_theta_metrics` | Caller-owned Theta* counters; set `struct_size` before calling. | No release is required. |
 | Continuous inputs, model arrays, callbacks, and `user_data` | Borrowed for the duration of `pp_continuous_plan()` or `pp_dynamic_rrt_plan()`. The planner retains no callback or input pointer after return. | Keep them alive until the call returns. |
 | `pp_continuous_result` buffers | Result storage belongs to the caller; `path` and `error_message` belong to the native library. | Call `pp_continuous_free_result()` after every call and before reuse. |
 | `pp_dynamic_rrt_result` buffers | The nested plan buffers and tree/invalid-node arrays belong to the native library. | Call `pp_dynamic_rrt_free_result()` after every call and before reuse; do not free nested fields separately. |

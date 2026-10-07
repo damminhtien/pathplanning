@@ -71,6 +71,19 @@ class JpswMetrics(ctypes.Structure):
         self.struct_size = ctypes.sizeof(type(self))
 
 
+class ThetaMetrics(ctypes.Structure):
+    _fields_ = [
+        ("struct_size", ctypes.c_uint64),
+        ("line_of_sight_checks", ctypes.c_uint64),
+        ("cells_checked", ctypes.c_uint64),
+        ("expanded_nodes", ctypes.c_uint64),
+    ]
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.struct_size = ctypes.sizeof(type(self))
+
+
 class TraceEvent(ctypes.Structure):
     _fields_ = [
         ("node", ctypes.c_uint64),
@@ -211,10 +224,10 @@ _SEARCH_METRICS_LIB: ctypes.CDLL | None = None
 _CONTINUOUS_TRACE_LIB: ctypes.CDLL | None = None
 
 # Keep these exact-match requirements synchronized with abi_version.h.
-_SEARCH_ABI_VERSION = 7
+_SEARCH_ABI_VERSION = 8
 _SEARCH_METRICS_ABI_VERSION = 2
 _CONTINUOUS_ABI_VERSION = 1
-_SEARCH_TRACE_ABI_VERSION = 3
+_SEARCH_TRACE_ABI_VERSION = 4
 _CONTINUOUS_TRACE_ABI_VERSION = 1
 
 
@@ -324,6 +337,7 @@ def load_native_library() -> ctypes.CDLL:
                 "pp_native_search_plan",
                 "pp_native_jps_grid",
                 "pp_native_jpsw_grid",
+                "pp_native_theta_star_grid",
                 "pp_search_free_result",
                 "pp_search_engine_version",
             ),
@@ -399,6 +413,21 @@ def load_native_library() -> ctypes.CDLL:
             ctypes.POINTER(JpswMetrics),
         ]
         library.pp_native_jpsw_grid.restype = ctypes.c_int
+        library.pp_native_theta_star_grid.argtypes = [
+            ctypes.c_uint64,
+            ctypes.c_uint64,
+            ctypes.POINTER(ctypes.c_uint8),
+            ctypes.POINTER(ctypes.c_double),
+            ctypes.c_uint64,
+            ctypes.c_uint64,
+            ctypes.c_uint64,
+            ctypes.c_uint64,
+            ctypes.c_int,
+            ctypes.c_uint64,
+            ctypes.POINTER(SearchResult),
+            ctypes.POINTER(ThetaMetrics),
+        ]
+        library.pp_native_theta_star_grid.restype = ctypes.c_int
         library.pp_search_free_result.argtypes = [ctypes.POINTER(SearchResult)]
         library.pp_search_free_result.restype = None
         library.pp_search_engine_version.argtypes = []
@@ -487,6 +516,7 @@ def load_search_trace_library() -> ctypes.CDLL:
                 "pp_native_search_plan_traced",
                 "pp_native_jps_grid_traced",
                 "pp_native_jpsw_grid_traced",
+                "pp_native_theta_star_grid_traced",
                 "pp_search_free_result",
                 "pp_search_trace_free_result",
             ),
@@ -546,6 +576,23 @@ def load_search_trace_library() -> ctypes.CDLL:
             ctypes.POINTER(JpswMetrics),
         ]
         _SEARCH_TRACE_LIB.pp_native_jpsw_grid_traced.restype = ctypes.c_int
+        _SEARCH_TRACE_LIB.pp_native_theta_star_grid_traced.argtypes = [
+            ctypes.c_uint64,
+            ctypes.c_uint64,
+            ctypes.POINTER(ctypes.c_uint8),
+            ctypes.POINTER(ctypes.c_double),
+            ctypes.c_uint64,
+            ctypes.c_uint64,
+            ctypes.c_uint64,
+            ctypes.c_uint64,
+            ctypes.c_int,
+            ctypes.c_uint64,
+            ctypes.c_uint64,
+            ctypes.POINTER(SearchResult),
+            ctypes.POINTER(TraceResult),
+            ctypes.POINTER(ThetaMetrics),
+        ]
+        _SEARCH_TRACE_LIB.pp_native_theta_star_grid_traced.restype = ctypes.c_int
         _SEARCH_TRACE_LIB.pp_search_free_result.argtypes = [ctypes.POINTER(SearchResult)]
         _SEARCH_TRACE_LIB.pp_search_free_result.restype = None
         _SEARCH_TRACE_LIB.pp_search_trace_free_result.argtypes = [ctypes.POINTER(TraceResult)]

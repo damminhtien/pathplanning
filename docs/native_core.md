@@ -37,6 +37,11 @@ positive terrain costs. Its adapter requires `TerrainCostGrid2D`, which uses
 the weighted cell-integral edge model. The native kernel applies local weighted
 neighborhood pruning, terrain-boundary jump stops, diagonal branch pruning,
 and prospective-g pruning without materializing a CSR graph.
+Theta* uses `pathplanning/native/theta_star_grid.cpp`. Its visibility check
+traverses touched cells directly and integrates the configured terrain cost
+over segment length; grid-corner crossings require both side cells to be free.
+The adapter returns the search's cell waypoints without expanding the
+any-angle segments.
 
 Search state uses dense arrays by node ID for locality: an 8-byte path cost, a
 4-byte parent ID when the graph fits in 32-bit IDs (otherwise 8 bytes), and a

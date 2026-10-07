@@ -21,6 +21,7 @@ from that registry.
 | `discrete` | `anytime_astar` | `pathplanning.planners.search.anytime_astar` | `plan_anytime_astar` | supported |
 | `discrete` | `jps` | `pathplanning.planners.search.jump_point` | `plan_jps` | supported |
 | `discrete` | `jpsw` | `pathplanning.planners.search.jump_point_weighted` | `plan_jpsw` | supported |
+| `discrete` | `theta_star` | `pathplanning.planners.search.theta_star` | `plan_theta_star` | supported |
 | `continuous` | `rrt` | `pathplanning.planners.sampling.rrt` | `plan_rrt` | supported |
 | `continuous` | `rrt_star` | `pathplanning.planners.sampling.rrt_star` | `plan_rrt_star` | supported |
 | `continuous` | `informed_rrt_star` | `pathplanning.planners.sampling.informed_rrt_star` | `plan_informed_rrt_star` | supported |
@@ -36,6 +37,7 @@ Planner-specific constraints:
 - `reexp_astar`: Weighted A* with conditional closed-node re-expansion; r uses r_mode (abs, rel_edge, or rel_g), and tie_break is g_low or g_high.
 - `jps`: requires uniform Grid2DSearchSpace costs, standard 8-connected motions, and prohibits diagonal corner cutting.
 - `jpsw`: requires TerrainCostGrid2D with positive finite terrain costs, standard 8-connected motions, exact cell goals, and no diagonal corner cutting.
+- `theta_star`: requires standard 8-connected Grid2DSearchSpace or TerrainCostGrid2D; line of sight rejects blocked cells and corner cutting.
 - `informed_rrt_star`, `fmt_star`, `bit_star`, `abit_star`: require exact point goals, Euclidean state-space distance, and additive path length; custom objectives are rejected because the search bounds rely on additive path length.
 - `fmt_star`: uses `sample_count` as its fixed sample set size.
 - `bit_star`, `abit_star`: use `sample_count` across batches and `batch_size` per batch.
