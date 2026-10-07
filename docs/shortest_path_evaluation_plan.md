@@ -1,239 +1,236 @@
-# Kế hoạch đánh giá single-agent shortest path
+# Single-Agent Shortest-Path Evaluation Plan
 
-Ngày review: 2026-10-04. Phiên bản kế hoạch: 2.
+Review date: 2026-10-04. Plan version: 2.
 
-Trạng thái: đề xuất triển khai. Tài liệu này thay thế kế hoạch trong cuộc trao đổi, chốt định nghĩa phép đo, đầu việc và tiêu chí nghiệm thu. Các file/lệnh được đánh dấu “dự kiến” chưa được cài đặt. Tài liệu không chứa kết quả benchmark mới.
+Status: proposed for implementation. This document supersedes the plan from the discussion and fixes measurement definitions, work items, and acceptance criteria. Files and commands marked “planned” have not been implemented. This document contains no new benchmark results.
 
-## 1. Kết quả review và các quyết định cần sửa
+## 1. Review findings and decisions
 
-| Điểm trong kế hoạch trước | Quyết định sau review |
+| Previous plan item | Decision after review |
 | --- | --- |
-| Dùng grid hiện tại cho MovingAI | Tạo CSR benchmark đúng luật no-corner-cutting từ occupancy. Grid hiện tại chỉ kiểm tra ô nguồn/đích và có thể cho optimum khác scenario. |
-| Dùng Dijkstra native làm oracle | Dùng reference Dijkstra độc lập trên occupancy gốc. Dijkstra native là một thuật toán được đánh giá. |
-| graph_init_s là thời gian tạo graph | Trường hiện tại gồm adapter, ánh xạ query và chuẩn bị heuristic; graph có thể được tái sử dụng. Đo các ranh giới riêng. |
-| Suy memory từ expanded | SearchStates cấp phát mảng toàn bộ node slots. Ghi slots, capacity và allocations đang sống. |
-| Counter reopen/re-expansion áp dụng cho mọi kernel | Kernel hiện bỏ qua CLOSED và chưa hỗ trợ reopen. Ghi capability và null cho metric không áp dụng. Tách mở rộng lặp qua anytime passes. |
-| Cache cạnh ngược nằm trong query time | Reverse CSR được tạo lười rồi giữ trong graph. Đo prepare/first query/reuse và ownership của mỗi variant. |
-| Seed + repeats đủ cho fairness | Chốt scope timer, graph state, h-mode, lịch ghép cặp, đơn vị thống kê và timeout handling. |
-| Trừ hai ru_maxrss để lấy query peak | ru_maxrss là lifetime high-water. Báo process peak; native memory và cửa sổ RSS có phép đo riêng. |
-| max_expansions là tổng budget của anytime | Hiện giới hạn áp dụng cho từng pass. Thêm contract tổng riêng trước khi dùng quality-vs-budget. |
-| Đổi SCHEMA_VERSION toàn cục thành v2 | Thêm builder v2 riêng; runner v1 và báo cáo lịch sử tiếp tục dùng cấu trúc v1. |
+| Use the existing grid for MovingAI | Build benchmark CSR from occupancy using the no-corner-cutting rule. The existing grid checks only source and destination cells and may produce an optimum that differs from the scenario. |
+| Use native Dijkstra as the oracle | Use an independent reference Dijkstra over the original occupancy grid. Native Dijkstra is one of the evaluated algorithms. |
+| Treat graph_init_s as graph creation time | The current field includes the adapter, query mapping, and heuristic preparation; the graph may be reused. Measure these boundaries separately. |
+| Infer memory from expanded | SearchStates allocates arrays for all node slots. Record slots, capacity, and live allocations. |
+| Apply reopen/re-expansion counters to every kernel | The current kernel skips CLOSED nodes and does not support reopening. Record capability and null for inapplicable metrics. Separate repeated expansions across anytime passes. |
+| Include reverse-edge caching in query time | Reverse CSR is created lazily and then retained by the graph. Measure preparation, first query, reuse, and ownership for each variant. |
+| Seed + repeats are sufficient for fairness | Specify timer scope, graph state, heuristic mode, paired schedule, statistical unit, and timeout handling. |
+| Subtract two ru_maxrss values to estimate query peak | ru_maxrss is a lifetime high-water mark. Report process peak; measure native memory and sampled RSS windows separately. |
+| max_expansions is the total anytime budget | The current limit applies to each pass. Add a separate total-budget contract before using quality-versus-budget analysis. |
+| Change global SCHEMA_VERSION to v2 | Add a separate v2 builder; keep the v1 runner and historical reports on their existing structure. |
 
-Source được khảo sát tại worktree ngày review; HEAD quan sát là c07cef0cb53ad9bbe0ad8cc13672c3fb1869a8e9. Trước triển khai, kiểm tra lại HEAD/diff/ABI vì repo có công việc khác đang diễn ra. Đây là nhận xét từ source, chưa xác minh bằng chạy binary.
+The source was inspected in the worktree on the review date; the observed HEAD was c07cef0cb53ad9bbe0ad8cc13672c3fb1869a8e9. Before implementation, recheck HEAD, the diff, and the ABI because other work may be in progress. These are source-based observations and have not been verified by running the binary.
 
-Các điểm nối đã đọc:
+The integration points reviewed:
 
-- [Grid2DSearchSpace](../pathplanning/spaces/grid2d.py): movement, heuristic và to_native_graph.
-- [NativeGraph](../pathplanning/native/graph.py): CSR reuse, labels và ownership.
-- [Search adapter](../pathplanning/planners/search/_internal/native.py): query preparation, timers, conversion về Python.
-- [Search kernel](../pathplanning/native/search_engine.cpp): states, heap/deque, reverse CSR, consistency validation và anytime passes.
+- [Grid2DSearchSpace](../pathplanning/spaces/grid2d.py): movement, heuristic, and to_native_graph.
+- [NativeGraph](../pathplanning/native/graph.py): CSR reuse, labels, and ownership.
+- [Search adapter](../pathplanning/planners/search/_internal/native.py): query preparation, timers, and conversion back to Python.
+- [Search kernel](../pathplanning/native/search_engine.cpp): states, heap/deque, reverse CSR, consistency validation, and anytime passes.
 - [Search ABI](../pathplanning/native/search_engine.h), [ABI version](../pathplanning/native/abi_version.h), [FFI loader](../pathplanning/native/_ffi.py).
-- [Benchmark contract v1](benchmark_contract.md), [runner mẫu](../scripts/benchmark_planners.py), [trace benchmark](../scripts/benchmark_trace_overhead.py).
+- [Benchmark contract v1](benchmark_contract.md), [example runner](../scripts/benchmark_planners.py), [trace benchmark](../scripts/benchmark_trace_overhead.py).
 
-## 2. Phạm vi và cấu hình thuật toán
+## 2. Scope and algorithm configurations
 
-MVP: grid 2D tĩnh, exact start/goal, positive costs. Bộ chính gồm Dijkstra, A*, bidirectional Dijkstra và bidirectional A*. Nhóm đánh đổi quality thêm weighted A* weights 1.25, 1.5, 2.0 và greedy best-first trên cùng input. Weight 1.0 phải khớp A*.
+MVP: static 2D grids, exact start/goal, and positive costs. The core set is Dijkstra, A*, bidirectional Dijkstra, and bidirectional A*. The quality trade-off group adds weighted A* with weights 1.25, 1.5, and 2.0, plus greedy best-first on the same inputs. Weight 1.0 must match A*.
 
-BFS có suite 4-connected unit-cost riêng và oracle tương ứng; optimum octile không dùng cho suite đó. DFS chỉ là baseline tìm được đường. Anytime vào milestone sau khi có pass observations và tổng budget đúng nghĩa. Các track sampling/3D/dynamic/JPS/any-angle giữ trong mục 12.
+BFS has a separate 4-connected, unit-cost suite with its own oracle; octile optimal cost does not apply to that suite. DFS is only a baseline for finding a path. Anytime belongs to a later milestone, after pass observations and a meaningful total budget exist. Sampling, 3D, dynamic, JPS, and any-angle tracks remain in section 12.
 
-Mỗi observation ghi measurement scope:
+Each observation records a measurement scope:
 
-- **prepared_kernel**: graph và query arrays đã chuẩn bị; bracket đúng lời gọi native.
-- **public_api**: bracket plan_discrete, tính cả adapter, chuẩn bị heuristic, native và chuyển/free kết quả.
+- **prepared_kernel**: graph and query arrays are prepared; the timer brackets the native call itself.
+- **public_api**: the timer brackets plan_discrete, including the adapter, heuristic preparation, native call, and result conversion/free.
 
-Mỗi scope có **fresh_graph** hoặc **reused_graph**. Các tên này mô tả graph ownership/cache; không bảo đảm CPU/file cache lạnh hay nóng. Headline mặc định là public_api + reused_graph; prepared_kernel giải thích cơ chế.
+Each scope supports **fresh_graph** or **reused_graph**. These names describe graph ownership/cache state; they do not guarantee cold or warm CPU/file caches. The default headline is public_api + reused_graph; prepared_kernel explains the underlying mechanism.
 
-## 3. Dataset, representation và manifest
+## 3. Dataset, representation, and manifest
 
-### 3.1. Profile MovingAI
+### 3.1. MovingAI profile
 
-Chọn collection 2D version 2. Parser scenario ban đầu hỗ trợ header version 1 hoặc 1.0; collection version và scenario-format version là hai khái niệm khác nhau. Theo [định dạng chính thức](https://movingai.com/benchmarks/formats.html), scenario có 9 trường, gốc tọa độ ở góc trên trái, optimum dùng diagonal sqrt(2) và cấm cắt góc.
+Use the 2D version 2 collection. The initial scenario parser supports version 1 or 1.0 headers; collection version and scenario-format version are separate concepts. According to the [official format](https://movingai.com/benchmarks/formats.html), a scenario has nine fields, coordinates start at the top-left, and the optimum uses diagonal cost sqrt(2) with corner cutting prohibited.
 
 Profile **land_octile_v1**:
 
-- Cardinal cost 1; diagonal sqrt(2), chỉ hợp lệ khi cả hai ô cardinal liên quan đều đi được.
-- Lưu ký hiệu ASCII gốc. Land agent đi được trên . / G / S; @ / O / T / W bị chặn. W có ngữ nghĩa water-agent riêng trong định dạng và nằm ngoài profile này.
-- Unknown symbol gây dataset_error; không tự đổi thành đất/vật cản.
-- Kiểm tra header, số dòng/cột, map path, bounds, endpoint passability và optimum hữu hạn không âm.
-- MVP từ chối scenario có dimension khác map với unsupported_scaled_scenario; định dạng gốc cho phép scaling nên giới hạn này phải được ghi rõ.
-- Resolve map theo từng dòng scenario; không giả định cả file chỉ có một map.
+- Cardinal cost is 1; diagonal cost is sqrt(2), and a diagonal move is valid only when both adjacent cardinal cells are traversable.
+- Preserve the original ASCII symbols. Land agents can traverse `.`, `G`, and `S`; `@`, `O`, `T`, and `W` are blocked. `W` has separate water-agent semantics in the format and is outside this profile.
+- An unknown symbol produces dataset_error; do not silently convert it to terrain or an obstacle.
+- Validate the header, row and column counts, map path, bounds, endpoint passability, and that the optimum is finite and nonnegative.
+- The MVP rejects scenarios whose dimensions differ from the map with unsupported_scaled_scenario. The original format allows scaling, so this limitation must be documented.
+- Resolve the map path for each scenario row; do not assume that a scenario file refers to only one map.
 
-CSR dùng ID ổn định **id=y*width+x**, **N=width*height** slots gồm row rỗng của blocked cells; **V_free** là ô đi được; **E** là số cạnh hợp lệ có hướng. Báo cả N và V_free. CSR được dựng đúng profile; không dùng factory grid hiện tại để suy optimum MovingAI.
+CSR uses stable IDs **id=y*width+x** and **N=width*height** slots, including empty rows for blocked cells; **V_free** is the number of traversable cells; **E** is the number of valid directed edges. Report both N and V_free. Build CSR according to the profile; do not use the current grid factory to infer MovingAI optima.
 
-Thứ tự 8 motions cố định theo runner hiện tại. Ghi tie policy của từng variant: best-first hiện dùng f tăng, h tăng, insertion-order tăng. Không bắt các thuật toán khác nhau trả đúng cùng một path khi có nhiều đường tối ưu.
+Keep the current runner’s order of the eight motion directions fixed. Record each variant’s tie-breaking policy: best-first currently orders by increasing f, then increasing h, then increasing insertion order. Do not require different algorithms to return the same path when multiple optimal paths exist.
 
-Heuristic cohort chính: octile, vectorized float64 array theo goal cho toàn N slots; Dijkstra h=0. Giữ **precomputed_array** ở mọi kích thước. Adapter grid hiện đổi cách chuẩn bị h quanh ngưỡng 65,536 slots, nên thay đổi h-mode phải là một ablation riêng. prepared_kernel đặt h preparation ngoài call timer nhưng vẫn báo thời gian/bytes; public_api tính nó vào query cost. Cohort đầu không cache h-array giữa queries; mọi caching bổ sung là variant riêng.
+The main heuristic cohort uses octile distance, stored as a vectorized float64 array for all N slots for each goal; Dijkstra uses h=0. Keep **precomputed_array** at every size. The grid adapter currently changes heuristic preparation around 65,536 slots, so changing the heuristic mode must be a separate ablation. For prepared_kernel, heuristic preparation is outside the call timer but its time and bytes are still reported; public_api includes it in query cost. The initial cohort does not cache h-arrays across queries; any additional caching is a separate variant.
 
-workloads.py dự kiến chứa MovingAIGrid với to_native_graph trả đúng CSR đã dựng và native_heuristic_values trả mảng octile vectorized. Mỗi variant có instance/handle riêng. Public API dùng adapter này; prepared_kernel dùng cùng CSR/start/goal/h-arrays qua FFI đã chuẩn bị. Node materialization limit được đặt rõ theo N trong problem params khi đi qua factory adapter, thay vì tình cờ từ chối map 1024x1024 vì default 1,000,000.
+The planned workloads.py contains MovingAIGrid, whose to_native_graph returns the exact CSR already built and whose native_heuristic_values returns the vectorized octile array. Each variant has its own instance/handle. The public API uses this adapter; prepared_kernel uses the same CSR/start/goal/h-arrays through a prepared FFI call. Set the node materialization limit explicitly to N in the problem parameters when using the factory adapter, instead of accidentally rejecting a 1024x1024 map because of the default limit of 1,000,000.
 
-### 3.2. Profile dữ liệu dự kiến
+### 3.2. Planned data profiles
 
-| Profile | Lựa chọn cụ thể |
+| Profile | Specific selection |
 | --- | --- |
-| fixtures | Map 2x2..16x16: chặn góc một/hai phía, hành lang, disconnected, start=goal, tie paths; thêm directed graph và heap entry cũ. Có chi phí/counters đếm tay. |
-| pilot | 6 họ DAO, Starcraft, room, maze, random, street. Chọn 3 map/họ theo V_free nhỏ/trung vị/lớn, tie theo tên; mỗi map tối đa 100 scenario: 5 phân vị C* x tối đa 20 dòng, chọn bằng hash với workload_seed=7. Tối đa 1,800 query. |
-| full | Toàn bộ map/scenario trong 6 họ đã chốt với danh sách file/hash đóng băng. Parser exclusions có lý do và counts. |
-| scaling | Các generator và sweep ở mục 9; seed và version cố định. |
+| fixtures | Maps from 2x2 to 16x16: one- and two-sided corner blocking, corridors, disconnected regions, start=goal, and tied paths; also directed graphs and stale heap entries. Include hand-counted costs/counters. |
+| pilot | Six families: DAO, Starcraft, room, maze, random, and street. Select three maps per family by low/median/high V_free, breaking ties by name; at most 100 scenarios per map: five C* quantiles × up to 20 rows, selected by hash with workload_seed=7. At most 1,800 queries. |
+| full | All maps/scenarios from the six chosen families, with the file list and hashes frozen. Record parser exclusions with reasons and counts. |
+| scaling | Generators and sweeps from section 9, with fixed seeds and versions. |
 
-Các họ có trong [catalog 2D MovingAI](https://movingai.com/benchmarks/grids.html). Thiếu map/bin được ghi trong manifest, không bù theo success của candidate. Nếu ba vị trí map trùng nhau, lấy vị trí distinct gần nhất theo thứ tự đã chốt. Độ khó baseline-expanded chỉ gắn sau khi lựa chọn query, ngoài measurement window.
+These families are in the [MovingAI 2D catalog](https://movingai.com/benchmarks/grids.html). Record missing maps/bins in the manifest; do not replace them based on candidate success. If the three map positions resolve to the same map, select the nearest distinct map using the fixed ordering. Attach baseline-expanded difficulty only after query selection, outside the measurement window.
 
-Pilot correctness/work dùng toàn bộ tối đa 1,800 queries. Pilot latency/RSS dùng subset cố định tối đa 20 queries/map: lấy 4 trong mỗi bin đã chọn, bằng cùng quy tắc hash, tối đa 360 queries. Primary latency ban đầu chỉ chạy public_api + reused_graph; các scope/graph-state khác chạy campaign ablation riêng trên subset này. Với 8 MVP variants, một latency campaign tối đa 20,160 measured observations + 5,760 warmups; work tối đa 14,400 observations; RSS tối đa 2,880 workers. Đây là số lượng dự kiến theo protocol, không phải số thí nghiệm đã chạy. Full latency/memory cohort được chốt theo pilot cost và lưu manifest trước khi chạy; không tự sinh toàn bộ tích Cartesian của scopes, variants và modes.
+Pilot correctness/work uses all selected queries, up to 1,800. Pilot latency/RSS uses a fixed subset of at most 20 queries per map: select four from each chosen bin with the same hash rule, up to 360 queries. The initial primary latency campaign runs only public_api + reused_graph; other scopes/graph states use a separate ablation campaign on this subset. For eight MVP variants, one latency campaign has at most 20,160 measured observations + 5,760 warmups; work has at most 14,400 observations; RSS has at most 2,880 workers. These are protocol estimates, not completed experiments. Freeze and record the full latency/memory cohort in a manifest before running, based on pilot cost; do not generate the full Cartesian product of scopes, variants, and modes automatically.
 
-Manifest/query fields: family, map/scenario URL và SHA-256, scenario row, movement profile, dimensions, N/V_free/E, density, start/goal, optimum string gốc, oracle C*, h(start), solution depth và baseline A* expansions. Ghi generator version, bin boundaries và seeds.
+Manifest/query fields: family, map/scenario URL and SHA-256, scenario row, movement profile, dimensions, N/V_free/E, density, start/goal, original optimum string, oracle C*, h(start), solution depth, and baseline A* expansions. Record generator version, bin boundaries, and seeds.
 
-**workload_id** phụ thuộc dữ liệu và ngữ nghĩa bài toán; **variant_id** phụ thuộc thuật toán/tham số/h-mode/tie policy; **experiment_id** thêm source/binary/host/protocol. Ghép cặp bằng workload_id và protocol; experiment_id khác build không phải pairing key.
+**workload_id** depends on data and problem semantics; **variant_id** depends on algorithm/parameters/heuristic mode/tie policy; **experiment_id** adds source/binary/host/protocol. Pair by workload_id and protocol; experiment_id from a different build is not a pairing key.
 
-Dataset payload ở cache local; metadata, attribution và profile được lưu có phiên bản. Kết quả ở benchmark-results/, đã được contract hiện tại loại khỏi source fingerprint.
+Keep dataset payloads in the local cache; version metadata, attribution, and profiles. Results go in benchmark-results/, which the current contract excludes from the source fingerprint.
 
-## 4. Oracle và correctness
+## 4. Oracle and correctness
 
-Reference Dijkstra dùng Python heapq trên occupancy gốc, tự duyệt chuyển động; không gọi NativeGraph, grid.neighbors hoặc search kernel. Cache theo map hash + movement profile + start/goal + reference version. Native Dijkstra là candidate/baseline; reference chạy ngoài timer/RSS window.
+Reference Dijkstra uses Python heapq over the original occupancy grid and enumerates moves independently; it does not call NativeGraph, grid.neighbors, or the search kernel. Cache by map hash + movement profile + start/goal + reference version. Native Dijkstra is a candidate/baseline; run the reference outside the timer/RSS window.
 
-Validator kiểm tra endpoint, adjacency, obstacle, corner rule rồi tự tính cost bằng cardinal/diagonal counts. Kiểm tra declared_cost so với cost tự tính, rồi so với oracle. Candidate-vs-oracle tolerance: atol=1e-8, rtol=1e-10. Scenario-vs-oracle trước hết cho phép sai số floating và một đơn vị chữ số cuối. MovingAI scenario optima trong bộ dữ liệu kiểm tra tích lũy đường chéo theo `1.414213562`; nếu biểu diễn đó khác `sqrt(2)`, validator suy ra duy nhất số bước cardinal/diagonal từ C* của oracle rồi đối chiếu chuỗi optimum với cùng hằng số và nửa đơn vị chữ số cuối. Sai số biểu diễn này không áp dụng cho candidate-vs-oracle.
+The validator checks endpoints, adjacency, obstacles, and the corner rule, then calculates cost independently from the cardinal/diagonal move counts. Compare declared_cost with the independently calculated cost, then compare it with the oracle. Candidate-vs-oracle tolerance: atol=1e-8, rtol=1e-10. For scenario-vs-oracle, first allow floating-point error and one unit in the last place. MovingAI scenario optima in the dataset accumulate diagonal costs using `1.414213562`; if that representation differs from `sqrt(2)`, the validator derives the unique cardinal/diagonal step counts from the oracle C*, then compares the scenario optimum string using the same constant and half a unit in the last place. This representation tolerance does not apply to candidate-vs-oracle comparisons.
 
-Scenario mismatch ngoài tolerance là dataset/reference discrepancy: điều tra trước khi benchmark, không tự gán lỗi candidate. So sánh thuật toán khác nhau bằng path validity/cost. Release-vs-metrics cùng thuật toán/input phải khớp stop reason, path hash, cost, iters và nodes.
+A scenario mismatch outside tolerance is a dataset/reference discrepancy: investigate it before benchmarking and do not automatically attribute it to the candidate. Compare different algorithms by path validity/cost. For the same algorithm/input, release-vs-metrics must match on stop reason, path hash, cost, iters, and nodes.
 
-Lưu riêng execution_status, planner_stop_reason, path_present, path_valid, declared_cost_matches và optimal_cost_matches. Timeout/crash/invalid_path/valid_suboptimal/proved_unreachable là outcome khác nhau. start=goal có C*=0: kiểm tra tuyệt đối; ratio/gap là null. Unreachable query oracle xác nhận không được tính là thất bại khi candidate trả đúng “không có đường”.
+Store execution_status, planner_stop_reason, path_present, path_valid, declared_cost_matches, and optimal_cost_matches separately. Timeout/crash/invalid_path/valid_suboptimal/proved_unreachable are distinct outcomes. For start=goal, C*=0: use an absolute check; ratio/gap is null. An unreachable query confirmed by the oracle is not a failure when the candidate correctly returns “no path.”
 
-## 5. Work metrics và điểm đo
+## 5. Work metrics and measurement points
 
-Counters uint64 ở C/C++, int trong JSON. Không đi qua PlanResult.stats hiện là Mapping[str,float]. Observation có input/outcome/work/memory/timing/capabilities/provenance. **0** là đã đo và không xảy ra; **null** là không áp dụng/chưa đo, kèm reason.
+Counters are uint64 in C/C++ and int in JSON. Do not route them through PlanResult.stats, which is currently Mapping[str,float]. An observation contains input/outcome/work/memory/timing/capabilities/provenance. **0** means measured and did not occur; **null** means not applicable/not measured, with a reason.
 
-| Field dự kiến | Định nghĩa và điểm tăng |
+| Planned field | Definition and increment point |
 | --- | --- |
-| expanded | Node được xử lý sau khi loại entry CLOSED, gồm goal khi kernel thực sự xử lý goal; giữ nghĩa hiện tại của iters. |
-| discovered_first | g đổi từ infinity sang finite, gồm start. Bidirectional ghi mỗi side; tổng side không phải node union. |
-| edges_examined | Cạnh đọc trong vòng adjacency của search, trước khi kiểm tra/skip. |
-| relaxation_attempts | Lần tính tentative trên cạnh hợp lệ. |
-| relaxation_successes | Cập nhật g/parent, tách first discovery và cải thiện nhãn đã biết. |
-| closed_neighbor_skips | Cạnh tới CLOSED bị bỏ qua; không gọi chung là dominance pruning. |
-| nonimproving_skips | Candidate không cải thiện; greedy có skip reason riêng theo tiêu chí của nó. |
-| frontier_pushes / frontier_pops | Mọi thao tác heap/queue/deque thật, gồm initial pushes và stale pops. |
-| stale_pops | Entry bị bỏ qua do node CLOSED; denominator là frontier_pops. |
-| frontier_peak_entries | Max entry đang sống, khác unique OPEN nodes; ghi side peaks và peak tổng đồng thời. |
-| heuristic_array_values_prepared | Values được chuẩn bị trước search, thuộc query preparation. |
-| heuristic_lookups / computations | Tách đọc h-array và tính h thật; validation có phase riêng. |
-| validation_edge_checks | Full CSR consistency scan của bidirectional A*; không trộn vào search-loop edges_examined. |
-| goal_tests | Kiểm tra goal trong kernel; goal-mask preparation ở Python là field riêng. |
-| reopen_count / reexpanded_same_pass | null với supports_reopen=false trong implementation hiện tại. |
-| anytime pass fields | Counters từng pass, tổng work qua pass và max live memory; nodes hiện tại của anytime là sum discoveries qua passes. |
+| expanded | A node processed after discarding CLOSED entries, including the goal when the kernel actually processes it; preserves the current meaning of iters. |
+| discovered_first | g changes from infinity to finite, including the start. Bidirectional search records each side; summed side counts are not the node union. |
+| edges_examined | Edges read in the search adjacency loop, before checking/skipping them. |
+| relaxation_attempts | Tentative-cost calculations on valid edges. |
+| relaxation_successes | Updates to g/parent, separating first discoveries from improvements to known labels. |
+| closed_neighbor_skips | An edge to a CLOSED node is skipped; do not call this dominance pruning. |
+| nonimproving_skips | A candidate does not improve the current label; greedy has its own skip reason based on its criterion. |
+| frontier_pushes / frontier_pops | Actual heap/queue/deque operations, including initial pushes and stale pops. |
+| stale_pops | An entry is skipped because its node is CLOSED; denominator is frontier_pops. |
+| frontier_peak_entries | Maximum live entries, distinct from unique OPEN nodes; record side peaks and the simultaneous total peak. |
+| heuristic_array_values_prepared | Values prepared before search, as part of query preparation. |
+| heuristic_lookups / computations | Separate reads from the h-array and actual h computations; validation has its own phase. |
+| validation_edge_checks | Full CSR consistency scan in bidirectional A*; do not mix with search-loop edges_examined. |
+| goal_tests | Goal checks in the kernel; goal-mask preparation in Python is a separate field. |
+| reopen_count / reexpanded_same_pass | null when supports_reopen=false in the current implementation. |
+| anytime pass fields | Counters per pass, total work across passes, and maximum live memory; current anytime nodes are the sum of discoveries across passes. |
 
-Tỷ lệ dẫn xuất: expanded/V_free, edges_examined/E, successful/attempted relaxations, stale_pops/frontier_pops, pushes/expanded. Denominator 0 cho null. Không cộng các loại thành một “tổng operation” vì chi phí edge check/heap push/h-computation khác nhau. heap_comparisons là mở rộng sau MVP.
+Derived ratios: expanded/V_free, edges_examined/E, successful/attempted relaxations, stale_pops/frontier_pops, pushes/expanded. A zero denominator yields null. Do not add these categories into a single “total operations” count because edge checks, heap pushes, and h-computations have different costs. heap_comparisons is an extension after the MVP.
 
-## 6. Timing và memory boundaries
+## 6. Timing and memory boundaries
 
 ### 6.1. Timing
 
-| Field | Ranh giới |
+| Field | Boundary |
 | --- | --- |
-| input_load_s | Đọc/parse input, ở cấp dataset/map. |
-| graph_build_s | Tạo CSR và copy/adopt native handle. |
-| algorithm_prepare_s | Reverse CSR hoặc dữ liệu retained của variant. |
-| query_prepare_s | Ánh xạ query, h-array, goal flags/options. |
-| native_call_s | Lời gọi C/C++ trên prepared inputs; gồm validation cần thiết, state init, search và dựng path native. |
-| result_decode_free_s | Chuyển/copy path ra Python và free native output. |
-| api_total_s | Bracket public plan_discrete trên graph state được khai báo. |
+| input_load_s | Read/parse input, at dataset/map level. |
+| graph_build_s | Create CSR and copy/adopt the native handle. |
+| algorithm_prepare_s | Prepare reverse CSR or other variant-retained data. |
+| query_prepare_s | Map the query and prepare the h-array, goal flags, and options. |
+| native_call_s | C/C++ call on prepared inputs; includes required validation, state initialization, search, and native path construction. |
+| result_decode_free_s | Convert/copy the path to Python and free native output. |
+| api_total_s | Bracket public plan_discrete on the declared graph state. |
 
-Scope cạnh nhau dùng timestamp chung để kiểm tra tổng và residual; scope lồng không được cộng hai lần. Clone CSR giữa library là setup trước prepared_kernel timer, có cost riêng. Chi phí process startup/harness được lưu ngoài algorithm timers.
+Adjacent scopes use a shared timestamp to check totals and residuals; nested scopes must not be double-counted. Cloning CSR between libraries is setup before the prepared_kernel timer and has its own cost. Process startup/harness overhead is recorded outside algorithm timers.
 
-Nếu cần state_init_s/search_loop_s/path_reconstruct_s, dùng native profiling và gắn diagnostic_profile. Thời gian phase này giải thích cơ chế; latency headline từ release, có khai báo timer overhead.
+If state_init_s/search_loop_s/path_reconstruct_s are needed, use native profiling and label it diagnostic_profile. These phase timings explain the mechanism; the latency headline comes from release builds with timer overhead declared.
 
 ### 6.2. Memory
 
-| Field | Phép đo |
+| Field | Measurement |
 | --- | --- |
-| input_occupancy_bytes | ndarray.nbytes; labels/maps/parse buffers còn sống có field riêng. |
-| base_csr_capacity_bytes | Capacity offsets/indices/costs nhân sizeof; includes blocked slots. |
-| prepared_retained_bytes | Reverse CSR và precomputed tables còn sống sau prepare. |
-| query_input_bytes | h-array, goal flags/options. |
-| state_slots_allocated / parent_id_bytes | Slots thực của từng SearchStates và width parent 32/64-bit. |
-| state_capacity_bytes | Capacities g/parent/flags nhân sizeof. |
-| frontier_capacity_bytes_peak | Heap vector capacity; deque phải dùng allocator tracking. |
-| native_requested_bytes_peak | Counting allocator cho các structures/buffers đã khai báo; bao gồm old/new overlap khi reallocate; ghi allocation coverage. |
-| query_workspace_peak_bytes | Max tổng workspace bytes cùng sống, riêng với retained/input/output. |
-| result_path_bytes | Native path và copy Python có ownership/lifetime riêng. |
-| process_peak_rss_bytes | ru_maxrss chuẩn hóa OS/unit trong fresh worker; includes import/load/build/query. |
-| query_peak_rss_sampled_bytes | Tùy chọn sampler ngoài worker trong READY→DONE; ghi interval/resolution. Query ngắn có thể bỏ lỡ spike. |
+| input_occupancy_bytes | ndarray.nbytes; keep labels/maps/parse buffers alive in separate fields. |
+| base_csr_capacity_bytes | Capacity of offsets/indices/costs multiplied by sizeof; includes blocked slots. |
+| prepared_retained_bytes | Reverse CSR and precomputed tables retained after preparation. |
+| query_input_bytes | h-array, goal flags, and options. |
+| state_slots_allocated / parent_id_bytes | Actual slots in each SearchStates and parent width (32/64-bit). |
+| state_capacity_bytes | Capacities of g/parent/flags multiplied by sizeof. |
+| frontier_capacity_bytes_peak | Heap vector capacity; deque requires allocator tracking. |
+| native_requested_bytes_peak | Counting allocator for declared structures/buffers; includes old/new overlap during reallocation; record allocation coverage. |
+| query_workspace_peak_bytes | Maximum sum of simultaneously live workspace bytes, separate from retained/input/output. |
+| result_path_bytes | Native path and Python copy, with ownership/lifetime recorded separately. |
+| process_peak_rss_bytes | OS/unit-normalized ru_maxrss in a fresh worker; includes import/load/build/query. |
+| query_peak_rss_sampled_bytes | Optional external sampler in the READY→DONE window; record interval/resolution. Short queries may miss spikes. |
 
-Tổng peak là **max_t(sum live component bytes tại t)**, không là sum các component peaks. Capacity/requested bytes khác resident RSS và chưa bao gồm mọi allocator overhead. Coverage chưa đầy đủ phải được gắn nhãn.
+Total peak is **max_t(sum live component bytes at t)**, not the sum of component peaks. Capacity/requested bytes differ from resident RSS and do not include all allocator overhead. Label incomplete coverage.
 
-RSS campaign dùng release worker mới cho map+variant+query, giữ một graph candidate. Báo lifetime peak; current RSS trước query nếu backend hỗ trợ. Không trừ hai high-water marks để suy query peak. RSS sampling tách khỏi latency campaign.
+The RSS campaign uses a fresh release worker for each map+variant+query and retains one candidate graph. Report lifetime peak; record current RSS before the query if the backend supports it. Do not subtract two high-water marks to infer query peak. Keep RSS sampling separate from the latency campaign.
 
-Báo absolute bytes, bytes/V_free và bytes/N. Payload state một side với parent 32-bit xấp xỉ (8+4+1)*N trước headers/capacity; bidirectional có hai bộ. Native tracking phải xác minh lifetime/allocations, không suy memory từ expanded.
+Report absolute bytes, bytes/V_free, and bytes/N. One side’s state payload with 32-bit parents is approximately (8+4+1)*N before headers/capacity; bidirectional search has two sets. Native tracking must verify lifetimes/allocations; do not infer memory from expanded.
 
-## 7. Protocol chạy và thống kê
+## 7. Run protocol and statistics
 
-Pilot mặc định 2 warmups/query/variant, 7 measured repeats, schedule_seed=7. Full campaign mặc định 15 measured repeats; nếu pilot cho thấy timing bất ổn, chốt số repeats mới trước full run. Đây là cấu hình ban đầu, không bảo đảm một độ chính xác thống kê cụ thể.
+Default pilot: 2 warmups/query/variant, 7 measured repeats, schedule_seed=7. Default full campaign: 15 measured repeats; if the pilot shows unstable timing, freeze a new repeat count before the full run. These are initial settings and do not guarantee a particular statistical precision.
 
-Latency worker theo map với graph handle riêng mỗi variant; mỗi thời điểm chỉ một query tính toán. Block gồm query và repeat; xáo thứ tự variant bằng schedule_seed, lưu schedule để replay. Khi nhiều graph cùng resident, ghi tổng retained footprint của latency worker; memory headline lấy từ worker riêng.
+Latency workers are grouped by map, with a separate graph handle for each variant; only one query computes at a time. A block consists of query and repeat; shuffle variant order using schedule_seed and save the schedule for replay. When multiple graphs are resident, record the latency worker’s total retained footprint; take headline memory measurements from a separate worker.
 
-fresh_graph tạo handle mới mỗi invocation và báo build/first-query. reused_graph prepare graph và reverse CSR riêng mỗi variant trước warmup, giữ graph qua queries; search states hiện tại vẫn tạo lại mỗi call. Không dùng cache của một variant cho variant khác.
+fresh_graph creates a new handle for every invocation and reports build/first-query costs. reused_graph prepares each variant’s graph and reverse CSR separately before warmup, then retains them across queries; current search states are still recreated on each call. Do not share one variant’s cache with another.
 
-Controller bắt đầu query watchdog sau READY khi setup hoàn tất: pilot mặc định 5 s/query, 60 s/setup, timeout stage riêng. Record elapsed lower bound; timeout là censored khi tính speedup. Headline MVP để max_expansions unset; resource-budget sweep có protocol riêng. Deterministic search dùng cùng input/params ở mỗi repeat; schedule_seed khác workload_seed.
+The controller starts the query watchdog after READY, once setup is complete: default pilot limits are 5 s/query and 60 s/setup, with separate timeout stages. Record elapsed time as a lower bound; treat timeout as censored when calculating speedup. Leave max_expansions unset for the MVP headline; resource-budget sweeps use a separate protocol. Deterministic search uses the same input/parameters for each repeat; schedule_seed differs from workload_seed.
 
-Work collection một lần/query/variant; lặp kiểm tra trên fixtures và mẫu pilot. Release iters/nodes đối chiếu metrics build. Tất cả warmups retained nhưng không vào summary.
+Collect work metrics once per query/variant; repeat checks on fixtures and a pilot sample. Compare release iters/nodes with the metrics build. Retain all warmups but exclude them from summaries.
 
-Với query i, t_i là median release measured repeats. Báo median/p95 của t_i giữa queries và IQR/dispersion giữa repeats. P95 giữa queries không phải p95 noise của 7 lần lặp một query.
+For query i, t_i is the median across measured release repeats. Report the median/p95 of t_i across queries and the IQR/dispersion across repeats. The p95 across queries is not the noise p95 from seven repeats of one query.
 
-Speedup s_i=t_baseline_i/t_candidate_i trên common-valid-solved cùng protocol; báo median, geometric mean và CI. Bootstrap theo map cluster rồi query trong map, giữ cặp: mặc định 2,000 draws, bootstrap_seed=7. Ít map thì ghi giới hạn CI và hiển thị per-map. Repeats/query cùng map không được coi là mẫu hoàn toàn độc lập.
+Speedup s_i=t_baseline_i/t_candidate_i on common-valid-solved queries under the same protocol; report median, geometric mean, and CI. Bootstrap by map cluster then query within each map, preserving pairs: default 2,000 draws, bootstrap_seed=7. With few maps, state CI limitations and show per-map results. Repeats/query within the same map are not fully independent samples.
 
-Báo micro theo queries và macro theo map/họ với trọng số rõ. Coverage = valid solved unique queries / oracle-solvable queries thuộc cohort đã chốt, riêng với execution-repeat counts. start=goal thuộc solvable cohort; reference-unreachable có decision-correctness denominator riêng trên tất cả input hợp lệ. Eligibility do input/oracle xác định trước candidate run. Báo optimal/invalid/crash/timeout counts, quality ratio mean và ratio của sums cùng denominator. Common-solved quality/speedup luôn đặt cạnh coverage toàn manifest. Repeats có outcome không nhất quán được đánh dấu và điều tra trước công bố.
+Report micro results by query and macro results by map/family with explicit weights. Coverage = valid solved unique queries / oracle-solvable queries in the frozen cohort, separate from execution-repeat counts. start=goal belongs to the solvable cohort; reference-unreachable cases have a separate decision-correctness denominator over all valid inputs. Determine eligibility from the input/oracle before candidate runs. Report optimal/invalid/crash/timeout counts, mean quality ratio, and ratio of sums with denominators. Show common-solved quality/speedup next to coverage over the full manifest. Flag and investigate repeats with inconsistent outcomes before publication.
 
-Provenance gồm source/binary/input hashes, OS/CPU/RAM, compiler thực/flags, timer/resolution, h-mode, graph state, seeds và actual order. Build logs xác nhận flags; compiler metadata cấu hình chưa đủ. Chạy tuần tự, ghi khả năng affinity/frequency control và workload hệ thống quan sát được.
+Provenance includes source/binary/input hashes, OS/CPU/RAM, actual compiler/flags, timer/resolution, h-mode, graph state, seeds, and actual order. Build logs confirm flags; compiler configuration metadata alone is insufficient. Run sequentially, and record whether affinity/frequency control was available and observed system load.
 
-## 8. Native instrumentation và anytime
+## 8. Native instrumentation and anytime
 
 ### 8.1. Native metrics
 
-Thêm extension dự kiến **_search_metrics_engine** từ cùng search_engine.cpp, C++17/-O3, PP_ENABLE_METRICS=1 và object directory riêng theo [setup.py](../setup.py). Release compile-out metric hooks; trace không dùng để suy counters.
+Add a planned **_search_metrics_engine** extension from the same search_engine.cpp, using C++17/-O3, PP_ENABLE_METRICS=1, and a separate object directory as configured in [setup.py](../setup.py). Compile metric hooks out of release builds; do not infer counters from traces.
 
-Header dự kiến search_metrics.h: counters uint64, memory/capabilities, struct_size và metrics ABI riêng. Entry pp_native_search_plan_measured nhận SearchResult và metrics output độc lập. Context lifetime theo call/pass; heap adapter giữ comparator và insertion order. Counting allocator chỉ gắn ở build metrics. Đổi heap/reserve policy là optimization variant riêng có ablation.
+Planned search_metrics.h: uint64 counters, memory/capabilities, struct_size, and a separate metrics ABI. Entry point pp_native_search_plan_measured returns SearchResult and an independent metrics output. Context lifetime is per call/pass; the heap adapter preserves comparator and insertion order. Attach the counting allocator only to the metrics build. Changing heap/reserve policy is a separate optimization variant and requires an ablation.
 
-Thêm load_search_metrics_library trong _ffi.py với ABI/export/layout checks. Production SearchResult/PlanResult giữ layout nếu measurement API riêng. Increment search ABI theo version thực ở thời điểm thay exported declarations; không hardcode ABI kế tiếp từ bản review.
+Add load_search_metrics_library to _ffi.py with ABI/export/layout checks. Keep production SearchResult/PlanResult layouts unchanged by using a separate measurement API. Increment the search ABI version only when exported declarations actually change; do not hardcode the next ABI version from this review.
 
-Metrics library tạo/free handle và result của chính nó. Export CSR view rồi copy vào library trước timer; owner sống lúc copy. Không truyền opaque handle/free buffer qua library khác.
+The metrics library creates/frees its own graph handles and results. Export a CSR view and copy it into the library before the timer; keep the owner alive during the copy. Do not pass opaque handles or free buffers across libraries.
 
-Thêm API dự kiến **pp_graph_prepare_reverse** idempotent và **pp_graph_get_storage_info** cho base/reverse components, ở release và metrics. Cập nhật header, ABI, ctypes và docs; second prepare không tăng retained bytes.
+Add planned APIs **pp_graph_prepare_reverse** (idempotent) and **pp_graph_get_storage_info** for base/reverse components in both release and metrics builds. Update headers, ABI, ctypes, and docs; a second prepare must not increase retained bytes.
 
-### 8.2. Anytime và resource budgets
+### 8.2. Anytime and resource budgets
 
-Anytime hiện restart weighted A* từng weight, cộng iters/nodes, trả best final path. time_to_first_path không có trong output hiện tại. Ticket riêng thêm pass index/weight/start/end/counters, incumbent cost/improvement events và first-valid-path timestamp. Schedule thử nghiệm [2.0,1.5,1.25,1.0] nằm trong variant_id.
+Anytime currently restarts weighted A* at each weight, sums iters/nodes, and returns the best final path. time_to_first_path is not currently in the output. A separate ticket adds pass index/weight/start/end/counters, incumbent cost/improvement events, and a first-valid-path timestamp. The experimental schedule [2.0,1.5,1.25,1.0] belongs in variant_id.
 
-Quality-vs-expanded cần total query expansion budget chung, truyền phần còn lại vào mỗi pass; max_expansions cũ là per-pass. Có parameter/contract tổng riêng và kiểm tra không reset. Path availability khác termination cause: có incumbent vẫn có thể dừng vì budget.
+Quality-versus-expanded requires one total expansion budget per query, passing the remaining budget to each pass; the old max_expansions is per-pass. Add a separate total-budget parameter/contract and verify that it is not reset. Path availability and termination cause are distinct: an incumbent may exist when the search stops due to a budget.
 
-Quality-vs-wall-time cần cooperative deadline trong native để trả incumbent. Watchdog kill chỉ tạo timeout, không lấy được incumbent; curve này chỉ công bố sau khi cooperative return hoàn tất. Một expansion của A* và một scan của JPS không có cùng unit cost.
+Quality-versus-wall-time requires a cooperative native deadline so the search can return an incumbent. A watchdog kill only produces a timeout and cannot return the incumbent; publish this curve only after cooperative return is implemented. One A* expansion and one JPS scan do not have equal cost.
 
-## 9. Complexity, scaling và ablation
+## 9. Complexity, scaling, and ablation
 
-Đặt N=allocated slots, M=edges_examined, P=frontier_pushes, D=solution steps. Phân tích cài đặt hiện tại, h lookup O(1), không reopen:
+Let N=allocated slots, M=edges_examined, P=frontier_pushes, D=solution steps. Analyze the current implementation, with O(1) heuristic lookup and no reopening:
 
 - BFS/DFS query: O(N+M+D), state/frontier O(N+frontier_peak).
-- Best-first lazy heap: O(N+M+P*log(max(2,P))+D); mỗi pass P<=E+1, cho upper bound O(N+E*log(max(2,E))) dưới các giả định này.
-- State O(N); heap theo peak/capacity có duplicates; input CSR O(N+E) riêng.
-- Bidirectional thêm hai state/frontier; reverse prep O(N+E). Bidirectional A* còn full consistency validation mỗi query O(N+E).
-- Anytime K passes cộng initialization/search work từng pass; peak memory theo live lifetime, không nhân K lần peak state.
+- Best-first lazy heap: O(N+M+P*log(max(2,P))+D); each pass has P<=E+1, giving the upper bound O(N+E*log(max(2,E))) under these assumptions.
+- State is O(N); heap memory depends on peak/capacity and may contain duplicates; input CSR is separately O(N+E).
+- Bidirectional search adds two states/frontiers; reverse preparation is O(N+E). Bidirectional A* also performs full consistency validation on every query in O(N+E).
+- Anytime K passes add initialization/search work per pass; peak memory follows live lifetimes and is not K times the state peak.
 
-Mỗi thay đổi reopen/heap/heuristic/representation/workspace reuse cần cập nhật bound và giả định.
+Update the bound and its assumptions for every change to reopening, heap, heuristic, representation, or workspace reuse.
 
-| Sweep ban đầu | Thiết kế |
+| Initial sweep | Design |
 | --- | --- |
-| Size | L=64,128,256,512,1024; random density=0.20; 5 generator seeds; 20 queries/map ở fixed normalized-displacement bins. Giữ movement, CSR layout và h-mode. |
-| Density | L=512, density=0.10,0.20,0.30,0.40; 5 seeds; ghi connectivity và unreachable cases. |
-| Heuristic | Cùng map/query, h=alpha*octile với alpha=0,0.25,0.5,0.75,1; consistent. Weighted-A* weight sweep có tên khác. |
-| Topology | Room/maze corridor/opening width=1,2,4,8 với cùng L; ghi density/connectivity thay đổi cùng parameter. |
+| Size | L=64,128,256,512,1024; random density=0.20; 5 generator seeds; 20 queries/map in fixed normalized-displacement bins. Keep movement, CSR layout, and h-mode fixed. |
+| Density | L=512, density=0.10,0.20,0.30,0.40; 5 seeds; record connectivity and unreachable cases. |
+| Heuristic | Same map/query, h=alpha*octile with alpha=0,0.25,0.5,0.75,1; consistent. Give weighted-A* weight sweeps a separate name. |
+| Topology | Room/maze corridor/opening width=1,2,4,8 at the same L; record density/connectivity changes alongside the parameter. |
 
-Plot work/memory theo N/V_free/E; log-log slopes có fit range và CI là xu hướng thực nghiệm, không chứng minh Big-O. [Sturtevant 2012](https://www.cs.du.edu/~sturtevant/papers/benchmarks.pdf) chỉ ra scaling map làm đổi thuộc tính không gian; ghi topology covariates thay vì giả định resize giữ nguyên mọi thứ.
+Plot work/memory against N/V_free/E; log-log slopes with fit range and CI show empirical trends and do not prove Big-O. [Sturtevant 2012](https://www.cs.du.edu/~sturtevant/papers/benchmarks.pdf) shows that scaling a map changes its spatial properties; record topology covariates instead of assuming resizing preserves everything.
 
-Ablation đầu: fresh/reused graph; precomputed/lazy h nếu backend hỗ trợ; release/metrics overhead; forward/bidirectional. Mỗi ablation đổi một yếu tố và báo work/time/memory/quality. ns/expansion là tỷ lệ tổng hợp, không là chi phí nhân quả một expansion vì chứa init/validation và công việc khác.
+Initial ablations: fresh/reused graph; precomputed/lazy h if the backend supports it; release/metrics overhead; forward/bidirectional. Change one factor per ablation and report work/time/memory/quality. ns/expansion is an aggregate ratio, not the causal cost of one expansion, because it includes initialization/validation and other work.
 
-Hòa vốn A/B giải từ P_B+Q*q_B <= P_A+Q*q_A. Khi P_B>P_A và q_B<q_A: Q*=ceil((P_B-P_A)/(q_A-q_B)); trường hợp khác có classification riêng. q lấy cùng query distribution, baseline prep/load cũng phải tính; storage budget riêng.
+Solve the A/B break-even point from P_B+Q*q_B <= P_A+Q*q_A. When P_B>P_A and q_B<q_A: Q*=ceil((P_B-P_A)/(q_A-q_B)); classify other cases separately. Estimate q from the same query distribution, include baseline preparation/load costs, and account for storage budget separately.
 
-## 10. Report v2, outputs và CLI
+## 10. Report v2, outputs, and CLI
 
-Builder v2 nằm trong `scripts/shortest_path_benchmark/contract.py`, dùng lại
-các helper provenance/environment của `benchmark_contract.py` và bổ sung hashes
-cho metrics binary. `create_report` và `SCHEMA_VERSION` v1 hiện tại giữ hợp
-đồng của chúng. Outputs:
+The v2 builder lives in `scripts/shortest_path_benchmark/contract.py`, reuses provenance/environment helpers from `benchmark_contract.py`, and adds hashes for the metrics binary. Keep the current `create_report` and `SCHEMA_VERSION` v1 contract unchanged. Outputs:
 
 ~~~text
 benchmark-results/<campaign>/
@@ -248,20 +245,15 @@ benchmark-results/<campaign>/
   plots/*.svg
 ~~~
 
-Row chứa run/workload/variant/campaign IDs, phase/repeat/order/scope/graph_state/budget và input/outcome/work/memory/timing/capabilities/provenance. Giữ exact int >2^53; unavailable/nonfinite là null + reason, không NaN/Infinity.
+Each row contains run/workload/variant/campaign IDs, phase/repeat/order/scope/graph_state/budget, and input/outcome/work/memory/timing/capabilities/provenance. Preserve exact integers >2^53; unavailable/nonfinite values are null + reason, never NaN/Infinity.
 
-JSONL records hoàn chỉnh, checkpoint/flush; resume kiểm tra manifest/binary/protocol hashes. Dòng cuối dang dở có crash-recovery marker; chỉ chạy key chưa hoàn tất. Terminal timeout/error được giữ. Primary coverage không được đổi âm thầm bằng chỉ giữ retry thành công. Summary snapshot viết atomically.
+JSONL records are complete and checkpointed/flushed; resume validates manifest/binary/protocol hashes. Mark an incomplete final line for crash recovery and run only unfinished keys. Retain terminal timeout/error records. Do not silently change primary coverage by keeping only successful retries. Write summary snapshots atomically.
 
-CLI nonzero khi correctness/ABI/manifest gate lỗi, crash hoặc thiếu expected observations. Approximate path hợp lệ có gap dương là outcome đúng nếu được khai báo. Missing required metric gây incomplete_measurements.
+The CLI exits nonzero on correctness/ABI/manifest gate failures, crashes, or missing expected observations. A valid approximate path with a positive gap is a correct outcome if declared as such. A missing required metric produces incomplete_measurements.
 
-Full/scaling campaign cần báo per-map/family/difficulty, paired work ratios,
-coverage-vs-budget và Pareto time-memory-quality cùng workload/protocol; coverage
-và quality phải được annotate. MVP report hiện có aggregate latency/work/memory
-và paired statistics; strata đầy đủ, budget frontier và Pareto report còn thuộc
-SP-09/SP-10. EBF, transit-node count, estimated diameter/map-dimension proxy là
-descriptors tùy chọn, không là MVP required metrics.
+Full/scaling campaigns must report per-map/family/difficulty results, paired work ratios, coverage-versus-budget, and Pareto time-memory-quality with workload/protocol; annotate coverage and quality. The current MVP report includes aggregate latency/work/memory and paired statistics; full strata, budget frontier, and Pareto reporting remain in SP-09/SP-10. EBF, transit-node count, and estimated-diameter/map-dimension proxy are optional descriptors, not required MVP metrics.
 
-CLI được triển khai:
+Implemented CLI:
 
 ~~~text
 python scripts/benchmark_shortest_path.py prepare --profile pilot --manifest <path>
@@ -272,71 +264,53 @@ python scripts/benchmark_shortest_path.py run --manifest <path> --pass memory
 python scripts/benchmark_shortest_path.py analyze --campaign <directory>
 ~~~
 
-Latency/work/memory passes có provenance riêng. Analyzer kiểm tra compatibility
-keys; ghép ba pass không biến chúng thành số đo đồng thời. Report Markdown hiển
-thị latency median/P95 và paired speedup; work counter và allocator-memory
-median/P95; fresh-worker RSS cùng occupancy/CSR/retained-graph memory. `summary.json`
-giữ vector đầy đủ với count, median, P95, min, max, IQR, paired ratios và
-bootstrap intervals. RSS có phạm vi vòng đời tiến trình, bao gồm Python, NumPy,
-đọc map và tạo graph; không được diễn giải là memory chỉ riêng search query.
+Latency/work/memory passes have separate provenance. The analyzer checks compatibility keys; combining the three passes does not make them simultaneous measurements. The Markdown report shows latency median/P95 and paired speedup; work counters and allocator memory median/P95; fresh-worker RSS plus occupancy/CSR/retained-graph memory. `summary.json` retains full vectors with count, median, P95, min, max, IQR, paired ratios, and bootstrap intervals. RSS covers the process lifetime, including Python, NumPy, reading the map, and graph creation; do not interpret it as memory used by the search query alone.
 
-## 11. Backlog, dependencies và acceptance gates
+## 11. Backlog, dependencies, and acceptance gates
 
-Các acceptance gates được giữ lại để phân biệt MVP với các track mở rộng. Code
-change chạy Graphify update; generated output giữ ngoài Git.
+Keep these acceptance gates to distinguish the MVP from extension tracks. Run Graphify update after code changes; keep generated output out of Git.
 
-| Ticket | Deliverable / file dự kiến | Phụ thuộc | Acceptance |
+| Ticket | Planned deliverable / files | Dependency | Acceptance |
 | --- | --- | --- | --- |
-| SP-01 | scripts/shortest_path_benchmark/contract.py, profiles/pilot.json, profiles/scaling.json; schema dictionary và contract docs | Kế hoạch | V1 không đổi cấu trúc; v2 round-trip int >2^53; missing/zero/unsupported và denominators đúng. |
-| SP-02 | workloads.py: parser, no-corner CSR, vectorized heuristic adapter, manifest | SP-01 | Version/symbol/dimension/path/bounds được kiểm tra; corner fixtures có cạnh đúng; pilot IDs/hash tái tạo. |
-| SP-03 | reference.py: độc lập oracle, validator và cache | SP-02 | Known costs/start=goal/disconnected/tie paths/declared-cost mismatch; scenario discrepancies được giữ. |
-| SP-04 | search_metrics.h, search_engine.cpp/.h, abi_version.h, _ffi.py, setup.py, docs/native_abi.md; metric hooks/build/loader và graph APIs | SP-03 | Release/metrics parity trên mọi MVP variant ở fixtures/subset; counters đếm tay; ABI/free/ownership đúng; reverse prepare idempotent và cache riêng. |
-| SP-05 | Allocation tracking + memory observations | SP-04 | Slots/dtype/capacity đúng; heap duplicates/reallocation overlap có phép đo; total peak theo live sum; failed/unreachable call vẫn có counters. |
-| SP-06 | runner.py + benchmark_shortest_path.py: workers, scopes, schedule, watchdog, JSONL/resume | SP-01..05 | Replay schedule; query tuần tự; timeout đúng stage; graph state đúng; crash/missing records retained; unique-query khác repeat denominator. |
-| SP-07 | analysis.py: paired stats, cluster bootstrap, weights, report/plots | SP-06 | Fixture kiểm tra median/ratio/censor/unmatched/zero-cost; CI seed tái tạo; plots có units/counts. |
-| SP-08 | Pilot end-to-end, build/environment evidence và reproducibility docs | SP-07 | Work/correctness tối đa 1,800 queries, latency/RSS subset tối đa 360; không unexplained validity/optimality mismatch; metrics parity; đủ required fields trên từng measurement cohort. Gate trước full campaign. |
-| SP-09 | Anytime pass observation, global budget, cooperative incumbent return | SP-08 | Sum work đúng; tổng budget không reset; first/last incumbent kiểm chứng; termination và path availability đúng. |
-| SP-10 | Full/scaling/ablation campaigns và frontier reports | SP-08; SP-09 cho anytime | Cohort/config đóng băng; đủ expected records; bounds và slopes có evidence riêng; mọi failure/limitation xuất hiện trong report. |
+| SP-01 | scripts/shortest_path_benchmark/contract.py, profiles/pilot.json, profiles/scaling.json; schema dictionary and contract docs | Plan | V1 structure unchanged; v2 round-trips integers >2^53; missing/zero/unsupported and denominators are correct. |
+| SP-02 | workloads.py: parser, no-corner CSR, vectorized heuristic adapter, manifest | SP-01 | Validate version/symbol/dimension/path/bounds; corner fixtures have correct edges; pilot IDs/hashes are reproducible. |
+| SP-03 | reference.py: independent oracle, validator, and cache | SP-02 | Known costs/start=goal/disconnected/tied paths/declared-cost mismatch; retain scenario discrepancies. |
+| SP-04 | search_metrics.h, search_engine.cpp/.h, abi_version.h, _ffi.py, setup.py, docs/native_abi.md; metric hooks/build/loader and graph APIs | SP-03 | Release/metrics parity for every MVP variant on fixtures/subset; hand-counted counters; correct ABI/free/ownership; idempotent reverse preparation and separate cache. |
+| SP-05 | Allocation tracking + memory observations | SP-04 | Correct slots/dtype/capacity; measure heap duplicates/reallocation overlap; total peak from live sums; counters available for failed/unreachable calls. |
+| SP-06 | runner.py + benchmark_shortest_path.py: workers, scopes, schedule, watchdog, JSONL/resume | SP-01..05 | Replay schedule; sequential queries; timeout at correct stage; correct graph state; retain crashes/missing records; distinguish unique-query and repeat denominators. |
+| SP-07 | analysis.py: paired statistics, cluster bootstrap, weights, report/plots | SP-06 | Fixtures verify median/ratio/censoring/unmatched/zero-cost; reproducible CI seed; plots show units/counts. |
+| SP-08 | End-to-end pilot, build/environment evidence, and reproducibility docs | SP-07 | Work/correctness on up to 1,800 queries, latency/RSS subset up to 360; no unexplained validity/optimality mismatch; metrics parity; required fields present in each measurement cohort. Gate before full campaign. |
+| SP-09 | Anytime pass observations, global budget, cooperative incumbent return | SP-08 | Correct work sums; total budget is not reset; verify first/last incumbent; correct termination and path availability. |
+| SP-10 | Full/scaling/ablation campaigns and frontier reports | SP-08; SP-09 for anytime | Freeze cohort/config; complete expected records; separate evidence for bounds and slopes; include every failure/limitation in the report. |
 
-### Trạng thái triển khai, 2026-10-06
+### Implementation status, 2026-10-06
 
-| Ticket | Trạng thái |
+| Ticket | Status |
 | --- | --- |
-| SP-01–SP-06 | Đã triển khai; contract, MovingAI parser/oracle, native metrics/allocation hooks và runner có test. |
-| SP-07 | MVP report/plot đã triển khai: latency, work counters, allocator memory, process RSS, quality, paired ratios và bootstrap. Full phân tầng per-map/difficulty, coverage-vs-budget và Pareto frontier thuộc SP-09/SP-10. |
-| SP-08 | Pilot end-to-end đã qua: 1,750 workload × 8 biến thể ở work (14,000 observations); 360 workload × 8 biến thể ở latency (20,160 measured + 5,760 warmups) và memory (2,880 observations). Tổng 42,800 observations đều `ok`; không có đường đi sai, thiếu metric bắt buộc hay sai khác oracle chưa giải thích. Output ở `benchmark-results/` bị gitignore và cần tạo lại theo reproduction guide. |
-| SP-09 | Chưa triển khai: anytime pass observations, tổng resource budget và incumbent events. |
-| SP-10 | Một phần: scaling profile/generators, log-log fit và ablation identity helpers đã có; full/scaling/ablation campaigns và Pareto-frontier evidence chưa chạy/chưa hoàn tất. |
+| SP-01–SP-06 | Implemented; contract, MovingAI parser/oracle, native metrics/allocation hooks, and runner have tests. |
+| SP-07 | MVP report/plot implemented: latency, work counters, allocator memory, process RSS, quality, paired ratios, and bootstrap. Full per-map/difficulty strata, coverage-versus-budget, and Pareto frontier remain in SP-09/SP-10. |
+| SP-08 | End-to-end pilot passed: 1,750 workloads × 8 variants for work (14,000 observations); 360 workloads × 8 variants for latency (20,160 measured + 5,760 warmups) and memory (2,880 observations). All 42,800 observations were `ok`; there were no invalid paths, missing required metrics, or unexplained oracle discrepancies. Output in `benchmark-results/` is gitignored and must be regenerated using the reproduction guide. |
+| SP-09 | Not implemented: anytime pass observations, total resource budget, and incumbent events. |
+| SP-10 | Partial: scaling profile/generators, log-log fit, and ablation identity helpers exist; full/scaling/ablation campaigns and Pareto-frontier evidence have not been run/completed. |
 
-SP-01→SP-08 là MVP và pilot đã vượt correctness gates. SP-09/SP-10 vẫn là
-follow-up, không được suy ra đã hoàn thành từ việc các profile hoặc sweep helpers
-tồn tại. Tests hiện có gồm `test_movingai_workloads.py`,
-`test_shortest_path_reference.py`, `test_native_metrics.py`,
-`test_shortest_path_benchmark_contract.py`,
-`test_shortest_path_benchmark_runner.py`,
-`test_shortest_path_benchmark_analysis.py`, và
-`test_shortest_path_scaling.py`. Tận dụng [native graph tests](../tests/test_native_graph_search.py)
-và [trace parity tests](../tests/test_native_trace.py) cho regression.
+SP-01→SP-08 comprise the MVP, and the pilot passed the correctness gates. SP-09/SP-10 remain follow-up work; the existence of profiles or sweep helpers does not mean those items are complete. Existing tests include `test_movingai_workloads.py`, `test_shortest_path_reference.py`, `test_native_metrics.py`, `test_shortest_path_benchmark_contract.py`, `test_shortest_path_benchmark_runner.py`, `test_shortest_path_benchmark_analysis.py`, and `test_shortest_path_scaling.py`. Use the [native graph tests](../tests/test_native_graph_search.py) and [trace parity tests](../tests/test_native_trace.py) for regression coverage.
 
-Native/API validation cần build release/metrics/trace, focused tests, ruff/pyright
-và non-slow suite theo Makefile khi phạm vi yêu cầu; full/slow mở rộng theo
-failure/risk. Pilot này đã chạy focused suite và Ruff; test files ở trên là phần
-triển khai hiện có, không còn là test dự kiến.
+Native/API validation requires release/metrics/trace builds, focused tests, ruff/pyright, and the non-slow suite from the Makefile when in scope; expand to full/slow tests based on failures/risk. This pilot ran the focused suite and Ruff; the test files above are implemented tests, not planned tests.
 
-## 12. Các track mở rộng đã giữ
+## 12. Retained extension tracks
 
-| Track | Metrics bổ sung | Điều kiện |
+| Track | Additional metrics | Requirement |
 | --- | --- | --- |
-| JPS/grid pruning | Scanned cells/blocks, repeated scans, jump points, forced-neighbor checks, prune reason | Có planner thực và same movement/cost; expansion không thay scan work. |
-| Any-angle | LOS calls, primitive cells/segments checked, geometric cost/validity | Oracle đúng objective; octile optimum không là any-angle optimum. |
-| Sampling | Attempted/accepted/rejected samples; NN queries/distance evaluations; collision calls/steps; rewire attempts/success; tree/index peak; quality/coverage theo budget và RNG seeds | Workload continuous riêng; reuse sample_count/motion_checks/rewires hiện có; không gộp nodes với expansions. |
-| Incremental/real-time | First prefix, max segment latency, repair/update work, retained state, amortized sequence cost | API trả prefix/update thật và fixed change trace. |
-| Hardware profiling | Instructions/cycles/cache/branch misses/allocations | Platform hỗ trợ, run riêng; unavailable=null và machine dependence được ghi. |
+| JPS/grid pruning | Scanned cells/blocks, repeated scans, jump points, forced-neighbor checks, prune reason | An actual planner with the same movement/cost model; expansion alone does not represent scan work. |
+| Any-angle | LOS calls, primitive cells/segments checked, geometric cost/validity | Use an oracle for the correct objective; octile optimum is not an any-angle optimum. |
+| Sampling | Attempted/accepted/rejected samples; NN queries/distance evaluations; collision calls/steps; rewire attempts/success; tree/index peak; quality/coverage by budget and RNG seeds | Separate continuous-space workload; reuse existing sample_count/motion_checks/rewires; do not combine nodes with expansions. |
+| Incremental/real-time | First prefix, maximum segment latency, repair/update work, retained state, amortized sequence cost | The API must return an actual prefix/update and use a fixed change trace. |
+| Hardware profiling | Instructions/cycles/cache/branch misses/allocations | Run separately when the platform supports it; unavailable=null and machine dependence must be recorded. |
 
-[GPPC 2014](https://webdocs.cs.ualberta.ca/~nathanst/papers/GPPC-2014.pdf) đánh giá preprocessing/memory/quality/latency và Pareto trade-offs. Kế hoạch này thêm work definitions, memory lifetime và protocol ở mức implementation để giải thích cơ chế.
+[GPPC 2014](https://webdocs.cs.ualberta.ca/~nathanst/papers/GPPC-2014.pdf) evaluates preprocessing, memory, quality, latency, and Pareto trade-offs. This plan adds implementation-level work definitions, memory lifetimes, and protocol so the mechanisms can be explained.
 
-## 13. Tiêu chí hoàn tất
+## 13. Completion criteria
 
-MVP hoàn tất khi có validated parser/profile, oracle độc lập, work metrics có semantics/coverage, release scopes đúng, native memory và RSS đúng nhãn, report v2 tái tạo được và pilot vượt correctness gates.
+The MVP is complete when it has a validated parser/profile, independent oracle, work metrics with defined semantics/coverage, correct release scopes, properly labeled native memory and RSS, a reproducible v2 report, and a pilot that passes correctness gates.
 
-Kết quả nghiên cứu cần thêm full/scaling cohorts đóng băng, paired distributions/sample counts, coverage/failures, dữ liệu/build provenance và ablation cho cơ chế được tuyên bố. Mỗi phần báo rõ proposed/implemented/measured; số runtime hoặc dashboard riêng chưa hoàn tất các gates này.
+Research results additionally require frozen full/scaling cohorts, paired distributions/sample counts, coverage/failures, data/build provenance, and ablations for the claimed mechanisms. Clearly label each item proposed/implemented/measured; runtime numbers or a standalone dashboard do not satisfy these gates.
