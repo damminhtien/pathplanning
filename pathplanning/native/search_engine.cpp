@@ -1,6 +1,7 @@
 #include "search_engine.h"
 
 #include <algorithm>
+#include <chrono>
 #include <cmath>
 #include <cstdlib>
 #include <cstring>
@@ -32,7 +33,7 @@ struct pp_native_graph {
 
 namespace {
 
-constexpr const char* kVersion = "0.4.0";
+constexpr const char* kVersion = "0.5.0";
 constexpr double kInfinity = std::numeric_limits<double>::infinity();
 constexpr uint64_t kNoGoalId = std::numeric_limits<uint64_t>::max();
 
@@ -44,7 +45,7 @@ struct MetricRecorder {
         *result = pp_search_metrics{};
         result->struct_size = sizeof(pp_search_metrics);
         result->capability_bits = PP_METRICS_CAP_WORK_COUNTERS |
-            PP_METRICS_CAP_TRACKED_QUERY_ALLOCATIONS | PP_METRICS_CAP_NO_REOPEN;
+            PP_METRICS_CAP_TRACKED_QUERY_ALLOCATIONS;
     }
 
     void allocate(MetricAllocationKind kind, uint64_t bytes) noexcept {
@@ -72,6 +73,8 @@ struct MetricRecorder {
         ++result->expanded;
         ++(reverse ? result->expanded_backward : result->expanded_forward);
     }
+
+    void reopen() noexcept { ++result->reopens; }
 
     void frontier_push(bool reverse) noexcept {
         ++result->frontier_pushes;
@@ -200,6 +203,8 @@ using PathVector = std::vector<uint64_t, MetricsAllocator<uint64_t, MetricAlloca
     do { if (active_metrics != nullptr) active_metrics->discover((REVERSE)); } while (0)
 #define PP_METRIC_EXPAND(REVERSE) \
     do { if (active_metrics != nullptr) active_metrics->expand((REVERSE)); } while (0)
+#define PP_METRIC_REOPEN() \
+    do { if (active_metrics != nullptr) active_metrics->reopen(); } while (0)
 #define PP_METRIC_PUSH(REVERSE) \
     do { if (active_metrics != nullptr) active_metrics->frontier_push((REVERSE)); } while (0)
 #define PP_METRIC_POP(REVERSE) \
@@ -212,6 +217,7 @@ using PathVector = std::vector<uint64_t>;
 #define PP_METRIC_INC(FIELD) ((void)0)
 #define PP_METRIC_DISCOVER(REVERSE) ((void)0)
 #define PP_METRIC_EXPAND(REVERSE) ((void)0)
+#define PP_METRIC_REOPEN() ((void)0)
 #define PP_METRIC_PUSH(REVERSE) ((void)0)
 #define PP_METRIC_POP(REVERSE) ((void)0)
 #endif
@@ -306,6 +312,10 @@ struct SearchStates {
         return (flags[static_cast<size_t>(node_id)] & kClosed) != 0;
     }
 
+    void reopen(uint64_t node_id) {
+        flags[static_cast<size_t>(node_id)] &= static_cast<uint8_t>(~kClosed);
+    }
+
     void set_parent(uint64_t node_id, uint64_t parent_id) {
         parents[static_cast<size_t>(node_id)] = static_cast<ParentId>(parent_id);
     }
@@ -370,6 +380,7 @@ void reset_result(pp_search_result* result) {
     result->success = 0;
     result->stop_reason = PP_SEARCH_STOP_ERROR;
     result->iters = 0;
+    result->reopens = 0;
     result->nodes = 0;
     result->path_cost = kInfinity;
     result->path_ids = nullptr;
@@ -443,6 +454,7 @@ void validate_search_options(const pp_search_options* options, uint64_t node_cou
         case PP_SEARCH_BIDIRECTIONAL_DIJKSTRA:
         case PP_SEARCH_BIDIRECTIONAL_ASTAR:
         case PP_SEARCH_ANYTIME_ASTAR:
+        case PP_SEARCH_REEXP_ASTAR:
             break;
         default:
             throw std::invalid_argument("unknown search algorithm");
@@ -452,6 +464,25 @@ void validate_search_options(const pp_search_options* options, uint64_t node_cou
     }
     if (options->has_max_expansions && options->max_expansions == 0) {
         throw std::invalid_argument("max_expansions must be > 0 when enabled");
+    }
+    if (options->algorithm == PP_SEARCH_REEXP_ASTAR) {
+        if (options->heuristic_weight < 1.0) {
+            throw std::invalid_argument("ReExpAstar weight must be >= 1.0");
+        }
+        if (std::isnan(options->reopen_threshold) || options->reopen_threshold < 0.0) {
+            throw std::invalid_argument("reopen_threshold must be >= 0 or infinity");
+        }
+        if (options->reopen_mode < PP_SEARCH_REOPEN_ABS ||
+            options->reopen_mode > PP_SEARCH_REOPEN_REL_G) {
+            throw std::invalid_argument("reopen_mode must be a valid pp_search_reopen_mode");
+        }
+        if (options->tie_break < PP_SEARCH_TIE_G_LOW ||
+            options->tie_break > PP_SEARCH_TIE_G_HIGH) {
+            throw std::invalid_argument("tie_break must be a valid pp_search_tie_break");
+        }
+        if (!std::isfinite(options->max_runtime_ms) || options->max_runtime_ms < 0.0) {
+            throw std::invalid_argument("max_runtime_ms must be finite and >= 0");
+        }
     }
     if (options->algorithm == PP_SEARCH_BIDIRECTIONAL_DIJKSTRA ||
         options->algorithm == PP_SEARCH_BIDIRECTIONAL_ASTAR) {
@@ -496,6 +527,40 @@ bool is_goal(const uint8_t* goal_flags, const pp_search_options* options, uint64
 
 bool over_expansion_budget(const pp_search_options* options, uint64_t expanded) {
     return options->has_max_expansions && expanded >= options->max_expansions;
+}
+
+bool over_runtime_budget(
+    const pp_search_options* options,
+    const std::chrono::steady_clock::time_point& started
+) {
+    if (options->algorithm != PP_SEARCH_REEXP_ASTAR || options->max_runtime_ms <= 0.0) {
+        return false;
+    }
+    const auto elapsed = std::chrono::duration<double, std::milli>(
+        std::chrono::steady_clock::now() - started
+    );
+    return elapsed.count() > options->max_runtime_ms;
+}
+
+bool reexpansion_allowed(
+    const pp_search_options* options,
+    double delta,
+    double edge_cost,
+    double old_g
+) {
+    switch (options->reopen_mode) {
+        case PP_SEARCH_REOPEN_REL_EDGE:
+            return delta > options->reopen_threshold * edge_cost;
+        case PP_SEARCH_REOPEN_REL_G:
+            return delta > options->reopen_threshold *
+                (std::isfinite(old_g) ? std::max(1.0, old_g) : 1.0);
+        default:
+            return delta > options->reopen_threshold;
+    }
+}
+
+double reexpansion_tie_score(const pp_search_options* options, double g_cost) {
+    return options->tie_break == PP_SEARCH_TIE_G_HIGH ? -g_cost : g_cost;
 }
 
 double compute_heuristic(
@@ -610,12 +675,14 @@ void set_failure_result(
     pp_search_result* result,
     pp_search_stop_reason reason,
     uint64_t expanded,
-    uint64_t nodes
+    uint64_t nodes,
+    uint64_t reopens = 0
 ) {
     reset_result(result);
     result->success = 0;
     result->stop_reason = reason;
     result->iters = expanded;
+    result->reopens = reopens;
     result->nodes = nodes;
     result->path_cost = kInfinity;
 }
@@ -625,11 +692,13 @@ void set_success_result(
     uint64_t expanded,
     uint64_t nodes,
     double path_cost,
-    const PathVector& path
+    const PathVector& path,
+    uint64_t reopens = 0
 ) {
     result->success = 1;
     result->stop_reason = PP_SEARCH_STOP_SUCCESS;
     result->iters = expanded;
+    result->reopens = reopens;
     result->nodes = nodes;
     result->path_cost = path_cost;
     store_path(result, path);
@@ -752,23 +821,40 @@ int run_best_first_search(
     PP_TRACE(PP_TRACE_DISCOVER, start_id, kNoGoalId, 0.0, 0);
 
     const bool greedy = options->algorithm == PP_SEARCH_GREEDY_BEST_FIRST;
+    const bool reexpansion = options->algorithm == PP_SEARCH_REEXP_ASTAR;
     const bool use_heuristic =
         options->algorithm == PP_SEARCH_ASTAR ||
         options->algorithm == PP_SEARCH_WEIGHTED_ASTAR ||
+        reexpansion ||
         options->algorithm == PP_SEARCH_GREEDY_BEST_FIRST;
     const double heuristic_weight = use_heuristic ? options->heuristic_weight : 0.0;
 
     uint64_t order = 0;
     const double start_h =
         compute_heuristic(graph, heuristic_values, start_id, options, heuristic_weight);
-    open.push(QueueEntry{start_h, start_h, order++, start_id});
+    const double start_tie = reexpansion
+        ? reexpansion_tie_score(options, 0.0)
+        : start_h;
+    open.push(QueueEntry{start_h, start_tie, order++, start_id});
     PP_METRIC_PUSH(false);
 
     uint64_t expanded = 0;
     uint64_t discovered = 1;
+    uint64_t reopens = 0;
+    const auto started = std::chrono::steady_clock::now();
     const AdjacencyView edges = adjacency(graph, false);
 
     while (!open.empty()) {
+        if (over_runtime_budget(options, started)) {
+            set_failure_result(
+                result,
+                PP_SEARCH_STOP_TIME_BUDGET,
+                expanded,
+                discovered,
+                reopens
+            );
+            return 0;
+        }
         const QueueEntry entry = open.top();
         open.pop();
         PP_METRIC_POP(false);
@@ -790,13 +876,20 @@ int run_best_first_search(
                 expanded,
                 discovered,
                 states.g_cost(entry.node_id),
-                reconstruct_path(states, start_id, entry.node_id)
+                reconstruct_path(states, start_id, entry.node_id),
+                reopens
             );
             return 0;
         }
 
         if (over_expansion_budget(options, expanded)) {
-            set_failure_result(result, PP_SEARCH_STOP_MAX_ITERS, expanded, discovered);
+            set_failure_result(
+                result,
+                PP_SEARCH_STOP_MAX_ITERS,
+                expanded,
+                discovered,
+                reopens
+            );
             return 0;
         }
 
@@ -816,18 +909,41 @@ int run_best_first_search(
             }
             PP_METRIC_INC(relaxation_attempts);
 
-            if (states.is_closed(neighbor_id)) {
-                PP_METRIC_INC(closed_neighbor_skips);
-                continue;
-            }
-            if (greedy) {
-                if (std::isfinite(states.g_cost(neighbor_id))) {
-                    PP_METRIC_INC(greedy_known_skips);
+            const bool was_closed = states.is_closed(neighbor_id);
+            if (reexpansion) {
+                if (tentative >= states.g_cost(neighbor_id)) {
+                    PP_METRIC_INC(nonimproving_skips);
                     continue;
                 }
-            } else if (tentative >= states.g_cost(neighbor_id)) {
-                PP_METRIC_INC(nonimproving_skips);
-                continue;
+                if (was_closed) {
+                    const double delta = states.g_cost(neighbor_id) - tentative;
+                    if (!reexpansion_allowed(
+                            options,
+                            delta,
+                            edge_cost,
+                            states.g_cost(neighbor_id)
+                        )) {
+                        PP_METRIC_INC(closed_neighbor_skips);
+                        continue;
+                    }
+                    states.reopen(neighbor_id);
+                    ++reopens;
+                    PP_METRIC_REOPEN();
+                }
+            } else {
+                if (was_closed) {
+                    PP_METRIC_INC(closed_neighbor_skips);
+                    continue;
+                }
+                if (greedy) {
+                    if (std::isfinite(states.g_cost(neighbor_id))) {
+                        PP_METRIC_INC(greedy_known_skips);
+                        continue;
+                    }
+                } else if (tentative >= states.g_cost(neighbor_id)) {
+                    PP_METRIC_INC(nonimproving_skips);
+                    continue;
+                }
             }
 
             const bool first_discovery = !std::isfinite(states.g_cost(neighbor_id));
@@ -853,12 +969,15 @@ int run_best_first_search(
                 heuristic_weight
             );
             const double f_score = greedy ? h_score : tentative + h_score;
-            open.push(QueueEntry{f_score, h_score, order++, neighbor_id});
+            const double tie_score = reexpansion
+                ? reexpansion_tie_score(options, tentative)
+                : h_score;
+            open.push(QueueEntry{f_score, tie_score, order++, neighbor_id});
             PP_METRIC_PUSH(false);
         }
     }
 
-    set_failure_result(result, PP_SEARCH_STOP_NO_PROGRESS, expanded, discovered);
+    set_failure_result(result, PP_SEARCH_STOP_NO_PROGRESS, expanded, discovered, reopens);
     return 0;
 }
 
@@ -1378,6 +1497,7 @@ int run_search_by_algorithm(
         case PP_SEARCH_ASTAR:
         case PP_SEARCH_DIJKSTRA:
         case PP_SEARCH_WEIGHTED_ASTAR:
+        case PP_SEARCH_REEXP_ASTAR:
             return run_best_first_search<ParentId>(
                 graph,
                 goal_flags,
@@ -1905,6 +2025,10 @@ extern "C" int pp_native_search_plan_measured(
         return 1;
     }
     MetricRecorder recorder(metrics);
+    metrics->capability_bits |=
+        options != nullptr && options->algorithm == PP_SEARCH_REEXP_ASTAR
+            ? PP_METRICS_CAP_REOPEN
+            : PP_METRICS_CAP_NO_REOPEN;
     MetricScope scope(&recorder);
     return pp_native_search_plan(
         graph, goal_flags, heuristic_values, start_id, options, result

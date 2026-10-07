@@ -12,7 +12,7 @@ Status: proposed for implementation. This document supersedes the plan from the 
 | Use native Dijkstra as the oracle | Use an independent reference Dijkstra over the original occupancy grid. Native Dijkstra is one of the evaluated algorithms. |
 | Treat graph_init_s as graph creation time | The current field includes the adapter, query mapping, and heuristic preparation; the graph may be reused. Measure these boundaries separately. |
 | Infer memory from expanded | SearchStates allocates arrays for all node slots. Record slots, capacity, and live allocations. |
-| Apply reopen/re-expansion counters to every kernel | The current kernel skips CLOSED nodes and does not support reopening. Record capability and null for inapplicable metrics. Separate repeated expansions across anytime passes. |
+| Apply reopen/re-expansion counters to every kernel | `reexp_astar` supports thresholded reopening; existing search kernels skip CLOSED nodes. Record capability per variant and leave reopen counts null for unsupported kernels. Separate repeated expansions across anytime passes. |
 | Include reverse-edge caching in query time | Reverse CSR is created lazily and then retained by the graph. Measure preparation, first query, reuse, and ownership for each variant. |
 | Seed + repeats are sufficient for fairness | Specify timer scope, graph state, heuristic mode, paired schedule, statistical unit, and timeout handling. |
 | Subtract two ru_maxrss values to estimate query peak | ru_maxrss is a lifetime high-water mark. Report process peak; measure native memory and sampled RSS windows separately. |
@@ -115,7 +115,7 @@ Counters are uint64 in C/C++ and int in JSON. Do not route them through PlanResu
 | heuristic_lookups / computations | Separate reads from the h-array and actual h computations; validation has its own phase. |
 | validation_edge_checks | Full CSR consistency scan in bidirectional A*; do not mix with search-loop edges_examined. |
 | goal_tests | Goal checks in the kernel; goal-mask preparation in Python is a separate field. |
-| reopen_count / reexpanded_same_pass | null when supports_reopen=false in the current implementation. |
+| reopen_count / reexpanded_same_pass | Record the count for `reexp_astar`; use null for kernels with `supports_reopen=false`. Separate repeated expansions across anytime passes. |
 | anytime pass fields | Counters per pass, total work across passes, and maximum live memory; current anytime nodes are the sum of discoveries across passes. |
 
 Derived ratios: expanded/V_free, edges_examined/E, successful/attempted relaxations, stale_pops/frontier_pops, pushes/expanded. A zero denominator yields null. Do not add these categories into a single “total operations” count because edge checks, heap pushes, and h-computations have different costs. heap_comparisons is an extension after the MVP.

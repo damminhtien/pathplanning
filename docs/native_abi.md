@@ -8,10 +8,10 @@ its C ABI version.
 
 | Library | ABI constant | Probe function | Supported ABI |
 | --- | --- | --- | --- |
-| C++ graph search | `PP_SEARCH_ABI_VERSION` | `pp_search_abi_version()` | 4 |
+| C++ graph search | `PP_SEARCH_ABI_VERSION` | `pp_search_abi_version()` | 5 |
 | C sampling planners | `PP_CONTINUOUS_ABI_VERSION` | `pp_continuous_abi_version()` | 1 |
 | C++ diagnostic search | `PP_SEARCH_TRACE_ABI_VERSION` | `pp_search_trace_abi_version()` | 1 |
-| C++ diagnostic search metrics | `PP_SEARCH_METRICS_ABI_VERSION` | `pp_search_metrics_abi_version()` | 1 |
+| C++ diagnostic search metrics | `PP_SEARCH_METRICS_ABI_VERSION` | `pp_search_metrics_abi_version()` | 2 |
 | C diagnostic sampling | `PP_CONTINUOUS_TRACE_ABI_VERSION` | `pp_continuous_trace_abi_version()` | 1 |
 
 The constants are declared in `pathplanning/native/abi_version.h`. Increment
@@ -30,6 +30,10 @@ collection. Search ABI 3 removed the callback-based `pp_search_plan()` and
 `pp_astar_plan()` entrypoints. Search ABI 4 adds graph storage inspection and
 idempotent reverse-CSR preparation, and exposes a borrowed CSR view for cloning
 a graph into diagnostic libraries. Continuous production ABI did not change.
+Search ABI 5 adds the `reexp_astar` search algorithm, its conditional reopen
+options and runtime budget, and a reopen count in `pp_search_result`. Metrics
+ABI 2 adds the same reopen count and reports whether the selected algorithm
+supports re-expansion.
 
 The production `_search_engine` is built without `PP_ENABLE_METRICS`; metric
 macros compile to no-ops and search containers use the normal

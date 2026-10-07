@@ -27,6 +27,7 @@ from pathplanning.planners.search.breadth_first_search import plan_breadth_first
 from pathplanning.planners.search.depth_first_search import plan_depth_first_search
 from pathplanning.planners.search.dijkstra import plan_dijkstra
 from pathplanning.planners.search.greedy_best_first import plan_greedy_best_first
+from pathplanning.planners.search.reexp_astar import plan_reexp_astar
 from pathplanning.planners.search.weighted_astar import plan_weighted_astar
 
 ProblemKind = Literal["discrete", "continuous"]
@@ -105,6 +106,18 @@ _PLANNER_SPECS: tuple[tuple[str, PlannerSpec], ...] = (
     ),
     ("dijkstra", PlannerSpec("discrete", plan_dijkstra)),
     ("weighted_astar", PlannerSpec("discrete", plan_weighted_astar)),
+    (
+        "reexp_astar",
+        PlannerSpec(
+            "discrete",
+            plan_reexp_astar,
+            (
+                "Weighted A* with conditional closed-node re-expansion; "
+                "r uses r_mode (abs, rel_edge, or rel_g), and "
+                "tie_break is g_low or g_high.",
+            ),
+        ),
+    ),
     ("anytime_astar", PlannerSpec("discrete", plan_anytime_astar)),
     ("rrt", PlannerSpec("continuous", plan_rrt)),
     ("rrt_star", PlannerSpec("continuous", plan_rrt_star)),

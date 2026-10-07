@@ -41,6 +41,7 @@ _STOP_REASONS = {
     0: StopReason.SUCCESS,
     1: StopReason.MAX_ITERS,
     2: StopReason.NO_PROGRESS,
+    4: StopReason.TIME_BUDGET,
 }
 _ALGORITHM_BFS = 1
 _ALGORITHM_DFS = 2
@@ -51,6 +52,7 @@ _ALGORITHM_WEIGHTED_ASTAR = 6
 _ALGORITHM_BIDIRECTIONAL_DIJKSTRA = 7
 _ALGORITHM_ANYTIME_ASTAR = 8
 _ALGORITHM_BIDIRECTIONAL_ASTAR = 9
+_ALGORITHM_REEXP_ASTAR = 10
 _DEFAULT_MAX_MATERIALIZED_NODES = 1_000_000
 _NO_GOAL_ID = (1 << 64) - 1
 _MAX_PRECOMPUTED_HEURISTIC_NODES = 65_536
@@ -280,6 +282,10 @@ def run_native_search(
     heuristic_weight: float = 1.0,
     require_exact_goal: bool = False,
     anytime_weights: tuple[float, ...] = (),
+    reopen_threshold: float = 0.0,
+    reopen_mode: int = 0,
+    tie_break: int = 0,
+    max_runtime_ms: float = 0.0,
     trace: TraceOptions | None = None,
 ) -> PlanResult:
     """Run a native graph-search kernel after one-time graph preparation."""
@@ -310,6 +316,10 @@ def run_native_search(
         int(adapter.goal_id),
         weights_pointer,
         len(anytime_weights),
+        float(reopen_threshold),
+        int(reopen_mode),
+        int(tie_break),
+        float(max_runtime_ms),
     )
     result = SearchResult()
     trace_result = TraceResult()
@@ -395,6 +405,8 @@ def run_native_search(
             "native_search_s": native_search_s,
             "expanded": float(result.iters),
         }
+        if algorithm == _ALGORITHM_REEXP_ASTAR:
+            stats["reopens"] = float(result.reopens)
         if result.success:
             stats["path_cost"] = float(result.path_cost)
             if path is not None:
@@ -451,6 +463,32 @@ def run_native_best_first(
         max_expansions=max_expansions,
         use_heuristic=use_heuristic,
         heuristic_weight=heuristic_weight,
+        trace=trace,
+    )
+
+
+def run_native_reexp_astar(
+    problem: DiscreteProblem[N],
+    *,
+    max_expansions: int | None,
+    max_runtime_ms: float,
+    weight: float,
+    threshold: float,
+    reopen_mode: int,
+    tie_break: int,
+    trace: TraceOptions | None = None,
+) -> PlanResult:
+    """Run Weighted A* with conditional closed-node re-expansion."""
+    return run_native_search(
+        problem,
+        algorithm=_ALGORITHM_REEXP_ASTAR,
+        max_expansions=max_expansions,
+        use_heuristic=True,
+        heuristic_weight=weight,
+        reopen_threshold=threshold,
+        reopen_mode=reopen_mode,
+        tie_break=tie_break,
+        max_runtime_ms=max_runtime_ms,
         trace=trace,
     )
 

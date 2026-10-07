@@ -17,6 +17,7 @@ from that registry.
 | `discrete` | `bidirectional_astar` | `pathplanning.planners.search.bidirectional_astar` | `plan_bidirectional_astar` | supported |
 | `discrete` | `dijkstra` | `pathplanning.planners.search.dijkstra` | `plan_dijkstra` | supported |
 | `discrete` | `weighted_astar` | `pathplanning.planners.search.weighted_astar` | `plan_weighted_astar` | supported |
+| `discrete` | `reexp_astar` | `pathplanning.planners.search.reexp_astar` | `plan_reexp_astar` | supported |
 | `discrete` | `anytime_astar` | `pathplanning.planners.search.anytime_astar` | `plan_anytime_astar` | supported |
 | `continuous` | `rrt` | `pathplanning.planners.sampling.rrt` | `plan_rrt` | supported |
 | `continuous` | `rrt_star` | `pathplanning.planners.sampling.rrt_star` | `plan_rrt_star` | supported |
@@ -30,6 +31,7 @@ Planner-specific constraints:
 
 - `bidirectional_dijkstra`: uses two Dijkstra frontiers and does not evaluate a heuristic; it requires an exact goal node.
 - `bidirectional_astar`: runs the same native kernel over potential-reweighted edges and requires a consistent heuristic and an exact goal node.
+- `reexp_astar`: Weighted A* with conditional closed-node re-expansion; r uses r_mode (abs, rel_edge, or rel_g), and tie_break is g_low or g_high.
 - `informed_rrt_star`, `fmt_star`, `bit_star`, `abit_star`: require exact point goals, Euclidean state-space distance, and additive path length; custom objectives are rejected because the search bounds rely on additive path length.
 - `fmt_star`: uses `sample_count` as its fixed sample set size.
 - `bit_star`, `abit_star`: use `sample_count` across batches and `batch_size` per batch.

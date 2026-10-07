@@ -9,7 +9,10 @@ from typing import TypeVar
 from pathplanning.core.contracts import DiscreteProblem
 from pathplanning.core.results import PlanResult
 from pathplanning.core.trace import TraceOptions
-from pathplanning.planners.search._internal.native import run_native_best_first
+from pathplanning.planners.search._internal.native import (
+    run_native_best_first,
+    run_native_reexp_astar,
+)
 
 N = TypeVar("N")
 
@@ -61,8 +64,33 @@ def run_best_first(
     )
 
 
+def run_reexp_astar(
+    problem: DiscreteProblem[N],
+    *,
+    max_expansions: int | None,
+    max_runtime_ms: float,
+    weight: float,
+    threshold: float,
+    reopen_mode: int,
+    tie_break: int,
+    trace: TraceOptions | None = None,
+) -> PlanResult:
+    """Run ReExpAStar through the native C++ search core."""
+    return run_native_reexp_astar(
+        problem,
+        max_expansions=max_expansions,
+        max_runtime_ms=max_runtime_ms,
+        weight=weight,
+        threshold=threshold,
+        reopen_mode=reopen_mode,
+        tie_break=tie_break,
+        trace=trace,
+    )
+
+
 __all__ = [
     "coerce_max_expansions",
     "coerce_weight",
     "run_best_first",
+    "run_reexp_astar",
 ]

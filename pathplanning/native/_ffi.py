@@ -24,6 +24,10 @@ class SearchOptions(ctypes.Structure):
         ("goal_id", ctypes.c_uint64),
         ("anytime_weights", ctypes.POINTER(ctypes.c_double)),
         ("anytime_weight_count", ctypes.c_size_t),
+        ("reopen_threshold", ctypes.c_double),
+        ("reopen_mode", ctypes.c_int),
+        ("tie_break", ctypes.c_int),
+        ("max_runtime_ms", ctypes.c_double),
     ]
 
 
@@ -32,6 +36,7 @@ class SearchResult(ctypes.Structure):
         ("success", ctypes.c_int),
         ("stop_reason", ctypes.c_int),
         ("iters", ctypes.c_uint64),
+        ("reopens", ctypes.c_uint64),
         ("nodes", ctypes.c_uint64),
         ("path_cost", ctypes.c_double),
         ("path_ids", ctypes.POINTER(ctypes.c_uint64)),
@@ -95,6 +100,7 @@ class SearchMetrics(ctypes.Structure):
         (field, ctypes.c_uint64)
         for field in (
             "expanded",
+            "reopens",
             "expanded_forward",
             "expanded_backward",
             "discovered_first",
@@ -179,8 +185,8 @@ _SEARCH_METRICS_LIB: ctypes.CDLL | None = None
 _CONTINUOUS_TRACE_LIB: ctypes.CDLL | None = None
 
 # Keep these exact-match requirements synchronized with abi_version.h.
-_SEARCH_ABI_VERSION = 4
-_SEARCH_METRICS_ABI_VERSION = 1
+_SEARCH_ABI_VERSION = 5
+_SEARCH_METRICS_ABI_VERSION = 2
 _CONTINUOUS_ABI_VERSION = 1
 _TRACE_ABI_VERSION = 1
 
@@ -458,7 +464,9 @@ def load_search_metrics_library() -> ctypes.CDLL:
     if _SEARCH_METRICS_LIB is not None:
         return _SEARCH_METRICS_LIB
 
-    candidates = [native_directory() / f"_search_metrics_engine{suffix}" for suffix in EXTENSION_SUFFIXES]
+    candidates = [
+        native_directory() / f"_search_metrics_engine{suffix}" for suffix in EXTENSION_SUFFIXES
+    ]
     for candidate in candidates:
         if not candidate.exists():
             continue

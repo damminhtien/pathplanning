@@ -27,6 +27,7 @@ typedef enum pp_search_stop_reason {
     PP_SEARCH_STOP_MAX_ITERS = 1,
     PP_SEARCH_STOP_NO_PROGRESS = 2,
     PP_SEARCH_STOP_ERROR = 3,
+    PP_SEARCH_STOP_TIME_BUDGET = 4,
 } pp_search_stop_reason;
 
 typedef enum pp_search_algorithm {
@@ -39,7 +40,19 @@ typedef enum pp_search_algorithm {
     PP_SEARCH_BIDIRECTIONAL_DIJKSTRA = 7,
     PP_SEARCH_ANYTIME_ASTAR = 8,
     PP_SEARCH_BIDIRECTIONAL_ASTAR = 9,
+    PP_SEARCH_REEXP_ASTAR = 10,
 } pp_search_algorithm;
+
+typedef enum pp_search_reopen_mode {
+    PP_SEARCH_REOPEN_ABS = 0,
+    PP_SEARCH_REOPEN_REL_EDGE = 1,
+    PP_SEARCH_REOPEN_REL_G = 2,
+} pp_search_reopen_mode;
+
+typedef enum pp_search_tie_break {
+    PP_SEARCH_TIE_G_LOW = 0,
+    PP_SEARCH_TIE_G_HIGH = 1,
+} pp_search_tie_break;
 
 typedef struct pp_native_graph pp_native_graph;
 
@@ -78,6 +91,10 @@ typedef struct pp_search_options {
     uint64_t goal_id;
     const double* anytime_weights;
     size_t anytime_weight_count;
+    double reopen_threshold;  // Non-negative; positive infinity disables reopening.
+    int reopen_mode;          // pp_search_reopen_mode
+    int tie_break;            // pp_search_tie_break
+    double max_runtime_ms;    // Milliseconds; zero disables the runtime budget.
 } pp_search_options;
 
 // Native-owned path_ids and error_message must only be released by
@@ -86,6 +103,7 @@ typedef struct pp_search_result {
     int success;
     int stop_reason;
     uint64_t iters;
+    uint64_t reopens;
     uint64_t nodes;
     double path_cost;
     uint64_t* path_ids;

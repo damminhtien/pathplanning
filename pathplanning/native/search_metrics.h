@@ -14,6 +14,7 @@ enum {
     PP_METRICS_CAP_WORK_COUNTERS = 1u,
     PP_METRICS_CAP_TRACKED_QUERY_ALLOCATIONS = 2u,
     PP_METRICS_CAP_NO_REOPEN = 4u,
+    PP_METRICS_CAP_REOPEN = 8u,
 };
 
 // Set struct_size to sizeof(pp_search_metrics) before every call. All counts
@@ -24,6 +25,7 @@ typedef struct pp_search_metrics {
     uint64_t struct_size;
     uint64_t capability_bits;
     uint64_t expanded;
+    uint64_t reopens;
     uint64_t expanded_forward;
     uint64_t expanded_backward;
     uint64_t discovered_first;

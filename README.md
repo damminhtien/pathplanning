@@ -208,6 +208,21 @@ result = plan_discrete(problem, planner="astar", seed=0)
 print(result.success, result.iters)
 ```
 
+For inconsistent heuristics, `reexp_astar` exposes Weighted A* with conditional
+closed-node re-expansion. Its parameters follow ReExpAstar: `weight`, `r`,
+`r_mode` (`abs`, `rel_edge`, or `rel_g`), and `tie_break` (`g_low` or
+`g_high`). `r=0` always reopens improved closed nodes; `r=float("inf")` never
+reopens them. `max_runtime_ms` and `max_expansions` bound a search.
+
+```python
+result = plan_discrete(
+    problem,
+    planner="reexp_astar",
+    params={"weight": 1.5, "r": 0.2, "r_mode": "abs"},
+)
+print(result.success, result.stats.get("reopens", 0.0))
+```
+
 ### Native graph input
 
 Discrete searches run against a C++-owned CSR graph. For repeated queries or
