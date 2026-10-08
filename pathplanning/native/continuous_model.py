@@ -37,4 +37,17 @@ class NativeContinuousSpaceProvider(Protocol):
         ...
 
 
-__all__ = ["NativeContinuousSpaceModel", "NativeContinuousSpaceProvider"]
+@dataclass(frozen=True, slots=True)
+class NativeAckermannGridModel:
+    """Occupancy and vehicle geometry consumed by native SE(2) search."""
+
+    occupancy: ArrayLike
+    resolution: float
+    origin: ArrayLike
+
+
+__all__ = [
+    "NativeContinuousSpaceModel",
+    "NativeContinuousSpaceProvider",
+    "NativeAckermannGridModel",
+]

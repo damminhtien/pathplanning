@@ -1,3 +1,4 @@
 recursive-exclude * __pycache__ *.pyc *.pyo *.pyd *.so *.dylib *.dll
 include pathplanning/py.typed
-recursive-include pathplanning/native *.c *.cpp *.h
+recursive-include pathplanning/native *.c *.cpp *.h *.hpp
+include pathplanning/THIRD_PARTY_NOTICES.md

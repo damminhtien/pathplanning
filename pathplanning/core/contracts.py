@@ -240,6 +240,20 @@ class ManipulabilitySpace(Protocol[S_contra]):
 
 
 @runtime_checkable
+class KinematicSpace(Protocol[S_contra]):
+    """Vehicle geometry required by native SE(2) kinematic planners."""
+
+    wheelbase: Float
+    max_steering_angle: Float
+    footprint_length: Float
+    footprint_width: Float
+
+    def is_state_valid(self, state: S_contra) -> bool:
+        """Return whether the full robot footprint is collision free at a pose."""
+        ...
+
+
+@runtime_checkable
 class SupportsBatchCollisionStepMotionCheck(Protocol[S_contra]):
     """Optional batched motion-check extension that accepts a local step size."""
 

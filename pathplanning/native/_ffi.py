@@ -60,6 +60,69 @@ class SippResult(ctypes.Structure):
     ]
 
 
+HybridStateValidCallback = ctypes.CFUNCTYPE(
+    ctypes.c_int,
+    ctypes.c_void_p,
+    ctypes.POINTER(ctypes.c_double),
+    ctypes.c_size_t,
+)
+
+
+class HybridAStarSpace(ctypes.Structure):
+    _fields_ = [
+        ("grid_width", ctypes.c_uint64),
+        ("grid_height", ctypes.c_uint64),
+        ("occupancy", ctypes.POINTER(ctypes.c_uint8)),
+        ("grid_resolution", ctypes.c_double),
+        ("origin_x", ctypes.c_double),
+        ("origin_y", ctypes.c_double),
+        ("wheelbase", ctypes.c_double),
+        ("max_steering_angle", ctypes.c_double),
+        ("footprint_length", ctypes.c_double),
+        ("footprint_width", ctypes.c_double),
+        ("state_valid", HybridStateValidCallback),
+        ("user_data", ctypes.c_void_p),
+    ]
+
+
+class HybridAStarOptions(ctypes.Structure):
+    _fields_ = [
+        ("max_expansions", ctypes.c_uint64),
+        ("max_runtime_ms", ctypes.c_double),
+        ("xy_resolution", ctypes.c_double),
+        ("heading_bins", ctypes.c_uint64),
+        ("primitive_length", ctypes.c_double),
+        ("collision_step", ctypes.c_double),
+        ("goal_xy_tolerance", ctypes.c_double),
+        ("goal_yaw_tolerance", ctypes.c_double),
+        ("analytic_expansion_distance", ctypes.c_double),
+        ("analytic_expansion_interval", ctypes.c_uint64),
+        ("heuristic_weight", ctypes.c_double),
+        ("reverse_penalty", ctypes.c_double),
+        ("steering_penalty", ctypes.c_double),
+        ("direction_switch_penalty", ctypes.c_double),
+        ("allow_reverse", ctypes.c_int),
+    ]
+
+
+class HybridAStarResult(ctypes.Structure):
+    _fields_ = [
+        ("success", ctypes.c_int),
+        ("stop_reason", ctypes.c_int),
+        ("iters", ctypes.c_uint64),
+        ("nodes", ctypes.c_uint64),
+        ("motion_checks", ctypes.c_uint64),
+        ("analytic_expansions", ctypes.c_uint64),
+        ("first_solution_iter", ctypes.c_uint64),
+        ("path_cost", ctypes.c_double),
+        ("elapsed_s", ctypes.c_double),
+        ("poses", ctypes.POINTER(ctypes.c_double)),
+        ("directions", ctypes.POINTER(ctypes.c_int8)),
+        ("path_length", ctypes.c_size_t),
+        ("error_message", ctypes.c_char_p),
+    ]
+
+
 class MapfResult(ctypes.Structure):
     _fields_ = [
         ("success", ctypes.c_int),
@@ -271,6 +334,8 @@ _SEARCH_METRICS_ABI_VERSION = 2
 _CONTINUOUS_ABI_VERSION = 9
 _SEARCH_TRACE_ABI_VERSION = 10
 _CONTINUOUS_TRACE_ABI_VERSION = 9
+_KINODYNAMIC_ABI_VERSION = 1
+_KINODYNAMIC_TRACE_ABI_VERSION = 1
 
 
 class NativeLibraryLoadError(RuntimeError):
@@ -528,6 +593,9 @@ def load_native_library() -> ctypes.CDLL:
                 "pp_sipp_free_result",
                 "pp_eecbs_plan",
                 "pp_lacam_star_plan",
+                "pp_kinodynamic_abi_version",
+                "pp_hybrid_astar_plan",
+                "pp_hybrid_astar_free_result",
                 "pp_mapf_free_result",
                 "pp_search_free_result",
                 "pp_search_engine_version",
@@ -705,6 +773,23 @@ def load_native_library() -> ctypes.CDLL:
         library.pp_search_free_result.restype = None
         library.pp_search_engine_version.argtypes = []
         library.pp_search_engine_version.restype = ctypes.c_char_p
+        library.pp_kinodynamic_abi_version.argtypes = []
+        library.pp_kinodynamic_abi_version.restype = ctypes.c_uint32
+        if library.pp_kinodynamic_abi_version() != _KINODYNAMIC_ABI_VERSION:
+            raise NativeLibraryCompatibilityError(
+                "native kinodynamic library ABI does not match this Python package; "
+                "rebuild or reinstall PathPlanning"
+            )
+        library.pp_hybrid_astar_plan.argtypes = [
+            ctypes.POINTER(HybridAStarSpace),
+            ctypes.POINTER(ctypes.c_double),
+            ctypes.POINTER(ctypes.c_double),
+            ctypes.POINTER(HybridAStarOptions),
+            ctypes.POINTER(HybridAStarResult),
+        ]
+        library.pp_hybrid_astar_plan.restype = ctypes.c_int
+        library.pp_hybrid_astar_free_result.argtypes = [ctypes.POINTER(HybridAStarResult)]
+        library.pp_hybrid_astar_free_result.restype = None
         _NATIVE_LIB = library
         return library
 
@@ -804,6 +889,8 @@ def load_search_trace_library() -> ctypes.CDLL:
                 "pp_kinodynamic_sipp_plan_traced",
                 "pp_eecbs_plan_traced",
                 "pp_lacam_star_plan_traced",
+                "pp_kinodynamic_trace_abi_version",
+                "pp_hybrid_astar_plan_traced",
                 "pp_sipp_free_result",
                 "pp_search_free_result",
                 "pp_search_trace_free_result",
@@ -907,6 +994,23 @@ def load_search_trace_library() -> ctypes.CDLL:
         _SEARCH_TRACE_LIB.pp_search_free_result.restype = None
         _SEARCH_TRACE_LIB.pp_search_trace_free_result.argtypes = [ctypes.POINTER(TraceResult)]
         _SEARCH_TRACE_LIB.pp_search_trace_free_result.restype = None
+        _SEARCH_TRACE_LIB.pp_kinodynamic_trace_abi_version.argtypes = []
+        _SEARCH_TRACE_LIB.pp_kinodynamic_trace_abi_version.restype = ctypes.c_uint32
+        if _SEARCH_TRACE_LIB.pp_kinodynamic_trace_abi_version() != _KINODYNAMIC_TRACE_ABI_VERSION:
+            raise NativeLibraryCompatibilityError(
+                "native kinodynamic trace ABI does not match this Python package; "
+                "rebuild or reinstall PathPlanning"
+            )
+        _SEARCH_TRACE_LIB.pp_hybrid_astar_plan_traced.argtypes = [
+            ctypes.POINTER(HybridAStarSpace),
+            ctypes.POINTER(ctypes.c_double),
+            ctypes.POINTER(ctypes.c_double),
+            ctypes.POINTER(HybridAStarOptions),
+            ctypes.c_uint64,
+            ctypes.POINTER(HybridAStarResult),
+            ctypes.POINTER(TraceResult),
+        ]
+        _SEARCH_TRACE_LIB.pp_hybrid_astar_plan_traced.restype = ctypes.c_int
     return _SEARCH_TRACE_LIB
 
 

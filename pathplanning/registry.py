@@ -14,10 +14,11 @@ from pathplanning.core.contracts import (
     State,
     TemporalProblem,
 )
-from pathplanning.core.params import JitParams, RitParams, RrtParams
+from pathplanning.core.params import HybridAStarParams, JitParams, RitParams, RrtParams
 from pathplanning.core.results import MultiAgentPlanResult, PlanResult, TemporalPlanResult
 from pathplanning.core.trace import TraceOptions
 from pathplanning.core.types import RNG
+from pathplanning.planners.kinodynamic.hybrid_astar import plan_hybrid_astar
 from pathplanning.planners.multi_agent.eecbs import plan_eecbs
 from pathplanning.planners.multi_agent.lacam_star import plan_lacam_star
 from pathplanning.planners.sampling.abit_star import plan_abit_star
@@ -78,7 +79,12 @@ class ContinuousPlannerCallable(Protocol):
         self,
         problem: ContinuousProblem[State],
         *,
-        params: JitParams | RitParams | RrtParams | Mapping[str, object] | None = None,
+        params: HybridAStarParams
+        | JitParams
+        | RitParams
+        | RrtParams
+        | Mapping[str, object]
+        | None = None,
         rng: RNG | None = None,
         trace: TraceOptions | None = None,
     ) -> PlanResult: ...
@@ -391,6 +397,18 @@ _PLANNER_SPECS: tuple[tuple[str, PlannerSpec], ...] = (
                 "requires an exact goal and additive Euclidean or Jacobian-weighted path cost. "
                 "Manipulability scoring requires a finite robot Jacobian and explicit Python "
                 "callback opt-in; JIT edge and sample refinements are native.",
+            ),
+        ),
+    ),
+    (
+        "hybrid_astar",
+        PlannerSpec(
+            "continuous",
+            plan_hybrid_astar,
+            (
+                "requires an SE(2) kinematic space with vehicle dimensions and steering limits. "
+                "Search integrates forward/reverse bicycle primitives, checks the full footprint, "
+                "and uses collision-checked Dubins or Reeds-Shepp analytic expansions.",
             ),
         ),
     ),

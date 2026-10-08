@@ -56,3 +56,10 @@ class MultiAgentPlanResult(PlanResult, Generic[N]):
     paths: tuple[tuple[N, ...], ...] = ()
     sum_of_costs: int = 0
     makespan: int = 0
+
+
+@dataclass(slots=True)
+class KinematicPlanResult(PlanResult):
+    """Kinematically feasible SE(2) path with per-pose gear directions."""
+
+    directions: tuple[int, ...] = ()

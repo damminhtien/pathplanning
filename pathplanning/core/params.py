@@ -322,3 +322,82 @@ class JitParams(Mapping[str, object]):
             if self.time_budget_s <= 0:
                 raise ValueError("time_budget_s must be > 0 when provided")
         return self
+
+
+@dataclass(slots=True)
+class HybridAStarParams(Mapping[str, object]):
+    """Search limits and discretization for Hybrid A*."""
+
+    max_expansions: int = 100_000
+    time_budget_s: float | None = None
+    xy_resolution: float | None = None
+    heading_bins: int = 72
+    primitive_length: float | None = None
+    collision_step: float | None = None
+    goal_xy_tolerance: float = 0.5
+    goal_yaw_tolerance: float = 0.35
+    analytic_expansion_distance: float = 5.0
+    analytic_expansion_interval: int = 5
+    heuristic_weight: float = 1.0
+    allow_reverse: bool = True
+    reverse_penalty: float = 2.0
+    steering_penalty: float = 0.1
+    direction_switch_penalty: float = 2.0
+    allow_python_callbacks: bool = False
+
+    def __getitem__(self, key: str) -> object:
+        if key not in self.__dataclass_fields__:
+            raise KeyError(key)
+        return getattr(self, key)
+
+    def __iter__(self) -> Iterator[str]:
+        return iter(self.__dataclass_fields__)
+
+    def __len__(self) -> int:
+        return len(self.__dataclass_fields__)
+
+    def validate(self) -> HybridAStarParams:
+        """Validate native-search options."""
+        if type(self.allow_reverse) is not bool or type(self.allow_python_callbacks) is not bool:
+            raise TypeError("allow_reverse and allow_python_callbacks must be bools")
+        for name in ("max_expansions", "heading_bins", "analytic_expansion_interval"):
+            value = getattr(self, name)
+            if isinstance(value, bool) or type(value) is not int:
+                raise TypeError(f"{name} must be an integer")
+            minimum = 8 if name == "heading_bins" else 1
+            if value < minimum:
+                raise ValueError(f"{name} must be >= {minimum}")
+        for name in (
+            "xy_resolution",
+            "primitive_length",
+            "collision_step",
+            "goal_xy_tolerance",
+            "goal_yaw_tolerance",
+            "analytic_expansion_distance",
+            "heuristic_weight",
+            "reverse_penalty",
+            "steering_penalty",
+            "direction_switch_penalty",
+        ):
+            value = getattr(self, name)
+            if value is None:
+                continue
+            if not _is_valid_real(value):
+                raise TypeError(f"{name} must be a finite real number or None")
+            if name == "analytic_expansion_distance":
+                if value < 0:
+                    raise ValueError(f"{name} must be >= 0")
+            elif name in ("steering_penalty", "direction_switch_penalty"):
+                if value < 0:
+                    raise ValueError(f"{name} must be >= 0")
+            elif name == "heuristic_weight" or name == "reverse_penalty":
+                if value < 1:
+                    raise ValueError(f"{name} must be >= 1")
+            elif value <= 0:
+                raise ValueError(f"{name} must be > 0")
+        if self.time_budget_s is not None:
+            if not _is_valid_real(self.time_budget_s):
+                raise TypeError("time_budget_s must be a finite real number or None")
+            if self.time_budget_s <= 0:
+                raise ValueError("time_budget_s must be > 0 when provided")
+        return self

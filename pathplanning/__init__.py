@@ -13,8 +13,14 @@ from .api import (
     plan_temporal,
 )
 from .core.contracts import MultiAgentProblem, TemporalProblem
-from .core.params import JitParams, RitParams, RoadmapParams, RrtParams
-from .core.results import MultiAgentPlanResult, PlanResult, StopReason, TemporalPlanResult
+from .core.params import HybridAStarParams, JitParams, RitParams, RoadmapParams, RrtParams
+from .core.results import (
+    KinematicPlanResult,
+    MultiAgentPlanResult,
+    PlanResult,
+    StopReason,
+    TemporalPlanResult,
+)
 from .core.trace import PlannerTrace, TraceOptions
 
 __all__ = [
@@ -28,10 +34,12 @@ __all__ = [
     "RrtParams",
     "RitParams",
     "JitParams",
+    "HybridAStarParams",
     "RoadmapParams",
     "PlanResult",
     "TemporalPlanResult",
     "MultiAgentPlanResult",
+    "KinematicPlanResult",
     "TemporalProblem",
     "MultiAgentProblem",
     "StopReason",

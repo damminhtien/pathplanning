@@ -1,5 +1,6 @@
 """Shared configuration and state space primitives."""
 
+from pathplanning.spaces.ackermann_grid import AckermannGridSpace
 from pathplanning.spaces.anisotropic import AnisotropicContinuousSpace
 from pathplanning.spaces.continuous_3d import AABB, OBB, ContinuousSpace3D, Sphere
 from pathplanning.spaces.grid2d import (
@@ -19,6 +20,7 @@ __all__ = [
     "ContinuousSpace3D",
     "AnisotropicContinuousSpace",
     "PlanarManipulatorSpace",
+    "AckermannGridSpace",
     "GridCell",
     "Node3D",
     "Grid2DSamplingSpace",

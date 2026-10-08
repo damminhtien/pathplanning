@@ -13,6 +13,8 @@ its C ABI version.
 | C++ diagnostic search | `PP_SEARCH_TRACE_ABI_VERSION` | `pp_search_trace_abi_version()` | 10 |
 | C++ diagnostic search metrics | `PP_SEARCH_METRICS_ABI_VERSION` | `pp_search_metrics_abi_version()` | 2 |
 | C diagnostic sampling | `PP_CONTINUOUS_TRACE_ABI_VERSION` | `pp_continuous_trace_abi_version()` | 9 |
+| C++ kinodynamic search | `PP_KINODYNAMIC_ABI_VERSION` | `pp_kinodynamic_abi_version()` | 1 |
+| C++ diagnostic kinodynamic search | `PP_KINODYNAMIC_TRACE_ABI_VERSION` | `pp_kinodynamic_trace_abi_version()` | 1 |
 
 The constants are declared in `pathplanning/native/abi_version.h`. Increment
 an engine's ABI version when an exported function, struct layout, enum value,
@@ -98,6 +100,10 @@ the updated callback, options, and result struct layouts.
 Continuous ABI 9 adds JIT* manipulability callbacks, ancestor/sample options,
 and Jacobian-evaluation and refinement counters. Trace ABI 9 covers those
 continuous callback, option, and result layout changes.
+Kinodynamic ABI 1 adds the native Hybrid A* entrypoint, its SE(2) vehicle and
+search-option structs, and owned pose/direction result buffers. Kinodynamic
+trace ABI 1 adds its bounded trace entrypoint and shares the search trace
+result layout; both versions are independent of graph-search ABI versions.
 
 The production `_search_engine` is built without `PP_ENABLE_METRICS`; metric
 macros compile to no-ops and search containers use the normal
@@ -161,6 +167,7 @@ Continuous callbacks use these rules:
 | `manipulability` | Must write a finite, non-negative minimum Jacobian singular value; callback failure fails JIT*. |
 | `goal_distance` | Must return a non-negative value. Positive infinity means that no usable estimate is available; NaN or a negative value fails the plan. |
 | `path_objective` | Must return a finite value. A non-finite value fails the plan. |
+| kinodynamic `state_valid` | `0` means invalid and `1` means valid; any other value fails Hybrid A*. |
 
 The native result reports a callback failure through nonzero status and,
 when allocation succeeds, `error_message`. Planning outcomes such as timeout

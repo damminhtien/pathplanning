@@ -15,7 +15,13 @@ from pathplanning.core.contracts import (
     State,
     TemporalProblem,
 )
-from pathplanning.core.params import JitParams, RitParams, RoadmapParams, RrtParams
+from pathplanning.core.params import (
+    HybridAStarParams,
+    JitParams,
+    RitParams,
+    RoadmapParams,
+    RrtParams,
+)
 from pathplanning.core.results import MultiAgentPlanResult, PlanResult, TemporalPlanResult
 from pathplanning.core.trace import TraceOptions
 from pathplanning.core.types import RNG
@@ -30,7 +36,7 @@ Result: TypeAlias = PlanResult
 Stats: TypeAlias = Mapping[str, float]
 DiscreteParams: TypeAlias = Mapping[str, object]
 ContinuousParams: TypeAlias = (
-    JitParams | RitParams | RrtParams | RoadmapParams | Mapping[str, object]
+    HybridAStarParams | JitParams | RitParams | RrtParams | RoadmapParams | Mapping[str, object]
 )
 TemporalParams: TypeAlias = Mapping[str, object]
 MultiAgentParams: TypeAlias = Mapping[str, object]
@@ -82,9 +88,13 @@ def plan_continuous(
         raise TypeError("RitParams can only be used with rit_star")
     if isinstance(params, JitParams) and planner != "jit_star":
         raise TypeError("JitParams can only be used with jit_star")
+    if isinstance(params, HybridAStarParams) and planner != "hybrid_astar":
+        raise TypeError("HybridAStarParams can only be used with hybrid_astar")
     effective_rng = _resolve_rng(seed, rng)
-    resolved_params: JitParams | RitParams | RrtParams | dict[str, object] | None
-    if params is None or isinstance(params, (JitParams, RitParams, RrtParams)):
+    resolved_params: (
+        HybridAStarParams | JitParams | RitParams | RrtParams | dict[str, object] | None
+    )
+    if params is None or isinstance(params, (HybridAStarParams, JitParams, RitParams, RrtParams)):
         resolved_params = params
     else:
         resolved_params = dict(params)

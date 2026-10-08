@@ -1,19 +1,22 @@
 # Native Planning Core
 
 This document describes where planner work runs, how Python data reaches the
-native code, and how to build the two native libraries. The discrete graph
-search implementation remains C++; the continuous sampling kernels are C.
+native code, and how to build the search and sampling libraries. Graph search
+and kinodynamic vehicle planning run in C++; continuous sampling kernels run in
+C.
 
 ## Architecture
 
 ```mermaid
 flowchart LR
     API[Python API and registry] --> ADAPTER[Typed Python adapters]
-    ADAPTER -->|C ABI via ctypes| SEARCH[search_engine.cpp and mapf_search.cpp<br/>C++17]
+    ADAPTER -->|C ABI via ctypes| SEARCH[search_engine.cpp, mapf_search.cpp, kinodynamic_search.cpp<br/>C++17]
     ADAPTER -->|C ABI via ctypes| CONTINUOUS[continuous_engine.c<br/>C11]
     GRAPH[NativeGraph or Python graph] -->|CSR arrays / one-time snapshot| SEARCH
     BUILTIN[Built-in or declared native space model] -->|bounds and obstacle arrays| CONTINUOUS
+    BUILTIN -->|occupancy and vehicle geometry| KINODYNAMIC[kinodynamic_search.cpp and reeds_shepp.cpp<br/>C++17]
     CUSTOM[Opted-in custom Python space, goal, objective] -->|compatibility callbacks| CONTINUOUS
+    CUSTOM -->|explicit state-validity callback| KINODYNAMIC
 ```
 
 ### Discrete graph search
@@ -62,6 +65,17 @@ interval to the containing safe-interval end.
 graphs and maps labels to IDs; native code runs low-level focal searches and
 high-level explicit-estimation conflict-based search, then returns one owned
 path slice per agent.
+
+### Kinodynamic SE(2) search
+
+`pathplanning/native/kinodynamic_search.cpp` owns Hybrid A*'s pose-keyed queue,
+bicycle-model primitive expansion, footprint checks, analytic connections, and
+pose/direction output. Its typed C ABI has an independent version from graph
+search. `reeds_shepp.cpp` supplies the reverse-capable connector formulas; both
+the grid collision model and search loop remain native. The built-in
+`AckermannGridSpace` supplies occupancy and vehicle dimensions as a native
+snapshot. A custom kinematic space can instead use the state-validity callback
+only when `HybridAStarParams(allow_python_callbacks=True)` is explicitly set.
 
 Search state uses dense arrays by node ID for locality: an 8-byte path cost, a
 4-byte parent ID when the graph fits in 32-bit IDs (otherwise 8 bytes), and a

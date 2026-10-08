@@ -5,6 +5,7 @@ from pathplanning.native._ffi import (
     NativeLibraryLoadError,
 )
 from pathplanning.native.continuous_model import (
+    NativeAckermannGridModel,
     NativeContinuousSpaceModel,
     NativeContinuousSpaceProvider,
 )
@@ -13,6 +14,7 @@ from pathplanning.native.graph import NativeGraph, NativeGraphError
 __all__ = [
     "NativeContinuousSpaceModel",
     "NativeContinuousSpaceProvider",
+    "NativeAckermannGridModel",
     "NativeLibraryCompatibilityError",
     "NativeLibraryLoadError",
     "NativeGraph",

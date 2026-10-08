@@ -59,6 +59,11 @@ also runs tree pruning and growth in the native C engine. The discrete registry
 includes native `bidirectional_dijkstra` and `bidirectional_astar`; the other
 registered discrete searches also run through the C++ graph-search core.
 
+For Ackermann-like vehicles in SE(2), `hybrid_astar` searches continuous poses
+with discretized keys, footprint collision checks, and Dubins or Reeds-Shepp
+analytic expansions. See the [Hybrid A* guide](docs/algorithms/hybrid_astar.md)
+and [runnable example](examples/hybrid_astar.py).
+
 Sampling planners execute their search loops, trees, queues, geometry checks,
 and nearest-neighbor queries in C. Python validates inputs, converts built-in
 spaces or an explicit `NativeContinuousSpaceModel` to native data, and adapts
