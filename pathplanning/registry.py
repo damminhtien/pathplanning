@@ -19,6 +19,7 @@ from pathplanning.core.results import MultiAgentPlanResult, PlanResult, Temporal
 from pathplanning.core.trace import TraceOptions
 from pathplanning.core.types import RNG
 from pathplanning.planners.multi_agent.eecbs import plan_eecbs
+from pathplanning.planners.multi_agent.lacam_star import plan_lacam_star
 from pathplanning.planners.sampling.abit_star import plan_abit_star
 from pathplanning.planners.sampling.bit_star import plan_bit_star
 from pathplanning.planners.sampling.fmt_star import plan_fmt_star
@@ -169,6 +170,18 @@ _PLANNER_SPECS: tuple[tuple[str, PlannerSpec], ...] = (
             (
                 "requires an undirected unit-weight graph, unique starts/goals, vertex and edge-swap "
                 "conflict rules, and a finite suboptimality weight `w >= 1`.",
+            ),
+        ),
+    ),
+    (
+        "lacam_star",
+        PlannerSpec(
+            "multi_agent",
+            plan_lacam_star,
+            (
+                "requires an undirected unit-weight graph, unique starts/goals, vertex and edge-swap "
+                "conflict rules, and stays at each reached goal; the seeded anytime search returns "
+                "an optimal solution when it exhausts the open set.",
             ),
         ),
     ),

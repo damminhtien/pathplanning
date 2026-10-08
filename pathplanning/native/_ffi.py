@@ -266,10 +266,10 @@ _SEARCH_METRICS_LIB: ctypes.CDLL | None = None
 _CONTINUOUS_TRACE_LIB: ctypes.CDLL | None = None
 
 # Keep these exact-match requirements synchronized with abi_version.h.
-_SEARCH_ABI_VERSION = 14
+_SEARCH_ABI_VERSION = 15
 _SEARCH_METRICS_ABI_VERSION = 2
 _CONTINUOUS_ABI_VERSION = 1
-_SEARCH_TRACE_ABI_VERSION = 9
+_SEARCH_TRACE_ABI_VERSION = 10
 _CONTINUOUS_TRACE_ABI_VERSION = 1
 
 
@@ -458,6 +458,34 @@ def _configure_eecbs_function(library: ctypes.CDLL, name: str) -> None:
     library.pp_mapf_free_result.restype = None
 
 
+def _configure_lacam_star_function(library: ctypes.CDLL, name: str) -> None:
+    pointer_u64 = ctypes.POINTER(ctypes.c_uint64)
+    arguments: list[Any] = [
+        ctypes.c_uint64,
+        ctypes.c_uint64,
+        pointer_u64,
+        pointer_u64,
+        pointer_u64,
+        pointer_u64,
+        ctypes.c_size_t,
+        ctypes.c_uint64,
+        ctypes.c_int,
+        ctypes.c_uint64,
+        ctypes.c_double,
+    ]
+    is_traced = name == "pp_lacam_star_plan_traced"
+    if is_traced:
+        arguments.append(ctypes.c_uint64)
+    arguments.append(ctypes.POINTER(MapfResult))
+    if is_traced:
+        arguments.append(ctypes.POINTER(TraceResult))
+    function = getattr(library, name)
+    function.argtypes = arguments
+    function.restype = ctypes.c_int
+    library.pp_mapf_free_result.argtypes = [ctypes.POINTER(MapfResult)]
+    library.pp_mapf_free_result.restype = None
+
+
 def load_native_library() -> ctypes.CDLL:
     """Load and configure the compiled C++ graph-search library once per process."""
     global _NATIVE_LIB
@@ -499,6 +527,7 @@ def load_native_library() -> ctypes.CDLL:
                 "pp_kinodynamic_sipp_plan",
                 "pp_sipp_free_result",
                 "pp_eecbs_plan",
+                "pp_lacam_star_plan",
                 "pp_mapf_free_result",
                 "pp_search_free_result",
                 "pp_search_engine_version",
@@ -671,6 +700,7 @@ def load_native_library() -> ctypes.CDLL:
         _configure_sipp_function(library, "pp_bounded_sipp_plan")
         _configure_kinodynamic_sipp_function(library, "pp_kinodynamic_sipp_plan")
         _configure_eecbs_function(library, "pp_eecbs_plan")
+        _configure_lacam_star_function(library, "pp_lacam_star_plan")
         library.pp_search_free_result.argtypes = [ctypes.POINTER(SearchResult)]
         library.pp_search_free_result.restype = None
         library.pp_search_engine_version.argtypes = []
@@ -765,6 +795,7 @@ def load_search_trace_library() -> ctypes.CDLL:
                 "pp_bounded_sipp_plan_traced",
                 "pp_kinodynamic_sipp_plan_traced",
                 "pp_eecbs_plan_traced",
+                "pp_lacam_star_plan_traced",
                 "pp_sipp_free_result",
                 "pp_search_free_result",
                 "pp_search_trace_free_result",
@@ -863,6 +894,7 @@ def load_search_trace_library() -> ctypes.CDLL:
         _configure_sipp_function(_SEARCH_TRACE_LIB, "pp_bounded_sipp_plan_traced")
         _configure_kinodynamic_sipp_function(_SEARCH_TRACE_LIB, "pp_kinodynamic_sipp_plan_traced")
         _configure_eecbs_function(_SEARCH_TRACE_LIB, "pp_eecbs_plan_traced")
+        _configure_lacam_star_function(_SEARCH_TRACE_LIB, "pp_lacam_star_plan_traced")
         _SEARCH_TRACE_LIB.pp_search_free_result.argtypes = [ctypes.POINTER(SearchResult)]
         _SEARCH_TRACE_LIB.pp_search_free_result.restype = None
         _SEARCH_TRACE_LIB.pp_search_trace_free_result.argtypes = [ctypes.POINTER(TraceResult)]

@@ -360,4 +360,130 @@ def _run_eecbs(
             library.pp_search_trace_free_result(ctypes.byref(native_trace))
 
 
-__all__ = ["_run_eecbs", "_prepare_problem", "_validate_paths"]
+def _run_lacam_star(
+    problem: MultiAgentProblem[N],
+    *,
+    params: Mapping[str, object] | None,
+    rng: RNG | None,
+    trace: TraceOptions | None,
+) -> MultiAgentPlanResult[N]:
+    total_started = time.perf_counter()
+    if trace is not None and type(trace) is not TraceOptions:
+        raise TypeError("trace must be TraceOptions or None")
+    merged_params = dict(problem.params or {})
+    if params is not None:
+        merged_params.update(params)
+    max_expansions, max_runtime_ms = _mapf_limits(merged_params)
+    random_generator = rng if rng is not None else np.random.default_rng(0)
+    seed = int(random_generator.integers(0, np.iinfo(np.uint64).max, dtype=np.uint64))
+
+    graph_started = time.perf_counter()
+    native_graph, view, starts, goals, agent_count = _prepare_problem(problem, merged_params)
+    graph_init_s = time.perf_counter() - graph_started
+    library = load_search_trace_library() if trace is not None else load_native_library()
+    native_result = MapfResult()
+    native_trace = TraceResult() if trace is not None else None
+    function = getattr(
+        library,
+        "pp_lacam_star_plan_traced" if native_trace is not None else "pp_lacam_star_plan",
+    )
+    arguments: list[Any] = [
+        view.node_count,
+        view.edge_count,
+        view.offsets,
+        view.neighbor_ids,
+        starts.ctypes.data_as(ctypes.POINTER(ctypes.c_uint64)),
+        goals.ctypes.data_as(ctypes.POINTER(ctypes.c_uint64)),
+        agent_count,
+        seed,
+        int(max_expansions is not None),
+        max_expansions or 0,
+        max_runtime_ms,
+    ]
+    if native_trace is not None:
+        assert trace is not None
+        arguments.append(trace.max_bytes)
+    arguments.append(ctypes.byref(native_result))
+    if native_trace is not None:
+        arguments.append(ctypes.byref(native_trace))
+    native_started = time.perf_counter()
+    status = function(*arguments)
+    native_search_s = time.perf_counter() - native_started
+    try:
+        if status != 0:
+            detail = "unknown native LaCAM* error"
+            if native_result.error_message is not None:
+                detail = native_result.error_message.decode("utf-8", errors="replace")
+            raise RuntimeError(detail)
+        stop_reason = _STOP_REASONS.get(native_result.stop_reason)
+        if stop_reason is None:
+            raise RuntimeError("native LaCAM* returned an unknown stop reason")
+        paths: tuple[tuple[N, ...], ...] = ()
+        if native_result.success:
+            if native_result.agent_count != agent_count or native_result.path_offsets is None:
+                raise RuntimeError("native LaCAM* result has invalid path offsets")
+            offsets = np.ctypeslib.as_array(
+                native_result.path_offsets, shape=(agent_count + 1,)
+            ).copy()
+            node_ids = np.ctypeslib.as_array(
+                native_result.path_nodes, shape=(native_result.path_node_count,)
+            ).copy()
+            paths = tuple(
+                tuple(
+                    native_graph.node_labels[int(node_id)]
+                    for node_id in node_ids[offsets[i] : offsets[i + 1]]
+                )
+                for i in range(agent_count)
+            )
+            sum_costs, makespan = _validate_paths(
+                native_graph, tuple(problem.starts), tuple(problem.goals), paths
+            )
+            if sum_costs != native_result.sum_of_costs or makespan != native_result.makespan:
+                raise RuntimeError("native LaCAM* objective does not match returned paths")
+        planner_trace = None
+        trace_graph_bytes = 0
+        if native_trace is not None:
+            trace_graph_bytes = int(
+                (int(view.node_count) + 1) * 8
+                + int(view.edge_count) * 16
+                + starts.nbytes
+                + goals.nbytes
+            )
+            planner_trace = copy_trace_result(
+                native_trace,
+                kind="discrete",
+                node_labels=native_graph.node_labels,
+                graph_bytes=trace_graph_bytes,
+            )
+        return MultiAgentPlanResult(
+            success=bool(native_result.success),
+            path=None,
+            best_path=None,
+            stop_reason=stop_reason,
+            iters=int(native_result.iters),
+            nodes=int(native_result.nodes),
+            stats={
+                "expanded": float(native_result.iters),
+                "high_level_expanded": float(native_result.high_level_expanded),
+                "low_level_expanded": float(native_result.low_level_expanded),
+                "graph_init_s": graph_init_s,
+                "native_search_s": native_search_s,
+                "planner_total_s": time.perf_counter() - total_started,
+                **(
+                    {"trace_graph_bytes": float(trace_graph_bytes)}
+                    if planner_trace is not None
+                    else {}
+                ),
+            },
+            trace=planner_trace,
+            paths=paths,
+            sum_of_costs=int(native_result.sum_of_costs) if paths else 0,
+            makespan=int(native_result.makespan) if paths else 0,
+        )
+    finally:
+        library.pp_mapf_free_result(ctypes.byref(native_result))
+        if native_trace is not None:
+            library.pp_search_trace_free_result(ctypes.byref(native_trace))
+
+
+__all__ = ["_run_eecbs", "_run_lacam_star", "_prepare_problem", "_validate_paths"]

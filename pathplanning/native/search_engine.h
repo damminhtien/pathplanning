@@ -459,6 +459,21 @@ int pp_eecbs_plan(
     pp_mapf_result* result
 );
 
+int pp_lacam_star_plan(
+    uint64_t node_count,
+    uint64_t edge_count,
+    const uint64_t* offsets,
+    const uint64_t* neighbor_ids,
+    const uint64_t* starts,
+    const uint64_t* goals,
+    size_t agent_count,
+    uint64_t seed,
+    int has_max_expansions,
+    uint64_t max_expansions,
+    double max_runtime_ms,
+    pp_mapf_result* result
+);
+
 #if defined(PP_ENABLE_TRACE) && PP_ENABLE_TRACE
 int pp_native_jps_grid_traced(
     uint64_t width,
@@ -642,6 +657,22 @@ int pp_eecbs_plan_traced(
     const uint64_t* goals,
     size_t agent_count,
     double suboptimality_weight,
+    int has_max_expansions,
+    uint64_t max_expansions,
+    double max_runtime_ms,
+    uint64_t trace_max_bytes,
+    pp_mapf_result* result,
+    pp_trace_result* trace
+);
+int pp_lacam_star_plan_traced(
+    uint64_t node_count,
+    uint64_t edge_count,
+    const uint64_t* offsets,
+    const uint64_t* neighbor_ids,
+    const uint64_t* starts,
+    const uint64_t* goals,
+    size_t agent_count,
+    uint64_t seed,
     int has_max_expansions,
     uint64_t max_expansions,
     double max_runtime_ms,
