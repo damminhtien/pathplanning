@@ -10,13 +10,15 @@ from typing import Any, Literal, Protocol, Union, cast
 from pathplanning.core.contracts import (
     ContinuousProblem,
     DiscreteProblem,
+    MultiAgentProblem,
     State,
     TemporalProblem,
 )
 from pathplanning.core.params import RrtParams
-from pathplanning.core.results import PlanResult, TemporalPlanResult
+from pathplanning.core.results import MultiAgentPlanResult, PlanResult, TemporalPlanResult
 from pathplanning.core.trace import TraceOptions
 from pathplanning.core.types import RNG
+from pathplanning.planners.multi_agent.eecbs import plan_eecbs
 from pathplanning.planners.sampling.abit_star import plan_abit_star
 from pathplanning.planners.sampling.bit_star import plan_bit_star
 from pathplanning.planners.sampling.fmt_star import plan_fmt_star
@@ -45,7 +47,7 @@ from pathplanning.planners.temporal.bounded_suboptimal_sipp import (
 from pathplanning.planners.temporal.kinodynamic_sipp import plan_kinodynamic_sipp
 from pathplanning.planners.temporal.sipp import plan_sipp
 
-ProblemKind = Literal["discrete", "continuous", "temporal"]
+ProblemKind = Literal["discrete", "continuous", "temporal", "multi_agent"]
 
 
 class DiscretePlannerCallable(Protocol):
@@ -87,10 +89,24 @@ class TemporalPlannerCallable(Protocol):
     ) -> TemporalPlanResult[Any]: ...
 
 
+class MultiAgentPlannerCallable(Protocol):
+    """Callable contract for graph-based multi-agent planners."""
+
+    def __call__(
+        self,
+        problem: MultiAgentProblem[Any],
+        *,
+        params: Mapping[str, object] | None = None,
+        rng: RNG | None = None,
+        trace: TraceOptions | None = None,
+    ) -> MultiAgentPlanResult[Any]: ...
+
+
 PlannerCallable = Union[
     DiscretePlannerCallable,
     ContinuousPlannerCallable,
     TemporalPlannerCallable,
+    MultiAgentPlannerCallable,
 ]
 
 
@@ -142,6 +158,17 @@ _PLANNER_SPECS: tuple[tuple[str, PlannerSpec], ...] = (
                 "requires integer time ticks, velocity-labeled configurations, constant-acceleration "
                 "motion primitives, and finite speed/acceleration/deceleration limits; waiting is "
                 "allowed only at zero-speed nodes.",
+            ),
+        ),
+    ),
+    (
+        "eecbs",
+        PlannerSpec(
+            "multi_agent",
+            plan_eecbs,
+            (
+                "requires an undirected unit-weight graph, unique starts/goals, vertex and edge-swap "
+                "conflict rules, and a finite suboptimality weight `w >= 1`.",
             ),
         ),
     ),
@@ -336,10 +363,20 @@ def get_temporal_planner(planner: str) -> TemporalPlannerCallable:
     return cast(TemporalPlannerCallable, spec.planner)
 
 
+def get_multi_agent_planner(planner: str) -> MultiAgentPlannerCallable:
+    """Resolve one graph-based multi-agent planner by name."""
+    spec = PLANNER_REGISTRY.get(planner)
+    if spec is None or spec.problem_kind != "multi_agent":
+        raise KeyError(f"Unknown multi-agent planner: '{planner}'")
+    return cast(MultiAgentPlannerCallable, spec.planner)
+
+
 __all__ = [
     "ProblemKind",
     "DiscretePlannerCallable",
     "ContinuousPlannerCallable",
+    "TemporalPlannerCallable",
+    "MultiAgentPlannerCallable",
     "PlannerCallable",
     "PlannerSpec",
     "PLANNER_REGISTRY",
@@ -348,4 +385,5 @@ __all__ = [
     "get_discrete_planner",
     "get_continuous_planner",
     "get_temporal_planner",
+    "get_multi_agent_planner",
 ]

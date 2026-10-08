@@ -9,7 +9,7 @@ search implementation remains C++; the continuous sampling kernels are C.
 ```mermaid
 flowchart LR
     API[Python API and registry] --> ADAPTER[Typed Python adapters]
-    ADAPTER -->|C ABI via ctypes| SEARCH[search_engine.cpp<br/>C++17]
+    ADAPTER -->|C ABI via ctypes| SEARCH[search_engine.cpp and mapf_search.cpp<br/>C++17]
     ADAPTER -->|C ABI via ctypes| CONTINUOUS[continuous_engine.c<br/>C11]
     GRAPH[NativeGraph or Python graph] -->|CSR arrays / one-time snapshot| SEARCH
     BUILTIN[Built-in or declared native space model] -->|bounds and obstacle arrays| CONTINUOUS
@@ -58,6 +58,10 @@ reopens a state when a better arrival is found. Kinodynamic SIPP uses distinct
 wait-interval states and projects all feasible integer departure times through
 motion primitives; only zero-speed configurations can extend their wait
 interval to the containing safe-interval end.
+`mapf_search.cpp` implements EECBS. Python validates undirected unit-cost CSR
+graphs and maps labels to IDs; native code runs low-level focal searches and
+high-level explicit-estimation conflict-based search, then returns one owned
+path slice per agent.
 
 Search state uses dense arrays by node ID for locality: an 8-byte path cost, a
 4-byte parent ID when the graph fits in 32-bit IDs (otherwise 8 bytes), and a

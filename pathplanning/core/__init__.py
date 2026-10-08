@@ -24,6 +24,7 @@ from .contracts import (
     GoalTest,
     HeuristicDiscreteGraph,
     InterpolatingContinuousSpace,
+    MultiAgentProblem,
     Objective,
     State,
     SupportsBatchCollisionStepMotionCheck,
@@ -34,7 +35,7 @@ from .contracts import (
     ValidatingDiscreteGraph,
 )
 from .params import RrtParams
-from .results import PlanResult, StopReason, TemporalPlanResult
+from .results import MultiAgentPlanResult, PlanResult, StopReason, TemporalPlanResult
 from .trace import PlannerTrace, TraceOptions
 from .types import RNG, BoolArray, Float, FloatArray, Mat, N, NodeId, S, Vec
 
@@ -46,6 +47,7 @@ __all__ = [
     "ExactGoalTest",
     "DiscreteProblem",
     "TemporalProblem",
+    "MultiAgentProblem",
     "TimeInterval",
     "ContinuousSpace",
     "InterpolatingContinuousSpace",
@@ -60,6 +62,7 @@ __all__ = [
     "ContinuousProblem",
     "PlanResult",
     "TemporalPlanResult",
+    "MultiAgentPlanResult",
     "StopReason",
     "PlannerTrace",
     "TraceOptions",

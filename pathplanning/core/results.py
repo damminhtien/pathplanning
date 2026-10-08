@@ -47,3 +47,12 @@ class TemporalPlanResult(PlanResult, Generic[N]):
 
     states: tuple[N, ...] = ()
     times: tuple[float, ...] = ()
+
+
+@dataclass(slots=True)
+class MultiAgentPlanResult(PlanResult, Generic[N]):
+    """Per-agent paths and unit-time MAPF objective values."""
+
+    paths: tuple[tuple[N, ...], ...] = ()
+    sum_of_costs: int = 0
+    makespan: int = 0

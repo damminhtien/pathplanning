@@ -329,6 +329,7 @@ Run from repository root.
 ```bash
 python examples/worlds/custom_grid_world.py
 python examples/worlds/demo_3d_world.py
+python examples/eecbs.py
 python examples/viewer_2d.py
 python examples/viewer_3d.py
 python scripts/benchmark_planners.py --output benchmark-results/planners.json

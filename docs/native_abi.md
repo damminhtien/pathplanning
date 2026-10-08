@@ -8,9 +8,9 @@ its C ABI version.
 
 | Library | ABI constant | Probe function | Supported ABI |
 | --- | --- | --- | --- |
-| C++ graph search | `PP_SEARCH_ABI_VERSION` | `pp_search_abi_version()` | 13 |
+| C++ graph search | `PP_SEARCH_ABI_VERSION` | `pp_search_abi_version()` | 14 |
 | C sampling planners | `PP_CONTINUOUS_ABI_VERSION` | `pp_continuous_abi_version()` | 1 |
-| C++ diagnostic search | `PP_SEARCH_TRACE_ABI_VERSION` | `pp_search_trace_abi_version()` | 8 |
+| C++ diagnostic search | `PP_SEARCH_TRACE_ABI_VERSION` | `pp_search_trace_abi_version()` | 9 |
 | C++ diagnostic search metrics | `PP_SEARCH_METRICS_ABI_VERSION` | `pp_search_metrics_abi_version()` | 2 |
 | C diagnostic sampling | `PP_CONTINUOUS_TRACE_ABI_VERSION` | `pp_continuous_trace_abi_version()` | 1 |
 
@@ -61,6 +61,8 @@ Search ABI 12 adds focal bounded-suboptimal SIPP; search trace ABI 7 adds its
 bounded diagnostic entrypoint.
 Search ABI 13 adds SIPP with interval projection for kinodynamic configuration
 graphs; search trace ABI 8 adds its bounded diagnostic entrypoint.
+Search ABI 14 adds the native EECBS MAPF entrypoint and owned per-agent path
+buffers; search trace ABI 9 adds its capped diagnostic entrypoint.
 
 The production `_search_engine` is built without `PP_ENABLE_METRICS`; metric
 macros compile to no-ops and search containers use the normal
@@ -77,6 +79,7 @@ This isolates counter and allocation-tracking overhead from production timing.
 | `pp_native_graph*` | Caller owns the opaque handle returned by a successful graph-create call. The engine copies the CSR/grid input arrays before returning. | Call `pp_graph_free()` once. `NULL` is accepted. |
 | Search input arrays and graph | Borrowed for the duration of `pp_native_search_plan()`. The graph remains caller-owned. | Keep all inputs alive until the call returns. |
 | `pp_search_result` buffers | Result storage belongs to the caller; `path_ids` and `error_message` are allocated by the native library on success or failure. | Call `pp_search_free_result()` after every call and before reusing the result storage. It frees buffers and resets the struct. |
+| `pp_mapf_result` buffers | Result storage belongs to the caller; path offsets, path node IDs, and error text are allocated by the native library. | Call `pp_mapf_free_result()` after every call and before reuse. |
 | `pp_jps_metrics` | Caller-owned JPS counters; set `struct_size` before calling. | No release is required. |
 | `pp_jpsw_metrics` | Caller-owned JPSW counters; set `struct_size` before calling. | No release is required. |
 | `pp_theta_metrics` | Caller-owned Theta* and Lazy Theta* counters; set `struct_size` before calling. | No release is required. |

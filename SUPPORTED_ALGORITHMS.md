@@ -12,6 +12,7 @@ from that registry.
 | `temporal` | `sipp` | `pathplanning.planners.temporal.sipp` | `plan_sipp` | supported |
 | `temporal` | `bounded_suboptimal_sipp` | `pathplanning.planners.temporal.bounded_suboptimal_sipp` | `plan_bounded_suboptimal_sipp` | supported |
 | `temporal` | `kinodynamic_sipp` | `pathplanning.planners.temporal.kinodynamic_sipp` | `plan_kinodynamic_sipp` | supported |
+| `multi_agent` | `eecbs` | `pathplanning.planners.multi_agent.eecbs` | `plan_eecbs` | supported |
 | `discrete` | `bfs` | `pathplanning.planners.search.breadth_first_search` | `plan_breadth_first_search` | supported |
 | `discrete` | `dfs` | `pathplanning.planners.search.depth_first_search` | `plan_depth_first_search` | supported |
 | `discrete` | `greedy_best_first` | `pathplanning.planners.search.greedy_best_first` | `plan_greedy_best_first` | supported |
@@ -40,6 +41,7 @@ Planner-specific constraints:
 - `sipp`: requires positive finite edge durations and half-open node/edge blocked intervals; waiting is allowed and the goal must be exact.
 - `bounded_suboptimal_sipp`: requires the same exact-goal temporal graph contract as SIPP; `w` must be finite and at least 1; the w bound applies when stop_reason is success.
 - `kinodynamic_sipp`: requires integer time ticks, velocity-labeled configurations, constant-acceleration motion primitives, and finite speed/acceleration/deceleration limits; waiting is allowed only at zero-speed nodes.
+- `eecbs`: requires an undirected unit-weight graph, unique starts/goals, vertex and edge-swap conflict rules, and a finite suboptimality weight `w >= 1`.
 - `bidirectional_dijkstra`: uses two Dijkstra frontiers and does not evaluate a heuristic; it requires an exact goal node.
 - `bidirectional_astar`: runs the same native kernel over potential-reweighted edges and requires a consistent heuristic and an exact goal node.
 - `dstar_lite`: requires an exact goal and non-negative costs on stable directed edges; graph heuristics must be admissible and consistent.

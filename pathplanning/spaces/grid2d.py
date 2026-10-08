@@ -189,6 +189,46 @@ class Grid2DSearchSpace:
         return blocked
 
 
+class Grid2DMultiAgentAdapter:
+    """Expose a 2D occupancy grid as a four-connected unit-cost MAPF graph."""
+
+    _motions: tuple[Motion2D, ...] = ((1, 0), (0, 1), (-1, 0), (0, -1))
+
+    def __init__(self, space: Grid2DSearchSpace) -> None:
+        self.space = space
+
+    def is_valid_node(self, node: GridCell) -> bool:
+        """Return whether a coordinate is a free grid cell."""
+        return self.space.is_valid_node(node)
+
+    def neighbors(self, node: GridCell) -> Iterable[GridCell]:
+        """Return the free cardinal neighbors of a cell."""
+        if len(node) != 2:
+            raise ValueError("cell must have length 2")
+        x_coord, y_coord = int(node[0]), int(node[1])
+        for dx, dy in self._motions:
+            neighbor = (x_coord + dx, y_coord + dy)
+            if self.space.is_valid_node(neighbor):
+                yield neighbor
+
+    def edge_cost(self, source: GridCell, target: GridCell) -> float:
+        """Return unit cost for a cardinal free-cell transition."""
+        return 1.0 if target in self.neighbors(source) else math.inf
+
+    def to_native_graph(self) -> NativeGraph[GridCell]:
+        """Materialize only free cells and cardinal unit-cost edges."""
+        from pathplanning.native import NativeGraph
+
+        nodes = tuple(
+            (x_coord, y_coord)
+            for y_coord in range(self.space.y_range)
+            for x_coord in range(self.space.x_range)
+            if self.space.is_valid_node((x_coord, y_coord))
+        )
+        edges = ((node, neighbor, 1.0) for node in nodes for neighbor in self.neighbors(node))
+        return NativeGraph[GridCell].from_edges(nodes, edges, directed=True)
+
+
 class Grid2DSamplingSpace:
     """Reference 2D continuous space with configurable obstacle primitives."""
 

@@ -68,6 +68,22 @@ typedef struct pp_sipp_result {
     char* error_message;
 } pp_sipp_result;
 
+typedef struct pp_mapf_result {
+    int success;
+    int stop_reason;
+    uint64_t iters;
+    uint64_t nodes;
+    uint64_t high_level_expanded;
+    uint64_t low_level_expanded;
+    uint64_t sum_of_costs;
+    uint64_t makespan;
+    uint64_t* path_offsets;
+    uint64_t* path_nodes;
+    size_t agent_count;
+    size_t path_node_count;
+    char* error_message;
+} pp_mapf_result;
+
 typedef struct pp_dstar_edge_update {
     uint64_t source_id;
     uint64_t target_id;
@@ -426,6 +442,22 @@ int pp_kinodynamic_sipp_plan(
 );
 
 void pp_sipp_free_result(pp_sipp_result* result);
+void pp_mapf_free_result(pp_mapf_result* result);
+
+int pp_eecbs_plan(
+    uint64_t node_count,
+    uint64_t edge_count,
+    const uint64_t* offsets,
+    const uint64_t* neighbor_ids,
+    const uint64_t* starts,
+    const uint64_t* goals,
+    size_t agent_count,
+    double suboptimality_weight,
+    int has_max_expansions,
+    uint64_t max_expansions,
+    double max_runtime_ms,
+    pp_mapf_result* result
+);
 
 #if defined(PP_ENABLE_TRACE) && PP_ENABLE_TRACE
 int pp_native_jps_grid_traced(
@@ -601,6 +633,22 @@ int pp_native_search_plan_traced(
 uint32_t pp_search_trace_abi_version(void);
 uint64_t pp_graph_storage_bytes(const pp_native_graph* graph);
 void pp_search_trace_free_result(pp_trace_result* trace);
+int pp_eecbs_plan_traced(
+    uint64_t node_count,
+    uint64_t edge_count,
+    const uint64_t* offsets,
+    const uint64_t* neighbor_ids,
+    const uint64_t* starts,
+    const uint64_t* goals,
+    size_t agent_count,
+    double suboptimality_weight,
+    int has_max_expansions,
+    uint64_t max_expansions,
+    double max_runtime_ms,
+    uint64_t trace_max_bytes,
+    pp_mapf_result* result,
+    pp_trace_result* trace
+);
 #endif
 #endif
 

@@ -126,6 +126,16 @@ class TemporalProblem(Generic[N]):
     params: DiscreteParams | None = None
 
 
+@dataclass(slots=True)
+class MultiAgentProblem(Generic[N]):
+    """Unit-time MAPF problem on a shared, undirected graph."""
+
+    graph: DiscreteGraph[N] | NativeGraph[N]
+    starts: Sequence[N]
+    goals: Sequence[N]
+    params: DiscreteParams | None = None
+
+
 # ---------------------------------------------------------------------------
 # Continuous / sampling contracts
 # ---------------------------------------------------------------------------
