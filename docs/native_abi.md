@@ -9,10 +9,10 @@ its C ABI version.
 | Library | ABI constant | Probe function | Supported ABI |
 | --- | --- | --- | --- |
 | C++ graph search | `PP_SEARCH_ABI_VERSION` | `pp_search_abi_version()` | 15 |
-| C sampling planners | `PP_CONTINUOUS_ABI_VERSION` | `pp_continuous_abi_version()` | 5 |
+| C sampling planners | `PP_CONTINUOUS_ABI_VERSION` | `pp_continuous_abi_version()` | 6 |
 | C++ diagnostic search | `PP_SEARCH_TRACE_ABI_VERSION` | `pp_search_trace_abi_version()` | 10 |
 | C++ diagnostic search metrics | `PP_SEARCH_METRICS_ABI_VERSION` | `pp_search_metrics_abi_version()` | 2 |
-| C diagnostic sampling | `PP_CONTINUOUS_TRACE_ABI_VERSION` | `pp_continuous_trace_abi_version()` | 5 |
+| C diagnostic sampling | `PP_CONTINUOUS_TRACE_ABI_VERSION` | `pp_continuous_trace_abi_version()` | 6 |
 
 The constants are declared in `pathplanning/native/abi_version.h`. Increment
 an engine's ABI version when an exported function, struct layout, enum value,
@@ -79,6 +79,10 @@ trace ABI 4 records AIT* reverse and forward vertex expansions.
 Continuous ABI 5 adds EIT*'s collision-effort reverse heuristic and effort-aware
 tie-breaking for forward edges. Trace ABI 5 uses the existing reverse/forward
 expansion events for both AIT* and EIT*.
+Continuous ABI 6 adds the EIRM* roadmap configuration entrypoint, which enables
+lazy validation and effort-aware tie-breaking while reusing sampled vertices
+and validated roadmap edges across queries. Trace ABI 6 records those queries
+through the existing roadmap trace entrypoint.
 
 The production `_search_engine` is built without `PP_ENABLE_METRICS`; metric
 macros compile to no-ops and search containers use the normal

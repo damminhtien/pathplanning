@@ -26,7 +26,7 @@ def _resolve_params(
     values = dict(problem.params or {})
     if params is not None:
         if isinstance(params, RrtParams):
-            raise TypeError("PRM* requires RoadmapParams or a parameter mapping")
+            raise TypeError("roadmap planners require RoadmapParams or a parameter mapping")
         values.update(params)
     world_version = values.pop("world_version", 0)
     return RoadmapParams(**values).validate(), world_version
@@ -43,6 +43,7 @@ class PrmStarRoadmap:
         rng: RNG | None = None,
         *,
         _lazy: bool = False,
+        _effort_informed: bool = False,
     ) -> None:
         if isinstance(dimension, bool) or type(dimension) is not int or dimension <= 0:
             raise ValueError("dimension must be a positive integer")
@@ -52,6 +53,7 @@ class PrmStarRoadmap:
             RoadmapParams() if params is None else params.validate(),
             np.random.default_rng(0) if rng is None else rng,
             lazy=_lazy,
+            effort_informed=_effort_informed,
         )
 
     @property
@@ -104,6 +106,26 @@ class LazyPrmRoadmap(PrmStarRoadmap):
         rng: RNG | None = None,
     ) -> None:
         super().__init__(space, dimension, params, rng, _lazy=True)
+
+
+class EirmStarRoadmap(PrmStarRoadmap):
+    """Reusable EIRM* roadmap with persistent edge-validation effort data."""
+
+    def __init__(
+        self,
+        space: ContinuousSpace[State],
+        dimension: int,
+        params: RoadmapParams | None = None,
+        rng: RNG | None = None,
+    ) -> None:
+        super().__init__(
+            space,
+            dimension,
+            params,
+            rng,
+            _lazy=True,
+            _effort_informed=True,
+        )
 
 
 def _plan_roadmap(
@@ -163,4 +185,10 @@ def plan_lazy_prm(
     )
 
 
-__all__ = ["LazyPrmRoadmap", "PrmStarRoadmap", "plan_lazy_prm", "plan_prm_star"]
+__all__ = [
+    "EirmStarRoadmap",
+    "LazyPrmRoadmap",
+    "PrmStarRoadmap",
+    "plan_lazy_prm",
+    "plan_prm_star",
+]

@@ -167,6 +167,7 @@ int pp_prm_star_create(size_t dimension, uint64_t sample_count, double gamma,
                        uint64_t max_sample_tries, uint64_t seed,
                        pp_prm_star_roadmap **out, char *error, size_t error_capacity);
 int pp_prm_star_set_lazy(pp_prm_star_roadmap *roadmap, int lazy);
+int pp_prm_star_set_eirm(pp_prm_star_roadmap *roadmap, int enabled);
 int pp_prm_star_build(pp_prm_star_roadmap *roadmap,
                       const pp_continuous_callbacks *callbacks,
                       double collision_step, double time_budget_s,

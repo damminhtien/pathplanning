@@ -268,9 +268,9 @@ _CONTINUOUS_TRACE_LIB: ctypes.CDLL | None = None
 # Keep these exact-match requirements synchronized with abi_version.h.
 _SEARCH_ABI_VERSION = 15
 _SEARCH_METRICS_ABI_VERSION = 2
-_CONTINUOUS_ABI_VERSION = 5
+_CONTINUOUS_ABI_VERSION = 6
 _SEARCH_TRACE_ABI_VERSION = 10
-_CONTINUOUS_TRACE_ABI_VERSION = 5
+_CONTINUOUS_TRACE_ABI_VERSION = 6
 
 
 class NativeLibraryLoadError(RuntimeError):
@@ -738,6 +738,7 @@ def load_continuous_library() -> ctypes.CDLL:
                 "pp_dynamic_rrt_free_result",
                 "pp_prm_star_create",
                 "pp_prm_star_set_lazy",
+                "pp_prm_star_set_eirm",
                 "pp_prm_star_build",
                 "pp_prm_star_query",
                 "pp_prm_star_clear_query",
@@ -1002,6 +1003,7 @@ def load_continuous_trace_library() -> ctypes.CDLL:
                 "pp_dynamic_rrt_plan_traced",
                 "pp_prm_star_query_traced",
                 "pp_prm_star_set_lazy",
+                "pp_prm_star_set_eirm",
                 "pp_continuous_free_result",
                 "pp_dynamic_rrt_free_result",
                 "pp_continuous_trace_free_result",

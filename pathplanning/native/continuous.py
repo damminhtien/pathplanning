@@ -388,11 +388,13 @@ class NativePrmStarRoadmap:
         rng: RNG,
         *,
         lazy: bool = False,
+        effort_informed: bool = False,
     ) -> None:
         self.space = space
         self.dimension = dimension
         self.params = params.validate()
         self.lazy = lazy
+        self.effort_informed = effort_informed
         self.seed = int(rng.integers(0, np.iinfo(np.uint64).max, dtype=np.uint64))
         self.library = load_continuous_library()
         self.handle = self._create_handle(self.library)
@@ -418,6 +420,8 @@ class NativePrmStarRoadmap:
         library.pp_prm_star_create.restype = ctypes.c_int
         library.pp_prm_star_set_lazy.argtypes = [ctypes.c_void_p, ctypes.c_int]
         library.pp_prm_star_set_lazy.restype = ctypes.c_int
+        library.pp_prm_star_set_eirm.argtypes = [ctypes.c_void_p, ctypes.c_int]
+        library.pp_prm_star_set_eirm.restype = ctypes.c_int
         library.pp_prm_star_build.argtypes = [
             ctypes.c_void_p,
             ctypes.POINTER(_Callbacks),
@@ -477,6 +481,9 @@ class NativePrmStarRoadmap:
         if library.pp_prm_star_set_lazy(handle, int(self.lazy)) != 0:
             library.pp_prm_star_free(handle)
             raise RuntimeError("could not configure native PRM* validation mode")
+        if library.pp_prm_star_set_eirm(handle, int(self.effort_informed)) != 0:
+            library.pp_prm_star_free(handle)
+            raise RuntimeError("could not configure native EIRM* mode")
         return handle
 
     def _build_handle(self, library, handle: ctypes.c_void_p) -> dict[str, float]:

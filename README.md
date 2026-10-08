@@ -307,6 +307,10 @@ its finite-graph behavior and guarantee limits.
 break ties between equal path-cost estimates. It shares the fixed-graph and
 objective constraints described in the [EIT* contract](docs/algorithms/eit_star.md).
 
+`EirmStarRoadmap` keeps a sampled graph and edge-validation results for multiple
+queries in one unchanged world. Its per-query search uses remaining collision
+effort to break equal-cost path ties; see the [EIRM* contract](docs/algorithms/eirm_star.md).
+
 For repeated continuous-space queries, `PrmStarRoadmap` retains its sampled
 roadmap and validates candidate edges during construction. `LazyPrmRoadmap`
 defers edge checks until they appear on a candidate route, then caches both
