@@ -46,8 +46,18 @@ class NativeAckermannGridModel:
     origin: ArrayLike
 
 
+@dataclass(frozen=True, slots=True)
+class NativePoseGridModel:
+    """Occupancy grid and footprint bounds for native SE(2) pose planners."""
+
+    occupancy: ArrayLike
+    resolution: float
+    origin: ArrayLike
+
+
 __all__ = [
     "NativeContinuousSpaceModel",
     "NativeContinuousSpaceProvider",
     "NativeAckermannGridModel",
+    "NativePoseGridModel",
 ]

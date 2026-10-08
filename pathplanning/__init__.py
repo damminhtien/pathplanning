@@ -12,8 +12,15 @@ from .api import (
     plan_multi_agent,
     plan_temporal,
 )
-from .core.contracts import MultiAgentProblem, TemporalProblem
-from .core.params import HybridAStarParams, JitParams, RitParams, RoadmapParams, RrtParams
+from .core.contracts import MultiAgentProblem, StateLatticePrimitive, TemporalProblem
+from .core.params import (
+    HybridAStarParams,
+    JitParams,
+    RitParams,
+    RoadmapParams,
+    RrtParams,
+    StateLatticeParams,
+)
 from .core.results import (
     KinematicPlanResult,
     MultiAgentPlanResult,
@@ -35,6 +42,8 @@ __all__ = [
     "RitParams",
     "JitParams",
     "HybridAStarParams",
+    "StateLatticeParams",
+    "StateLatticePrimitive",
     "RoadmapParams",
     "PlanResult",
     "TemporalPlanResult",

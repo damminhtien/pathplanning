@@ -123,6 +123,46 @@ class HybridAStarResult(ctypes.Structure):
     ]
 
 
+class StateLatticeSpace(ctypes.Structure):
+    _fields_ = [
+        ("grid_width", ctypes.c_uint64),
+        ("grid_height", ctypes.c_uint64),
+        ("occupancy", ctypes.POINTER(ctypes.c_uint8)),
+        ("grid_resolution", ctypes.c_double),
+        ("origin_x", ctypes.c_double),
+        ("origin_y", ctypes.c_double),
+        ("footprint_length", ctypes.c_double),
+        ("footprint_width", ctypes.c_double),
+        ("rotation_radius", ctypes.c_double),
+        ("state_valid", HybridStateValidCallback),
+        ("user_data", ctypes.c_void_p),
+    ]
+
+
+class StateLatticePrimitive(ctypes.Structure):
+    _fields_ = [
+        ("relative_poses", ctypes.POINTER(ctypes.c_double)),
+        ("pose_count", ctypes.c_size_t),
+        ("direction", ctypes.c_int),
+        ("cost", ctypes.c_double),
+    ]
+
+
+class StateLatticeOptions(ctypes.Structure):
+    _fields_ = [
+        ("max_expansions", ctypes.c_uint64),
+        ("max_runtime_ms", ctypes.c_double),
+        ("xy_resolution", ctypes.c_double),
+        ("heading_bins", ctypes.c_uint64),
+        ("collision_step", ctypes.c_double),
+        ("goal_xy_tolerance", ctypes.c_double),
+        ("goal_yaw_tolerance", ctypes.c_double),
+        ("heuristic_weight", ctypes.c_double),
+        ("reverse_penalty", ctypes.c_double),
+        ("direction_switch_penalty", ctypes.c_double),
+    ]
+
+
 class MapfResult(ctypes.Structure):
     _fields_ = [
         ("success", ctypes.c_int),
@@ -334,8 +374,8 @@ _SEARCH_METRICS_ABI_VERSION = 2
 _CONTINUOUS_ABI_VERSION = 9
 _SEARCH_TRACE_ABI_VERSION = 10
 _CONTINUOUS_TRACE_ABI_VERSION = 9
-_KINODYNAMIC_ABI_VERSION = 1
-_KINODYNAMIC_TRACE_ABI_VERSION = 1
+_KINODYNAMIC_ABI_VERSION = 2
+_KINODYNAMIC_TRACE_ABI_VERSION = 2
 
 
 class NativeLibraryLoadError(RuntimeError):
@@ -596,6 +636,8 @@ def load_native_library() -> ctypes.CDLL:
                 "pp_kinodynamic_abi_version",
                 "pp_hybrid_astar_plan",
                 "pp_hybrid_astar_free_result",
+                "pp_state_lattice_plan",
+                "pp_state_lattice_free_result",
                 "pp_mapf_free_result",
                 "pp_search_free_result",
                 "pp_search_engine_version",
@@ -790,6 +832,18 @@ def load_native_library() -> ctypes.CDLL:
         library.pp_hybrid_astar_plan.restype = ctypes.c_int
         library.pp_hybrid_astar_free_result.argtypes = [ctypes.POINTER(HybridAStarResult)]
         library.pp_hybrid_astar_free_result.restype = None
+        library.pp_state_lattice_plan.argtypes = [
+            ctypes.POINTER(StateLatticeSpace),
+            ctypes.POINTER(ctypes.c_double),
+            ctypes.POINTER(ctypes.c_double),
+            ctypes.POINTER(StateLatticePrimitive),
+            ctypes.c_size_t,
+            ctypes.POINTER(StateLatticeOptions),
+            ctypes.POINTER(HybridAStarResult),
+        ]
+        library.pp_state_lattice_plan.restype = ctypes.c_int
+        library.pp_state_lattice_free_result.argtypes = [ctypes.POINTER(HybridAStarResult)]
+        library.pp_state_lattice_free_result.restype = None
         _NATIVE_LIB = library
         return library
 
@@ -891,6 +945,8 @@ def load_search_trace_library() -> ctypes.CDLL:
                 "pp_lacam_star_plan_traced",
                 "pp_kinodynamic_trace_abi_version",
                 "pp_hybrid_astar_plan_traced",
+                "pp_state_lattice_plan_traced",
+                "pp_state_lattice_free_result",
                 "pp_sipp_free_result",
                 "pp_search_free_result",
                 "pp_search_trace_free_result",
@@ -1011,6 +1067,22 @@ def load_search_trace_library() -> ctypes.CDLL:
             ctypes.POINTER(TraceResult),
         ]
         _SEARCH_TRACE_LIB.pp_hybrid_astar_plan_traced.restype = ctypes.c_int
+        _SEARCH_TRACE_LIB.pp_state_lattice_plan_traced.argtypes = [
+            ctypes.POINTER(StateLatticeSpace),
+            ctypes.POINTER(ctypes.c_double),
+            ctypes.POINTER(ctypes.c_double),
+            ctypes.POINTER(StateLatticePrimitive),
+            ctypes.c_size_t,
+            ctypes.POINTER(StateLatticeOptions),
+            ctypes.c_uint64,
+            ctypes.POINTER(HybridAStarResult),
+            ctypes.POINTER(TraceResult),
+        ]
+        _SEARCH_TRACE_LIB.pp_state_lattice_plan_traced.restype = ctypes.c_int
+        _SEARCH_TRACE_LIB.pp_state_lattice_free_result.argtypes = [
+            ctypes.POINTER(HybridAStarResult)
+        ]
+        _SEARCH_TRACE_LIB.pp_state_lattice_free_result.restype = None
     return _SEARCH_TRACE_LIB
 
 

@@ -77,6 +77,11 @@ the grid collision model and search loop remain native. The built-in
 snapshot. A custom kinematic space can instead use the state-validity callback
 only when `HybridAStarParams(allow_python_callbacks=True)` is explicitly set.
 
+The same native module runs State Lattice A* over caller-supplied local-frame
+SE(2) primitives. Each edge is interpolated at the configured collision step
+and checked against the complete footprint; the reference grid space provides
+Ackermann and differential-drive primitive factories.
+
 Search state uses dense arrays by node ID for locality: an 8-byte path cost, a
 4-byte parent ID when the graph fits in 32-bit IDs (otherwise 8 bytes), and a
 1-byte flag. That is 13 or 17 bytes per node for these arrays, excluding the

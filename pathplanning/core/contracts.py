@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass
+import math
 from typing import (
     TYPE_CHECKING,
     Any,
@@ -250,6 +251,40 @@ class KinematicSpace(Protocol[S_contra]):
 
     def is_state_valid(self, state: S_contra) -> bool:
         """Return whether the full robot footprint is collision free at a pose."""
+        ...
+
+
+@dataclass(frozen=True, slots=True)
+class StateLatticePrimitive:
+    """One sampled SE(2) motion primitive in the robot's local frame."""
+
+    relative_poses: tuple[tuple[float, float, float], ...]
+    direction: int
+    cost: float
+
+    def __post_init__(self) -> None:
+        if not self.relative_poses:
+            raise ValueError("a motion primitive must contain at least one pose")
+        if type(self.direction) is not int or self.direction not in (-1, 1):
+            raise ValueError("motion primitive direction must be -1 or 1")
+        if isinstance(self.cost, bool) or not math.isfinite(self.cost) or self.cost <= 0.0:
+            raise ValueError("motion primitive cost must be positive and finite")
+        for pose in self.relative_poses:
+            if len(pose) != 3 or not all(math.isfinite(value) for value in pose):
+                raise ValueError("motion primitive poses must contain finite x, y, and yaw")
+
+
+@runtime_checkable
+class StateLatticeSpace(Protocol[S_contra]):
+    """Robot footprint and local-frame primitives for SE(2) lattice search."""
+
+    footprint_length: Float
+    footprint_width: Float
+    rotation_radius: Float
+    motion_primitives: Sequence[StateLatticePrimitive]
+
+    def is_state_valid(self, state: S_contra) -> bool:
+        """Return whether the robot footprint is collision free at a pose."""
         ...
 
 

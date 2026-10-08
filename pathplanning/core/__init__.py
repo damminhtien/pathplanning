@@ -30,6 +30,8 @@ from .contracts import (
     Objective,
     RiemannianMetricSpace,
     State,
+    StateLatticePrimitive,
+    StateLatticeSpace,
     SupportsBatchCollisionStepMotionCheck,
     SupportsBatchMotionCheck,
     SupportsCollisionStepMotionCheck,
@@ -37,7 +39,14 @@ from .contracts import (
     TimeInterval,
     ValidatingDiscreteGraph,
 )
-from .params import HybridAStarParams, JitParams, RitParams, RoadmapParams, RrtParams
+from .params import (
+    HybridAStarParams,
+    JitParams,
+    RitParams,
+    RoadmapParams,
+    RrtParams,
+    StateLatticeParams,
+)
 from .results import (
     KinematicPlanResult,
     MultiAgentPlanResult,
@@ -62,6 +71,8 @@ __all__ = [
     "InterpolatingContinuousSpace",
     "ManipulabilitySpace",
     "KinematicSpace",
+    "StateLatticeSpace",
+    "StateLatticePrimitive",
     "ContinuousSpaceMetadata",
     "GoalRegion",
     "DistanceAwareGoalRegion",
@@ -84,6 +95,7 @@ __all__ = [
     "RitParams",
     "JitParams",
     "HybridAStarParams",
+    "StateLatticeParams",
     "State",
     "NearestNeighborIndex",
     "NaiveNnIndex",

@@ -42,6 +42,7 @@ from that registry.
 | `continuous` | `rit_star` | `pathplanning.planners.sampling.rit_star` | `plan_rit_star` | supported |
 | `continuous` | `jit_star` | `pathplanning.planners.sampling.jit_star` | `plan_jit_star` | supported |
 | `continuous` | `hybrid_astar` | `pathplanning.planners.kinodynamic.hybrid_astar` | `plan_hybrid_astar` | supported |
+| `continuous` | `state_lattice` | `pathplanning.planners.kinodynamic.state_lattice` | `plan_state_lattice` | supported |
 | `continuous` | `bit_star` | `pathplanning.planners.sampling.bit_star` | `plan_bit_star` | supported |
 | `continuous` | `abit_star` | `pathplanning.planners.sampling.abit_star` | `plan_abit_star` | supported |
 | `continuous` | `rrt_connect` | `pathplanning.planners.sampling.rrt_connect` | `plan_rrt_connect` | supported |
@@ -72,6 +73,7 @@ Planner-specific constraints:
 - `rit_star`: requires an exact point goal and additive Riemannian arc length; metric tensors must be symmetric positive definite with global eigenvalue bounds. Custom metric callbacks are opt-in; CARM rescales the metric from collision samples.
 - `jit_star`: requires an exact goal and additive Euclidean or Jacobian-weighted path cost. Manipulability scoring requires a finite robot Jacobian and explicit Python callback opt-in; JIT edge and sample refinements are native.
 - `hybrid_astar`: requires an SE(2) kinematic space with vehicle dimensions and steering limits. Search integrates forward/reverse bicycle primitives, checks the full footprint, and uses collision-checked Dubins or Reeds-Shepp analytic expansions.
+- `state_lattice`: requires a StateLatticeSpace with a finite-cost set of sampled local-frame SE(2) motion primitives; every primitive is collision checked at the configured step.
 - `bit_star`, `abit_star`: use `sample_count` across batches and `batch_size` per batch.
 <!-- END GENERATED PLANNER MATRIX -->
 

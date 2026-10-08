@@ -64,6 +64,11 @@ with discretized keys, footprint collision checks, and Dubins or Reeds-Shepp
 analytic expansions. See the [Hybrid A* guide](docs/algorithms/hybrid_astar.md)
 and [runnable example](examples/hybrid_astar.py).
 
+For robots with a precomputed set of feasible local motions, `state_lattice`
+uses native A* over discretized SE(2) poses. Spaces can provide Ackermann or
+differential-drive motion primitives; see the [guide](docs/algorithms/state_lattice.md)
+and [example](examples/state_lattice.py).
+
 Sampling planners execute their search loops, trees, queues, geometry checks,
 and nearest-neighbor queries in C. Python validates inputs, converts built-in
 spaces or an explicit `NativeContinuousSpaceModel` to native data, and adapts

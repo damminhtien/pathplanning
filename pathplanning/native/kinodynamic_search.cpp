@@ -176,7 +176,8 @@ bool overlaps_occupied_cell(const Pose& pose, double half_length, double half_wi
            along_width <= half_width + cell_projection;
 }
 
-bool grid_state_valid(const pp_hybrid_astar_space& space, const Pose& pose) {
+template <typename Space>
+bool grid_state_valid(const Space& space, const Pose& pose) {
     const double half_length = 0.5 * space.footprint_length;
     const double half_width = 0.5 * space.footprint_width;
     const double cosine = std::cos(pose.yaw);
@@ -213,8 +214,8 @@ bool grid_state_valid(const pp_hybrid_astar_space& space, const Pose& pose) {
     return true;
 }
 
-int state_is_valid(const pp_hybrid_astar_space& space, const Pose& pose,
-                   uint64_t* motion_checks) {
+template <typename Space>
+int state_is_valid(const Space& space, const Pose& pose, uint64_t* motion_checks) {
     if (motion_checks != nullptr) ++*motion_checks;
     if (space.occupancy != nullptr) return grid_state_valid(space, pose) ? 1 : 0;
     if (space.state_valid == nullptr) return -1;
@@ -762,6 +763,307 @@ int plan_impl(const pp_hybrid_astar_space* space, const double* start_values,
     return 0;
 }
 
+Pose transform_pose(const Pose& start, const double* relative) {
+    const double cosine = std::cos(start.yaw);
+    const double sine = std::sin(start.yaw);
+    return {start.x + cosine * relative[0] - sine * relative[1],
+            start.y + sine * relative[0] + cosine * relative[1],
+            wrap_yaw(start.yaw + relative[2])};
+}
+
+double primitive_segment_cost(const Pose& first, const Pose& second,
+                              double rotation_radius) {
+    const double translation = std::hypot(second.x - first.x, second.y - first.y);
+    return std::max(translation, rotation_radius * yaw_distance(second.yaw, first.yaw));
+}
+
+bool valid_lattice_input(const pp_state_lattice_space* space, const double* start,
+                         const double* goal, const pp_state_lattice_primitive* primitives,
+                         size_t primitive_count, const pp_state_lattice_options* options,
+                         std::string* error) {
+    if (space == nullptr || start == nullptr || goal == nullptr || options == nullptr ||
+        primitives == nullptr || primitive_count == 0) {
+        *error = "space, poses, primitives, and options must not be null or empty";
+        return false;
+    }
+    if ((space->occupancy == nullptr && space->state_valid == nullptr) ||
+        (space->occupancy != nullptr && (space->grid_width == 0 || space->grid_height == 0))) {
+        *error = "provide either an occupancy grid or a state-validity callback";
+        return false;
+    }
+    if (!std::isfinite(space->footprint_length) || space->footprint_length <= 0.0 ||
+        !std::isfinite(space->footprint_width) || space->footprint_width <= 0.0 ||
+        !std::isfinite(space->rotation_radius) || space->rotation_radius <= 0.0) {
+        *error = "footprint dimensions and rotation radius must be positive and finite";
+        return false;
+    }
+    if (space->occupancy != nullptr &&
+        (!std::isfinite(space->grid_resolution) || space->grid_resolution <= 0.0 ||
+         !std::isfinite(space->origin_x) || !std::isfinite(space->origin_y) ||
+         space->grid_width > std::numeric_limits<size_t>::max() / space->grid_height)) {
+        *error = "occupancy grid dimensions and geometry are invalid";
+        return false;
+    }
+    for (size_t axis = 0; axis < 3; ++axis) {
+        if (!std::isfinite(start[axis]) || !std::isfinite(goal[axis])) {
+            *error = "start and goal poses must contain finite values";
+            return false;
+        }
+    }
+    if (options->max_expansions == 0 || !std::isfinite(options->max_runtime_ms) ||
+        options->max_runtime_ms < 0.0 || !std::isfinite(options->xy_resolution) ||
+        options->xy_resolution <= 0.0 || options->heading_bins < 8 ||
+        !std::isfinite(options->collision_step) || options->collision_step <= 0.0 ||
+        !std::isfinite(options->goal_xy_tolerance) || options->goal_xy_tolerance <= 0.0 ||
+        !std::isfinite(options->goal_yaw_tolerance) || options->goal_yaw_tolerance <= 0.0 ||
+        !std::isfinite(options->heuristic_weight) || options->heuristic_weight < 1.0 ||
+        !std::isfinite(options->reverse_penalty) || options->reverse_penalty < 1.0 ||
+        !std::isfinite(options->direction_switch_penalty) ||
+        options->direction_switch_penalty < 0.0) {
+        *error = "state-lattice options are invalid";
+        return false;
+    }
+    for (size_t index = 0; index < primitive_count; ++index) {
+        const auto& primitive = primitives[index];
+        if (primitive.relative_poses == nullptr || primitive.pose_count == 0 ||
+            (primitive.direction != -1 && primitive.direction != 1) ||
+            !std::isfinite(primitive.cost) || primitive.cost <= 0.0) {
+            *error = "motion primitive metadata is invalid";
+            return false;
+        }
+        Pose previous{0.0, 0.0, 0.0};
+        double minimum_cost = 0.0;
+        for (size_t pose_index = 0; pose_index < primitive.pose_count; ++pose_index) {
+            const double* values = primitive.relative_poses + pose_index * 3;
+            if (!std::isfinite(values[0]) || !std::isfinite(values[1]) ||
+                !std::isfinite(values[2])) {
+                *error = "motion primitive poses must contain finite values";
+                return false;
+            }
+            Pose current{values[0], values[1], wrap_yaw(values[2])};
+            minimum_cost += primitive_segment_cost(previous, current, space->rotation_radius);
+            previous = current;
+        }
+        if (primitive.cost + 1e-9 < minimum_cost) {
+            *error = "motion primitive cost underestimates its sampled motion";
+            return false;
+        }
+    }
+    return true;
+}
+
+template <typename Space>
+bool validate_lattice_primitive(const Space& space, const Pose& start,
+                                const pp_state_lattice_primitive& primitive,
+                                const pp_state_lattice_options& options,
+                                uint64_t* motion_checks, std::vector<Pose>* path_samples) {
+    Pose previous = start;
+    for (size_t index = 0; index < primitive.pose_count; ++index) {
+        const double* relative = primitive.relative_poses + index * 3;
+        const Pose target = transform_pose(start, relative);
+        const double distance = std::hypot(target.x - previous.x, target.y - previous.y);
+        const double angle = yaw_distance(target.yaw, previous.yaw);
+        const size_t steps = std::max<size_t>(
+            1, static_cast<size_t>(std::ceil(
+                   std::max(distance, space.rotation_radius * angle) /
+                   options.collision_step)));
+        for (size_t step = 1; step <= steps; ++step) {
+            const double fraction = static_cast<double>(step) / static_cast<double>(steps);
+            const double yaw_delta = wrap_yaw(target.yaw - previous.yaw);
+            Pose sample{previous.x + (target.x - previous.x) * fraction,
+                        previous.y + (target.y - previous.y) * fraction,
+                        wrap_yaw(previous.yaw + yaw_delta * fraction)};
+            if (motion_checks != nullptr) {
+                const int valid = state_is_valid(space, sample, motion_checks);
+                if (valid <= 0) return false;
+            }
+            path_samples->push_back(sample);
+        }
+        previous = target;
+    }
+    return true;
+}
+
+int state_lattice_impl(const pp_state_lattice_space* space, const double* start_values,
+                       const double* goal_values,
+                       const pp_state_lattice_primitive* primitives,
+                       size_t primitive_count, const pp_state_lattice_options* options,
+                       pp_hybrid_astar_result* result, uint64_t trace_max_bytes,
+                       pp_trace_result* trace) {
+    if (result == nullptr) return -1;
+    *result = pp_hybrid_astar_result{};
+    result->stop_reason = 2;
+    const double started = monotonic_seconds();
+    std::string error;
+    if (!valid_lattice_input(space, start_values, goal_values, primitives, primitive_count,
+                             options, &error)) {
+        set_error(result, error);
+        return -1;
+    }
+    TraceBuffer trace_buffer(trace == nullptr ? 0 : trace_max_bytes);
+    const Pose start{start_values[0], start_values[1], wrap_yaw(start_values[2])};
+    const Pose goal{goal_values[0], goal_values[1], wrap_yaw(goal_values[2])};
+    const double origin_x = space->occupancy == nullptr ? 0.0 : space->origin_x;
+    const double origin_y = space->occupancy == nullptr ? 0.0 : space->origin_y;
+    const int start_valid = state_is_valid(*space, start, &result->motion_checks);
+    if (start_valid < 0) {
+        set_error(result, "state-validity callback failed for the start pose");
+        return -1;
+    }
+    if (start_valid == 0) {
+        set_error(result, "start pose is invalid or its footprint collides");
+        return -1;
+    }
+    const int goal_valid = state_is_valid(*space, goal, &result->motion_checks);
+    if (goal_valid < 0) {
+        set_error(result, "state-validity callback failed for the goal pose");
+        return -1;
+    }
+    if (goal_valid == 0) {
+        set_error(result, "goal pose is invalid or its footprint collides");
+        return -1;
+    }
+
+    struct LatticeNode {
+        Pose pose;
+        double cost;
+        size_t parent;
+        int direction;
+        size_t primitive;
+    };
+    std::vector<LatticeNode> nodes;
+    nodes.reserve(static_cast<size_t>(std::min<uint64_t>(options->max_expansions, 65536)) + 1);
+    std::unordered_map<Key, size_t, KeyHash> best_node;
+    std::priority_queue<QueueItem, std::vector<QueueItem>, QueueGreater> open;
+    nodes.push_back({start, 0.0, std::numeric_limits<size_t>::max(), 0,
+                     std::numeric_limits<size_t>::max()});
+    best_node.emplace(make_key(start, 0, options->xy_resolution, origin_x, origin_y,
+                               options->heading_bins), 0);
+    const auto estimate = [&](const Pose& pose) {
+        return std::max(std::hypot(goal.x - pose.x, goal.y - pose.y),
+                        space->rotation_radius * yaw_distance(goal.yaw, pose.yaw));
+    };
+    open.push({options->heuristic_weight * estimate(start), estimate(start), 0.0, 0});
+    trace_buffer.add_point(start);
+    trace_buffer.add_event(0, std::numeric_limits<uint64_t>::max(), 0.0, PP_TRACE_DISCOVER);
+    size_t solution_id = std::numeric_limits<size_t>::max();
+
+    while (!open.empty()) {
+        if (result->iters >= options->max_expansions) {
+            result->stop_reason = 1;
+            break;
+        }
+        if (options->max_runtime_ms > 0.0 &&
+            (monotonic_seconds() - started) * 1000.0 >= options->max_runtime_ms) {
+            result->stop_reason = 4;
+            break;
+        }
+        const QueueItem item = open.top();
+        open.pop();
+        if (item.node >= nodes.size()) continue;
+        const LatticeNode current = nodes[item.node];
+        if (item.cost > current.cost + 1e-10) continue;
+        const Key current_key = make_key(current.pose, current.direction,
+                                         options->xy_resolution, origin_x, origin_y,
+                                         options->heading_bins);
+        const auto current_best = best_node.find(current_key);
+        if (current_best == best_node.end() || current_best->second != item.node) continue;
+        ++result->iters;
+        trace_buffer.add_event(item.node, current.parent, current.cost, PP_TRACE_EXPAND);
+        if (std::hypot(current.pose.x - goal.x, current.pose.y - goal.y) <=
+                options->goal_xy_tolerance &&
+            yaw_distance(current.pose.yaw, goal.yaw) <= options->goal_yaw_tolerance) {
+            solution_id = item.node;
+            result->first_solution_iter = result->iters;
+            result->stop_reason = 0;
+            trace_buffer.add_event(item.node, current.parent, current.cost, PP_TRACE_SOLUTION);
+            break;
+        }
+
+        for (size_t primitive_id = 0; primitive_id < primitive_count; ++primitive_id) {
+            const auto& primitive = primitives[primitive_id];
+            std::vector<Pose> samples;
+            if (!validate_lattice_primitive(*space, current.pose, primitive, *options,
+                                            &result->motion_checks, &samples)) {
+                continue;
+            }
+            const double edge_cost = primitive.cost *
+                                         (primitive.direction < 0 ? options->reverse_penalty : 1.0) +
+                                     (current.direction != 0 &&
+                                              current.direction != primitive.direction
+                                          ? options->direction_switch_penalty
+                                          : 0.0);
+            const double tentative = current.cost + edge_cost;
+            const Pose next = samples.back();
+            const Key key = make_key(next, primitive.direction, options->xy_resolution,
+                                     origin_x, origin_y, options->heading_bins);
+            auto found = best_node.find(key);
+            if (found != best_node.end() &&
+                tentative + 1e-10 >= nodes[found->second].cost) {
+                continue;
+            }
+            const size_t next_id = nodes.size();
+            nodes.push_back({next, tentative, item.node, primitive.direction, primitive_id});
+            if (found == best_node.end()) best_node.emplace(key, next_id);
+            else found->second = next_id;
+            trace_buffer.add_point(next);
+            trace_buffer.add_event(next_id, item.node, tentative, PP_TRACE_DISCOVER);
+            const double h = estimate(next);
+            open.push({tentative + options->heuristic_weight * h, h, tentative, next_id});
+        }
+    }
+
+    result->nodes = nodes.size();
+    if (solution_id != std::numeric_limits<size_t>::max()) {
+        std::vector<size_t> chain;
+        for (size_t cursor = solution_id; cursor != std::numeric_limits<size_t>::max();
+             cursor = nodes[cursor].parent) {
+            chain.push_back(cursor);
+        }
+        std::reverse(chain.begin(), chain.end());
+        std::vector<Pose> path{nodes[chain.front()].pose};
+        std::vector<int8_t> directions{0};
+        for (size_t index = 1; index < chain.size(); ++index) {
+            const auto& node = nodes[chain[index]];
+            const Pose parent_pose = nodes[node.parent].pose;
+            const auto& primitive = primitives[node.primitive];
+            std::vector<Pose> samples;
+            samples.reserve(primitive.pose_count);
+            validate_lattice_primitive(*space, parent_pose, primitive, *options, nullptr,
+                                       &samples);
+            path.insert(path.end(), samples.begin(), samples.end());
+            directions.insert(directions.end(), samples.size(),
+                              static_cast<int8_t>(primitive.direction));
+        }
+        result->path_length = path.size();
+        result->poses = static_cast<double*>(std::malloc(path.size() * 3 * sizeof(double)));
+        result->directions = static_cast<int8_t*>(std::malloc(path.size() * sizeof(int8_t)));
+        if (result->poses == nullptr || result->directions == nullptr) {
+            std::free(result->poses);
+            std::free(result->directions);
+            result->poses = nullptr;
+            result->directions = nullptr;
+            result->path_length = 0;
+            set_error(result, "could not allocate state-lattice path buffers");
+            return -1;
+        }
+        for (size_t index = 0; index < path.size(); ++index) {
+            result->poses[index * 3] = path[index].x;
+            result->poses[index * 3 + 1] = path[index].y;
+            result->poses[index * 3 + 2] = path[index].yaw;
+            result->directions[index] = directions[index];
+        }
+        result->success = 1;
+        result->path_cost = nodes[solution_id].cost;
+    }
+    result->elapsed_s = monotonic_seconds() - started;
+    if (trace != nullptr && copy_trace(&trace_buffer, trace) != 0) {
+        set_error(result, "could not allocate state-lattice trace buffers");
+        return -1;
+    }
+    return 0;
+}
+
 }  // namespace
 
 extern "C" uint32_t pp_kinodynamic_abi_version(void) {
@@ -795,6 +1097,32 @@ extern "C" void pp_hybrid_astar_free_result(pp_hybrid_astar_result* result) {
     *result = pp_hybrid_astar_result{};
 }
 
+extern "C" int pp_state_lattice_plan(const pp_state_lattice_space* space,
+                                     const double* start,
+                                     const double* goal,
+                                     const pp_state_lattice_primitive* primitives,
+                                     size_t primitive_count,
+                                     const pp_state_lattice_options* options,
+                                     pp_hybrid_astar_result* result) {
+    try {
+        return state_lattice_impl(space, start, goal, primitives, primitive_count,
+                                  options, result, 0, nullptr);
+    } catch (const std::bad_alloc&) {
+        if (result != nullptr) set_error(result, "out of memory during state-lattice search");
+        return -1;
+    } catch (const std::exception& exception) {
+        if (result != nullptr) set_error(result, exception.what());
+        return -1;
+    } catch (...) {
+        if (result != nullptr) set_error(result, "unknown state-lattice failure");
+        return -1;
+    }
+}
+
+extern "C" void pp_state_lattice_free_result(pp_hybrid_astar_result* result) {
+    pp_hybrid_astar_free_result(result);
+}
+
 #if defined(PP_ENABLE_TRACE) && PP_ENABLE_TRACE
 extern "C" uint32_t pp_kinodynamic_trace_abi_version(void) {
     return PP_KINODYNAMIC_TRACE_ABI_VERSION;
@@ -821,6 +1149,30 @@ extern "C" int pp_hybrid_astar_plan_traced(const pp_hybrid_astar_space* space,
         return -1;
     } catch (...) {
         if (result != nullptr) set_error(result, "unknown traced Hybrid A* failure");
+        return -1;
+    }
+}
+
+extern "C" int pp_state_lattice_plan_traced(
+    const pp_state_lattice_space* space, const double* start, const double* goal,
+    const pp_state_lattice_primitive* primitives, size_t primitive_count,
+    const pp_state_lattice_options* options, uint64_t trace_max_bytes,
+    pp_hybrid_astar_result* result, pp_trace_result* trace) {
+    if (trace == nullptr) {
+        if (result != nullptr) set_error(result, "trace result must not be null");
+        return -1;
+    }
+    try {
+        return state_lattice_impl(space, start, goal, primitives, primitive_count,
+                                  options, result, trace_max_bytes, trace);
+    } catch (const std::bad_alloc&) {
+        if (result != nullptr) set_error(result, "out of memory during traced state-lattice search");
+        return -1;
+    } catch (const std::exception& exception) {
+        if (result != nullptr) set_error(result, exception.what());
+        return -1;
+    } catch (...) {
+        if (result != nullptr) set_error(result, "unknown traced state-lattice failure");
         return -1;
     }
 }

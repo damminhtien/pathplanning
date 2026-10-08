@@ -65,6 +65,40 @@ typedef struct pp_hybrid_astar_result {
     char *error_message;
 } pp_hybrid_astar_result;
 
+typedef struct pp_state_lattice_space {
+    uint64_t grid_width;
+    uint64_t grid_height;
+    const uint8_t *occupancy;
+    double grid_resolution;
+    double origin_x;
+    double origin_y;
+    double footprint_length;
+    double footprint_width;
+    double rotation_radius;
+    pp_hybrid_state_valid_callback state_valid;
+    void *user_data;
+} pp_state_lattice_space;
+
+typedef struct pp_state_lattice_primitive {
+    const double *relative_poses;
+    size_t pose_count;
+    int direction;
+    double cost;
+} pp_state_lattice_primitive;
+
+typedef struct pp_state_lattice_options {
+    uint64_t max_expansions;
+    double max_runtime_ms;
+    double xy_resolution;
+    uint64_t heading_bins;
+    double collision_step;
+    double goal_xy_tolerance;
+    double goal_yaw_tolerance;
+    double heuristic_weight;
+    double reverse_penalty;
+    double direction_switch_penalty;
+} pp_state_lattice_options;
+
 uint32_t pp_kinodynamic_abi_version(void);
 
 int pp_hybrid_astar_plan(const pp_hybrid_astar_space *space,
@@ -74,6 +108,16 @@ int pp_hybrid_astar_plan(const pp_hybrid_astar_space *space,
                          pp_hybrid_astar_result *result);
 
 void pp_hybrid_astar_free_result(pp_hybrid_astar_result *result);
+
+int pp_state_lattice_plan(const pp_state_lattice_space *space,
+                          const double *start,
+                          const double *goal,
+                          const pp_state_lattice_primitive *primitives,
+                          size_t primitive_count,
+                          const pp_state_lattice_options *options,
+                          pp_hybrid_astar_result *result);
+
+void pp_state_lattice_free_result(pp_hybrid_astar_result *result);
 
 #if defined(PP_ENABLE_TRACE) && PP_ENABLE_TRACE
 uint32_t pp_kinodynamic_trace_abi_version(void);
@@ -85,6 +129,16 @@ int pp_hybrid_astar_plan_traced(const pp_hybrid_astar_space *space,
                                 uint64_t trace_max_bytes,
                                 pp_hybrid_astar_result *result,
                                 pp_trace_result *trace);
+
+int pp_state_lattice_plan_traced(const pp_state_lattice_space *space,
+                                 const double *start,
+                                 const double *goal,
+                                 const pp_state_lattice_primitive *primitives,
+                                 size_t primitive_count,
+                                 const pp_state_lattice_options *options,
+                                 uint64_t trace_max_bytes,
+                                 pp_hybrid_astar_result *result,
+                                 pp_trace_result *trace);
 #endif
 
 #ifdef __cplusplus

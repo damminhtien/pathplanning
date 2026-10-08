@@ -11,6 +11,11 @@ from pathplanning.spaces.grid2d import (
 )
 from pathplanning.spaces.grid3d import Grid3DSearchSpace, Node3D
 from pathplanning.spaces.planar_manipulator import PlanarManipulatorSpace
+from pathplanning.spaces.state_lattice import (
+    StateLatticeGridSpace,
+    ackermann_motion_primitives,
+    differential_drive_motion_primitives,
+)
 from pathplanning.spaces.terrain_grid2d import TerrainCostGrid2D
 
 __all__ = [
@@ -21,6 +26,9 @@ __all__ = [
     "AnisotropicContinuousSpace",
     "PlanarManipulatorSpace",
     "AckermannGridSpace",
+    "StateLatticeGridSpace",
+    "ackermann_motion_primitives",
+    "differential_drive_motion_primitives",
     "GridCell",
     "Node3D",
     "Grid2DSamplingSpace",

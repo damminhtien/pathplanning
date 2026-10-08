@@ -14,11 +14,18 @@ from pathplanning.core.contracts import (
     State,
     TemporalProblem,
 )
-from pathplanning.core.params import HybridAStarParams, JitParams, RitParams, RrtParams
+from pathplanning.core.params import (
+    HybridAStarParams,
+    JitParams,
+    RitParams,
+    RrtParams,
+    StateLatticeParams,
+)
 from pathplanning.core.results import MultiAgentPlanResult, PlanResult, TemporalPlanResult
 from pathplanning.core.trace import TraceOptions
 from pathplanning.core.types import RNG
 from pathplanning.planners.kinodynamic.hybrid_astar import plan_hybrid_astar
+from pathplanning.planners.kinodynamic.state_lattice import plan_state_lattice
 from pathplanning.planners.multi_agent.eecbs import plan_eecbs
 from pathplanning.planners.multi_agent.lacam_star import plan_lacam_star
 from pathplanning.planners.sampling.abit_star import plan_abit_star
@@ -80,6 +87,7 @@ class ContinuousPlannerCallable(Protocol):
         problem: ContinuousProblem[State],
         *,
         params: HybridAStarParams
+        | StateLatticeParams
         | JitParams
         | RitParams
         | RrtParams
@@ -409,6 +417,17 @@ _PLANNER_SPECS: tuple[tuple[str, PlannerSpec], ...] = (
                 "requires an SE(2) kinematic space with vehicle dimensions and steering limits. "
                 "Search integrates forward/reverse bicycle primitives, checks the full footprint, "
                 "and uses collision-checked Dubins or Reeds-Shepp analytic expansions.",
+            ),
+        ),
+    ),
+    (
+        "state_lattice",
+        PlannerSpec(
+            "continuous",
+            plan_state_lattice,
+            (
+                "requires a StateLatticeSpace with a finite-cost set of sampled local-frame SE(2) "
+                "motion primitives; every primitive is collision checked at the configured step.",
             ),
         ),
     ),

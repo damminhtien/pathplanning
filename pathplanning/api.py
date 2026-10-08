@@ -21,6 +21,7 @@ from pathplanning.core.params import (
     RitParams,
     RoadmapParams,
     RrtParams,
+    StateLatticeParams,
 )
 from pathplanning.core.results import MultiAgentPlanResult, PlanResult, TemporalPlanResult
 from pathplanning.core.trace import TraceOptions
@@ -36,7 +37,13 @@ Result: TypeAlias = PlanResult
 Stats: TypeAlias = Mapping[str, float]
 DiscreteParams: TypeAlias = Mapping[str, object]
 ContinuousParams: TypeAlias = (
-    HybridAStarParams | JitParams | RitParams | RrtParams | RoadmapParams | Mapping[str, object]
+    HybridAStarParams
+    | StateLatticeParams
+    | JitParams
+    | RitParams
+    | RrtParams
+    | RoadmapParams
+    | Mapping[str, object]
 )
 TemporalParams: TypeAlias = Mapping[str, object]
 MultiAgentParams: TypeAlias = Mapping[str, object]
@@ -63,6 +70,11 @@ def plan_discrete(
     effective_rng = _resolve_rng(seed, rng)
     merged_params = dict(problem.params or {})
     if params is not None:
+        if isinstance(
+            params,
+            (HybridAStarParams, StateLatticeParams, JitParams, RitParams, RrtParams, RoadmapParams),
+        ):
+            raise TypeError("Discrete planning does not accept continuous planner parameters")
         merged_params.update(params)
     resolved_params = merged_params or None
     resolved_problem = replace(problem, params=resolved_params)
@@ -90,11 +102,21 @@ def plan_continuous(
         raise TypeError("JitParams can only be used with jit_star")
     if isinstance(params, HybridAStarParams) and planner != "hybrid_astar":
         raise TypeError("HybridAStarParams can only be used with hybrid_astar")
+    if isinstance(params, StateLatticeParams) and planner != "state_lattice":
+        raise TypeError("StateLatticeParams can only be used with state_lattice")
     effective_rng = _resolve_rng(seed, rng)
     resolved_params: (
-        HybridAStarParams | JitParams | RitParams | RrtParams | dict[str, object] | None
+        HybridAStarParams
+        | StateLatticeParams
+        | JitParams
+        | RitParams
+        | RrtParams
+        | dict[str, object]
+        | None
     )
-    if params is None or isinstance(params, (HybridAStarParams, JitParams, RitParams, RrtParams)):
+    if params is None or isinstance(
+        params, (HybridAStarParams, StateLatticeParams, JitParams, RitParams, RrtParams)
+    ):
         resolved_params = params
     else:
         resolved_params = dict(params)
@@ -115,6 +137,11 @@ def plan_temporal(
     """Run a registered planner on a time-dependent graph problem."""
     if trace is not None and type(trace) is not TraceOptions:
         raise TypeError("trace must be TraceOptions or None")
+    if isinstance(
+        params,
+        (HybridAStarParams, StateLatticeParams, JitParams, RitParams, RrtParams, RoadmapParams),
+    ):
+        raise TypeError("Temporal planning does not accept continuous planner parameters")
     effective_rng = _resolve_rng(seed, rng)
     merged_params = dict(problem.params or {})
     if params is not None:
@@ -138,6 +165,11 @@ def plan_multi_agent(
     """Run a registered MAPF planner on an undirected unit-time graph."""
     if trace is not None and type(trace) is not TraceOptions:
         raise TypeError("trace must be TraceOptions or None")
+    if isinstance(
+        params,
+        (HybridAStarParams, StateLatticeParams, JitParams, RitParams, RrtParams, RoadmapParams),
+    ):
+        raise TypeError("Multi-agent planning does not accept continuous planner parameters")
     effective_rng = _resolve_rng(seed, rng)
     merged_params = dict(problem.params or {})
     if params is not None:
@@ -212,7 +244,10 @@ def plan(
     """Unified planner entrypoint dispatching by problem type."""
     if isinstance(problem, DiscreteProblem):
         resolved_planner = planner if planner is not None else "astar"
-        if isinstance(params, (RrtParams, RoadmapParams)):
+        if isinstance(
+            params,
+            (HybridAStarParams, StateLatticeParams, JitParams, RitParams, RrtParams, RoadmapParams),
+        ):
             raise TypeError("Discrete planning does not accept continuous planner parameters")
         return plan_discrete(
             problem,
@@ -224,7 +259,10 @@ def plan(
         )
 
     if isinstance(problem, TemporalProblem):
-        if isinstance(params, (RrtParams, RoadmapParams)):
+        if isinstance(
+            params,
+            (HybridAStarParams, StateLatticeParams, JitParams, RitParams, RrtParams, RoadmapParams),
+        ):
             raise TypeError("Temporal planning does not accept continuous planner parameters")
         return plan_temporal(
             problem,
@@ -236,7 +274,10 @@ def plan(
         )
 
     if isinstance(problem, MultiAgentProblem):
-        if isinstance(params, (RrtParams, RoadmapParams)):
+        if isinstance(
+            params,
+            (HybridAStarParams, StateLatticeParams, JitParams, RitParams, RrtParams, RoadmapParams),
+        ):
             raise TypeError("Multi-agent planning does not accept continuous planner parameters")
         return plan_multi_agent(
             problem,
