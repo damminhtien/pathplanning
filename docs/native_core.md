@@ -44,6 +44,10 @@ both side cells to be free. Lazy Theta* validates a candidate parent when its
 node is expanded and repairs blocked shortcuts through the cheapest closed
 visible neighbor. The adapters return cell waypoints without expanding the
 any-angle segments.
+D* Lite stores its CSR adjacency, `g`/`rhs` values, key queue, and edge-cost
+overrides in `pathplanning/native/dstar_lite.cpp`. The Python session maps
+labels and computes heuristic arrays before native calls; `move_start()` and
+`update_edges()` retain the search state between plans.
 
 Search state uses dense arrays by node ID for locality: an 8-byte path cost, a
 4-byte parent ID when the graph fits in 32-bit IDs (otherwise 8 bytes), and a

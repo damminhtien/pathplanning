@@ -26,6 +26,7 @@ from pathplanning.planners.search.bidirectional_dijkstra import plan_bidirection
 from pathplanning.planners.search.breadth_first_search import plan_breadth_first_search
 from pathplanning.planners.search.depth_first_search import plan_depth_first_search
 from pathplanning.planners.search.dijkstra import plan_dijkstra
+from pathplanning.planners.search.dstar_lite import plan_dstar_lite
 from pathplanning.planners.search.greedy_best_first import plan_greedy_best_first
 from pathplanning.planners.search.jump_point import plan_jps
 from pathplanning.planners.search.jump_point_weighted import plan_jpsw
@@ -109,6 +110,17 @@ _PLANNER_SPECS: tuple[tuple[str, PlannerSpec], ...] = (
         ),
     ),
     ("dijkstra", PlannerSpec("discrete", plan_dijkstra)),
+    (
+        "dstar_lite",
+        PlannerSpec(
+            "discrete",
+            plan_dstar_lite,
+            (
+                "requires an exact goal and non-negative costs on stable directed edges; "
+                "graph heuristics must be admissible and consistent.",
+            ),
+        ),
+    ),
     ("weighted_astar", PlannerSpec("discrete", plan_weighted_astar)),
     (
         "reexp_astar",

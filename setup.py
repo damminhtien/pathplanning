@@ -28,6 +28,7 @@ setup(
             "pathplanning.native._search_engine",
             sources=[
                 "pathplanning/native/search_engine.cpp",
+                "pathplanning/native/dstar_lite.cpp",
                 "pathplanning/native/jps_grid.cpp",
                 "pathplanning/native/jpsw_grid.cpp",
                 "pathplanning/native/theta_star_grid.cpp",

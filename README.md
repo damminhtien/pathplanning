@@ -241,6 +241,11 @@ and repairs blocked shortcuts through a closed neighboring cell. It shares
 Theta*'s conservative corner and terrain-cost rules; see the [Lazy Theta*
 contract and runnable example](docs/algorithms/lazy_theta_star.md).
 
+For a fixed goal in a graph whose directed edges can change cost, `dstar_lite`
+keeps its search state across calls. Use `DStarLitePlanner` to move the start,
+block or reopen existing edges, and repair the route; see the [D* Lite contract
+and runnable example](docs/algorithms/dstar_lite.md).
+
 ### Native graph input
 
 Discrete searches run against a C++-owned CSR graph. For repeated queries or

@@ -11,9 +11,7 @@
 #include <stdint.h>
 
 #include "abi_version.h"
-#if defined(PP_ENABLE_TRACE) && PP_ENABLE_TRACE
 #include "trace_engine.h"
-#endif
 #if defined(PP_ENABLE_METRICS) && PP_ENABLE_METRICS
 #include "search_metrics.h"
 #endif
@@ -55,6 +53,14 @@ typedef enum pp_search_tie_break {
 } pp_search_tie_break;
 
 typedef struct pp_native_graph pp_native_graph;
+typedef struct pp_native_dstar_lite pp_native_dstar_lite;
+
+typedef struct pp_dstar_edge_update {
+    uint64_t source_id;
+    uint64_t target_id;
+    double cost;
+    int restore_base_cost;
+} pp_dstar_edge_update;
 
 // Borrowed pointers remain valid until the graph is freed. Keep the owner
 // alive while copying this view into another native library.
@@ -272,6 +278,68 @@ int pp_native_lazy_theta_star_grid(
     pp_search_result* result,
     pp_theta_metrics* metrics
 );
+
+int pp_dstar_lite_create(
+    uint64_t node_count,
+    uint64_t edge_count,
+    const uint64_t* offsets,
+    const uint64_t* neighbor_ids,
+    const double* edge_costs,
+    uint64_t start_id,
+    uint64_t goal_id,
+    const double* heuristic_values,
+    pp_native_dstar_lite** out_planner,
+    char* error_message,
+    size_t error_capacity
+);
+
+void pp_dstar_lite_free(pp_native_dstar_lite* planner);
+
+int pp_dstar_lite_plan(
+    pp_native_dstar_lite* planner,
+    int has_max_expansions,
+    uint64_t max_expansions,
+    double max_runtime_ms,
+    pp_search_result* result
+);
+
+int pp_dstar_lite_plan_traced(
+    pp_native_dstar_lite* planner,
+    int has_max_expansions,
+    uint64_t max_expansions,
+    double max_runtime_ms,
+    uint64_t trace_max_bytes,
+    pp_search_result* result,
+    pp_trace_result* trace
+);
+
+int pp_dstar_lite_move_start(
+    pp_native_dstar_lite* planner,
+    uint64_t start_id,
+    const double* heuristic_values,
+    double heuristic_delta,
+    char* error_message,
+    size_t error_capacity
+);
+
+int pp_dstar_lite_update_edges(
+    pp_native_dstar_lite* planner,
+    const pp_dstar_edge_update* updates,
+    size_t update_count,
+    char* error_message,
+    size_t error_capacity
+);
+
+int pp_dstar_lite_reset(
+    pp_native_dstar_lite* planner,
+    uint64_t start_id,
+    uint64_t goal_id,
+    const double* heuristic_values,
+    char* error_message,
+    size_t error_capacity
+);
+
+void pp_dstar_lite_trace_free_result(pp_trace_result* trace);
 
 #if defined(PP_ENABLE_TRACE) && PP_ENABLE_TRACE
 int pp_native_jps_grid_traced(

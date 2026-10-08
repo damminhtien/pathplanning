@@ -16,6 +16,7 @@ from that registry.
 | `discrete` | `bidirectional_dijkstra` | `pathplanning.planners.search.bidirectional_dijkstra` | `plan_bidirectional_dijkstra` | supported |
 | `discrete` | `bidirectional_astar` | `pathplanning.planners.search.bidirectional_astar` | `plan_bidirectional_astar` | supported |
 | `discrete` | `dijkstra` | `pathplanning.planners.search.dijkstra` | `plan_dijkstra` | supported |
+| `discrete` | `dstar_lite` | `pathplanning.planners.search.dstar_lite` | `plan_dstar_lite` | supported |
 | `discrete` | `weighted_astar` | `pathplanning.planners.search.weighted_astar` | `plan_weighted_astar` | supported |
 | `discrete` | `reexp_astar` | `pathplanning.planners.search.reexp_astar` | `plan_reexp_astar` | supported |
 | `discrete` | `anytime_astar` | `pathplanning.planners.search.anytime_astar` | `plan_anytime_astar` | supported |
@@ -35,6 +36,7 @@ Planner-specific constraints:
 
 - `bidirectional_dijkstra`: uses two Dijkstra frontiers and does not evaluate a heuristic; it requires an exact goal node.
 - `bidirectional_astar`: runs the same native kernel over potential-reweighted edges and requires a consistent heuristic and an exact goal node.
+- `dstar_lite`: requires an exact goal and non-negative costs on stable directed edges; graph heuristics must be admissible and consistent.
 - `reexp_astar`: Weighted A* with conditional closed-node re-expansion; r uses r_mode (abs, rel_edge, or rel_g), and tie_break is g_low or g_high.
 - `jps`: requires uniform Grid2DSearchSpace costs, standard 8-connected motions, and prohibits diagonal corner cutting.
 - `jpsw`: requires TerrainCostGrid2D with positive finite terrain costs, standard 8-connected motions, exact cell goals, and no diagonal corner cutting.

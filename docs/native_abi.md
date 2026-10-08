@@ -8,7 +8,7 @@ its C ABI version.
 
 | Library | ABI constant | Probe function | Supported ABI |
 | --- | --- | --- | --- |
-| C++ graph search | `PP_SEARCH_ABI_VERSION` | `pp_search_abi_version()` | 9 |
+| C++ graph search | `PP_SEARCH_ABI_VERSION` | `pp_search_abi_version()` | 10 |
 | C sampling planners | `PP_CONTINUOUS_ABI_VERSION` | `pp_continuous_abi_version()` | 1 |
 | C++ diagnostic search | `PP_SEARCH_TRACE_ABI_VERSION` | `pp_search_trace_abi_version()` | 5 |
 | C++ diagnostic search metrics | `PP_SEARCH_METRICS_ABI_VERSION` | `pp_search_metrics_abi_version()` | 2 |
@@ -51,6 +51,10 @@ entrypoint. Search ABI 9 adds `pp_native_lazy_theta_star_grid()` and trace ABI 5
 adds the matching traced entrypoint. Both planners use caller-owned
 `pp_theta_metrics` counters and return waypoint cells, not an expansion of each
 any-angle segment into grid cells.
+Search ABI 10 adds the stateful `pp_dstar_lite_*` session API. It copies CSR
+adjacency and edge costs into native state, keeps stable directed-edge IDs for
+cost updates, and offers expansion and runtime budgets plus a capped trace call
+on the same session handle.
 
 The production `_search_engine` is built without `PP_ENABLE_METRICS`; metric
 macros compile to no-ops and search containers use the normal

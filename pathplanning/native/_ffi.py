@@ -84,6 +84,15 @@ class ThetaMetrics(ctypes.Structure):
         self.struct_size = ctypes.sizeof(type(self))
 
 
+class DStarEdgeUpdate(ctypes.Structure):
+    _fields_ = [
+        ("source_id", ctypes.c_uint64),
+        ("target_id", ctypes.c_uint64),
+        ("cost", ctypes.c_double),
+        ("restore_base_cost", ctypes.c_int),
+    ]
+
+
 class TraceEvent(ctypes.Structure):
     _fields_ = [
         ("node", ctypes.c_uint64),
@@ -224,7 +233,7 @@ _SEARCH_METRICS_LIB: ctypes.CDLL | None = None
 _CONTINUOUS_TRACE_LIB: ctypes.CDLL | None = None
 
 # Keep these exact-match requirements synchronized with abi_version.h.
-_SEARCH_ABI_VERSION = 9
+_SEARCH_ABI_VERSION = 10
 _SEARCH_METRICS_ABI_VERSION = 2
 _CONTINUOUS_ABI_VERSION = 1
 _SEARCH_TRACE_ABI_VERSION = 5
@@ -339,6 +348,14 @@ def load_native_library() -> ctypes.CDLL:
                 "pp_native_jpsw_grid",
                 "pp_native_theta_star_grid",
                 "pp_native_lazy_theta_star_grid",
+                "pp_dstar_lite_create",
+                "pp_dstar_lite_free",
+                "pp_dstar_lite_plan",
+                "pp_dstar_lite_plan_traced",
+                "pp_dstar_lite_move_start",
+                "pp_dstar_lite_update_edges",
+                "pp_dstar_lite_reset",
+                "pp_dstar_lite_trace_free_result",
                 "pp_search_free_result",
                 "pp_search_engine_version",
             ),
@@ -444,6 +461,68 @@ def load_native_library() -> ctypes.CDLL:
             ctypes.POINTER(ThetaMetrics),
         ]
         library.pp_native_lazy_theta_star_grid.restype = ctypes.c_int
+        library.pp_dstar_lite_create.argtypes = [
+            ctypes.c_uint64,
+            ctypes.c_uint64,
+            ctypes.POINTER(ctypes.c_uint64),
+            ctypes.POINTER(ctypes.c_uint64),
+            ctypes.POINTER(ctypes.c_double),
+            ctypes.c_uint64,
+            ctypes.c_uint64,
+            ctypes.POINTER(ctypes.c_double),
+            ctypes.POINTER(ctypes.c_void_p),
+            ctypes.POINTER(ctypes.c_char),
+            ctypes.c_size_t,
+        ]
+        library.pp_dstar_lite_create.restype = ctypes.c_int
+        library.pp_dstar_lite_free.argtypes = [ctypes.c_void_p]
+        library.pp_dstar_lite_free.restype = None
+        library.pp_dstar_lite_plan.argtypes = [
+            ctypes.c_void_p,
+            ctypes.c_int,
+            ctypes.c_uint64,
+            ctypes.c_double,
+            ctypes.POINTER(SearchResult),
+        ]
+        library.pp_dstar_lite_plan.restype = ctypes.c_int
+        library.pp_dstar_lite_plan_traced.argtypes = [
+            ctypes.c_void_p,
+            ctypes.c_int,
+            ctypes.c_uint64,
+            ctypes.c_double,
+            ctypes.c_uint64,
+            ctypes.POINTER(SearchResult),
+            ctypes.POINTER(TraceResult),
+        ]
+        library.pp_dstar_lite_plan_traced.restype = ctypes.c_int
+        library.pp_dstar_lite_move_start.argtypes = [
+            ctypes.c_void_p,
+            ctypes.c_uint64,
+            ctypes.POINTER(ctypes.c_double),
+            ctypes.c_double,
+            ctypes.POINTER(ctypes.c_char),
+            ctypes.c_size_t,
+        ]
+        library.pp_dstar_lite_move_start.restype = ctypes.c_int
+        library.pp_dstar_lite_update_edges.argtypes = [
+            ctypes.c_void_p,
+            ctypes.POINTER(DStarEdgeUpdate),
+            ctypes.c_size_t,
+            ctypes.POINTER(ctypes.c_char),
+            ctypes.c_size_t,
+        ]
+        library.pp_dstar_lite_update_edges.restype = ctypes.c_int
+        library.pp_dstar_lite_reset.argtypes = [
+            ctypes.c_void_p,
+            ctypes.c_uint64,
+            ctypes.c_uint64,
+            ctypes.POINTER(ctypes.c_double),
+            ctypes.POINTER(ctypes.c_char),
+            ctypes.c_size_t,
+        ]
+        library.pp_dstar_lite_reset.restype = ctypes.c_int
+        library.pp_dstar_lite_trace_free_result.argtypes = [ctypes.POINTER(TraceResult)]
+        library.pp_dstar_lite_trace_free_result.restype = None
         library.pp_search_free_result.argtypes = [ctypes.POINTER(SearchResult)]
         library.pp_search_free_result.restype = None
         library.pp_search_engine_version.argtypes = []
