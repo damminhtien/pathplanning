@@ -38,6 +38,7 @@ from that registry.
 | `continuous` | `ait_star` | `pathplanning.planners.sampling.ait_star` | `plan_ait_star` | supported |
 | `continuous` | `eit_star` | `pathplanning.planners.sampling.eit_star` | `plan_eit_star` | supported |
 | `continuous` | `eirm_star` | `pathplanning.planners.sampling.eirm_star` | `plan_eirm_star` | supported |
+| `continuous` | `fcit_star` | `pathplanning.planners.sampling.fcit_star` | `plan_fcit_star` | supported |
 | `continuous` | `bit_star` | `pathplanning.planners.sampling.bit_star` | `plan_bit_star` | supported |
 | `continuous` | `abit_star` | `pathplanning.planners.sampling.abit_star` | `plan_abit_star` | supported |
 | `continuous` | `rrt_connect` | `pathplanning.planners.sampling.rrt_connect` | `plan_rrt_connect` | supported |
@@ -64,6 +65,7 @@ Planner-specific constraints:
 - `ait_star`: requires an exact point goal, Euclidean metric, additive path length, and a positive sample count; collision discovery repairs its reverse graph heuristic.
 - `eit_star`: requires an exact point goal, Euclidean metric, and additive path length; collision-check effort from collision_step breaks ties between cost estimates.
 - `eirm_star`: uses a reusable Euclidean roadmap and caches edge-validation outcomes and collision-effort estimates across exact-goal queries; requires additive path length.
+- `fcit_star`: requires an exact point goal, Euclidean distance, and additive path length; searches a fully connected informed graph with per-source local queues and batched edge validation.
 - `bit_star`, `abit_star`: use `sample_count` across batches and `batch_size` per batch.
 <!-- END GENERATED PLANNER MATRIX -->
 

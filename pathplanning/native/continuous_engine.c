@@ -12,8 +12,9 @@
 
 #define PP_C_INF INFINITY
 #define PP_C_NONE UINT32_MAX
-#define PP_C_VERSION "1.5.0"
+#define PP_C_VERSION "1.6.0"
 #define PP_C_KD_LEVELS 32
+#define PP_C_FCIT_BATCH_LIMIT 64
 
 typedef struct {
     uint32_t *ids;
@@ -111,6 +112,18 @@ typedef struct {
     size_t capacity;
     uint64_t next_order;
 } pp_edge_heap;
+
+typedef struct {
+    uint32_t target;
+    double edge_cost;
+    double ordering_key;
+} pp_fcit_local_edge;
+
+typedef struct {
+    pp_fcit_local_edge *items;
+    size_t count;
+    size_t next;
+} pp_fcit_local_queue;
 
 typedef struct {
     const pp_continuous_callbacks *callbacks;
@@ -707,6 +720,53 @@ static int pp_valid_motion(pp_context *ctx, const double *a, const double *b) {
     }
 }
 
+static int pp_valid_motion_batch(pp_context *ctx, const pp_edge_entry *edges,
+                                 size_t count, uint8_t *out_validity) {
+    size_t i;
+    if (count == 0) return 0;
+    if (ctx->callbacks->motion_valid_batch == NULL) {
+        for (i = 0; i < count; ++i) {
+            int valid = pp_valid_motion(ctx,
+                pp_point(&ctx->nodes, edges[i].source),
+                pp_point(&ctx->nodes, edges[i].target));
+            if (valid < 0) return -1;
+            out_validity[i] = (uint8_t)valid;
+        }
+        return 0;
+    }
+    if (count > SIZE_MAX / ctx->dimension / sizeof(double)) return -1;
+    {
+        size_t value_count = count * ctx->dimension;
+        double *starts = (double *)malloc(value_count * sizeof(*starts));
+        double *ends = (double *)malloc(value_count * sizeof(*ends));
+        int callback_status;
+        if (starts == NULL || ends == NULL) {
+            free(starts);
+            free(ends);
+            return -1;
+        }
+        for (i = 0; i < count; ++i) {
+            memcpy(starts + i * ctx->dimension,
+                   pp_point(&ctx->nodes, edges[i].source),
+                   ctx->dimension * sizeof(double));
+            memcpy(ends + i * ctx->dimension,
+                   pp_point(&ctx->nodes, edges[i].target),
+                   ctx->dimension * sizeof(double));
+        }
+        ctx->motion_checks += count;
+        callback_status = ctx->callbacks->motion_valid_batch(
+            ctx->callbacks->user_data, starts, ends, count, ctx->dimension,
+            ctx->options->collision_step, out_validity);
+        free(starts);
+        free(ends);
+        if (callback_status != 0) return -1;
+    }
+    for (i = 0; i < count; ++i) {
+        if (out_validity[i] > 1) return -1;
+    }
+    return 0;
+}
+
 static int pp_sample(pp_context *ctx, double *out) {
     uint64_t attempt;
     for (attempt = 0; attempt < ctx->options->max_sample_tries; ++attempt) {
@@ -1216,6 +1276,48 @@ static int pp_edge_cache_set(pp_edge_cache *cache, uint32_t first, uint32_t seco
     return 0;
 }
 
+static uint64_t pp_directed_edge_cache_key(uint32_t source, uint32_t target) {
+    return ((uint64_t)source << 32) | (uint64_t)target;
+}
+
+static int pp_edge_cache_get_directed(const pp_edge_cache *cache,
+                                      uint32_t source, uint32_t target) {
+    uint64_t key;
+    size_t slot;
+    if (cache->capacity == 0) return 0;
+    key = pp_directed_edge_cache_key(source, target);
+    slot = pp_edge_cache_slot(key, cache->capacity);
+    while (cache->states[slot] != 0) {
+        if (cache->keys[slot] == key) return cache->states[slot];
+        slot = (slot + 1) & (cache->capacity - 1);
+    }
+    return 0;
+}
+
+static int pp_edge_cache_set_directed(pp_edge_cache *cache, uint32_t source,
+                                      uint32_t target, int8_t state) {
+    uint64_t key;
+    size_t slot;
+    if (state != -1 && state != 1) return -1;
+    if (cache->capacity == 0 || cache->count + 1 > cache->capacity - cache->capacity / 3) {
+        size_t capacity = cache->capacity == 0 ? 128 : cache->capacity * 2;
+        if (capacity < cache->capacity || pp_edge_cache_rehash(cache, capacity) != 0) return -1;
+    }
+    key = pp_directed_edge_cache_key(source, target);
+    slot = pp_edge_cache_slot(key, cache->capacity);
+    while (cache->states[slot] != 0) {
+        if (cache->keys[slot] == key) {
+            cache->states[slot] = state;
+            return 0;
+        }
+        slot = (slot + 1) & (cache->capacity - 1);
+    }
+    cache->keys[slot] = key;
+    cache->states[slot] = state;
+    ++cache->count;
+    return 0;
+}
+
 static double pp_vertex_peek(const pp_vertex_heap *heap) {
     return heap->count == 0 ? PP_C_INF : heap->items[0].key;
 }
@@ -1687,6 +1789,415 @@ static int pp_run_bit(pp_context *ctx, int anytime, pp_continuous_result *result
     else status = 0;
 done:
     free(sample);
+    return status;
+}
+
+static int pp_fcit_edge_compare(const void *left, const void *right) {
+    const pp_fcit_local_edge *a = (const pp_fcit_local_edge *)left;
+    const pp_fcit_local_edge *b = (const pp_fcit_local_edge *)right;
+    if (a->ordering_key < b->ordering_key) return -1;
+    if (a->ordering_key > b->ordering_key) return 1;
+    return a->target < b->target ? -1 : a->target > b->target;
+}
+
+static int pp_fcit_init_local_queue(pp_context *ctx, uint32_t node_count,
+                                    uint32_t source, const double *heuristic,
+                                    pp_fcit_local_queue *queue,
+                                    pp_continuous_result *result,
+                                    int *timed_out) {
+    uint32_t target;
+    size_t capacity = node_count > 0 ? (size_t)node_count - 1 : 0;
+    if (capacity == 0) return 0;
+    if (capacity > SIZE_MAX / sizeof(*queue->items)) {
+        pp_set_error(result, "FCIT* local edge queue is too large");
+        return -1;
+    }
+    queue->items = (pp_fcit_local_edge *)malloc(capacity * sizeof(*queue->items));
+    if (queue->items == NULL) {
+        pp_set_error(result, "out of memory creating FCIT* local edge queue");
+        return -1;
+    }
+    for (target = 0; target < node_count; ++target) {
+        pp_fcit_local_edge *edge;
+        double edge_cost, ordering_key;
+        if ((target & 31u) == 0 && pp_timed_out(ctx)) {
+            *timed_out = 1;
+            return 1;
+        }
+        if (target == source || !isfinite(heuristic[target])) continue;
+        if (pp_distance(ctx, pp_point(&ctx->nodes, source),
+                        pp_point(&ctx->nodes, target), &edge_cost) != 0) {
+            pp_set_error(result, "FCIT* distance callback failed");
+            return -1;
+        }
+        ordering_key = edge_cost + heuristic[target];
+        if (!isfinite(ordering_key)) continue;
+        edge = &queue->items[queue->count++];
+        edge->target = target;
+        edge->edge_cost = edge_cost;
+        edge->ordering_key = ordering_key;
+    }
+    qsort(queue->items, queue->count, sizeof(*queue->items), pp_fcit_edge_compare);
+    return 0;
+}
+
+static int pp_fcit_push_next(pp_context *ctx, uint32_t source,
+                             const double *heuristic, double best_cost,
+                             pp_fcit_local_queue *queues,
+                             pp_edge_cache *edge_cache, pp_edge_heap *open,
+                             pp_continuous_result *result) {
+    pp_fcit_local_queue *queue = &queues[source];
+    double source_cost = ctx->nodes.cost[source];
+    while (queue->next < queue->count) {
+        pp_fcit_local_edge *edge = &queue->items[queue->next++];
+        double tentative, key;
+        int8_t edge_state = (int8_t)pp_edge_cache_get_directed(
+            edge_cache, source, edge->target
+        );
+        if (edge_state < 0) continue;
+        tentative = source_cost + edge->edge_cost;
+        if (!isfinite(tentative) ||
+            tentative + 1e-12 >= ctx->nodes.cost[edge->target]) continue;
+        key = tentative + heuristic[edge->target];
+        if (!isfinite(key) || key + 1e-12 >= best_cost) return 0;
+        if (pp_edge_push(open, source, edge->target, key,
+                         source_cost, tentative) != 0) {
+            pp_set_error(result, "out of memory growing FCIT* open queue");
+            return -1;
+        }
+        return 0;
+    }
+    return 0;
+}
+
+static void pp_fcit_release_frontier(pp_fcit_local_queue *queues,
+                                     uint32_t node_count,
+                                     pp_edge_heap *open) {
+    uint32_t node;
+    if (queues != NULL) {
+        for (node = 0; node < node_count; ++node) free(queues[node].items);
+    }
+    free(queues);
+    free(open->items);
+    memset(open, 0, sizeof(*open));
+}
+
+static int pp_fcit_rebuild_frontier(pp_context *ctx, uint32_t node_count,
+                                    const double *heuristic,
+                                    pp_fcit_local_queue *queues,
+                                    pp_edge_cache *edge_cache,
+                                    pp_edge_heap *open,
+                                    pp_continuous_result *result,
+                                    int *timed_out) {
+    uint32_t source;
+    for (source = 0; source < node_count; ++source) {
+        int init_status;
+        if (!isfinite(ctx->nodes.cost[source])) continue;
+        init_status = pp_fcit_init_local_queue(ctx, node_count, source, heuristic,
+                                               &queues[source], result, timed_out);
+        if (init_status > 0) return 0;
+        if (init_status < 0 || pp_fcit_push_next(ctx, source, heuristic,
+                              ctx->nodes.cost[1], queues, edge_cache,
+                              open, result) != 0) return -1;
+    }
+    return 0;
+}
+
+static int pp_fcit_refresh_changed_sources(pp_context *ctx, uint32_t node_count,
+                                           const double *heuristic,
+                                           const double *old_cost,
+                                           pp_fcit_local_queue *queues,
+                                           pp_edge_cache *edge_cache,
+                                           pp_edge_heap *open,
+                                           pp_continuous_result *result,
+                                           int *timed_out) {
+    uint32_t node;
+    for (node = 0; node < node_count; ++node) {
+        int changed = !isfinite(old_cost[node]) && isfinite(ctx->nodes.cost[node]);
+        if (!changed && isfinite(old_cost[node]) && isfinite(ctx->nodes.cost[node]))
+            changed = ctx->nodes.cost[node] + 1e-12 < old_cost[node];
+        if (!changed) continue;
+        if (queues[node].items == NULL) {
+            int init_status = pp_fcit_init_local_queue(
+                ctx, node_count, node, heuristic, &queues[node], result, timed_out
+            );
+            if (init_status > 0) return 0;
+            if (init_status < 0) return -1;
+        } else {
+            queues[node].next = 0;
+        }
+        if (pp_fcit_push_next(ctx, node, heuristic, ctx->nodes.cost[1],
+                              queues, edge_cache, open, result) != 0) return -1;
+    }
+    {
+        size_t threshold = (size_t)node_count > SIZE_MAX / 4
+            ? SIZE_MAX : (size_t)node_count * 4;
+        if (open->count > threshold) {
+            free(open->items);
+            memset(open, 0, sizeof(*open));
+            for (node = 0; node < node_count; ++node) {
+                if (!isfinite(ctx->nodes.cost[node])) continue;
+                queues[node].next = 0;
+                if (pp_fcit_push_next(ctx, node, heuristic,
+                                      ctx->nodes.cost[1], queues,
+                                      edge_cache, open, result) != 0) return -1;
+            }
+        }
+    }
+    return 0;
+}
+
+static int pp_fcit_validate_batch(pp_context *ctx, const pp_edge_entry *edges,
+                                  size_t count, uint8_t *validity) {
+    return pp_valid_motion_batch(ctx, edges, count, validity);
+}
+
+static int pp_run_fcit(pp_context *ctx, pp_continuous_result *result) {
+    pp_edge_cache edge_cache = {0};
+    pp_edge_heap open = {0};
+    pp_fcit_local_queue *queues = NULL;
+    double *heuristic = NULL, *old_cost = NULL, *sample = NULL;
+    uint32_t root, goal_id, node_count = 0, frontier_count = 0;
+    uint64_t generated = 0;
+    double lower_bound, best_cost = PP_C_INF;
+    int stop = 3, status = -1;
+
+    sample = (double *)malloc(ctx->dimension * sizeof(*sample));
+    if (sample == NULL) {
+        pp_set_error(result, "out of memory allocating FCIT* sample");
+        goto done;
+    }
+    if (pp_distance(ctx, ctx->nodes.points, ctx->goal, &lower_bound) != 0) {
+        pp_set_error(result, "FCIT* start-goal distance callback failed");
+        goto done;
+    }
+    root = pp_node_add(&ctx->nodes, ctx->nodes.points, PP_C_NONE, 0.0, 0.0, 0);
+    goal_id = pp_node_add(&ctx->nodes, ctx->goal, PP_C_NONE, PP_C_INF, 0.0, 0);
+    if (root == PP_C_NONE || goal_id == PP_C_NONE) {
+        pp_set_error(result, "out of memory initializing FCIT* tree");
+        goto done;
+    }
+
+    while (generated < ctx->options->sample_count) {
+        uint64_t batch_size = ctx->options->batch_size;
+        uint64_t remaining = ctx->options->sample_count - generated;
+        uint64_t i;
+        int timed_out = 0;
+
+        if (batch_size > remaining) batch_size = remaining;
+        for (i = 0; i < batch_size; ++i) {
+            uint32_t sample_id;
+            if (pp_timed_out(ctx)) {
+                stop = 1;
+                timed_out = 1;
+                break;
+            }
+            if (pp_push_sample(ctx, sample, best_cost, 1) != 0) {
+                pp_set_error(result, "failed to generate FCIT* samples");
+                goto done;
+            }
+            sample_id = pp_node_add(&ctx->nodes, sample, PP_C_NONE,
+                                    PP_C_INF, 0.0, 0);
+            if (sample_id == PP_C_NONE) {
+                pp_set_error(result, "out of memory extending FCIT* samples");
+                goto done;
+            }
+            ++generated;
+        }
+        if (i == 0) break;
+        node_count = ctx->nodes.count;
+        pp_fcit_release_frontier(queues, frontier_count, &open);
+        queues = NULL;
+        frontier_count = 0;
+        free(heuristic);
+        heuristic = NULL;
+        free(old_cost);
+        old_cost = NULL;
+        if ((size_t)node_count > SIZE_MAX / sizeof(*queues) ||
+            (size_t)node_count > SIZE_MAX / sizeof(*heuristic)) {
+            pp_set_error(result, "FCIT* sample graph is too large");
+            goto done;
+        }
+        queues = (pp_fcit_local_queue *)calloc(node_count, sizeof(*queues));
+        heuristic = (double *)malloc((size_t)node_count * sizeof(*heuristic));
+        old_cost = (double *)malloc((size_t)node_count * sizeof(*old_cost));
+        if (queues == NULL || heuristic == NULL || old_cost == NULL) {
+            pp_set_error(result, "out of memory allocating FCIT* graph state");
+            goto done;
+        }
+        frontier_count = node_count;
+        for (i = 0; i < node_count; ++i) {
+            if (pp_timed_out(ctx)) {
+                stop = 1;
+                timed_out = 1;
+                break;
+            }
+            if (pp_goal_distance(ctx, pp_point(&ctx->nodes, (uint32_t)i),
+                                 &heuristic[i]) != 0) {
+                pp_set_error(result, "FCIT* goal-distance callback failed");
+                goto done;
+            }
+        }
+        if (timed_out) break;
+        ++ctx->batches;
+#ifdef PP_ENABLE_TRACE
+        pp_trace_phase(ctx, (double)ctx->batches);
+#endif
+        if (pp_fcit_rebuild_frontier(ctx, node_count, heuristic, queues,
+                                     &edge_cache, &open, result, &timed_out) != 0) goto done;
+        if (timed_out) break;
+
+        while (open.count > 0) {
+            pp_edge_entry edge_batch[PP_C_FCIT_BATCH_LIMIT];
+            pp_edge_entry unknown_edges[PP_C_FCIT_BATCH_LIMIT];
+            uint8_t unknown_validity[PP_C_FCIT_BATCH_LIMIT];
+            size_t edge_count = 0, unknown_count = 0, batch_limit;
+            uint64_t iter_remaining;
+
+            if (pp_timed_out(ctx)) {
+                stop = 1;
+                timed_out = 1;
+                break;
+            }
+            if (ctx->iterations >= ctx->options->max_iters) {
+                stop = 2;
+                break;
+            }
+            iter_remaining = ctx->options->max_iters - ctx->iterations;
+            batch_limit = ctx->options->batch_size > PP_C_FCIT_BATCH_LIMIT
+                ? PP_C_FCIT_BATCH_LIMIT : (size_t)ctx->options->batch_size;
+            if (batch_limit > iter_remaining) batch_limit = (size_t)iter_remaining;
+
+            while (open.count > 0 && edge_count < batch_limit) {
+                pp_edge_entry candidate = open.items[0];
+                uint32_t source = candidate.source;
+                uint32_t target = candidate.target;
+                int8_t cached;
+                (void)pp_edge_pop(&open, &candidate);
+                if (candidate.source_cost != ctx->nodes.cost[source]) continue;
+                if (candidate.key + 1e-12 >= ctx->nodes.cost[goal_id]) break;
+                if (candidate.tentative + 1e-12 >= ctx->nodes.cost[target]) {
+                    if (pp_fcit_push_next(ctx, source, heuristic,
+                                          ctx->nodes.cost[goal_id], queues,
+                                          &edge_cache, &open, result) != 0) goto done;
+                    continue;
+                }
+                cached = (int8_t)pp_edge_cache_get_directed(&edge_cache, source, target);
+                if (cached < 0) {
+                    if (pp_fcit_push_next(ctx, source, heuristic,
+                                          ctx->nodes.cost[goal_id], queues,
+                                          &edge_cache, &open, result) != 0) goto done;
+                    continue;
+                }
+                edge_batch[edge_count++] = candidate;
+                ++ctx->iterations;
+#ifdef PP_ENABLE_TRACE
+                pp_trace_native_event(ctx->trace, PP_TRACE_EXPAND, source,
+                                      PP_C_NONE, candidate.key, 0);
+#endif
+                if (pp_fcit_push_next(ctx, source, heuristic,
+                                      ctx->nodes.cost[goal_id], queues,
+                                      &edge_cache, &open, result) != 0) goto done;
+            }
+            if (edge_count == 0) continue;
+
+            for (i = 0; i < edge_count; ++i) {
+                if (pp_edge_cache_get_directed(&edge_cache,
+                        edge_batch[i].source, edge_batch[i].target) == 0) {
+                    unknown_edges[unknown_count++] = edge_batch[i];
+                }
+            }
+            if (unknown_count > 0) {
+                if (pp_fcit_validate_batch(ctx, unknown_edges, unknown_count,
+                                           unknown_validity) != 0) {
+                    pp_set_error(result, "FCIT* batch motion-validity callback failed");
+                    goto done;
+                }
+                for (i = 0; i < unknown_count; ++i) {
+                    pp_edge_entry *edge = &unknown_edges[i];
+                    int8_t state = unknown_validity[i] ? 1 : -1;
+                    if (pp_edge_cache_set_directed(&edge_cache, edge->source,
+                                                   edge->target, state) != 0) {
+                        pp_set_error(result, "out of memory caching FCIT* edge validity");
+                        goto done;
+                    }
+                }
+            }
+
+            for (i = 0; i < edge_count; ++i) {
+                pp_edge_entry *candidate = &edge_batch[i];
+                uint32_t source = candidate->source;
+                uint32_t target = candidate->target;
+                double old_target_cost;
+                int was_in_tree;
+                int8_t cached = (int8_t)pp_edge_cache_get_directed(
+                    &edge_cache, source, target
+                );
+                if (candidate->key + 1e-12 >= ctx->nodes.cost[goal_id]) break;
+                if (cached != 1 ||
+                    candidate->source_cost != ctx->nodes.cost[source] ||
+                    candidate->tentative + 1e-12 >= ctx->nodes.cost[target] ||
+                    pp_is_ancestor(&ctx->nodes, target, source)) continue;
+
+                memcpy(old_cost, ctx->nodes.cost,
+                       (size_t)node_count * sizeof(*old_cost));
+                old_target_cost = ctx->nodes.cost[target];
+                was_in_tree = isfinite(old_target_cost);
+                pp_node_attach(&ctx->nodes, target, source,
+                               candidate->tentative - ctx->nodes.cost[source],
+                               candidate->tentative);
+                if (was_in_tree) ++ctx->rewires;
+                if (pp_update_descendant_costs(ctx, target) != 0) {
+                    pp_set_error(result, "failed to update FCIT* tree costs");
+                    goto done;
+                }
+                if (pp_fcit_refresh_changed_sources(ctx, node_count, heuristic,
+                        old_cost, queues, &edge_cache, &open, result, &timed_out) != 0) goto done;
+                if (timed_out) break;
+                if (ctx->nodes.cost[goal_id] < best_cost) {
+                    best_cost = ctx->nodes.cost[goal_id];
+#ifdef PP_ENABLE_TRACE
+                    pp_trace_solution(ctx, goal_id, PP_C_NONE, best_cost);
+#endif
+                }
+            }
+            if (timed_out) break;
+            if (fabs(ctx->nodes.cost[goal_id] - lower_bound) <=
+                fmax(1e-12, fabs(lower_bound) * 1e-10)) {
+                stop = 0;
+                break;
+            }
+            if (pp_timed_out(ctx)) {
+                stop = 1;
+                timed_out = 1;
+                break;
+            }
+        }
+        if (timed_out || stop == 2 || stop == 0) break;
+    }
+
+    best_cost = ctx->nodes.cost[goal_id];
+    if (isfinite(best_cost)) {
+        status = pp_record_path(ctx, goal_id, result);
+    } else {
+        result->success = 0;
+        result->stop_reason = stop;
+        result->iters = ctx->iterations;
+        result->nodes = ctx->nodes.count;
+        result->sample_count = ctx->samples;
+        result->batches = ctx->batches;
+        result->motion_checks = ctx->motion_checks;
+        result->rewires = ctx->rewires;
+        result->elapsed_s = pp_now() - ctx->started;
+        status = 0;
+    }
+done:
+    pp_fcit_release_frontier(queues, frontier_count, &open);
+    free(heuristic);
+    free(old_cost);
+    free(sample);
+    free(edge_cache.keys);
+    free(edge_cache.states);
     return status;
 }
 
@@ -2342,7 +2853,7 @@ static int pp_continuous_plan_impl(const pp_continuous_callbacks *callbacks,
     if (callbacks->native_goal && (!has_goal_point || !isfinite(callbacks->goal_radius) || callbacks->goal_radius < 0.0)) {
         pp_set_error(result, "native goal requires a point goal and a finite non-negative radius"); return -1;
     }
-    if (options->algorithm < PP_CONTINUOUS_RRT || options->algorithm > PP_CONTINUOUS_EIT_STAR ||
+    if (options->algorithm < PP_CONTINUOUS_RRT || options->algorithm > PP_CONTINUOUS_FCIT_STAR ||
         options->max_iters == 0 || options->max_sample_tries == 0 ||
         !(options->step_size > 0.0) || !(options->collision_step > 0.0) ||
         !(options->goal_sample_rate >= 0.0 && options->goal_sample_rate <= 1.0) ||
@@ -2350,7 +2861,9 @@ static int pp_continuous_plan_impl(const pp_continuous_callbacks *callbacks,
         pp_set_error(result, "continuous planner options are invalid"); return -1;
     }
     if ((options->algorithm == PP_CONTINUOUS_FMT_STAR || options->algorithm == PP_CONTINUOUS_BIT_STAR ||
-         options->algorithm == PP_CONTINUOUS_ABIT_STAR || options->algorithm == PP_CONTINUOUS_INFORMED_RRT_STAR) &&
+         options->algorithm == PP_CONTINUOUS_ABIT_STAR ||
+         options->algorithm == PP_CONTINUOUS_INFORMED_RRT_STAR ||
+         options->algorithm == PP_CONTINUOUS_FCIT_STAR) &&
         (!has_goal_point || options->sample_count == 0 || options->batch_size == 0)) {
         pp_set_error(result, "informed sampling planners require an exact goal and positive samples"); return -1;
     }
@@ -2404,6 +2917,7 @@ static int pp_continuous_plan_impl(const pp_continuous_callbacks *callbacks,
         case PP_CONTINUOUS_ABIT_STAR: status = pp_run_bit(&ctx, 1, result); break;
         case PP_CONTINUOUS_AIT_STAR: status = pp_run_asymmetric(&ctx, result, 0); break;
         case PP_CONTINUOUS_EIT_STAR: status = pp_run_asymmetric(&ctx, result, 1); break;
+        case PP_CONTINUOUS_FCIT_STAR: status = pp_run_fcit(&ctx, result); break;
         case PP_CONTINUOUS_RRT_CONNECT: status = pp_run_connect(&ctx, result); break;
         default: pp_set_error(result, "unknown continuous algorithm"); status = -1; break;
     }

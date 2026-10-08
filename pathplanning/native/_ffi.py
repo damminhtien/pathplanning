@@ -268,9 +268,9 @@ _CONTINUOUS_TRACE_LIB: ctypes.CDLL | None = None
 # Keep these exact-match requirements synchronized with abi_version.h.
 _SEARCH_ABI_VERSION = 15
 _SEARCH_METRICS_ABI_VERSION = 2
-_CONTINUOUS_ABI_VERSION = 6
+_CONTINUOUS_ABI_VERSION = 7
 _SEARCH_TRACE_ABI_VERSION = 10
-_CONTINUOUS_TRACE_ABI_VERSION = 6
+_CONTINUOUS_TRACE_ABI_VERSION = 7
 
 
 class NativeLibraryLoadError(RuntimeError):

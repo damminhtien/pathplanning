@@ -22,7 +22,8 @@ typedef enum pp_continuous_algorithm {
     PP_CONTINUOUS_ABIT_STAR = 6,
     PP_CONTINUOUS_RRT_CONNECT = 7,
     PP_CONTINUOUS_AIT_STAR = 8,
-    PP_CONTINUOUS_EIT_STAR = 9
+    PP_CONTINUOUS_EIT_STAR = 9,
+    PP_CONTINUOUS_FCIT_STAR = 10
 } pp_continuous_algorithm;
 
 // Return 0 on success and nonzero on failure. out_state is read only on success.
@@ -34,6 +35,13 @@ typedef int (*pp_state_valid_callback)(void *user_data, const double *state, siz
 typedef int (*pp_motion_valid_callback)(void *user_data, const double *start,
                                         const double *end, size_t dimension,
                                         double collision_step);
+// Return 0 and write one 0/1 validity value per edge; nonzero reports failure.
+typedef int (*pp_motion_valid_batch_callback)(void *user_data,
+                                              const double *starts,
+                                              const double *ends,
+                                              size_t count, size_t dimension,
+                                              double collision_step,
+                                              uint8_t *out_validity);
 
 // Return a finite, non-negative value. Negative or non-finite values fail the
 // plan.
@@ -78,6 +86,7 @@ typedef struct pp_continuous_callbacks {
     pp_sample_free_callback sample_free;
     pp_state_valid_callback state_valid;
     pp_motion_valid_callback motion_valid;
+    pp_motion_valid_batch_callback motion_valid_batch;
     pp_distance_callback distance;
     pp_steer_callback steer;
     pp_goal_callback is_goal;

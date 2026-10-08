@@ -58,7 +58,8 @@ class BatchInformedTreePlanner:
 def _run(
     problem: ContinuousProblem[State], params, rng, planner: str, trace: TraceOptions | None
 ) -> PlanResult:
-    validate_objective(problem.objective, "ABIT*" if planner == "abit_star" else "BIT*")
+    planner_name = {"abit_star": "ABIT*", "fcit_star": "FCIT*"}.get(planner, "BIT*")
+    validate_objective(problem.objective, planner_name)
     resolved_params = coerce_rrt_params(problem, params)
     return run_native_continuous(
         problem.space,
@@ -93,4 +94,21 @@ def run_abit_star(
     return _run(problem, params, rng, "abit_star", trace)
 
 
-__all__ = ["BatchInformedTreePlanner", "IndexFactory", "run_bit_star", "run_abit_star"]
+def run_fcit_star(
+    problem: ContinuousProblem[State],
+    *,
+    params: RrtParams | Mapping[str, object] | None = None,
+    rng: RNG | None = None,
+    trace: TraceOptions | None = None,
+) -> PlanResult:
+    """Run native FCIT* with a complete informed graph and batched validation."""
+    return _run(problem, params, rng, "fcit_star", trace)
+
+
+__all__ = [
+    "BatchInformedTreePlanner",
+    "IndexFactory",
+    "run_abit_star",
+    "run_bit_star",
+    "run_fcit_star",
+]

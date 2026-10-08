@@ -25,6 +25,7 @@ from pathplanning.planners.sampling.ait_star import plan_ait_star
 from pathplanning.planners.sampling.bit_star import plan_bit_star
 from pathplanning.planners.sampling.eirm_star import plan_eirm_star
 from pathplanning.planners.sampling.eit_star import plan_eit_star
+from pathplanning.planners.sampling.fcit_star import plan_fcit_star
 from pathplanning.planners.sampling.fmt_star import plan_fmt_star
 from pathplanning.planners.sampling.informed_rrt_star import plan_informed_rrt_star
 from pathplanning.planners.sampling.prm_star import plan_lazy_prm, plan_prm_star
@@ -352,6 +353,18 @@ _PLANNER_SPECS: tuple[tuple[str, PlannerSpec], ...] = (
             (
                 "uses a reusable Euclidean roadmap and caches edge-validation outcomes and "
                 "collision-effort estimates across exact-goal queries; requires additive path length.",
+            ),
+        ),
+    ),
+    (
+        "fcit_star",
+        PlannerSpec(
+            "continuous",
+            plan_fcit_star,
+            (
+                "requires an exact point goal, Euclidean distance, and additive path length; "
+                "searches a fully connected informed graph with per-source local queues and "
+                "batched edge validation.",
             ),
         ),
     ),

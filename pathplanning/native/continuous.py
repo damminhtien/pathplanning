@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable, Sequence
 import ctypes
 import math
 import time
-from typing import Any
+from typing import Any, cast
 
 import numpy as np
 
@@ -32,6 +33,16 @@ _Sample = ctypes.CFUNCTYPE(ctypes.c_int, ctypes.c_void_p, _Point, ctypes.c_size_
 _StateValid = ctypes.CFUNCTYPE(ctypes.c_int, ctypes.c_void_p, _Point, ctypes.c_size_t)
 _MotionValid = ctypes.CFUNCTYPE(
     ctypes.c_int, ctypes.c_void_p, _Point, _Point, ctypes.c_size_t, ctypes.c_double
+)
+_MotionValidBatch = ctypes.CFUNCTYPE(
+    ctypes.c_int,
+    ctypes.c_void_p,
+    _Point,
+    _Point,
+    ctypes.c_size_t,
+    ctypes.c_size_t,
+    ctypes.c_double,
+    ctypes.POINTER(ctypes.c_uint8),
 )
 _Distance = ctypes.CFUNCTYPE(ctypes.c_double, ctypes.c_void_p, _Point, _Point, ctypes.c_size_t)
 _Steer = ctypes.CFUNCTYPE(
@@ -74,6 +85,7 @@ _Callbacks._fields_ = [
     ("sample_free", _Sample),
     ("state_valid", _StateValid),
     ("motion_valid", _MotionValid),
+    ("motion_valid_batch", _MotionValidBatch),
     ("distance", _Distance),
     ("steer", _Steer),
     ("is_goal", _Goal),
@@ -146,6 +158,7 @@ _ALGORITHMS = {
     "rrt_connect": 7,
     "ait_star": 8,
     "eit_star": 9,
+    "fcit_star": 10,
 }
 _STOP_REASONS = {
     0: StopReason.SUCCESS,
@@ -157,6 +170,57 @@ _STOP_REASONS = {
 
 def _array(pointer: _Point, dimension: int) -> np.ndarray:
     return np.ctypeslib.as_array(pointer, shape=(dimension,))
+
+
+def _batch_motion_callback(
+    space: ContinuousSpace[State], callback_errors: list[BaseException]
+) -> Any:
+    """Adapt the optional Python batch checker to the native callback ABI."""
+    with_step = getattr(space, "is_motion_valid_batch_with_step", None)
+    batch = getattr(space, "is_motion_valid_batch", None)
+    if not callable(with_step) and not callable(batch):
+        return _MotionValidBatch()
+
+    def callback(_user_data, starts_pointer, ends_pointer, count, dim, step, out_validity):
+        if callback_errors:
+            return -1
+        try:
+            edge_count, width = int(count), int(dim)
+            starts = (
+                np.ctypeslib.as_array(starts_pointer, shape=(edge_count * width,))
+                .copy()
+                .reshape(edge_count, width)
+            )
+            ends = (
+                np.ctypeslib.as_array(ends_pointer, shape=(edge_count * width,))
+                .copy()
+                .reshape(edge_count, width)
+            )
+            edges = [(starts[index], ends[index]) for index in range(edge_count)]
+            if callable(with_step):
+                checker = cast(
+                    Callable[[list[tuple[np.ndarray, np.ndarray]], float], Sequence[object]],
+                    with_step,
+                )
+                values = checker(edges, float(step))
+            elif callable(batch):
+                checker = cast(
+                    Callable[[list[tuple[np.ndarray, np.ndarray]]], Sequence[object]], batch
+                )
+                values = checker(edges)
+            else:
+                raise TypeError("batch motion checker is unavailable")
+            if len(values) != edge_count:
+                raise ValueError("batch motion checker returned the wrong number of results")
+            validity = np.ctypeslib.as_array(out_validity, shape=(edge_count,))
+            for index, value in enumerate(values):
+                validity[index] = int(bool(value))
+            return 0
+        except BaseException as exc:  # ctypes callbacks cannot propagate Python exceptions.
+            callback_errors.append(exc)
+            return -1
+
+    return _MotionValidBatch(callback)
 
 
 def _copy_state(value: object, name: str, dimension: int) -> np.ndarray:
@@ -364,6 +428,9 @@ def _roadmap_callbacks(
         _Sample(sample) if owned_space is None else _Sample(),
         _StateValid(state_valid) if owned_space is None else _StateValid(),
         _MotionValid(motion_valid) if owned_space is None else _MotionValid(),
+        _batch_motion_callback(space, callback_errors)
+        if owned_space is None
+        else _MotionValidBatch(),
         _Distance(distance) if owned_space is None else _Distance(),
         _Steer(),
         _Goal(),
@@ -727,6 +794,7 @@ def run_native_continuous(
         "abit_star",
         "ait_star",
         "eit_star",
+        "fcit_star",
         "rrt_connect",
     }:
         from pathplanning.planners.sampling._internal.continuous import exact_goal_state
@@ -848,6 +916,9 @@ def run_native_continuous(
         _Sample(sample) if owned_space is None else _Sample(),
         _StateValid(state_valid) if owned_space is None else _StateValid(),
         _MotionValid(motion_valid) if owned_space is None else _MotionValid(),
+        _batch_motion_callback(space, callback_errors)
+        if owned_space is None
+        else _MotionValidBatch(),
         _Distance(distance) if owned_space is None else _Distance(),
         _Steer(steer) if owned_space is None else _Steer(),
         _Goal(is_goal) if not native_goal else _Goal(),
@@ -877,6 +948,7 @@ def run_native_continuous(
         "abit_star",
         "ait_star",
         "eit_star",
+        "fcit_star",
     }:
         from pathplanning.planners.sampling._internal.continuous import euclidean_distance
 
@@ -1094,6 +1166,9 @@ def run_native_dynamic_rrt(
         _Sample(sample) if owned_space is None else _Sample(),
         _StateValid(state_valid) if owned_space is None else _StateValid(),
         _MotionValid(motion_valid) if owned_space is None else _MotionValid(),
+        _batch_motion_callback(space, callback_errors)
+        if owned_space is None
+        else _MotionValidBatch(),
         _Distance(distance) if owned_space is None else _Distance(),
         _Steer(steer) if owned_space is None else _Steer(),
         _Goal(),

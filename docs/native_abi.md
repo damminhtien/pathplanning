@@ -9,10 +9,10 @@ its C ABI version.
 | Library | ABI constant | Probe function | Supported ABI |
 | --- | --- | --- | --- |
 | C++ graph search | `PP_SEARCH_ABI_VERSION` | `pp_search_abi_version()` | 15 |
-| C sampling planners | `PP_CONTINUOUS_ABI_VERSION` | `pp_continuous_abi_version()` | 6 |
+| C sampling planners | `PP_CONTINUOUS_ABI_VERSION` | `pp_continuous_abi_version()` | 7 |
 | C++ diagnostic search | `PP_SEARCH_TRACE_ABI_VERSION` | `pp_search_trace_abi_version()` | 10 |
 | C++ diagnostic search metrics | `PP_SEARCH_METRICS_ABI_VERSION` | `pp_search_metrics_abi_version()` | 2 |
-| C diagnostic sampling | `PP_CONTINUOUS_TRACE_ABI_VERSION` | `pp_continuous_trace_abi_version()` | 6 |
+| C diagnostic sampling | `PP_CONTINUOUS_TRACE_ABI_VERSION` | `pp_continuous_trace_abi_version()` | 7 |
 
 The constants are declared in `pathplanning/native/abi_version.h`. Increment
 an engine's ABI version when an exported function, struct layout, enum value,
@@ -83,6 +83,12 @@ Continuous ABI 6 adds the EIRM* roadmap configuration entrypoint, which enables
 lazy validation and effort-aware tie-breaking while reusing sampled vertices
 and validated roadmap edges across queries. Trace ABI 6 records those queries
 through the existing roadmap trace entrypoint.
+Continuous ABI 7 adds FCIT*'s fully connected informed search and the optional
+batch motion-validity callback in `pp_continuous_callbacks`. FCIT* keeps one
+locally ordered edge queue per reached vertex and only the next candidate from
+each local queue in its shared open queue. Its batch path uses the callback when
+provided and otherwise falls back to scalar native or Python motion checks.
+Trace ABI 7 records FCIT* edge expansions through the continuous trace stream.
 
 The production `_search_engine` is built without `PP_ENABLE_METRICS`; metric
 macros compile to no-ops and search containers use the normal
