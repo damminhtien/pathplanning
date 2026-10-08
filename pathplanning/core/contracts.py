@@ -212,6 +212,25 @@ class SupportsCollisionStepMotionCheck(Protocol[S_contra]):
 
 
 @runtime_checkable
+class RiemannianMetricSpace(Protocol[S_contra]):
+    """Optional state-dependent positive-definite metric contract for RIT*."""
+
+    def metric_tensor(self, state: S_contra) -> Sequence[Sequence[Float]]:
+        """Return the symmetric positive-definite metric tensor at ``state``."""
+        ...
+
+    @property
+    def metric_eigenvalue_bounds(self) -> tuple[Float, Float]:
+        """Return global lower and upper eigenvalue bounds for the metric field."""
+        ...
+
+    @property
+    def metric_is_constant(self) -> bool:
+        """Return whether ``metric_tensor`` is spatially constant."""
+        ...
+
+
+@runtime_checkable
 class SupportsBatchCollisionStepMotionCheck(Protocol[S_contra]):
     """Optional batched motion-check extension that accepts a local step size."""
 

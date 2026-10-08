@@ -15,7 +15,7 @@ from pathplanning.core.contracts import (
     State,
     TemporalProblem,
 )
-from pathplanning.core.params import RoadmapParams, RrtParams
+from pathplanning.core.params import RitParams, RoadmapParams, RrtParams
 from pathplanning.core.results import MultiAgentPlanResult, PlanResult, TemporalPlanResult
 from pathplanning.core.trace import TraceOptions
 from pathplanning.core.types import RNG
@@ -29,7 +29,7 @@ from pathplanning.registry import (
 Result: TypeAlias = PlanResult
 Stats: TypeAlias = Mapping[str, float]
 DiscreteParams: TypeAlias = Mapping[str, object]
-ContinuousParams: TypeAlias = RrtParams | RoadmapParams | Mapping[str, object]
+ContinuousParams: TypeAlias = RitParams | RrtParams | RoadmapParams | Mapping[str, object]
 TemporalParams: TypeAlias = Mapping[str, object]
 MultiAgentParams: TypeAlias = Mapping[str, object]
 
@@ -76,9 +76,11 @@ def plan_continuous(
         raise TypeError("trace must be TraceOptions or None")
     if isinstance(params, RoadmapParams) and planner not in {"prm_star", "lazy_prm", "eirm_star"}:
         raise TypeError("RoadmapParams can only be used with prm_star, lazy_prm, or eirm_star")
+    if isinstance(params, RitParams) and planner != "rit_star":
+        raise TypeError("RitParams can only be used with rit_star")
     effective_rng = _resolve_rng(seed, rng)
-    resolved_params: RrtParams | dict[str, object] | None
-    if params is None or isinstance(params, RrtParams):
+    resolved_params: RitParams | RrtParams | dict[str, object] | None
+    if params is None or isinstance(params, (RitParams, RrtParams)):
         resolved_params = params
     else:
         resolved_params = dict(params)

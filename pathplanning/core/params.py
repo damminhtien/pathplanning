@@ -161,3 +161,77 @@ class RoadmapParams(Mapping[str, object]):
             if self.time_budget_s <= 0:
                 raise ValueError("time_budget_s must be > 0 when provided")
         return self
+
+
+@dataclass(slots=True)
+class RitParams(Mapping[str, object]):
+    """Sampling, metric-refinement, and collision limits for RIT*."""
+
+    max_iters: int = 10_000
+    sample_count: int = 512
+    batch_size: int = 64
+    max_sample_tries: int = 1_000
+    step_size: float = 0.5
+    collision_step: float = 0.1
+    time_budget_s: float | None = None
+    gamma: float = 2.0
+    max_connection_radius: float = 3.0
+    quadrature_order: int = 10
+    carm_update_interval: int = 15
+    carm_sigma: float = 0.1
+    carm_alpha: float = 10.0
+    allow_python_callbacks: bool = False
+
+    def __getitem__(self, key: str) -> object:
+        if key not in self.__dataclass_fields__:
+            raise KeyError(key)
+        return getattr(self, key)
+
+    def __iter__(self) -> Iterator[str]:
+        return iter(self.__dataclass_fields__)
+
+    def __len__(self) -> int:
+        return len(self.__dataclass_fields__)
+
+    def validate(self) -> RitParams:
+        """Validate RIT* limits and CARM parameters."""
+        if type(self.allow_python_callbacks) is not bool:
+            raise TypeError("allow_python_callbacks must be a bool")
+        for name in (
+            "max_iters",
+            "sample_count",
+            "batch_size",
+            "max_sample_tries",
+            "carm_update_interval",
+        ):
+            value = getattr(self, name)
+            if isinstance(value, bool) or type(value) is not int:
+                raise TypeError(f"{name} must be an integer")
+            if value <= 0:
+                raise ValueError(f"{name} must be > 0")
+        if isinstance(self.quadrature_order, bool) or type(self.quadrature_order) is not int:
+            raise TypeError("quadrature_order must be an integer")
+        if not 1 <= self.quadrature_order <= 10:
+            raise ValueError("quadrature_order must be between 1 and 10")
+        for name in (
+            "step_size",
+            "collision_step",
+            "gamma",
+            "max_connection_radius",
+            "carm_sigma",
+        ):
+            value = getattr(self, name)
+            if not _is_valid_real(value):
+                raise TypeError(f"{name} must be a finite real number")
+            if value <= 0:
+                raise ValueError(f"{name} must be > 0")
+        if not _is_valid_real(self.carm_alpha):
+            raise TypeError("carm_alpha must be a finite real number")
+        if self.carm_alpha < 0:
+            raise ValueError("carm_alpha must be >= 0")
+        if self.time_budget_s is not None:
+            if not _is_valid_real(self.time_budget_s):
+                raise TypeError("time_budget_s must be a finite real number or None")
+            if self.time_budget_s <= 0:
+                raise ValueError("time_budget_s must be > 0 when provided")
+        return self

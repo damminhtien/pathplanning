@@ -1,5 +1,6 @@
 """Shared configuration and state space primitives."""
 
+from pathplanning.spaces.anisotropic import AnisotropicContinuousSpace
 from pathplanning.spaces.continuous_3d import AABB, OBB, ContinuousSpace3D, Sphere
 from pathplanning.spaces.grid2d import (
     Grid2DMultiAgentAdapter,
@@ -15,6 +16,7 @@ __all__ = [
     "OBB",
     "Sphere",
     "ContinuousSpace3D",
+    "AnisotropicContinuousSpace",
     "GridCell",
     "Node3D",
     "Grid2DSamplingSpace",

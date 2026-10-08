@@ -23,7 +23,8 @@ typedef enum pp_continuous_algorithm {
     PP_CONTINUOUS_RRT_CONNECT = 7,
     PP_CONTINUOUS_AIT_STAR = 8,
     PP_CONTINUOUS_EIT_STAR = 9,
-    PP_CONTINUOUS_FCIT_STAR = 10
+    PP_CONTINUOUS_FCIT_STAR = 10,
+    PP_CONTINUOUS_RIT_STAR = 11
 } pp_continuous_algorithm;
 
 // Return 0 on success and nonzero on failure. out_state is read only on success.
@@ -42,6 +43,10 @@ typedef int (*pp_motion_valid_batch_callback)(void *user_data,
                                               size_t count, size_t dimension,
                                               double collision_step,
                                               uint8_t *out_validity);
+// Return 0 and write a row-major dimension-by-dimension SPD tensor; nonzero
+// reports a callback failure.
+typedef int (*pp_metric_tensor_callback)(void *user_data, const double *state,
+                                         size_t dimension, double *out_tensor);
 
 // Return a finite, non-negative value. Negative or non-finite values fail the
 // plan.
@@ -87,6 +92,7 @@ typedef struct pp_continuous_callbacks {
     pp_state_valid_callback state_valid;
     pp_motion_valid_callback motion_valid;
     pp_motion_valid_batch_callback motion_valid_batch;
+    pp_metric_tensor_callback metric_tensor;
     pp_distance_callback distance;
     pp_steer_callback steer;
     pp_goal_callback is_goal;
@@ -114,6 +120,13 @@ typedef struct pp_continuous_options {
     double abit_truncation_parameter;
     double time_budget_s;
     int use_euclidean_index;
+    double metric_lambda_min;
+    double metric_lambda_max;
+    int metric_is_constant;
+    int riemannian_quadrature_order;
+    uint64_t carm_update_interval;
+    double carm_sigma;
+    double carm_alpha;
 } pp_continuous_options;
 
 typedef struct pp_continuous_result {
@@ -125,6 +138,8 @@ typedef struct pp_continuous_result {
     uint64_t batches;
     uint64_t motion_checks;
     uint64_t rewires;
+    uint64_t metric_evaluations;
+    uint64_t metric_updates;
     double path_cost;
     double elapsed_s;
     double *path;

@@ -11,7 +11,7 @@ from typing import Any, cast
 import numpy as np
 
 from pathplanning.core.contracts import ContinuousSpace, GoalRegion, Objective, State
-from pathplanning.core.params import RoadmapParams, RrtParams
+from pathplanning.core.params import RitParams, RoadmapParams, RrtParams
 from pathplanning.core.results import PlanResult, StopReason
 from pathplanning.core.trace import PlannerTrace, TraceOptions
 from pathplanning.core.types import RNG
@@ -44,6 +44,7 @@ _MotionValidBatch = ctypes.CFUNCTYPE(
     ctypes.c_double,
     ctypes.POINTER(ctypes.c_uint8),
 )
+_MetricTensor = ctypes.CFUNCTYPE(ctypes.c_int, ctypes.c_void_p, _Point, ctypes.c_size_t, _Point)
 _Distance = ctypes.CFUNCTYPE(ctypes.c_double, ctypes.c_void_p, _Point, _Point, ctypes.c_size_t)
 _Steer = ctypes.CFUNCTYPE(
     ctypes.c_int, ctypes.c_void_p, _Point, _Point, ctypes.c_size_t, ctypes.c_double, _Point
@@ -86,6 +87,7 @@ _Callbacks._fields_ = [
     ("state_valid", _StateValid),
     ("motion_valid", _MotionValid),
     ("motion_valid_batch", _MotionValidBatch),
+    ("metric_tensor", _MetricTensor),
     ("distance", _Distance),
     ("steer", _Steer),
     ("is_goal", _Goal),
@@ -115,6 +117,13 @@ class _Options(ctypes.Structure):
         ("abit_truncation_parameter", ctypes.c_double),
         ("time_budget_s", ctypes.c_double),
         ("use_euclidean_index", ctypes.c_int),
+        ("metric_lambda_min", ctypes.c_double),
+        ("metric_lambda_max", ctypes.c_double),
+        ("metric_is_constant", ctypes.c_int),
+        ("riemannian_quadrature_order", ctypes.c_int),
+        ("carm_update_interval", ctypes.c_uint64),
+        ("carm_sigma", ctypes.c_double),
+        ("carm_alpha", ctypes.c_double),
     ]
 
 
@@ -128,6 +137,8 @@ class _Result(ctypes.Structure):
         ("batches", ctypes.c_uint64),
         ("motion_checks", ctypes.c_uint64),
         ("rewires", ctypes.c_uint64),
+        ("metric_evaluations", ctypes.c_uint64),
+        ("metric_updates", ctypes.c_uint64),
         ("path_cost", ctypes.c_double),
         ("elapsed_s", ctypes.c_double),
         ("path", _Point),
@@ -159,6 +170,7 @@ _ALGORITHMS = {
     "ait_star": 8,
     "eit_star": 9,
     "fcit_star": 10,
+    "rit_star": 11,
 }
 _STOP_REASONS = {
     0: StopReason.SUCCESS,
@@ -431,6 +443,7 @@ def _roadmap_callbacks(
         _batch_motion_callback(space, callback_errors)
         if owned_space is None
         else _MotionValidBatch(),
+        _MetricTensor(),
         _Distance(distance) if owned_space is None else _Distance(),
         _Steer(),
         _Goal(),
@@ -764,7 +777,7 @@ def run_native_continuous(
     space: ContinuousSpace[State],
     start: object,
     goal_region: GoalRegion[State],
-    params: RrtParams,
+    params: RrtParams | RitParams,
     rng: RNG,
     *,
     planner: str,
@@ -783,6 +796,23 @@ def run_native_continuous(
     dimension = int(start_array.size)
     start_state = _copy_state(start_array, "start", dimension)
     owned_space = _native_space_model(space, dimension)
+    metric_function = getattr(space, "metric_tensor", None) if planner == "rit_star" else None
+    metric_bounds = (1.0, 1.0)
+    metric_is_constant = True
+    if planner == "rit_star":
+        metric_bounds = getattr(space, "metric_eigenvalue_bounds", (1.0, 1.0))
+        metric_is_constant = getattr(space, "metric_is_constant", metric_function is None)
+        if (
+            not isinstance(metric_bounds, (tuple, list))
+            or len(metric_bounds) != 2
+            or any(not math.isfinite(float(value)) or float(value) <= 0 for value in metric_bounds)
+            or float(metric_bounds[0]) > float(metric_bounds[1])
+        ):
+            raise ValueError("metric_eigenvalue_bounds must be positive finite (min, max)")
+        if metric_function is not None and not callable(metric_function):
+            raise TypeError("metric_tensor must be callable")
+        if type(metric_is_constant) is not bool:
+            raise TypeError("metric_is_constant must be a bool")
 
     goal_value = getattr(goal_region, "state", None)
     has_goal_point = goal_value is not None
@@ -795,6 +825,7 @@ def run_native_continuous(
         "ait_star",
         "eit_star",
         "fcit_star",
+        "rit_star",
         "rrt_connect",
     }:
         from pathplanning.planners.sampling._internal.continuous import exact_goal_state
@@ -813,7 +844,12 @@ def run_native_continuous(
             native_goal = True
             goal_radius = float(goal_region.radius)
 
-    requires_python_callbacks = owned_space is None or not native_goal or objective is not None
+    requires_python_callbacks = (
+        owned_space is None
+        or not native_goal
+        or objective is not None
+        or metric_function is not None
+    )
     if requires_python_callbacks and not parameters.allow_python_callbacks:
         reasons = []
         if owned_space is None:
@@ -824,10 +860,13 @@ def run_native_continuous(
             reasons.append("goal requires a Python predicate or distance callback")
         if objective is not None:
             reasons.append("objective requires a Python callback")
+        if metric_function is not None:
+            reasons.append("metric tensor requires a Python callback")
+        parameter_name = "RitParams" if planner == "rit_star" else "RrtParams"
         raise ValueError(
             "Python callbacks are disabled for native planning ("
             + "; ".join(reasons)
-            + "). Set RrtParams(allow_python_callbacks=True) to opt in."
+            + f"). Set {parameter_name}(allow_python_callbacks=True) to opt in."
         )
 
     callback_errors: list[BaseException] = []
@@ -885,6 +924,20 @@ def run_native_continuous(
 
         return guarded(call, -1)
 
+    def metric_tensor(_user_data, point, dim, out_tensor):
+        def call():
+            width = int(dim)
+            tensor = np.asarray(metric_function(_array(point, width).copy()), dtype=np.float64)
+            if tensor.shape != (width, width) or not np.all(np.isfinite(tensor)):
+                raise ValueError("metric_tensor must return a finite square matrix")
+            np.copyto(
+                np.ctypeslib.as_array(out_tensor, shape=(width * width,)),
+                tensor.reshape(-1),
+            )
+            return 0
+
+        return guarded(call, -1)
+
     def is_goal(_user_data, point, dim):
         return guarded(lambda: int(bool(goal_region.contains(_array(point, int(dim)).copy()))), -1)
 
@@ -919,6 +972,7 @@ def run_native_continuous(
         _batch_motion_callback(space, callback_errors)
         if owned_space is None
         else _MotionValidBatch(),
+        _MetricTensor(metric_tensor) if callable(metric_function) else _MetricTensor(),
         _Distance(distance) if owned_space is None else _Distance(),
         _Steer(steer) if owned_space is None else _Steer(),
         _Goal(is_goal) if not native_goal else _Goal(),
@@ -963,15 +1017,26 @@ def run_native_continuous(
         parameters.max_sample_tries,
         seed,
         parameters.step_size,
-        parameters.goal_sample_rate,
+        getattr(parameters, "goal_sample_rate", 0.0),
         parameters.collision_step,
-        parameters.goal_reach_tolerance,
-        parameters.rrt_star_radius_gamma,
-        parameters.rrt_star_radius_max_factor,
-        parameters.abit_inflation_parameter,
-        parameters.abit_truncation_parameter,
+        getattr(parameters, "goal_reach_tolerance", 1e-9),
+        getattr(parameters, "rrt_star_radius_gamma", getattr(parameters, "gamma", 2.0)),
+        getattr(
+            parameters,
+            "rrt_star_radius_max_factor",
+            getattr(parameters, "max_connection_radius", 6.0),
+        ),
+        getattr(parameters, "abit_inflation_parameter", 0.0),
+        getattr(parameters, "abit_truncation_parameter", 0.0),
         0.0 if parameters.time_budget_s is None else parameters.time_budget_s,
         int(euclidean_index),
+        float(metric_bounds[0]),
+        float(metric_bounds[1]),
+        int(metric_is_constant),
+        int(getattr(parameters, "quadrature_order", 10)),
+        int(getattr(parameters, "carm_update_interval", 15)),
+        float(getattr(parameters, "carm_sigma", 0.1)),
+        float(getattr(parameters, "carm_alpha", 10.0)),
     )
     library = load_continuous_library() if trace is None else load_continuous_trace_library()
     library.pp_continuous_plan.argtypes = [
@@ -1038,6 +1103,8 @@ def run_native_continuous(
             "batches": float(native_result.batches),
             "motion_checks": float(native_result.motion_checks),
             "rewires": float(native_result.rewires),
+            "metric_evaluations": float(native_result.metric_evaluations),
+            "metric_updates": float(native_result.metric_updates),
             "python_callbacks": float(requires_python_callbacks),
             "native_space_model": float(owned_space is not None),
         }
@@ -1169,6 +1236,7 @@ def run_native_dynamic_rrt(
         _batch_motion_callback(space, callback_errors)
         if owned_space is None
         else _MotionValidBatch(),
+        _MetricTensor(),
         _Distance(distance) if owned_space is None else _Distance(),
         _Steer(steer) if owned_space is None else _Steer(),
         _Goal(),
@@ -1208,6 +1276,13 @@ def run_native_dynamic_rrt(
         5.0,
         0.0,
         1,
+        1.0,
+        1.0,
+        1,
+        10,
+        15,
+        0.1,
+        10.0,
     )
     library = load_continuous_library() if trace is None else load_continuous_trace_library()
     library.pp_dynamic_rrt_plan.argtypes = [

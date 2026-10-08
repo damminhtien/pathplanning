@@ -9,10 +9,10 @@ its C ABI version.
 | Library | ABI constant | Probe function | Supported ABI |
 | --- | --- | --- | --- |
 | C++ graph search | `PP_SEARCH_ABI_VERSION` | `pp_search_abi_version()` | 15 |
-| C sampling planners | `PP_CONTINUOUS_ABI_VERSION` | `pp_continuous_abi_version()` | 7 |
+| C sampling planners | `PP_CONTINUOUS_ABI_VERSION` | `pp_continuous_abi_version()` | 8 |
 | C++ diagnostic search | `PP_SEARCH_TRACE_ABI_VERSION` | `pp_search_trace_abi_version()` | 10 |
 | C++ diagnostic search metrics | `PP_SEARCH_METRICS_ABI_VERSION` | `pp_search_metrics_abi_version()` | 2 |
-| C diagnostic sampling | `PP_CONTINUOUS_TRACE_ABI_VERSION` | `pp_continuous_trace_abi_version()` | 7 |
+| C diagnostic sampling | `PP_CONTINUOUS_TRACE_ABI_VERSION` | `pp_continuous_trace_abi_version()` | 8 |
 
 The constants are declared in `pathplanning/native/abi_version.h`. Increment
 an engine's ABI version when an exported function, struct layout, enum value,
@@ -89,6 +89,12 @@ locally ordered edge queue per reached vertex and only the next candidate from
 each local queue in its shared open queue. Its batch path uses the callback when
 provided and otherwise falls back to scalar native or Python motion checks.
 Trace ABI 7 records FCIT* edge expansions through the continuous trace stream.
+Continuous ABI 8 adds RIT* metric tensor callbacks, global eigenvalue bounds,
+quadrature and CARM options, and metric evaluation/update counters in
+`pp_continuous_result`. RIT* validates tensor symmetry and positive
+definiteness in the native engine, integrates edge costs with Gauss-Legendre
+quadrature, and uses the existing continuous trace stream. Trace ABI 8 covers
+the updated callback, options, and result struct layouts.
 
 The production `_search_engine` is built without `PP_ENABLE_METRICS`; metric
 macros compile to no-ops and search containers use the normal
@@ -148,6 +154,7 @@ Continuous callbacks use these rules:
 | `sample_free`, `steer` | `0` means success; nonzero means callback failure. Output state is read only on success. |
 | `state_valid`, `motion_valid`, `is_goal` | `0` means false, `1` means true, and a negative value or a value greater than `1` means callback failure. |
 | `distance` | Must return a finite, non-negative value. A negative or non-finite value fails the plan. |
+| `metric_tensor` | Must write a finite, symmetric, positive-definite row-major tensor; a callback failure or invalid tensor fails RIT*. |
 | `goal_distance` | Must return a non-negative value. Positive infinity means that no usable estimate is available; NaN or a negative value fails the plan. |
 | `path_objective` | Must return a finite value. A non-finite value fails the plan. |
 

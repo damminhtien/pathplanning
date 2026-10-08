@@ -61,6 +61,7 @@ def _problem(sample_count: int = 64, batch_size: int = 16) -> ContinuousProblem[
         ("ait_star", 64, 16),
         ("eit_star", 64, 16),
         ("fcit_star", 64, 16),
+        ("rit_star", 64, 16),
         ("rrt_connect", 64, 16),
     ],
 )
@@ -91,6 +92,7 @@ def test_registered_advanced_sampling_planners_find_valid_paths(
         "ait_star",
         "eit_star",
         "fcit_star",
+        "rit_star",
         "informed_rrt_star",
     ],
 )
@@ -111,6 +113,7 @@ def test_optimal_sampling_planners_reject_custom_objectives(planner: str) -> Non
         "ait_star",
         "eit_star",
         "fcit_star",
+        "rit_star",
         "informed_rrt_star",
     ],
 )

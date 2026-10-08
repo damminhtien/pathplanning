@@ -26,6 +26,7 @@ from .contracts import (
     InterpolatingContinuousSpace,
     MultiAgentProblem,
     Objective,
+    RiemannianMetricSpace,
     State,
     SupportsBatchCollisionStepMotionCheck,
     SupportsBatchMotionCheck,
@@ -34,7 +35,7 @@ from .contracts import (
     TimeInterval,
     ValidatingDiscreteGraph,
 )
-from .params import RoadmapParams, RrtParams
+from .params import RitParams, RoadmapParams, RrtParams
 from .results import MultiAgentPlanResult, PlanResult, StopReason, TemporalPlanResult
 from .trace import PlannerTrace, TraceOptions
 from .types import RNG, BoolArray, Float, FloatArray, Mat, N, NodeId, S, Vec
@@ -59,6 +60,7 @@ __all__ = [
     "SupportsCollisionStepMotionCheck",
     "SupportsBatchCollisionStepMotionCheck",
     "Objective",
+    "RiemannianMetricSpace",
     "ContinuousProblem",
     "PlanResult",
     "TemporalPlanResult",
@@ -68,6 +70,7 @@ __all__ = [
     "TraceOptions",
     "RrtParams",
     "RoadmapParams",
+    "RitParams",
     "State",
     "NearestNeighborIndex",
     "NaiveNnIndex",

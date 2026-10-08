@@ -12,7 +12,7 @@
 
 #define PP_C_INF INFINITY
 #define PP_C_NONE UINT32_MAX
-#define PP_C_VERSION "1.6.0"
+#define PP_C_VERSION "1.7.0"
 #define PP_C_KD_LEVELS 32
 #define PP_C_FCIT_BATCH_LIMIT 64
 
@@ -126,6 +126,17 @@ typedef struct {
 } pp_fcit_local_queue;
 
 typedef struct {
+    double *collision_points;
+    size_t collision_count;
+    size_t collision_capacity;
+    size_t unprocessed_collisions;
+    double *mean_metric_cholesky;
+    int constant_metric;
+    uint64_t metric_evaluations;
+    uint64_t metric_updates;
+} pp_rit_state;
+
+typedef struct {
     const pp_continuous_callbacks *callbacks;
     const pp_continuous_options *options;
     size_t dimension;
@@ -139,11 +150,17 @@ typedef struct {
     uint64_t batches;
     uint64_t motion_checks;
     uint64_t rewires;
+    uint64_t metric_evaluations;
+    uint64_t metric_updates;
     double started;
+    pp_rit_state *rit;
 #ifdef PP_ENABLE_TRACE
     pp_trace_buffer *trace;
 #endif
 } pp_context;
+
+static int pp_rit_edge_cost(pp_context *ctx, const double *a, const double *b,
+                            double *out);
 
 #ifdef PP_ENABLE_TRACE
 // The cap accounts for allocated storage, including the temporary node map.
@@ -677,6 +694,8 @@ static const double *pp_point(const pp_nodes *nodes, uint32_t id) {
 }
 
 static int pp_distance(pp_context *ctx, const double *a, const double *b, double *out) {
+    if (ctx->options->algorithm == PP_CONTINUOUS_RIT_STAR)
+        return pp_rit_edge_cost(ctx, a, b, out);
     double value = ctx->callbacks->native_space != NULL
         ? sqrt(pp_distance2(a, b, ctx->dimension))
         : ctx->callbacks->distance(ctx->callbacks->user_data, a, b, ctx->dimension);
@@ -920,6 +939,8 @@ static int pp_path_to_result(pp_context *ctx, const uint32_t *ids, size_t length
     result->iters = ctx->iterations; result->nodes = ctx->nodes.count;
     result->sample_count = ctx->samples; result->batches = ctx->batches;
     result->motion_checks = ctx->motion_checks; result->rewires = ctx->rewires;
+    result->metric_evaluations = ctx->metric_evaluations;
+    result->metric_updates = ctx->metric_updates;
     result->path_cost = path_cost; result->elapsed_s = pp_now() - ctx->started;
     result->path = path; result->path_length = length; result->dimension = ctx->dimension;
 #ifdef PP_ENABLE_TRACE
@@ -2201,6 +2222,799 @@ done:
     return status;
 }
 
+static int pp_rit_cholesky(const double *matrix, double *lower, size_t dimension) {
+    size_t row, column, k;
+    double scale = 1.0;
+    for (row = 0; row < dimension; ++row) {
+        for (column = 0; column < dimension; ++column) {
+            double value = matrix[row * dimension + column];
+            if (!isfinite(value)) return -1;
+            if (fabs(value) > scale) scale = fabs(value);
+        }
+    }
+    memset(lower, 0, dimension * dimension * sizeof(*lower));
+    for (row = 0; row < dimension; ++row) {
+        for (column = 0; column <= row; ++column) {
+            double a = matrix[row * dimension + column];
+            double b = matrix[column * dimension + row];
+            double value;
+            if (fabs(a - b) > scale * 1e-10) return -1;
+            value = 0.5 * (a + b);
+            for (k = 0; k < column; ++k)
+                value -= lower[row * dimension + k] * lower[column * dimension + k];
+            if (row == column) {
+                if (!(value > scale * 1e-14) || !isfinite(value)) return -1;
+                lower[row * dimension + column] = sqrt(value);
+            } else {
+                lower[row * dimension + column] = value / lower[column * dimension + column];
+            }
+        }
+    }
+    return 0;
+}
+
+static double pp_rit_carm_scale(const pp_context *ctx, const double *state) {
+    const pp_rit_state *rit = ctx->rit;
+    const pp_continuous_options *options = ctx->options;
+    double sum = 0.0;
+    size_t collision, axis;
+    if (rit == NULL || rit->collision_count == 0 || options->carm_alpha == 0.0)
+        return 1.0;
+    for (collision = 0; collision < rit->collision_count; ++collision) {
+        const double *point = rit->collision_points + collision * ctx->dimension;
+        double distance2 = 0.0;
+        for (axis = 0; axis < ctx->dimension; ++axis) {
+            double delta = state[axis] - point[axis];
+            distance2 += delta * delta;
+        }
+        sum += exp(-distance2 / (2.0 * options->carm_sigma * options->carm_sigma));
+    }
+    return 1.0 + options->carm_alpha * sum / (double)rit->collision_count;
+}
+
+static int pp_rit_metric_at(pp_context *ctx, const double *state, double *matrix) {
+    size_t dimension = ctx->dimension, row;
+    size_t matrix_size;
+    double *factor = NULL;
+    double scale;
+    if (dimension > SIZE_MAX / dimension ||
+        dimension * dimension > SIZE_MAX / sizeof(*matrix)) return -1;
+    matrix_size = dimension * dimension;
+    if (ctx->callbacks->metric_tensor != NULL) {
+        if (ctx->callbacks->metric_tensor(ctx->callbacks->user_data, state,
+                dimension, matrix) != 0) return -1;
+    } else {
+        memset(matrix, 0, matrix_size * sizeof(*matrix));
+        for (row = 0; row < dimension; ++row) matrix[row * dimension + row] = 1.0;
+    }
+    ++ctx->metric_evaluations;
+    ++ctx->rit->metric_evaluations;
+    factor = (double *)malloc(matrix_size * sizeof(*factor));
+    if (factor == NULL) return -1;
+    if (pp_rit_cholesky(matrix, factor, dimension) != 0) {
+        free(factor);
+        return -1;
+    }
+    free(factor);
+    scale = pp_rit_carm_scale(ctx, state);
+    if (!isfinite(scale) || scale < 1.0) return -1;
+    if (scale != 1.0) {
+        for (row = 0; row < matrix_size; ++row) matrix[row] *= scale;
+    }
+    return 0;
+}
+
+static double pp_rit_quadratic(const double *matrix, const double *delta,
+                               size_t dimension) {
+    size_t row, column;
+    double value = 0.0;
+    for (row = 0; row < dimension; ++row) {
+        double product = 0.0;
+        for (column = 0; column < dimension; ++column)
+            product += matrix[row * dimension + column] * delta[column];
+        value += delta[row] * product;
+    }
+    return value;
+}
+
+static int pp_rit_gauss_legendre(int order, double *points, double *weights) {
+    int i, j;
+    for (i = 0; i < order; ++i) {
+        double z = cos(3.14159265358979323846 * ((double)i + 0.75) /
+                       ((double)order + 0.5));
+        double derivative = 0.0;
+        int iteration;
+        for (iteration = 0; iteration < 32; ++iteration) {
+            double p0 = 1.0, p1 = z, p = order == 0 ? p0 : p1;
+            for (j = 2; j <= order; ++j) {
+                p = (((2.0 * (double)j - 1.0) * z * p1) -
+                     ((double)j - 1.0) * p0) / (double)j;
+                p0 = p1;
+                p1 = p;
+            }
+            derivative = (double)order * (z * p - (order > 1 ? p0 : 1.0)) /
+                         (z * z - 1.0);
+            if (fabs(derivative) < 1e-15) return -1;
+            {
+                double next = z - p / derivative;
+                if (fabs(next - z) < 1e-14) { z = next; break; }
+                z = next;
+            }
+        }
+        {
+            double p0 = 1.0, p1 = z, p = order == 1 ? z : p1;
+            for (j = 2; j <= order; ++j) {
+                p = (((2.0 * (double)j - 1.0) * z * p1) -
+                     ((double)j - 1.0) * p0) / (double)j;
+                p0 = p1;
+                p1 = p;
+            }
+            derivative = (double)order * (z * p - (order > 1 ? p0 : 1.0)) /
+                         (z * z - 1.0);
+        }
+        if (!isfinite(z) || !isfinite(derivative)) return -1;
+        points[i] = 0.5 * (1.0 + z);
+        weights[i] = 1.0 / ((1.0 - z * z) * derivative * derivative);
+    }
+    for (i = 0; i < order / 2; ++i) {
+        double point = points[i], weight = weights[i];
+        points[i] = points[order - 1 - i];
+        points[order - 1 - i] = point;
+        weights[i] = weights[order - 1 - i];
+        weights[order - 1 - i] = weight;
+    }
+    return 0;
+}
+
+static int pp_rit_edge_cost(pp_context *ctx, const double *a, const double *b,
+                            double *out) {
+    size_t dimension = ctx->dimension, axis, matrix_size, i;
+    int order = ctx->options->riemannian_quadrature_order;
+    double points[10], weights[10], sum = 0.0, norm2 = 0.0;
+    double *state = NULL, *delta = NULL, *matrix = NULL;
+    if (ctx->rit == NULL || dimension > SIZE_MAX / dimension ||
+        dimension * dimension > SIZE_MAX / sizeof(*matrix)) return -1;
+    matrix_size = dimension * dimension;
+    state = (double *)malloc(dimension * sizeof(*state));
+    delta = (double *)malloc(dimension * sizeof(*delta));
+    matrix = (double *)malloc(matrix_size * sizeof(*matrix));
+    if (state == NULL || delta == NULL || matrix == NULL) goto fail;
+    for (axis = 0; axis < dimension; ++axis) {
+        delta[axis] = b[axis] - a[axis];
+        norm2 += delta[axis] * delta[axis];
+    }
+    if (norm2 == 0.0) { *out = 0.0; goto done; }
+    if (pp_rit_gauss_legendre(order, points, weights) != 0) goto fail;
+    for (i = 0; i < (size_t)order; ++i) {
+        double quadratic, density;
+        for (axis = 0; axis < dimension; ++axis)
+            state[axis] = a[axis] + points[i] * delta[axis];
+        if (pp_rit_metric_at(ctx, state, matrix) != 0) goto fail;
+        quadratic = pp_rit_quadratic(matrix, delta, dimension);
+        if (!(quadratic > 0.0) || !isfinite(quadratic)) goto fail;
+        density = sqrt(quadratic);
+        sum += weights[i] * density;
+    }
+    if (!isfinite(sum) || sum < 0.0) goto fail;
+    *out = sum;
+done:
+    free(state);
+    free(delta);
+    free(matrix);
+    return 0;
+fail:
+    free(state);
+    free(delta);
+    free(matrix);
+    return -1;
+}
+
+static int pp_rit_local_cost(pp_context *ctx, const double *a, const double *b,
+                             double *out) {
+    size_t dimension = ctx->dimension, axis, matrix_size;
+    double *state = NULL, *delta = NULL, *matrix = NULL;
+    double quadratic;
+    if (dimension > SIZE_MAX / dimension ||
+        dimension * dimension > SIZE_MAX / sizeof(*matrix)) return -1;
+    matrix_size = dimension * dimension;
+    state = (double *)malloc(dimension * sizeof(*state));
+    delta = (double *)malloc(dimension * sizeof(*delta));
+    matrix = (double *)malloc(matrix_size * sizeof(*matrix));
+    if (state == NULL || delta == NULL || matrix == NULL) goto fail;
+    for (axis = 0; axis < dimension; ++axis) {
+        state[axis] = 0.5 * (a[axis] + b[axis]);
+        delta[axis] = b[axis] - a[axis];
+    }
+    if (pp_rit_metric_at(ctx, state, matrix) != 0) goto fail;
+    quadratic = pp_rit_quadratic(matrix, delta, dimension);
+    if (quadratic < 0.0 || !isfinite(quadratic)) goto fail;
+    *out = sqrt(quadratic);
+    free(state);
+    free(delta);
+    free(matrix);
+    return 0;
+fail:
+    free(state);
+    free(delta);
+    free(matrix);
+    return -1;
+}
+
+static int pp_rit_heuristic(pp_context *ctx, const double *state, double *out) {
+    if (ctx->rit->constant_metric)
+        return pp_rit_edge_cost(ctx, state, ctx->goal, out);
+    *out = sqrt(ctx->options->metric_lambda_min) *
+           sqrt(pp_distance2(state, ctx->goal, ctx->dimension));
+    return isfinite(*out) ? 0 : -1;
+}
+
+static int pp_rit_cholesky_inverse_map(const double *lower, const double *transformed,
+                                       double *state, size_t dimension) {
+    size_t row, column;
+    for (row = dimension; row-- > 0;) {
+        double value = transformed[row];
+        for (column = row + 1; column < dimension; ++column)
+            value -= lower[column * dimension + row] * state[column];
+        if (!(lower[row * dimension + row] > 0.0)) return -1;
+        state[row] = value / lower[row * dimension + row];
+    }
+    return 0;
+}
+
+static int pp_rit_sample_informed(pp_context *ctx, double best_cost, double *out) {
+    size_t dimension = ctx->dimension, axis;
+    double *lower = NULL, *start_t = NULL, *goal_t = NULL, *normal = NULL;
+    double *unit = NULL, *reflect = NULL, *sample_t = NULL, *state = NULL;
+    double min_cost, major, minor, radius, normal_length2 = 0.0;
+    double euclidean_min = sqrt(pp_distance2(ctx->nodes.points, ctx->goal, dimension));
+    int valid, status = -1;
+    if (dimension < 2 || !isfinite(best_cost)) return pp_sample(ctx, out);
+    if (ctx->rit->constant_metric) {
+        lower = ctx->rit->mean_metric_cholesky;
+        if (lower == NULL) return -1;
+        start_t = (double *)malloc(dimension * sizeof(*start_t));
+        goal_t = (double *)malloc(dimension * sizeof(*goal_t));
+        if (start_t == NULL || goal_t == NULL) goto done;
+        for (axis = 0; axis < dimension; ++axis) {
+            size_t column;
+            start_t[axis] = 0.0;
+            goal_t[axis] = 0.0;
+            for (column = axis; column < dimension; ++column) {
+                start_t[axis] += lower[column * dimension + axis] * ctx->nodes.points[column];
+                goal_t[axis] += lower[column * dimension + axis] * ctx->goal[column];
+            }
+        }
+        min_cost = sqrt(pp_distance2(start_t, goal_t, dimension));
+    } else {
+        double scale = sqrt(ctx->options->metric_lambda_min);
+        lower = (double *)calloc(dimension * dimension, sizeof(*lower));
+        start_t = (double *)malloc(dimension * sizeof(*start_t));
+        goal_t = (double *)malloc(dimension * sizeof(*goal_t));
+        if (lower != NULL) {
+            for (axis = 0; axis < dimension; ++axis) {
+                lower[axis * dimension + axis] = scale;
+                start_t[axis] = scale * ctx->nodes.points[axis];
+                goal_t[axis] = scale * ctx->goal[axis];
+            }
+        }
+        min_cost = scale * euclidean_min;
+    }
+    if (start_t == NULL || goal_t == NULL || (!ctx->rit->constant_metric && lower == NULL))
+        goto done;
+    if (best_cost <= min_cost + 1e-12) {
+        status = pp_sample(ctx, out);
+        goto done;
+    }
+    major = 0.5 * best_cost;
+    minor = 0.5 * sqrt(fmax(0.0, best_cost * best_cost - min_cost * min_cost));
+    normal = (double *)malloc(dimension * sizeof(*normal));
+    unit = (double *)malloc(dimension * sizeof(*unit));
+    reflect = (double *)malloc(dimension * sizeof(*reflect));
+    sample_t = (double *)malloc(dimension * sizeof(*sample_t));
+    state = (double *)malloc(dimension * sizeof(*state));
+    if (normal == NULL || unit == NULL || reflect == NULL ||
+        sample_t == NULL || state == NULL) goto done;
+    for (axis = 0; axis < dimension; ++axis) {
+        double u = pp_uniform(&ctx->rng), v = pp_uniform(&ctx->rng);
+        normal[axis] = sqrt(-2.0 * log(u)) * cos(6.283185307179586 * v);
+        normal_length2 += normal[axis] * normal[axis];
+    }
+    if (!(normal_length2 > 0.0) || !isfinite(normal_length2)) normal_length2 = 1.0;
+    radius = pow(pp_uniform(&ctx->rng), 1.0 / (double)dimension) /
+             sqrt(normal_length2);
+    for (axis = 0; axis < dimension; ++axis) unit[axis] = normal[axis] * radius;
+    {
+        double dx = goal_t[0] - start_t[0];
+        double direction_length = sqrt(pp_distance2(start_t, goal_t, dimension));
+        double reflect_norm2 = 0.0, dot = 0.0;
+        reflect[0] = 1.0 - dx / direction_length;
+        for (axis = 1; axis < dimension; ++axis)
+            reflect[axis] = -(goal_t[axis] - start_t[axis]) / direction_length;
+        for (axis = 0; axis < dimension; ++axis) {
+            reflect_norm2 += reflect[axis] * reflect[axis];
+            dot += reflect[axis] * unit[axis];
+        }
+        if (reflect_norm2 < 1e-20) memcpy(normal, unit, dimension * sizeof(*normal));
+        else {
+            for (axis = 0; axis < dimension; ++axis)
+                normal[axis] = unit[axis] - 2.0 * reflect[axis] * dot / reflect_norm2;
+        }
+    }
+    for (axis = 0; axis < dimension; ++axis) {
+        double center = 0.5 * (start_t[axis] + goal_t[axis]);
+        sample_t[axis] = center + normal[axis] * (axis == 0 ? major : minor);
+    }
+    if (pp_rit_cholesky_inverse_map(lower, sample_t, state, dimension) != 0) goto done;
+    memcpy(out, state, dimension * sizeof(*out));
+    valid = pp_valid_state(ctx, out);
+    if (valid < 0) goto done;
+    if (valid == 0) { status = -2; goto done; }
+    ++ctx->samples;
+#ifdef PP_ENABLE_TRACE
+    pp_trace_sample(ctx, out);
+#endif
+    status = 0;
+done:
+    if (!ctx->rit->constant_metric) free(lower);
+    free(start_t);
+    free(goal_t);
+    free(normal);
+    free(unit);
+    free(reflect);
+    free(sample_t);
+    free(state);
+    return status;
+}
+
+static int pp_rit_add_collision(pp_context *ctx, const double *a, const double *b) {
+    pp_rit_state *rit = ctx->rit;
+    size_t dimension = ctx->dimension, axis;
+    const size_t max_points = 4096;
+    if (rit->collision_count >= max_points) return 0;
+    if (rit->collision_count == rit->collision_capacity) {
+        size_t capacity = rit->collision_capacity == 0 ? 64 : rit->collision_capacity * 2;
+        double *grown;
+        if (capacity > max_points) capacity = max_points;
+        if (capacity < rit->collision_capacity ||
+            capacity > SIZE_MAX / dimension / sizeof(*grown)) return -1;
+        grown = (double *)realloc(
+            rit->collision_points, capacity * dimension * sizeof(*grown)
+        );
+        if (grown == NULL) return -1;
+        rit->collision_points = grown;
+        rit->collision_capacity = capacity;
+    }
+    for (axis = 0; axis < dimension; ++axis)
+        rit->collision_points[rit->collision_count * dimension + axis] =
+            0.5 * (a[axis] + b[axis]);
+    ++rit->collision_count;
+    ++rit->unprocessed_collisions;
+    if (ctx->options->carm_alpha > 0.0) rit->constant_metric = 0;
+    return 0;
+}
+
+static int pp_rit_refresh_metric(pp_context *ctx) {
+    size_t dimension = ctx->dimension, matrix_size, sample, row;
+    double *matrix = NULL, *factor = NULL, *state = NULL;
+    if (dimension > SIZE_MAX / dimension ||
+        dimension * dimension > SIZE_MAX / sizeof(*matrix)) return -1;
+    matrix_size = dimension * dimension;
+    matrix = (double *)calloc(matrix_size, sizeof(*matrix));
+    factor = (double *)malloc(matrix_size * sizeof(*factor));
+    state = (double *)malloc(dimension * sizeof(*state));
+    if (matrix == NULL || factor == NULL || state == NULL) goto fail;
+    for (sample = 0; sample <= 10; ++sample) {
+        double t = (double)sample / 10.0;
+        double *current = (double *)malloc(matrix_size * sizeof(*current));
+        if (current == NULL) goto fail;
+        for (row = 0; row < dimension; ++row)
+            state[row] = ctx->nodes.points[row] +
+                         t * (ctx->goal[row] - ctx->nodes.points[row]);
+        if (pp_rit_metric_at(ctx, state, current) != 0) {
+            free(current);
+            goto fail;
+        }
+        for (row = 0; row < matrix_size; ++row) matrix[row] += current[row] / 11.0;
+        free(current);
+    }
+    if (pp_rit_cholesky(matrix, factor, dimension) != 0) goto fail;
+    free(ctx->rit->mean_metric_cholesky);
+    ctx->rit->mean_metric_cholesky = factor;
+    factor = NULL;
+    ctx->rit->constant_metric = ctx->options->metric_is_constant &&
+        (ctx->options->carm_alpha == 0.0 || ctx->rit->collision_count == 0);
+    free(matrix);
+    free(state);
+    return 0;
+fail:
+    free(matrix);
+    free(factor);
+    free(state);
+    return -1;
+}
+
+static int pp_rit_recost_tree(pp_context *ctx) {
+    uint32_t *queue = NULL, root = 0;
+    size_t head = 0, tail = 0;
+    if (ctx->nodes.count == 0) return 0;
+    queue = (uint32_t *)malloc((size_t)ctx->nodes.count * sizeof(*queue));
+    if (queue == NULL) return -1;
+    ctx->nodes.cost[root] = 0.0;
+    ctx->nodes.edge_cost[root] = 0.0;
+    queue[tail++] = root;
+    while (head < tail) {
+        uint32_t parent = queue[head++], child;
+        for (child = ctx->nodes.first_child[parent]; child != PP_C_NONE;
+             child = ctx->nodes.next_sibling[child]) {
+            double edge_cost;
+            if (pp_rit_edge_cost(ctx, pp_point(&ctx->nodes, parent),
+                                 pp_point(&ctx->nodes, child), &edge_cost) != 0) {
+                free(queue);
+                return -1;
+            }
+            ctx->nodes.edge_cost[child] = edge_cost;
+            ctx->nodes.cost[child] = ctx->nodes.cost[parent] + edge_cost;
+            if (!isfinite(ctx->nodes.cost[child]) || tail >= ctx->nodes.count) {
+                free(queue);
+                return -1;
+            }
+            queue[tail++] = child;
+        }
+    }
+    free(queue);
+    return 0;
+}
+
+static double pp_rit_lower_bound(pp_context *ctx) {
+    double heuristic;
+    if (pp_rit_heuristic(ctx, ctx->nodes.points, &heuristic) != 0) return PP_C_INF;
+    return heuristic;
+}
+
+static double pp_rit_radius(const pp_context *ctx, uint32_t node_count) {
+    double radius;
+    if (node_count <= 1) return ctx->options->rrt_star_radius_max_factor;
+    radius = ctx->options->rrt_star_radius_gamma *
+        pow(log((double)node_count) / (double)node_count,
+            1.0 / (double)ctx->dimension);
+    return fmin(ctx->options->rrt_star_radius_max_factor, radius);
+}
+
+static int pp_rit_expand_source(pp_context *ctx, uint32_t source,
+                                uint32_t node_count, double radius,
+                                double best_cost, pp_edge_heap *open,
+                                pp_continuous_result *result) {
+    uint32_t target;
+    double source_cost = ctx->nodes.cost[source];
+    double source_heuristic;
+    if (!isfinite(source_cost) || source == 1 ||
+        pp_rit_heuristic(ctx, pp_point(&ctx->nodes, source), &source_heuristic) != 0)
+        return 0;
+    if (isfinite(best_cost) && source_cost + source_heuristic >= best_cost - 1e-12)
+        return 0;
+    for (target = 1; target < node_count; ++target) {
+        double local_distance, lower_edge, target_heuristic, key, tentative;
+        if (target == source || pp_is_ancestor(&ctx->nodes, target, source)) continue;
+        if (pp_rit_local_cost(ctx, pp_point(&ctx->nodes, source),
+                              pp_point(&ctx->nodes, target), &local_distance) != 0) {
+            pp_set_error(result, "RIT* metric callback failed during neighbor search");
+            return -1;
+        }
+        if (local_distance > radius) continue;
+        lower_edge = sqrt(ctx->options->metric_lambda_min) *
+            sqrt(pp_distance2(pp_point(&ctx->nodes, source),
+                              pp_point(&ctx->nodes, target), ctx->dimension));
+        if (!isfinite(lower_edge)) continue;
+        tentative = source_cost + lower_edge;
+        if (tentative + 1e-12 >= ctx->nodes.cost[target]) continue;
+        if (pp_rit_heuristic(ctx, pp_point(&ctx->nodes, target),
+                             &target_heuristic) != 0) {
+            pp_set_error(result, "RIT* metric callback failed during heuristic evaluation");
+            return -1;
+        }
+        key = tentative + target_heuristic;
+        if (!isfinite(key) || (isfinite(best_cost) && key + 1e-12 >= best_cost)) continue;
+        if (pp_edge_push(open, source, target, key, source_cost, tentative) != 0) {
+            pp_set_error(result, "out of memory growing RIT* edge queue");
+            return -1;
+        }
+    }
+    return 0;
+}
+
+static int pp_rit_cascade_edge(pp_context *ctx, const pp_edge_entry *candidate,
+                               double best_cost, double target_cost,
+                               double *edge_cost, pp_continuous_result *result) {
+    size_t dimension = ctx->dimension, axis, matrix_size;
+    const double *start = pp_point(&ctx->nodes, candidate->source);
+    const double *end = pp_point(&ctx->nodes, candidate->target);
+    double *midpoint = NULL, *delta = NULL, *first = NULL, *middle = NULL, *last = NULL;
+    double length2 = 0.0, c1, c2, c3, eta, bound = fmin(best_cost, target_cost);
+    int valid, status = -1;
+    if (dimension > SIZE_MAX / dimension ||
+        dimension * dimension > SIZE_MAX / sizeof(*first)) return -1;
+    matrix_size = dimension * dimension;
+    midpoint = (double *)malloc(dimension * sizeof(*midpoint));
+    delta = (double *)malloc(dimension * sizeof(*delta));
+    first = (double *)malloc(matrix_size * sizeof(*first));
+    middle = (double *)malloc(matrix_size * sizeof(*middle));
+    last = (double *)malloc(matrix_size * sizeof(*last));
+    if (midpoint == NULL || delta == NULL || first == NULL || middle == NULL || last == NULL)
+        goto done;
+    for (axis = 0; axis < dimension; ++axis) {
+        delta[axis] = end[axis] - start[axis];
+        midpoint[axis] = 0.5 * (start[axis] + end[axis]);
+        length2 += delta[axis] * delta[axis];
+    }
+    if (length2 == 0.0) { *edge_cost = 0.0; status = 0; goto done; }
+    if (pp_rit_metric_at(ctx, midpoint, middle) != 0) goto done;
+    c1 = sqrt(pp_rit_quadratic(middle, delta, dimension));
+    if (!isfinite(c1)) goto done;
+    eta = ctx->rit->constant_metric ? 1.0 : sqrt(
+        ctx->options->metric_lambda_max *
+        (1.0 + ctx->options->carm_alpha) / ctx->options->metric_lambda_min
+    );
+    if (!isfinite(eta) || eta < 1.0) eta = 1.0;
+    if (isfinite(bound) && candidate->source_cost + c1 / eta + 1e-12 >= bound) {
+        status = 0;
+        goto done;
+    }
+    if (pp_rit_metric_at(ctx, start, first) != 0 ||
+        pp_rit_metric_at(ctx, end, last) != 0) goto done;
+    c2 = sqrt(length2) / 6.0 * (
+        sqrt(pp_rit_quadratic(first, delta, dimension)) +
+        4.0 * c1 +
+        sqrt(pp_rit_quadratic(last, delta, dimension))
+    );
+    if (!isfinite(c2)) goto done;
+    if (isfinite(bound) && candidate->source_cost + c2 / eta + 1e-12 >= bound) {
+        status = 0;
+        goto done;
+    }
+    if (pp_rit_edge_cost(ctx, start, end, &c3) != 0) goto done;
+    if (candidate->source_cost + c3 + 1e-12 >= bound) {
+        status = 0;
+        goto done;
+    }
+    valid = pp_valid_motion(ctx, start, end);
+    if (valid < 0) {
+        pp_set_error(result, "RIT* motion-validity callback failed");
+        goto done;
+    }
+    if (!valid) {
+        if (pp_rit_add_collision(ctx, start, end) != 0) {
+            pp_set_error(result, "out of memory caching RIT* collision feedback");
+            goto done;
+        }
+        status = 0;
+        goto done;
+    }
+    *edge_cost = c3;
+    status = 1;
+done:
+    free(midpoint);
+    free(delta);
+    free(first);
+    free(middle);
+    free(last);
+    return status;
+}
+
+static int pp_rit_expand_changed_subtree(pp_context *ctx, uint32_t root,
+                                         uint32_t node_count, double radius,
+                                         double best_cost, pp_edge_heap *open,
+                                         pp_continuous_result *result) {
+    uint32_t *stack = NULL;
+    size_t top = 0;
+    int status = -1;
+    stack = (uint32_t *)malloc((size_t)node_count * sizeof(*stack));
+    if (stack == NULL) return -1;
+    stack[top++] = root;
+    while (top > 0) {
+        uint32_t node = stack[--top], child;
+        if (pp_rit_expand_source(ctx, node, node_count, radius, best_cost,
+                                 open, result) != 0) goto done;
+        for (child = ctx->nodes.first_child[node]; child != PP_C_NONE;
+             child = ctx->nodes.next_sibling[child]) {
+            if (top >= node_count) goto done;
+            stack[top++] = child;
+        }
+    }
+    status = 0;
+done:
+    free(stack);
+    return status;
+}
+
+static int pp_rit_maybe_update_carm(pp_context *ctx, int force,
+                                    pp_continuous_result *result) {
+    pp_rit_state *rit = ctx->rit;
+    if (ctx->options->carm_alpha == 0.0 || rit->unprocessed_collisions == 0 ||
+        (!force && ctx->batches % ctx->options->carm_update_interval != 0)) return 0;
+    if (pp_rit_refresh_metric(ctx) != 0 || pp_rit_recost_tree(ctx) != 0) {
+        pp_set_error(result, "RIT* failed to update the CARM metric");
+        return -1;
+    }
+    rit->unprocessed_collisions = 0;
+    ++rit->metric_updates;
+    ++ctx->metric_updates;
+    return 0;
+}
+
+static int pp_run_rit(pp_context *ctx, pp_continuous_result *result) {
+    pp_edge_heap open = {0};
+    double *sample = NULL;
+    uint32_t root, goal_id;
+    uint64_t generated = 0;
+    double best_cost = PP_C_INF, lower_bound = PP_C_INF;
+    int stop = 3, status = -1;
+    sample = (double *)malloc(ctx->dimension * sizeof(*sample));
+    if (sample == NULL) {
+        pp_set_error(result, "out of memory allocating RIT* sample");
+        goto done;
+    }
+    root = pp_node_add(&ctx->nodes, ctx->nodes.points, PP_C_NONE, 0.0, 0.0, 0);
+    goal_id = pp_node_add(&ctx->nodes, ctx->goal, PP_C_NONE, PP_C_INF, 0.0, 0);
+    if (root == PP_C_NONE || goal_id == PP_C_NONE) {
+        pp_set_error(result, "out of memory initializing RIT* tree");
+        goto done;
+    }
+    if (pp_rit_refresh_metric(ctx) != 0) {
+        pp_set_error(result, "RIT* metric tensor is not symmetric positive definite");
+        goto done;
+    }
+    lower_bound = pp_rit_lower_bound(ctx);
+    if (!isfinite(lower_bound)) {
+        pp_set_error(result, "RIT* failed to compute an admissible heuristic");
+        goto done;
+    }
+
+    while (generated < ctx->options->sample_count) {
+        uint64_t batch_size = ctx->options->batch_size;
+        uint64_t remaining = ctx->options->sample_count - generated;
+        uint64_t sample_index;
+        uint32_t node_count;
+        double radius;
+        if (pp_timed_out(ctx)) { stop = 1; break; }
+        if (ctx->iterations >= ctx->options->max_iters) { stop = 2; break; }
+        if (isfinite(best_cost) && best_cost <= lower_bound +
+                fmax(1e-12, fabs(lower_bound) * 1e-10)) {
+            stop = 0;
+            break;
+        }
+        if (batch_size > remaining) batch_size = remaining;
+        for (sample_index = 0; sample_index < batch_size; ++sample_index) {
+            uint64_t attempt;
+            int sample_status = -2;
+            for (attempt = 0; attempt < ctx->options->max_sample_tries; ++attempt) {
+                sample_status = pp_rit_sample_informed(ctx, best_cost, sample);
+                if (sample_status == 0) break;
+                if (sample_status == -1) {
+                    pp_set_error(result, "failed to sample RIT* informed set");
+                    goto done;
+                }
+                if (pp_timed_out(ctx)) { stop = 1; break; }
+            }
+            if (stop == 1) break;
+            if (sample_status != 0) {
+                pp_set_error(result, "RIT* exhausted its sample retry budget");
+                goto done;
+            }
+            if (pp_node_add(&ctx->nodes, sample, PP_C_NONE, PP_C_INF, 0.0, 0) == PP_C_NONE) {
+                pp_set_error(result, "out of memory extending RIT* samples");
+                goto done;
+            }
+            ++generated;
+        }
+        if (stop == 1) break;
+        node_count = ctx->nodes.count;
+        ++ctx->batches;
+#ifdef PP_ENABLE_TRACE
+        pp_trace_phase(ctx, (double)ctx->batches);
+#endif
+        radius = pp_rit_radius(ctx, node_count);
+        open.count = 0;
+        open.next_order = 0;
+        for (root = 0; root < node_count; ++root) {
+            if (pp_timed_out(ctx)) { stop = 1; break; }
+            if (pp_rit_expand_source(ctx, root, node_count, radius, best_cost,
+                                     &open, result) != 0) goto done;
+        }
+        if (stop == 1) break;
+        while (open.count > 0) {
+            pp_edge_entry candidate;
+            double edge_cost, tentative;
+            int edge_status;
+            uint32_t source, target;
+            if (pp_timed_out(ctx)) { stop = 1; break; }
+            if (ctx->iterations >= ctx->options->max_iters) { stop = 2; break; }
+            if (!pp_edge_pop(&open, &candidate)) break;
+            source = candidate.source;
+            target = candidate.target;
+            if (candidate.source_cost != ctx->nodes.cost[source] ||
+                candidate.tentative + 1e-12 >= ctx->nodes.cost[target] ||
+                pp_is_ancestor(&ctx->nodes, target, source)) continue;
+            if (isfinite(best_cost) && candidate.key + 1e-12 >= best_cost) break;
+            ++ctx->iterations;
+#ifdef PP_ENABLE_TRACE
+            pp_trace_native_event(ctx->trace, PP_TRACE_EXPAND, source,
+                                  target, candidate.key, 0);
+#endif
+            edge_status = pp_rit_cascade_edge(ctx, &candidate, best_cost,
+                                             ctx->nodes.cost[target], &edge_cost,
+                                             result);
+            if (edge_status < 0) {
+                if (result->error_message == NULL)
+                    pp_set_error(result, "RIT* cascading edge evaluation failed");
+                goto done;
+            }
+            if (edge_status == 0) continue;
+            tentative = ctx->nodes.cost[source] + edge_cost;
+            if (!isfinite(tentative) ||
+                tentative + 1e-12 >= ctx->nodes.cost[target]) continue;
+            {
+                int was_in_tree = isfinite(ctx->nodes.cost[target]);
+                pp_node_attach(&ctx->nodes, target, source, edge_cost, tentative);
+                if (was_in_tree) ++ctx->rewires;
+            }
+            if (pp_update_descendant_costs(ctx, target) != 0) {
+                pp_set_error(result, "failed to update RIT* tree costs");
+                goto done;
+            }
+            if (ctx->nodes.cost[goal_id] < best_cost) {
+                best_cost = ctx->nodes.cost[goal_id];
+#ifdef PP_ENABLE_TRACE
+                pp_trace_solution(ctx, goal_id, PP_C_NONE, best_cost);
+#endif
+            }
+            if (pp_rit_expand_changed_subtree(ctx, target, node_count, radius,
+                                              best_cost, &open, result) != 0)
+                goto done;
+            if (best_cost <= lower_bound + fmax(1e-12, fabs(lower_bound) * 1e-10)) {
+                stop = 0;
+                break;
+            }
+        }
+        {
+            uint64_t updates_before = ctx->metric_updates;
+            if (pp_rit_maybe_update_carm(ctx, 0, result) != 0) goto done;
+            if (ctx->metric_updates != updates_before) {
+                best_cost = ctx->nodes.cost[goal_id];
+                lower_bound = pp_rit_lower_bound(ctx);
+                if (stop == 0 && best_cost > lower_bound +
+                        fmax(1e-12, fabs(lower_bound) * 1e-10)) stop = 3;
+            }
+        }
+        if (stop == 0 || stop == 1 || stop == 2) break;
+        best_cost = ctx->nodes.cost[goal_id];
+    }
+
+    if (pp_rit_maybe_update_carm(ctx, 1, result) != 0) goto done;
+    best_cost = ctx->nodes.cost[goal_id];
+
+    if (ctx->iterations >= ctx->options->max_iters && stop != 0 && stop != 1) stop = 2;
+    result->stop_reason = stop;
+    result->iters = ctx->iterations;
+    result->nodes = ctx->nodes.count;
+    result->sample_count = ctx->samples;
+    result->batches = ctx->batches;
+    result->motion_checks = ctx->motion_checks;
+    result->rewires = ctx->rewires;
+    result->metric_evaluations = ctx->metric_evaluations;
+    result->metric_updates = ctx->metric_updates;
+    result->elapsed_s = pp_now() - ctx->started;
+    if (isfinite(ctx->nodes.cost[goal_id])) {
+        status = pp_record_path(ctx, goal_id, result);
+    } else {
+        result->success = 0;
+        status = 0;
+    }
+done:
+    free(open.items);
+    free(sample);
+    return status;
+}
+
 static int pp_ait_capture_path(uint32_t root, uint32_t goal, const uint32_t *parents,
                                uint32_t node_count, const double *costs,
                                uint32_t **best_ids, size_t *best_length,
@@ -2840,6 +3654,7 @@ static int pp_continuous_plan_impl(const pp_continuous_callbacks *callbacks,
 #endif
                                    ) {
     pp_context ctx;
+    pp_rit_state rit = {0};
     int valid, status = -1;
     if (result == NULL) return -1;
     memset(result, 0, sizeof(*result)); result->stop_reason = 4;
@@ -2853,17 +3668,31 @@ static int pp_continuous_plan_impl(const pp_continuous_callbacks *callbacks,
     if (callbacks->native_goal && (!has_goal_point || !isfinite(callbacks->goal_radius) || callbacks->goal_radius < 0.0)) {
         pp_set_error(result, "native goal requires a point goal and a finite non-negative radius"); return -1;
     }
-    if (options->algorithm < PP_CONTINUOUS_RRT || options->algorithm > PP_CONTINUOUS_FCIT_STAR ||
+    if (options->algorithm < PP_CONTINUOUS_RRT || options->algorithm > PP_CONTINUOUS_RIT_STAR ||
         options->max_iters == 0 || options->max_sample_tries == 0 ||
         !(options->step_size > 0.0) || !(options->collision_step > 0.0) ||
         !(options->goal_sample_rate >= 0.0 && options->goal_sample_rate <= 1.0) ||
         dimension > 1024) {
         pp_set_error(result, "continuous planner options are invalid"); return -1;
     }
+    if (options->algorithm == PP_CONTINUOUS_RIT_STAR &&
+        (options->sample_count == 0 || options->batch_size == 0 ||
+         !isfinite(options->metric_lambda_min) || options->metric_lambda_min <= 0.0 ||
+         !isfinite(options->metric_lambda_max) ||
+         options->metric_lambda_max < options->metric_lambda_min ||
+         (options->metric_is_constant != 0 && options->metric_is_constant != 1) ||
+         options->riemannian_quadrature_order < 1 ||
+         options->riemannian_quadrature_order > 10 ||
+         options->carm_update_interval == 0 || !isfinite(options->carm_sigma) ||
+         options->carm_sigma <= 0.0 || !isfinite(options->carm_alpha) ||
+         options->carm_alpha < 0.0)) {
+        pp_set_error(result, "RIT* metric or sampling options are invalid"); return -1;
+    }
     if ((options->algorithm == PP_CONTINUOUS_FMT_STAR || options->algorithm == PP_CONTINUOUS_BIT_STAR ||
          options->algorithm == PP_CONTINUOUS_ABIT_STAR ||
          options->algorithm == PP_CONTINUOUS_INFORMED_RRT_STAR ||
-         options->algorithm == PP_CONTINUOUS_FCIT_STAR) &&
+         options->algorithm == PP_CONTINUOUS_FCIT_STAR ||
+         options->algorithm == PP_CONTINUOUS_RIT_STAR) &&
         (!has_goal_point || options->sample_count == 0 || options->batch_size == 0)) {
         pp_set_error(result, "informed sampling planners require an exact goal and positive samples"); return -1;
     }
@@ -2877,6 +3706,7 @@ static int pp_continuous_plan_impl(const pp_continuous_callbacks *callbacks,
     }
     memset(&ctx, 0, sizeof(ctx));
     ctx.callbacks = callbacks; ctx.options = options; ctx.dimension = dimension;
+    ctx.rit = options->algorithm == PP_CONTINUOUS_RIT_STAR ? &rit : NULL;
     ctx.has_goal_point = has_goal_point; ctx.goal = goal; ctx.started = pp_now();
     ctx.nodes.dimension = dimension;
 #ifdef PP_ENABLE_TRACE
@@ -2918,6 +3748,7 @@ static int pp_continuous_plan_impl(const pp_continuous_callbacks *callbacks,
         case PP_CONTINUOUS_AIT_STAR: status = pp_run_asymmetric(&ctx, result, 0); break;
         case PP_CONTINUOUS_EIT_STAR: status = pp_run_asymmetric(&ctx, result, 1); break;
         case PP_CONTINUOUS_FCIT_STAR: status = pp_run_fcit(&ctx, result); break;
+        case PP_CONTINUOUS_RIT_STAR: status = pp_run_rit(&ctx, result); break;
         case PP_CONTINUOUS_RRT_CONNECT: status = pp_run_connect(&ctx, result); break;
         default: pp_set_error(result, "unknown continuous algorithm"); status = -1; break;
     }
@@ -2925,6 +3756,8 @@ static int pp_continuous_plan_impl(const pp_continuous_callbacks *callbacks,
     if (result->success) result->elapsed_s = pp_now() - ctx.started;
 done:
     pp_kd_free(&ctx.indices[0]); pp_kd_free(&ctx.indices[1]); pp_nodes_free(&ctx.nodes);
+    free(rit.collision_points);
+    free(rit.mean_metric_cholesky);
     return status;
 }
 

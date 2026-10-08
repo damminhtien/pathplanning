@@ -14,7 +14,7 @@ from pathplanning.core.contracts import (
     State,
     TemporalProblem,
 )
-from pathplanning.core.params import RrtParams
+from pathplanning.core.params import RitParams, RrtParams
 from pathplanning.core.results import MultiAgentPlanResult, PlanResult, TemporalPlanResult
 from pathplanning.core.trace import TraceOptions
 from pathplanning.core.types import RNG
@@ -29,6 +29,7 @@ from pathplanning.planners.sampling.fcit_star import plan_fcit_star
 from pathplanning.planners.sampling.fmt_star import plan_fmt_star
 from pathplanning.planners.sampling.informed_rrt_star import plan_informed_rrt_star
 from pathplanning.planners.sampling.prm_star import plan_lazy_prm, plan_prm_star
+from pathplanning.planners.sampling.rit_star import plan_rit_star
 from pathplanning.planners.sampling.rrt import plan_rrt
 from pathplanning.planners.sampling.rrt_connect import plan_rrt_connect
 from pathplanning.planners.sampling.rrt_star import plan_rrt_star
@@ -76,7 +77,7 @@ class ContinuousPlannerCallable(Protocol):
         self,
         problem: ContinuousProblem[State],
         *,
-        params: RrtParams | Mapping[str, object] | None = None,
+        params: RitParams | RrtParams | Mapping[str, object] | None = None,
         rng: RNG | None = None,
         trace: TraceOptions | None = None,
     ) -> PlanResult: ...
@@ -365,6 +366,18 @@ _PLANNER_SPECS: tuple[tuple[str, PlannerSpec], ...] = (
                 "requires an exact point goal, Euclidean distance, and additive path length; "
                 "searches a fully connected informed graph with per-source local queues and "
                 "batched edge validation.",
+            ),
+        ),
+    ),
+    (
+        "rit_star",
+        PlannerSpec(
+            "continuous",
+            plan_rit_star,
+            (
+                "requires an exact point goal and additive Riemannian arc length; metric tensors "
+                "must be symmetric positive definite with global eigenvalue bounds. Custom metric "
+                "callbacks are opt-in; CARM rescales the metric from collision samples.",
             ),
         ),
     ),
