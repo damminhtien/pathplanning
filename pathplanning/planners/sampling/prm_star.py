@@ -41,6 +41,8 @@ class PrmStarRoadmap:
         dimension: int,
         params: RoadmapParams | None = None,
         rng: RNG | None = None,
+        *,
+        _lazy: bool = False,
     ) -> None:
         if isinstance(dimension, bool) or type(dimension) is not int or dimension <= 0:
             raise ValueError("dimension must be a positive integer")
@@ -49,6 +51,7 @@ class PrmStarRoadmap:
             dimension,
             RoadmapParams() if params is None else params.validate(),
             np.random.default_rng(0) if rng is None else rng,
+            lazy=_lazy,
         )
 
     @property
@@ -90,6 +93,40 @@ class PrmStarRoadmap:
         self.close()
 
 
+class LazyPrmRoadmap(PrmStarRoadmap):
+    """Reusable PRM roadmap that validates candidate edges on demand."""
+
+    def __init__(
+        self,
+        space: ContinuousSpace[State],
+        dimension: int,
+        params: RoadmapParams | None = None,
+        rng: RNG | None = None,
+    ) -> None:
+        super().__init__(space, dimension, params, rng, _lazy=True)
+
+
+def _plan_roadmap(
+    problem: ContinuousProblem[State],
+    *,
+    params: RrtParams | Mapping[str, object] | None = None,
+    rng: RNG | None = None,
+    trace: TraceOptions | None = None,
+    roadmap_type: type[PrmStarRoadmap],
+    planner_label: str,
+) -> PlanResult:
+    validate_objective(problem.objective, planner_label)
+    resolved_params, world_version = _resolve_params(problem, params)
+    start = np.asarray(problem.start, dtype=np.float64)
+    if start.ndim != 1 or start.size == 0 or not np.all(np.isfinite(start)):
+        raise ValueError("start must be a finite non-empty state vector")
+    goal = exact_goal_state(problem.goal, dim=int(start.size))
+    euclidean_distance(problem.space, start, goal)
+    with roadmap_type(problem.space, int(start.size), resolved_params, rng=rng) as roadmap:
+        roadmap.build(world_version=world_version)
+        return roadmap.query(start, goal, world_version=world_version, trace=trace)
+
+
 def plan_prm_star(
     problem: ContinuousProblem[State],
     *,
@@ -98,16 +135,32 @@ def plan_prm_star(
     trace: TraceOptions | None = None,
 ) -> PlanResult:
     """Build and query a native PRM* roadmap for Euclidean path length."""
-    validate_objective(problem.objective, "PRM*")
-    resolved_params, world_version = _resolve_params(problem, params)
-    start = np.asarray(problem.start, dtype=np.float64)
-    if start.ndim != 1 or start.size == 0 or not np.all(np.isfinite(start)):
-        raise ValueError("start must be a finite non-empty state vector")
-    goal = exact_goal_state(problem.goal, dim=int(start.size))
-    euclidean_distance(problem.space, start, goal)
-    with PrmStarRoadmap(problem.space, int(start.size), resolved_params, rng=rng) as roadmap:
-        roadmap.build(world_version=world_version)
-        return roadmap.query(start, goal, world_version=world_version, trace=trace)
+    return _plan_roadmap(
+        problem,
+        params=params,
+        rng=rng,
+        trace=trace,
+        roadmap_type=PrmStarRoadmap,
+        planner_label="PRM*",
+    )
 
 
-__all__ = ["PrmStarRoadmap", "plan_prm_star"]
+def plan_lazy_prm(
+    problem: ContinuousProblem[State],
+    *,
+    params: RrtParams | Mapping[str, object] | None = None,
+    rng: RNG | None = None,
+    trace: TraceOptions | None = None,
+) -> PlanResult:
+    """Build and query a native lazy PRM roadmap for Euclidean path length."""
+    return _plan_roadmap(
+        problem,
+        params=params,
+        rng=rng,
+        trace=trace,
+        roadmap_type=LazyPrmRoadmap,
+        planner_label="Lazy PRM",
+    )
+
+
+__all__ = ["LazyPrmRoadmap", "PrmStarRoadmap", "plan_lazy_prm", "plan_prm_star"]

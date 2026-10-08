@@ -384,10 +384,13 @@ class NativePrmStarRoadmap:
         dimension: int,
         params: RoadmapParams,
         rng: RNG,
+        *,
+        lazy: bool = False,
     ) -> None:
         self.space = space
         self.dimension = dimension
         self.params = params.validate()
+        self.lazy = lazy
         self.seed = int(rng.integers(0, np.iinfo(np.uint64).max, dtype=np.uint64))
         self.library = load_continuous_library()
         self.handle = self._create_handle(self.library)
@@ -411,6 +414,8 @@ class NativePrmStarRoadmap:
             ctypes.c_size_t,
         ]
         library.pp_prm_star_create.restype = ctypes.c_int
+        library.pp_prm_star_set_lazy.argtypes = [ctypes.c_void_p, ctypes.c_int]
+        library.pp_prm_star_set_lazy.restype = ctypes.c_int
         library.pp_prm_star_build.argtypes = [
             ctypes.c_void_p,
             ctypes.POINTER(_Callbacks),
@@ -467,6 +472,9 @@ class NativePrmStarRoadmap:
                 error.value.decode("utf-8", errors="replace") or "could not create PRM* roadmap"
             )
             raise RuntimeError(message)
+        if library.pp_prm_star_set_lazy(handle, int(self.lazy)) != 0:
+            library.pp_prm_star_free(handle)
+            raise RuntimeError("could not configure native PRM* validation mode")
         return handle
 
     def _build_handle(self, library, handle: ctypes.c_void_p) -> dict[str, float]:

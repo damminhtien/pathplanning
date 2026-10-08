@@ -12,7 +12,7 @@
 
 #define PP_C_INF INFINITY
 #define PP_C_NONE UINT32_MAX
-#define PP_C_VERSION "1.1.0"
+#define PP_C_VERSION "1.2.0"
 #define PP_C_KD_LEVELS 32
 
 typedef struct {
@@ -82,6 +82,8 @@ typedef struct {
     uint32_t first;
     uint32_t second;
     double cost;
+    int validity;
+    uint64_t roadmap_id;
 } pp_prm_edge;
 
 struct pp_prm_star_roadmap {
@@ -96,6 +98,7 @@ struct pp_prm_star_roadmap {
     pp_prm_edge *edges;
     size_t edge_count;
     size_t edge_capacity;
+    int lazy;
     int built;
 };
 
@@ -1833,7 +1836,8 @@ static void pp_prm_star_clear_storage(pp_prm_star_roadmap *roadmap) {
 }
 
 static int pp_prm_star_append_edge(pp_prm_star_roadmap *roadmap,
-                                   uint32_t first, uint32_t second, double cost) {
+                                   uint32_t first, uint32_t second, double cost,
+                                   int validity) {
     if (roadmap->edge_count == roadmap->edge_capacity) {
         size_t capacity = roadmap->edge_capacity == 0 ? 64 : roadmap->edge_capacity * 2;
         pp_prm_edge *grown;
@@ -1843,7 +1847,10 @@ static int pp_prm_star_append_edge(pp_prm_star_roadmap *roadmap,
         roadmap->edges = grown;
         roadmap->edge_capacity = capacity;
     }
-    roadmap->edges[roadmap->edge_count++] = (pp_prm_edge){first, second, cost};
+    roadmap->edges[roadmap->edge_count] = (pp_prm_edge){
+        first, second, cost, validity, (uint64_t)roadmap->edge_count
+    };
+    ++roadmap->edge_count;
     return 0;
 }
 
@@ -1878,6 +1885,12 @@ int pp_prm_star_create(size_t dimension, uint64_t sample_count, double gamma,
     roadmap->max_sample_tries = max_sample_tries;
     roadmap->seed = seed;
     *out = roadmap;
+    return 0;
+}
+
+int pp_prm_star_set_lazy(pp_prm_star_roadmap *roadmap, int lazy) {
+    if (roadmap == NULL || roadmap->built || (lazy != 0 && lazy != 1)) return -1;
+    roadmap->lazy = lazy;
     return 0;
 }
 
@@ -1967,19 +1980,24 @@ int pp_prm_star_build(pp_prm_star_roadmap *roadmap,
                 goto fail;
             }
             if (distance > roadmap->connection_radius) continue;
-            valid = pp_valid_motion(&ctx, first, second);
-            if (valid < 0) {
-                pp_set_error(result, "PRM* motion-validity callback failed");
-                goto fail;
+            valid = 0;
+            if (!roadmap->lazy) {
+                valid = pp_valid_motion(&ctx, first, second);
+                if (valid < 0) {
+                    pp_set_error(result, "PRM* motion-validity callback failed");
+                    goto fail;
+                }
+                if (!valid) continue;
+                valid = pp_valid_motion(&ctx, second, first);
+                if (valid < 0) {
+                    pp_set_error(result, "PRM* reverse motion-validity callback failed");
+                    goto fail;
+                }
+                if (!valid) continue;
+                valid = 1;
             }
-            if (!valid) continue;
-            valid = pp_valid_motion(&ctx, second, first);
-            if (valid < 0) {
-                pp_set_error(result, "PRM* reverse motion-validity callback failed");
-                goto fail;
-            }
-            if (!valid) continue;
-            if (pp_prm_star_append_edge(roadmap, (uint32_t)i, (uint32_t)j, distance) != 0) {
+            if (pp_prm_star_append_edge(roadmap, (uint32_t)i, (uint32_t)j,
+                                        distance, valid) != 0) {
                 pp_set_error(result, "out of memory storing PRM* roadmap edges");
                 goto fail;
             }
@@ -2015,12 +2033,14 @@ static int pp_prm_star_query_impl(pp_prm_star_roadmap *roadmap,
     pp_context ctx;
     pp_prm_edge *edges = NULL;
     uint64_t *offsets = NULL;
+    uint64_t *edge_ids = NULL;
     uint32_t *neighbors = NULL;
     double *costs = NULL, *distance = NULL;
     uint32_t *parents = NULL;
+    size_t *parent_edges = NULL;
     uint8_t *closed = NULL;
     pp_vertex_heap open = {0};
-    size_t edge_count, vertex_count, i, j, path_length = 0;
+    size_t edge_count, edge_capacity, vertex_count, i, j, path_length = 0;
     uint32_t start_id, goal_id;
     int stop_reason = 3, status = -1;
     if (result == NULL) return -1;
@@ -2064,22 +2084,27 @@ static int pp_prm_star_query_impl(pp_prm_star_roadmap *roadmap,
         pp_set_error(result, "PRM* query graph is too large");
         goto done;
     }
-    edge_count = roadmap->edge_count + 2 * roadmap->vertex_count + 1;
-    if (edge_count > SIZE_MAX / sizeof(*edges) ||
-        edge_count > SIZE_MAX / (2 * sizeof(*neighbors)) ||
-        edge_count > SIZE_MAX / (2 * sizeof(*costs)) ||
+    edge_capacity = roadmap->edge_count + 2 * roadmap->vertex_count + 1;
+    if (edge_capacity > SIZE_MAX / sizeof(*edges) ||
+        edge_capacity > SIZE_MAX / (2 * sizeof(*neighbors)) ||
+        edge_capacity > SIZE_MAX / (2 * sizeof(*costs)) ||
+        edge_capacity > SIZE_MAX / (2 * sizeof(*edge_ids)) ||
         vertex_count >= SIZE_MAX / sizeof(*offsets) ||
         vertex_count > SIZE_MAX / sizeof(*distance) ||
-        vertex_count > SIZE_MAX / sizeof(*parents)) {
+        vertex_count > SIZE_MAX / sizeof(*parents) ||
+        vertex_count > SIZE_MAX / sizeof(*parent_edges)) {
         pp_set_error(result, "PRM* query graph is too large");
         goto done;
     }
-    edges = (pp_prm_edge *)malloc(edge_count * sizeof(*edges));
-    if (edges == NULL && edge_count > 0) { pp_set_error(result, "out of memory creating PRM* query edges"); goto done; }
-    if (roadmap->edge_count > 0) {
-        memcpy(edges, roadmap->edges, roadmap->edge_count * sizeof(*edges));
+    edges = (pp_prm_edge *)malloc(edge_capacity * sizeof(*edges));
+    if (edges == NULL && edge_capacity > 0) { pp_set_error(result, "out of memory creating PRM* query edges"); goto done; }
+    edge_count = 0;
+    for (i = 0; i < roadmap->edge_count; ++i) {
+        if (roadmap->edges[i].validity < 0) continue;
+        edges[edge_count] = roadmap->edges[i];
+        edges[edge_count].roadmap_id = (uint64_t)i;
+        ++edge_count;
     }
-    edge_count = roadmap->edge_count;
     start_id = (uint32_t)roadmap->vertex_count;
     goal_id = start_id + 1;
     {
@@ -2110,7 +2135,9 @@ static int pp_prm_star_query_impl(pp_prm_star_roadmap *roadmap,
                 valid = pp_valid_motion(&ctx, point, endpoints[endpoint]);
                 if (valid < 0) { pp_set_error(result, "PRM* reverse connector validity callback failed"); goto done; }
                 if (valid) {
-                    edges[edge_count++] = (pp_prm_edge){ids[endpoint], (uint32_t)i, d};
+                    edges[edge_count++] = (pp_prm_edge){
+                        ids[endpoint], (uint32_t)i, d, 1, UINT64_MAX
+                    };
                 }
             }
         }
@@ -2133,7 +2160,11 @@ static int pp_prm_star_query_impl(pp_prm_star_roadmap *roadmap,
             if (valid) {
                 valid = pp_valid_motion(&ctx, goal, start);
                 if (valid < 0) { pp_set_error(result, "PRM* reverse direct motion callback failed"); goto done; }
-                if (valid) edges[edge_count++] = (pp_prm_edge){start_id, goal_id, d};
+                if (valid) {
+                    edges[edge_count++] = (pp_prm_edge){
+                        start_id, goal_id, d, 1, UINT64_MAX
+                    };
+                }
             }
         }
     }
@@ -2141,12 +2172,15 @@ query_done:
     if (stop_reason == 1) goto finish;
     offsets = (uint64_t *)calloc(vertex_count + 1, sizeof(*offsets));
     neighbors = (uint32_t *)malloc(2 * edge_count * sizeof(*neighbors));
+    edge_ids = (uint64_t *)malloc(2 * edge_count * sizeof(*edge_ids));
     costs = (double *)malloc(2 * edge_count * sizeof(*costs));
     distance = (double *)malloc(vertex_count * sizeof(*distance));
     parents = (uint32_t *)malloc(vertex_count * sizeof(*parents));
+    parent_edges = (size_t *)malloc(vertex_count * sizeof(*parent_edges));
     closed = (uint8_t *)calloc(vertex_count, sizeof(*closed));
-    if (offsets == NULL || (edge_count > 0 && (neighbors == NULL || costs == NULL)) ||
-        distance == NULL || parents == NULL || closed == NULL) {
+    if (offsets == NULL || (edge_count > 0 &&
+        (neighbors == NULL || edge_ids == NULL || costs == NULL)) ||
+        distance == NULL || parents == NULL || parent_edges == NULL || closed == NULL) {
         pp_set_error(result, "out of memory preparing PRM* shortest-path query");
         goto done;
     }
@@ -2164,6 +2198,8 @@ query_done:
             uint64_t left = cursor[first]++, right = cursor[second]++;
             neighbors[left] = (uint32_t)second; costs[left] = edges[i].cost;
             neighbors[right] = (uint32_t)first; costs[right] = edges[i].cost;
+            edge_ids[left] = (uint64_t)i;
+            edge_ids[right] = (uint64_t)i;
         }
         free(cursor);
     }
@@ -2177,39 +2213,121 @@ query_done:
         }
     }
 #endif
-    for (i = 0; i < vertex_count; ++i) { distance[i] = PP_C_INF; parents[i] = PP_C_NONE; }
-    distance[start_id] = 0.0;
-    if (pp_vertex_push(&open, start_id, 0.0, 0.0) != 0) {
-        pp_set_error(result, "out of memory creating PRM* search queue");
-        goto done;
-    }
     stop_reason = 3;
-    while (open.count > 0) {
-        pp_vertex_entry entry;
-        uint32_t current;
-        if (time_budget_s > 0.0 && pp_now() - ctx.started >= time_budget_s) { stop_reason = 1; break; }
-        if (result->iters >= max_expansions) { stop_reason = 2; break; }
-        (void)pp_vertex_pop(&open, &entry);
-        current = entry.node;
-        if (closed[current] || entry.queued_cost != distance[current]) continue;
-        closed[current] = 1;
-        ++result->iters;
+    for (;;) {
+        int route_validated = 1;
+        open.count = 0;
+        open.next_order = 0;
+        for (i = 0; i < vertex_count; ++i) {
+            distance[i] = PP_C_INF;
+            parents[i] = PP_C_NONE;
+            parent_edges[i] = SIZE_MAX;
+            closed[i] = 0;
+        }
+        distance[start_id] = 0.0;
+        if (pp_vertex_push(&open, start_id, 0.0, 0.0) != 0) {
+            pp_set_error(result, "out of memory creating PRM* search queue");
+            goto done;
+        }
+        stop_reason = 3;
+        while (open.count > 0) {
+            pp_vertex_entry entry;
+            uint32_t current;
+            if (time_budget_s > 0.0 && pp_now() - ctx.started >= time_budget_s) {
+                stop_reason = 1;
+                break;
+            }
+            if (result->iters >= max_expansions) {
+                stop_reason = 2;
+                break;
+            }
+            (void)pp_vertex_pop(&open, &entry);
+            current = entry.node;
+            if (closed[current] || entry.queued_cost != distance[current]) continue;
+            closed[current] = 1;
+            ++result->iters;
 #ifdef PP_ENABLE_TRACE
-        pp_trace_native_event(trace, PP_TRACE_EXPAND, current,
-                              parents[current], distance[current], 0);
+            pp_trace_native_event(trace, PP_TRACE_EXPAND, current,
+                                  parents[current], distance[current], 0);
 #endif
-        if (current == goal_id) { stop_reason = 0; break; }
-        for (j = (size_t)offsets[current]; j < (size_t)offsets[current + 1]; ++j) {
-            uint32_t next = neighbors[j];
-            double candidate = distance[current] + costs[j];
-            if (closed[next] || candidate + 1e-12 >= distance[next]) continue;
-            distance[next] = candidate;
-            parents[next] = current;
-            if (pp_vertex_push(&open, next, candidate, candidate) != 0) {
-                pp_set_error(result, "out of memory updating PRM* search queue");
-                goto done;
+            if (current == goal_id) {
+                stop_reason = 0;
+                break;
+            }
+            for (j = (size_t)offsets[current]; j < (size_t)offsets[current + 1]; ++j) {
+                uint32_t next = neighbors[j];
+                size_t edge_id = (size_t)edge_ids[j];
+                double candidate;
+                if (edges[edge_id].validity < 0) continue;
+                candidate = distance[current] + costs[j];
+                if (closed[next] || candidate + 1e-12 >= distance[next]) continue;
+                distance[next] = candidate;
+                parents[next] = current;
+                parent_edges[next] = edge_id;
+                if (pp_vertex_push(&open, next, candidate, candidate) != 0) {
+                    pp_set_error(result, "out of memory updating PRM* search queue");
+                    goto done;
+                }
             }
         }
+        if (stop_reason != 0) break;
+
+        {
+            uint32_t current = goal_id;
+            size_t steps = 0;
+            while (current != start_id) {
+                size_t edge_id = parent_edges[current];
+                pp_prm_edge *edge;
+                if (edge_id >= edge_count || ++steps > vertex_count) {
+                    pp_set_error(result, "invalid PRM* candidate path");
+                    goto done;
+                }
+                edge = &edges[edge_id];
+                if (edge->validity == 0) {
+                    const double *first;
+                    const double *second;
+                    int valid;
+                    if (time_budget_s > 0.0 && pp_now() - ctx.started >= time_budget_s) {
+                        stop_reason = 1;
+                        route_validated = 0;
+                        break;
+                    }
+                    first = edge->first < roadmap->vertex_count
+                        ? roadmap->points + (size_t)edge->first * roadmap->dimension
+                        : (edge->first == start_id ? start : goal);
+                    second = edge->second < roadmap->vertex_count
+                        ? roadmap->points + (size_t)edge->second * roadmap->dimension
+                        : (edge->second == start_id ? start : goal);
+                    valid = pp_valid_motion(&ctx, first, second);
+                    if (valid < 0) {
+                        pp_set_error(result, "PRM* lazy edge validation callback failed");
+                        goto done;
+                    }
+                    if (valid) {
+                        valid = pp_valid_motion(&ctx, second, first);
+                        if (valid < 0) {
+                            pp_set_error(result, "PRM* reverse lazy edge validation callback failed");
+                            goto done;
+                        }
+                    }
+                    if (valid) {
+                        edge->validity = 1;
+                        if (edge->roadmap_id < roadmap->edge_count) {
+                            roadmap->edges[edge->roadmap_id].validity = 1;
+                        }
+                    } else {
+                        edge->validity = -1;
+                        if (edge->roadmap_id < roadmap->edge_count) {
+                            roadmap->edges[edge->roadmap_id].validity = -1;
+                        }
+                        route_validated = 0;
+                        break;
+                    }
+                }
+                current = parents[current];
+            }
+        }
+        if (stop_reason != 0 || route_validated) break;
     }
 finish:
     result->stop_reason = stop_reason;
@@ -2272,8 +2390,8 @@ done:
         free(result->path);
         result->path = NULL;
     }
-    free(edges); free(offsets); free(neighbors); free(costs);
-    free(distance); free(parents); free(closed); free(open.items);
+    free(edges); free(offsets); free(neighbors); free(edge_ids); free(costs);
+    free(distance); free(parents); free(parent_edges); free(closed); free(open.items);
     return status;
 }
 

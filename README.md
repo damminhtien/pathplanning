@@ -297,6 +297,13 @@ path length and reject custom objectives. `bidirectional_astar` requires an
 exact goal and a consistent graph heuristic; its native kernel validates the
 heuristic on the prepared graph before searching.
 
+For repeated continuous-space queries, `PrmStarRoadmap` retains its sampled
+roadmap and validates candidate edges during construction. `LazyPrmRoadmap`
+defers edge checks until they appear on a candidate route, then caches both
+valid and blocked results. Both use `RoadmapParams` and require the caller to
+change `world_version` when the world changes; see the [PRM*](docs/algorithms/prm_star.md)
+and [Lazy PRM](docs/algorithms/lazy_prm.md) contracts and examples.
+
 For bulk input, pass CSR row offsets, neighbor IDs, and edge costs to
 `NativeGraph.from_csr`. This also accepts arrays from a SciPy CSR matrix through
 its `indptr`, `indices`, and `data` attributes; SciPy is not required by the

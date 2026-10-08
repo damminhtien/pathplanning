@@ -74,8 +74,8 @@ def plan_continuous(
     """Run one registered continuous planner on a ``ContinuousProblem``."""
     if trace is not None and type(trace) is not TraceOptions:
         raise TypeError("trace must be TraceOptions or None")
-    if isinstance(params, RoadmapParams) and planner != "prm_star":
-        raise TypeError("RoadmapParams can only be used with the prm_star planner")
+    if isinstance(params, RoadmapParams) and planner not in {"prm_star", "lazy_prm"}:
+        raise TypeError("RoadmapParams can only be used with prm_star or lazy_prm")
     effective_rng = _resolve_rng(seed, rng)
     resolved_params: RrtParams | dict[str, object] | None
     if params is None or isinstance(params, RrtParams):
