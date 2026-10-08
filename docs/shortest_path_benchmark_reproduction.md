@@ -4,7 +4,9 @@ This runner implements the MovingAI `land_octile_v1` profile from the
 [Moving AI 2D benchmark collection](https://movingai.com/benchmarks/grids.html)
 and its [map and scenario format](https://movingai.com/benchmarks/formats.html).
 It records the source files and map hashes in the manifest. Dataset files and
-campaign output stay under the ignored `benchmark-results/` directory.
+campaign output stay under the ignored `benchmark-results/` directory. See
+[`docs/benchmarks/dataset_installation.md`](benchmarks/dataset_installation.md)
+for the complete DIMACS, BARN, MovingAI, Monash, and OMPL dataset inventory.
 
 The parser accepts scenario headers `version 1` and `version 1.0`, keeps
 `x + width*y` node IDs, and rejects scaled scenarios. Movement uses cardinal
@@ -14,10 +16,14 @@ silently reclassifying them.
 
 ## Build and run
 
-Download the map and scenario archives linked by the official benchmark page,
-extract each family into its own directory, then run:
+Install the surveyed collection once. The installer places MovingAI land maps
+and their scenarios beside one another in the family directories expected by
+the existing parser; terrain and voxel inputs remain in separate directories.
+Then build and prepare the pilot:
 
 ```text
+python3.12 scripts/install_benchmark_datasets.py install \
+  --catalog benchmark-results/dataset-characterization/catalog.json
 python3.12 setup.py build_ext --inplace \
   --build-temp /tmp/pathplanning-native-build/temp \
   --build-lib /tmp/pathplanning-native-build/lib
