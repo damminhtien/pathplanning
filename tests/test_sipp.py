@@ -127,3 +127,37 @@ def test_sipp_handles_trivial_unreachable_and_bounded_searches() -> None:
     if timed.success:
         assert timed.states == (0, 1)
         assert timed.times == (0.0, 1.0)
+
+
+def test_bounded_suboptimal_sipp_uses_focal_hops_and_obeys_weight() -> None:
+    graph = NativeGraph.from_edges(
+        nodes=(0, 1, 2, 3, 4),
+        edges=((0, 1, 1.0), (1, 2, 1.0), (2, 3, 1.0), (0, 4, 2.5), (4, 3, 1.0)),
+    )
+    problem = TemporalProblem(graph=graph, start=0, goal=3)
+
+    optimal = plan_temporal(problem, planner="bounded_suboptimal_sipp", params={"w": 1.0})
+    bounded = plan_temporal(
+        problem,
+        planner="bounded_suboptimal_sipp",
+        params={"w": 1.5},
+        trace=TraceOptions(max_bytes=2048),
+    )
+
+    assert optimal.success and optimal.stop_reason is StopReason.SUCCESS
+    assert optimal.stats["path_cost"] == 3.0
+    assert bounded.success and bounded.stop_reason is StopReason.SUCCESS
+    assert bounded.stats["path_cost"] == 3.5
+    assert bounded.stats["path_cost"] <= 1.5 * optimal.stats["path_cost"]
+    assert bounded.trace is not None and bounded.trace.events.size > 0
+
+    budgeted = plan_temporal(
+        problem,
+        planner="bounded_suboptimal_sipp",
+        params={"w": 1.5, "max_expansions": 2},
+    )
+    assert budgeted.success and budgeted.stop_reason is StopReason.MAX_ITERS
+    assert budgeted.times == (0.0, 2.5, 3.5)
+
+    with pytest.raises(ValueError, match="w must be a finite number"):
+        plan_temporal(problem, planner="bounded_suboptimal_sipp", params={"w": 0.9})

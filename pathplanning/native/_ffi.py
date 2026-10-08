@@ -248,10 +248,10 @@ _SEARCH_METRICS_LIB: ctypes.CDLL | None = None
 _CONTINUOUS_TRACE_LIB: ctypes.CDLL | None = None
 
 # Keep these exact-match requirements synchronized with abi_version.h.
-_SEARCH_ABI_VERSION = 11
+_SEARCH_ABI_VERSION = 12
 _SEARCH_METRICS_ABI_VERSION = 2
 _CONTINUOUS_ABI_VERSION = 1
-_SEARCH_TRACE_ABI_VERSION = 6
+_SEARCH_TRACE_ABI_VERSION = 7
 _CONTINUOUS_TRACE_ABI_VERSION = 1
 
 
@@ -359,10 +359,14 @@ def _configure_sipp_function(library: ctypes.CDLL, name: str) -> None:
         ctypes.c_uint64,
         ctypes.c_double,
     ]
-    if name == "pp_sipp_plan_traced":
+    is_bounded = name in {"pp_bounded_sipp_plan", "pp_bounded_sipp_plan_traced"}
+    is_traced = name in {"pp_sipp_plan_traced", "pp_bounded_sipp_plan_traced"}
+    if is_bounded:
+        arguments.append(ctypes.c_double)
+    if is_traced:
         arguments.append(ctypes.c_uint64)
     arguments.append(ctypes.POINTER(SippResult))
-    if name == "pp_sipp_plan_traced":
+    if is_traced:
         arguments.append(ctypes.POINTER(TraceResult))
     function = getattr(library, name)
     function.argtypes = arguments
@@ -408,6 +412,7 @@ def load_native_library() -> ctypes.CDLL:
                 "pp_dstar_lite_reset",
                 "pp_dstar_lite_trace_free_result",
                 "pp_sipp_plan",
+                "pp_bounded_sipp_plan",
                 "pp_sipp_free_result",
                 "pp_search_free_result",
                 "pp_search_engine_version",
@@ -577,6 +582,7 @@ def load_native_library() -> ctypes.CDLL:
         library.pp_dstar_lite_trace_free_result.argtypes = [ctypes.POINTER(TraceResult)]
         library.pp_dstar_lite_trace_free_result.restype = None
         _configure_sipp_function(library, "pp_sipp_plan")
+        _configure_sipp_function(library, "pp_bounded_sipp_plan")
         library.pp_search_free_result.argtypes = [ctypes.POINTER(SearchResult)]
         library.pp_search_free_result.restype = None
         library.pp_search_engine_version.argtypes = []
@@ -668,6 +674,7 @@ def load_search_trace_library() -> ctypes.CDLL:
                 "pp_native_theta_star_grid_traced",
                 "pp_native_lazy_theta_star_grid_traced",
                 "pp_sipp_plan_traced",
+                "pp_bounded_sipp_plan_traced",
                 "pp_sipp_free_result",
                 "pp_search_free_result",
                 "pp_search_trace_free_result",
@@ -763,6 +770,7 @@ def load_search_trace_library() -> ctypes.CDLL:
         ]
         _SEARCH_TRACE_LIB.pp_native_lazy_theta_star_grid_traced.restype = ctypes.c_int
         _configure_sipp_function(_SEARCH_TRACE_LIB, "pp_sipp_plan_traced")
+        _configure_sipp_function(_SEARCH_TRACE_LIB, "pp_bounded_sipp_plan_traced")
         _SEARCH_TRACE_LIB.pp_search_free_result.argtypes = [ctypes.POINTER(SearchResult)]
         _SEARCH_TRACE_LIB.pp_search_free_result.restype = None
         _SEARCH_TRACE_LIB.pp_search_trace_free_result.argtypes = [ctypes.POINTER(TraceResult)]

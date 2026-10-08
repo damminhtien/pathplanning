@@ -5,9 +5,12 @@
 #include <cmath>
 #include <cstdlib>
 #include <cstring>
+#include <functional>
 #include <limits>
 #include <new>
+#include <optional>
 #include <queue>
+#include <set>
 #include <stdexcept>
 #include <string>
 #include <tuple>
@@ -32,6 +35,34 @@ struct QueueEntry {
 struct QueueEntryGreater {
     bool operator()(const QueueEntry& left, const QueueEntry& right) const {
         return std::tie(left.arrival, left.sequence) > std::tie(right.arrival, right.sequence);
+    }
+};
+
+struct OpenFEntry {
+    double f;
+    uint64_t sequence;
+    uint64_t state;
+    uint64_t version;
+};
+
+struct OpenFEntryLess {
+    bool operator()(const OpenFEntry& left, const OpenFEntry& right) const {
+        return std::tie(left.f, left.sequence) < std::tie(right.f, right.sequence);
+    }
+};
+
+struct FocalEntry {
+    uint64_t hops;
+    double f;
+    uint64_t sequence;
+    uint64_t state;
+    uint64_t version;
+};
+
+struct FocalEntryGreater {
+    bool operator()(const FocalEntry& left, const FocalEntry& right) const {
+        return std::tie(left.hops, left.f, left.sequence) >
+            std::tie(right.hops, right.f, right.sequence);
     }
 };
 
@@ -118,6 +149,7 @@ public:
         int has_max_expansions,
         uint64_t max_expansions,
         double max_runtime_ms,
+        double focal_weight,
         pp_sipp_result* result,
         TraceCapture* trace
     ) const {
@@ -129,12 +161,24 @@ public:
         if (!std::isfinite(max_runtime_ms) || max_runtime_ms < 0.0) {
             throw std::invalid_argument("max_runtime_ms must be finite and non-negative");
         }
+        if (!std::isfinite(focal_weight) || focal_weight < 0.0 ||
+            (focal_weight > 0.0 && focal_weight < 1.0)) {
+            throw std::invalid_argument("suboptimality weight must be zero or finite and at least 1");
+        }
+        const bool use_focal = focal_weight > 0.0;
 
         const size_t state_count = static_cast<size_t>(safe_count_);
         std::vector<uint64_t> state_nodes(state_count);
         std::vector<double> arrivals(state_count, kInfinity);
         std::vector<uint64_t> parents(state_count, kNoState);
         std::priority_queue<QueueEntry, std::vector<QueueEntry>, QueueEntryGreater> open;
+        std::set<OpenFEntry, OpenFEntryLess> open_by_f;
+        std::priority_queue<FocalEntry, std::vector<FocalEntry>, FocalEntryGreater> focal;
+        std::vector<std::optional<OpenFEntry>> current_open;
+        std::vector<uint64_t> state_versions;
+        std::vector<uint64_t> focal_versions;
+        std::vector<double> heuristic;
+        std::vector<uint64_t> hop_heuristic;
         uint64_t sequence = 0;
         for (uint64_t node = 0; node < node_count_; ++node) {
             for (uint64_t state = safe_offsets_[node]; state < safe_offsets_[node + 1]; ++state) {
@@ -154,8 +198,25 @@ public:
             return 0;
         }
 
+        if (use_focal) {
+            compute_static_heuristics(&heuristic, &hop_heuristic);
+            current_open.resize(state_count);
+            state_versions.assign(state_count, 0);
+            focal_versions.assign(state_count, kNoState);
+        }
+
         arrivals[static_cast<size_t>(start_state)] = start_time_;
-        open.push({start_time_, sequence++, start_state});
+        if (use_focal) {
+            const uint64_t version = ++state_versions[static_cast<size_t>(start_state)];
+            const OpenFEntry entry{
+                heuristic[static_cast<size_t>(start_)] + (start_time_ - start_time_),
+                sequence++, start_state, version
+            };
+            current_open[static_cast<size_t>(start_state)] = entry;
+            open_by_f.insert(entry);
+        } else {
+            open.push({start_time_, sequence++, start_state});
+        }
         if (trace != nullptr) {
             trace->record(PP_TRACE_DISCOVER, start_, kNoState, start_time_);
         }
@@ -165,9 +226,13 @@ public:
         bool complete = best_goal != kNoState;
         bool expansion_limited = false;
         bool time_limited = false;
+        double focal_bound = -kInfinity;
         const auto search_started = std::chrono::steady_clock::now();
 
-        while (!complete && !open.empty()) {
+        while (!complete) {
+            if ((use_focal && open_by_f.empty()) || (!use_focal && open.empty())) {
+                break;
+            }
             if (has_max_expansions != 0 && expanded >= max_expansions) {
                 expansion_limited = true;
                 break;
@@ -177,25 +242,76 @@ public:
                 time_limited = true;
                 break;
             }
-            const QueueEntry entry = open.top();
-            open.pop();
-            if (entry.arrival != arrivals[static_cast<size_t>(entry.state)]) {
-                continue;
+
+            uint64_t current_state = kNoState;
+            if (use_focal) {
+                const double minimum_f = open_by_f.begin()->f;
+                const double new_bound = focal_weight * minimum_f;
+                if (new_bound > focal_bound) {
+                    const OpenFEntry lower_bound{focal_bound, kNoState, 0, 0};
+                    for (auto iterator = open_by_f.upper_bound(lower_bound);
+                        iterator != open_by_f.end() && iterator->f <= new_bound;
+                        ++iterator) {
+                        const size_t state = static_cast<size_t>(iterator->state);
+                        if (focal_versions[state] != iterator->version) {
+                            focal.push({
+                                hop_heuristic[static_cast<size_t>(state_nodes[state])],
+                                iterator->f, sequence++, iterator->state, iterator->version
+                            });
+                            focal_versions[state] = iterator->version;
+                        }
+                    }
+                    focal_bound = new_bound;
+                }
+                while (!focal.empty()) {
+                    const FocalEntry& candidate = focal.top();
+                    const size_t state = static_cast<size_t>(candidate.state);
+                    if (current_open[state].has_value() &&
+                        current_open[state]->version == candidate.version) {
+                        break;
+                    }
+                    if (focal_versions[state] == candidate.version) {
+                        focal_versions[state] = kNoState;
+                    }
+                    focal.pop();
+                }
+                if (focal.empty()) {
+                    throw std::logic_error("FocalSIPP OPEN/FOCAL invariant was violated");
+                }
+                const FocalEntry entry = focal.top();
+                focal.pop();
+                current_state = entry.state;
+                focal_versions[static_cast<size_t>(current_state)] = kNoState;
+                open_by_f.erase(*current_open[static_cast<size_t>(current_state)]);
+                current_open[static_cast<size_t>(current_state)].reset();
+            } else {
+                const QueueEntry entry = open.top();
+                open.pop();
+                if (entry.arrival != arrivals[static_cast<size_t>(entry.state)]) {
+                    continue;
+                }
+                current_state = entry.state;
             }
-            const uint64_t node = state_nodes[static_cast<size_t>(entry.state)];
+
+            const double current_arrival = arrivals[static_cast<size_t>(current_state)];
+            const uint64_t node = state_nodes[static_cast<size_t>(current_state)];
             if (node == goal_) {
-                best_goal = entry.state;
+                best_goal = current_state;
                 complete = true;
                 break;
             }
             ++expanded;
             if (trace != nullptr) {
-                trace->record(PP_TRACE_EXPAND, node, parents[static_cast<size_t>(entry.state)] == kNoState ?
-                    kNoState : state_nodes[static_cast<size_t>(parents[static_cast<size_t>(entry.state)])],
-                    entry.arrival);
+                const uint64_t parent = parents[static_cast<size_t>(current_state)];
+                trace->record(
+                    PP_TRACE_EXPAND,
+                    node,
+                    parent == kNoState ? kNoState : state_nodes[static_cast<size_t>(parent)],
+                    current_arrival
+                );
             }
 
-            const double source_interval_end = safe_ends_[entry.state];
+            const double source_interval_end = safe_ends_[current_state];
             for (uint64_t edge = offsets_[node]; edge < offsets_[node + 1]; ++edge) {
                 const uint64_t target = neighbor_ids_[edge];
                 const double duration = edge_durations_[edge];
@@ -205,7 +321,7 @@ public:
                     target_state < last_target_state;
                     ++target_state) {
                     double departure = std::max(
-                        entry.arrival,
+                        current_arrival,
                         safe_starts_[target_state] - duration
                     );
                     bool feasible = true;
@@ -250,8 +366,27 @@ public:
                         ++discovered;
                     }
                     arrivals[state_index] = arrival;
-                    parents[state_index] = entry.state;
-                    open.push({arrival, sequence++, target_state});
+                    parents[state_index] = current_state;
+                    if (use_focal) {
+                        if (current_open[state_index].has_value()) {
+                            open_by_f.erase(*current_open[state_index]);
+                        }
+                        const uint64_t version = ++state_versions[state_index];
+                        const double f = (arrival - start_time_) +
+                            heuristic[static_cast<size_t>(target)];
+                        const OpenFEntry entry{f, sequence++, target_state, version};
+                        current_open[state_index] = entry;
+                        open_by_f.insert(entry);
+                        if (f <= focal_bound && focal_versions[state_index] != version) {
+                            focal.push({
+                                hop_heuristic[static_cast<size_t>(target)],
+                                f, sequence++, target_state, version
+                            });
+                            focal_versions[state_index] = version;
+                        }
+                    } else {
+                        open.push({arrival, sequence++, target_state});
+                    }
                     if (trace != nullptr) {
                         trace->record(PP_TRACE_DISCOVER, target, node, arrival);
                         trace->record(PP_TRACE_PARENT, target, node, arrival);
@@ -308,6 +443,63 @@ public:
     }
 
 private:
+    void compute_static_heuristics(
+        std::vector<double>* travel_time,
+        std::vector<uint64_t>* hop_count
+    ) const {
+        std::vector<std::vector<std::pair<uint64_t, double>>> reverse_edges(
+            static_cast<size_t>(node_count_)
+        );
+        for (uint64_t source = 0; source < node_count_; ++source) {
+            for (uint64_t edge = offsets_[source]; edge < offsets_[source + 1]; ++edge) {
+                reverse_edges[static_cast<size_t>(neighbor_ids_[edge])].push_back(
+                    {source, edge_durations_[edge]}
+                );
+            }
+        }
+
+        travel_time->assign(static_cast<size_t>(node_count_), kInfinity);
+        hop_count->assign(static_cast<size_t>(node_count_), kNoState);
+        using DistanceEntry = std::pair<double, uint64_t>;
+        std::priority_queue<
+            DistanceEntry, std::vector<DistanceEntry>, std::greater<DistanceEntry>
+        > distance_open;
+        (*travel_time)[static_cast<size_t>(goal_)] = 0.0;
+        distance_open.push({0.0, goal_});
+        while (!distance_open.empty()) {
+            const auto [distance, node] = distance_open.top();
+            distance_open.pop();
+            if (distance != (*travel_time)[static_cast<size_t>(node)]) {
+                continue;
+            }
+            for (const auto& [predecessor, duration] : reverse_edges[static_cast<size_t>(node)]) {
+                const double candidate = distance + duration;
+                const size_t predecessor_index = static_cast<size_t>(predecessor);
+                if (candidate < (*travel_time)[predecessor_index]) {
+                    (*travel_time)[predecessor_index] = candidate;
+                    distance_open.push({candidate, predecessor});
+                }
+            }
+        }
+
+        std::queue<uint64_t> hop_open;
+        (*hop_count)[static_cast<size_t>(goal_)] = 0;
+        hop_open.push(goal_);
+        while (!hop_open.empty()) {
+            const uint64_t node = hop_open.front();
+            hop_open.pop();
+            for (const auto& [predecessor, unused_duration] : reverse_edges[static_cast<size_t>(node)]) {
+                static_cast<void>(unused_duration);
+                const size_t predecessor_index = static_cast<size_t>(predecessor);
+                if ((*hop_count)[predecessor_index] == kNoState) {
+                    (*hop_count)[predecessor_index] =
+                        (*hop_count)[static_cast<size_t>(node)] + 1;
+                    hop_open.push(predecessor);
+                }
+            }
+        }
+    }
+
     void validate() const {
         if (node_count_ == 0 || offsets_ == nullptr || safe_offsets_ == nullptr ||
             edge_block_offsets_ == nullptr || start_ >= node_count_ || goal_ >= node_count_ ||
@@ -419,6 +611,7 @@ int run_sipp(
     int has_max_expansions,
     uint64_t max_expansions,
     double max_runtime_ms,
+    double focal_weight,
     pp_sipp_result* result,
     TraceCapture* capture
 ) {
@@ -432,7 +625,9 @@ int run_sipp(
             edge_block_offsets, edge_block_starts, edge_block_ends, edge_block_count,
             start_id, goal_id, start_time
         );
-        return search.plan(has_max_expansions, max_expansions, max_runtime_ms, result, capture);
+        return search.plan(
+            has_max_expansions, max_expansions, max_runtime_ms, focal_weight, result, capture
+        );
     } catch (const std::exception& error) {
         set_error(result, error.what());
         return 1;
@@ -466,12 +661,54 @@ extern "C" int pp_sipp_plan(
     double max_runtime_ms,
     pp_sipp_result* result
 ) {
+    if (result == nullptr) {
+        return 1;
+    }
+    return run_sipp(
+        node_count, edge_count, offsets, neighbor_ids, edge_durations,
+        node_safe_offsets, node_safe_starts, node_safe_ends, node_safe_interval_count,
+        edge_block_offsets, edge_block_starts, edge_block_ends, edge_block_interval_count,
+        start_id, goal_id, start_time, has_max_expansions, max_expansions, max_runtime_ms, 0.0,
+        result, nullptr
+    );
+}
+
+extern "C" int pp_bounded_sipp_plan(
+    uint64_t node_count,
+    uint64_t edge_count,
+    const uint64_t* offsets,
+    const uint64_t* neighbor_ids,
+    const double* edge_durations,
+    const uint64_t* node_safe_offsets,
+    const double* node_safe_starts,
+    const double* node_safe_ends,
+    uint64_t node_safe_interval_count,
+    const uint64_t* edge_block_offsets,
+    const double* edge_block_starts,
+    const double* edge_block_ends,
+    uint64_t edge_block_interval_count,
+    uint64_t start_id,
+    uint64_t goal_id,
+    double start_time,
+    int has_max_expansions,
+    uint64_t max_expansions,
+    double max_runtime_ms,
+    double suboptimality_weight,
+    pp_sipp_result* result
+) {
+    if (result == nullptr) {
+        return 1;
+    }
+    if (!std::isfinite(suboptimality_weight) || suboptimality_weight < 1.0) {
+        set_error(result, "suboptimality weight must be finite and at least 1");
+        return 1;
+    }
     return run_sipp(
         node_count, edge_count, offsets, neighbor_ids, edge_durations,
         node_safe_offsets, node_safe_starts, node_safe_ends, node_safe_interval_count,
         edge_block_offsets, edge_block_starts, edge_block_ends, edge_block_interval_count,
         start_id, goal_id, start_time, has_max_expansions, max_expansions, max_runtime_ms,
-        result, nullptr
+        suboptimality_weight, result, nullptr
     );
 }
 
@@ -509,13 +746,66 @@ extern "C" int pp_sipp_plan_traced(
         node_count, edge_count, offsets, neighbor_ids, edge_durations,
         node_safe_offsets, node_safe_starts, node_safe_ends, node_safe_interval_count,
         edge_block_offsets, edge_block_starts, edge_block_ends, edge_block_interval_count,
-        start_id, goal_id, start_time, has_max_expansions, max_expansions, max_runtime_ms,
+        start_id, goal_id, start_time, has_max_expansions, max_expansions, max_runtime_ms, 0.0,
         result, &capture
     );
     if (copy_trace(capture, trace) != 0) {
         pp_sipp_free_result(result);
         pp_search_trace_free_result(trace);
         set_error(result, "could not allocate SIPP trace events");
+        return 1;
+    }
+    return status;
+}
+
+extern "C" int pp_bounded_sipp_plan_traced(
+    uint64_t node_count,
+    uint64_t edge_count,
+    const uint64_t* offsets,
+    const uint64_t* neighbor_ids,
+    const double* edge_durations,
+    const uint64_t* node_safe_offsets,
+    const double* node_safe_starts,
+    const double* node_safe_ends,
+    uint64_t node_safe_interval_count,
+    const uint64_t* edge_block_offsets,
+    const double* edge_block_starts,
+    const double* edge_block_ends,
+    uint64_t edge_block_interval_count,
+    uint64_t start_id,
+    uint64_t goal_id,
+    double start_time,
+    int has_max_expansions,
+    uint64_t max_expansions,
+    double max_runtime_ms,
+    double suboptimality_weight,
+    uint64_t trace_max_bytes,
+    pp_sipp_result* result,
+    pp_trace_result* trace
+) {
+    if (trace == nullptr) {
+        return 1;
+    }
+    *trace = pp_trace_result{};
+    if (result == nullptr) {
+        return 1;
+    }
+    if (!std::isfinite(suboptimality_weight) || suboptimality_weight < 1.0) {
+        set_error(result, "suboptimality weight must be finite and at least 1");
+        return 1;
+    }
+    TraceCapture capture(trace_max_bytes);
+    const int status = run_sipp(
+        node_count, edge_count, offsets, neighbor_ids, edge_durations,
+        node_safe_offsets, node_safe_starts, node_safe_ends, node_safe_interval_count,
+        edge_block_offsets, edge_block_starts, edge_block_ends, edge_block_interval_count,
+        start_id, goal_id, start_time, has_max_expansions, max_expansions, max_runtime_ms,
+        suboptimality_weight, result, &capture
+    );
+    if (copy_trace(capture, trace) != 0) {
+        pp_sipp_free_result(result);
+        pp_search_trace_free_result(trace);
+        set_error(result, "could not allocate bounded SIPP trace events");
         return 1;
     }
     return status;

@@ -52,7 +52,9 @@ SIPP complements node-blocked intervals into safe intervals and sends those
 intervals, directed edge constraints, and travel durations to
 `pathplanning/native/temporal_search.cpp`. The C++ search keeps one earliest
 arrival per node/interval state and supports waiting without time-step
-discretization.
+discretization. Bounded-suboptimal SIPP uses a reverse shortest-time lower
+bound to maintain OPEN and a focal queue ordered by remaining hop count; it
+reopens a state when a better arrival is found.
 
 Search state uses dense arrays by node ID for locality: an 8-byte path cost, a
 4-byte parent ID when the graph fits in 32-bit IDs (otherwise 8 bytes), and a

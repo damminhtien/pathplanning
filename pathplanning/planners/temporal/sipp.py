@@ -108,12 +108,13 @@ def _runtime_limit(params: Mapping[str, object] | None) -> float:
     return limit
 
 
-def plan_sipp(
+def _plan_sipp(
     problem: TemporalProblem[N],
     *,
     params: Mapping[str, object] | None = None,
     rng: RNG | None = None,
     trace: TraceOptions | None = None,
+    suboptimality_weight: float | None = None,
 ) -> TemporalPlanResult[N]:
     """Find the earliest-arrival path using safe node intervals and edge checks."""
     del rng
@@ -250,55 +251,43 @@ def plan_sipp(
     native_result = SippResult()
     native_trace = TraceResult() if trace is not None else None
     native_started = time.perf_counter()
-    if native_trace is None:
-        status = library.pp_sipp_plan(
-            view.node_count,
-            view.edge_count,
-            view.offsets,
-            view.neighbor_ids,
-            _pointer(native_durations, ctypes.c_double),
-            _pointer(native_offsets, ctypes.c_uint64),
-            _pointer(native_safe_starts, ctypes.c_double),
-            _pointer(native_safe_ends, ctypes.c_double),
-            len(safe_starts),
-            _pointer(native_edge_block_offsets, ctypes.c_uint64),
-            _pointer(native_edge_block_starts, ctypes.c_double),
-            _pointer(native_edge_block_ends, ctypes.c_double),
-            len(edge_block_starts),
-            start_id,
-            goal_id,
-            start_time,
-            int(max_expansions is not None),
-            max_expansions or 0,
-            max_runtime_ms,
-            ctypes.byref(native_result),
-        )
+    if suboptimality_weight is None:
+        function_name = "pp_sipp_plan_traced" if native_trace is not None else "pp_sipp_plan"
     else:
-        assert trace is not None and native_trace is not None
-        status = library.pp_sipp_plan_traced(
-            view.node_count,
-            view.edge_count,
-            view.offsets,
-            view.neighbor_ids,
-            _pointer(native_durations, ctypes.c_double),
-            _pointer(native_offsets, ctypes.c_uint64),
-            _pointer(native_safe_starts, ctypes.c_double),
-            _pointer(native_safe_ends, ctypes.c_double),
-            len(safe_starts),
-            _pointer(native_edge_block_offsets, ctypes.c_uint64),
-            _pointer(native_edge_block_starts, ctypes.c_double),
-            _pointer(native_edge_block_ends, ctypes.c_double),
-            len(edge_block_starts),
-            start_id,
-            goal_id,
-            start_time,
-            int(max_expansions is not None),
-            max_expansions or 0,
-            max_runtime_ms,
-            trace.max_bytes,
-            ctypes.byref(native_result),
-            ctypes.byref(native_trace),
+        function_name = (
+            "pp_bounded_sipp_plan_traced" if native_trace is not None else "pp_bounded_sipp_plan"
         )
+    native_plan = getattr(library, function_name)
+    native_args: list[Any] = [
+        view.node_count,
+        view.edge_count,
+        view.offsets,
+        view.neighbor_ids,
+        _pointer(native_durations, ctypes.c_double),
+        _pointer(native_offsets, ctypes.c_uint64),
+        _pointer(native_safe_starts, ctypes.c_double),
+        _pointer(native_safe_ends, ctypes.c_double),
+        len(safe_starts),
+        _pointer(native_edge_block_offsets, ctypes.c_uint64),
+        _pointer(native_edge_block_starts, ctypes.c_double),
+        _pointer(native_edge_block_ends, ctypes.c_double),
+        len(edge_block_starts),
+        start_id,
+        goal_id,
+        start_time,
+        int(max_expansions is not None),
+        max_expansions or 0,
+        max_runtime_ms,
+    ]
+    if suboptimality_weight is not None:
+        native_args.append(suboptimality_weight)
+    if native_trace is not None:
+        assert trace is not None
+        native_args.append(trace.max_bytes)
+    native_args.append(ctypes.byref(native_result))
+    if native_trace is not None:
+        native_args.append(ctypes.byref(native_trace))
+    status = native_plan(*native_args)
     native_search_s = time.perf_counter() - native_started
     try:
         if status != 0:
@@ -378,6 +367,17 @@ def plan_sipp(
         library.pp_sipp_free_result(ctypes.byref(native_result))
         if native_trace is not None:
             library.pp_search_trace_free_result(ctypes.byref(native_trace))
+
+
+def plan_sipp(
+    problem: TemporalProblem[N],
+    *,
+    params: Mapping[str, object] | None = None,
+    rng: RNG | None = None,
+    trace: TraceOptions | None = None,
+) -> TemporalPlanResult[N]:
+    """Find the earliest-arrival path using safe node intervals and edge checks."""
+    return _plan_sipp(problem, params=params, rng=rng, trace=trace)
 
 
 __all__ = ["plan_sipp"]

@@ -249,6 +249,9 @@ and runnable example](docs/algorithms/dstar_lite.md).
 For known time-varying node and edge blocks, `sipp` searches safe intervals
 with continuous arrival times and waiting. Pass half-open blocked intervals to
 `TemporalProblem`; see the [SIPP contract and runnable example](docs/algorithms/sipp.md).
+Use `bounded_suboptimal_sipp` with `params={"w": 1.5}` to trade path optimality
+for focal-search guidance while retaining the configured suboptimality bound;
+see its [contract and example](docs/algorithms/bounded_suboptimal_sipp.md).
 
 ### Native graph input
 

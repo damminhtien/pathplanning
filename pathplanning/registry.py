@@ -39,6 +39,9 @@ from pathplanning.planners.search.lazy_theta_star import plan_lazy_theta_star
 from pathplanning.planners.search.reexp_astar import plan_reexp_astar
 from pathplanning.planners.search.theta_star import plan_theta_star
 from pathplanning.planners.search.weighted_astar import plan_weighted_astar
+from pathplanning.planners.temporal.bounded_suboptimal_sipp import (
+    plan_bounded_suboptimal_sipp,
+)
 from pathplanning.planners.temporal.sipp import plan_sipp
 
 ProblemKind = Literal["discrete", "continuous", "temporal"]
@@ -115,6 +118,17 @@ _PLANNER_SPECS: tuple[tuple[str, PlannerSpec], ...] = (
             (
                 "requires positive finite edge durations and half-open node/edge blocked intervals; "
                 "waiting is allowed and the goal must be exact.",
+            ),
+        ),
+    ),
+    (
+        "bounded_suboptimal_sipp",
+        PlannerSpec(
+            "temporal",
+            plan_bounded_suboptimal_sipp,
+            (
+                "requires the same exact-goal temporal graph contract as SIPP; `w` must be finite "
+                "and at least 1; the w bound applies when stop_reason is success.",
             ),
         ),
     ),
