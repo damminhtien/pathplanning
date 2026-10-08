@@ -54,7 +54,10 @@ intervals, directed edge constraints, and travel durations to
 arrival per node/interval state and supports waiting without time-step
 discretization. Bounded-suboptimal SIPP uses a reverse shortest-time lower
 bound to maintain OPEN and a focal queue ordered by remaining hop count; it
-reopens a state when a better arrival is found.
+reopens a state when a better arrival is found. Kinodynamic SIPP uses distinct
+wait-interval states and projects all feasible integer departure times through
+motion primitives; only zero-speed configurations can extend their wait
+interval to the containing safe-interval end.
 
 Search state uses dense arrays by node ID for locality: an 8-byte path cost, a
 4-byte parent ID when the graph fits in 32-bit IDs (otherwise 8 bytes), and a

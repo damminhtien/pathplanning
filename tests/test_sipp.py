@@ -161,3 +161,39 @@ def test_bounded_suboptimal_sipp_uses_focal_hops_and_obeys_weight() -> None:
 
     with pytest.raises(ValueError, match="w must be a finite number"):
         plan_temporal(problem, planner="bounded_suboptimal_sipp", params={"w": 0.9})
+
+
+def test_kinodynamic_sipp_projects_waits_from_stopped_configurations() -> None:
+    start = ("A", 0.0)
+    moving = ("B", 1.0)
+    goal = ("C", 1.0)
+    graph: NativeGraph[tuple[str, float]] = NativeGraph.from_edges(
+        nodes=(start, moving, goal),
+        edges=((start, moving, 1.0), (moving, goal, 1.0)),
+    )
+    problem = TemporalProblem(
+        graph=graph,
+        start=start,
+        goal=goal,
+        edge_blocked={(moving, goal): [(0, 5)]},
+        node_velocities={start: 0.0, moving: 1.0, goal: 1.0},
+        edge_distances={(start, moving): 0.5, (moving, goal): 1.0},
+        max_speed=1.0,
+        max_acceleration=1.0,
+        max_deceleration=1.0,
+    )
+
+    result = plan_temporal(
+        problem,
+        planner="kinodynamic_sipp",
+        trace=TraceOptions(max_bytes=2048),
+    )
+
+    assert result.success and result.stop_reason is StopReason.SUCCESS
+    assert result.states == (start, moving, goal)
+    assert result.times == (0.0, 5.0, 6.0)
+    assert result.trace is not None and result.trace.events.size > 0
+
+    problem.max_acceleration = 0.5
+    with pytest.raises(ValueError, match="exceeds max_acceleration"):
+        plan_temporal(problem, planner="kinodynamic_sipp")

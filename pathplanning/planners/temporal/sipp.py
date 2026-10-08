@@ -108,6 +108,95 @@ def _runtime_limit(params: Mapping[str, object] | None) -> float:
     return limit
 
 
+def _integer_tick(value: object, *, name: str, allow_infinite: bool = False) -> float:
+    if isinstance(value, bool) or not isinstance(value, (int, float, np.integer, np.floating)):
+        raise TypeError(f"{name} must be an integer time tick")
+    tick = float(value)
+    if math.isinf(tick) and allow_infinite:
+        return tick
+    if not math.isfinite(tick) or not tick.is_integer() or abs(tick) > 9_007_199_254_740_992:
+        raise ValueError(f"{name} must be an integer time tick")
+    return tick
+
+
+def _positive_limit(value: object, *, name: str) -> float:
+    if isinstance(value, bool) or not isinstance(value, (int, float, np.integer, np.floating)):
+        raise TypeError(f"{name} must be a positive finite number")
+    limit = float(value)
+    if not math.isfinite(limit) or limit <= 0.0:
+        raise ValueError(f"{name} must be a positive finite number")
+    return limit
+
+
+def _kinodynamic_waitable_nodes(
+    problem: TemporalProblem[N],
+    native_graph: NativeGraph[N],
+    edge_durations: Mapping[tuple[int, int], float],
+    edge_keys: set[tuple[int, int]],
+) -> np.ndarray:
+    velocities = problem.node_velocities
+    distances = problem.edge_distances
+    if velocities is None or distances is None:
+        raise ValueError("kinodynamic_sipp requires node_velocities and edge_distances")
+    max_speed = _positive_limit(problem.max_speed, name="max_speed")
+    max_acceleration = _positive_limit(problem.max_acceleration, name="max_acceleration")
+    max_deceleration = _positive_limit(problem.max_deceleration, name="max_deceleration")
+
+    node_speeds = np.empty(native_graph.node_count, dtype=np.float64)
+    waitable = np.zeros(native_graph.node_count, dtype=np.uint8)
+    for node_id, node in enumerate(native_graph.node_labels):
+        if node not in velocities:
+            raise ValueError(f"node_velocities is missing graph node {node!r}")
+        speed_value = velocities[node]
+        if isinstance(speed_value, bool) or not isinstance(
+            speed_value, (int, float, np.integer, np.floating)
+        ):
+            raise TypeError("node velocities must be finite non-negative numbers")
+        speed = float(speed_value)
+        if not math.isfinite(speed) or speed < 0.0 or speed > max_speed:
+            raise ValueError("node velocities must be finite, non-negative, and at most max_speed")
+        node_speeds[node_id] = speed
+        waitable[node_id] = int(speed == 0.0)
+
+    for node in velocities:
+        if native_graph._node_id(node) is None:
+            raise ValueError(f"node_velocities references an unknown graph node: {node!r}")
+
+    edge_distance_ids: dict[tuple[int, int], float] = {}
+    for edge, distance_value in distances.items():
+        if len(edge) != 2:
+            raise ValueError("edge_distances keys must be directed (source, target) pairs")
+        source_id = native_graph._node_id(edge[0])
+        target_id = native_graph._node_id(edge[1])
+        if source_id is None or target_id is None:
+            raise ValueError(f"edge_distances references an unknown graph node: {edge!r}")
+        if isinstance(distance_value, bool) or not isinstance(
+            distance_value, (int, float, np.integer, np.floating)
+        ):
+            raise TypeError("edge distances must be positive finite numbers")
+        distance = float(distance_value)
+        if not math.isfinite(distance) or distance <= 0.0:
+            raise ValueError("edge distances must be positive finite numbers")
+        edge_distance_ids[(source_id, target_id)] = distance
+    if set(edge_distance_ids) != edge_keys:
+        raise ValueError("edge_distances must provide exactly one distance for every graph edge")
+
+    for (source_id, target_id), distance in edge_distance_ids.items():
+        duration = edge_durations[(source_id, target_id)]
+        speed_start = node_speeds[source_id]
+        speed_end = node_speeds[target_id]
+        expected_distance = 0.5 * (speed_start + speed_end) * duration
+        tolerance = max(1e-9, distance * 1e-9)
+        acceleration = (speed_end - speed_start) / duration
+        if abs(distance - expected_distance) > tolerance:
+            raise ValueError("edge motion primitives must match constant-acceleration distance")
+        if acceleration > max_acceleration + 1e-9:
+            raise ValueError("edge motion primitive exceeds max_acceleration")
+        if -acceleration > max_deceleration + 1e-9:
+            raise ValueError("edge motion primitive exceeds max_deceleration")
+    return waitable
+
+
 def _plan_sipp(
     problem: TemporalProblem[N],
     *,
@@ -115,6 +204,7 @@ def _plan_sipp(
     rng: RNG | None = None,
     trace: TraceOptions | None = None,
     suboptimality_weight: float | None = None,
+    kinodynamic: bool = False,
 ) -> TemporalPlanResult[N]:
     """Find the earliest-arrival path using safe node intervals and edge checks."""
     del rng
@@ -126,11 +216,14 @@ def _plan_sipp(
         merged_params.update(params)
     max_expansions = _max_expansions(merged_params)
     max_runtime_ms = _runtime_limit(merged_params)
-    if isinstance(problem.start_time, bool) or not isinstance(
-        problem.start_time, (int, float, np.integer, np.floating)
-    ):
-        raise TypeError("start_time must be finite")
-    start_time = float(problem.start_time)
+    if kinodynamic:
+        start_time = _integer_tick(problem.start_time, name="start_time")
+    else:
+        if isinstance(problem.start_time, bool) or not isinstance(
+            problem.start_time, (int, float, np.integer, np.floating)
+        ):
+            raise TypeError("start_time must be finite")
+        start_time = float(problem.start_time)
     if not math.isfinite(start_time):
         raise ValueError("start_time must be finite")
     if isinstance(problem.horizon, bool) or (
@@ -138,7 +231,13 @@ def _plan_sipp(
         and not isinstance(problem.horizon, (int, float, np.integer, np.floating))
     ):
         raise TypeError("horizon must be a number")
-    horizon = math.inf if problem.horizon is None else float(problem.horizon)
+    horizon = (
+        math.inf
+        if problem.horizon is None
+        else _integer_tick(problem.horizon, name="horizon", allow_infinite=True)
+        if kinodynamic
+        else float(problem.horizon)
+    )
     if math.isnan(horizon) or horizon <= start_time:
         raise ValueError("horizon must be greater than start_time")
 
@@ -168,7 +267,12 @@ def _plan_sipp(
         node_id = native_graph._node_id(node)
         if node_id is None:
             raise ValueError(f"node constraint references an unknown graph node: {node!r}")
-        node_blocked[node_id] = _intervals(intervals, name="node_blocked")
+        blocked_intervals = _intervals(intervals, name="node_blocked")
+        if kinodynamic:
+            for interval_start, interval_end in blocked_intervals:
+                _integer_tick(interval_start, name="node_blocked start", allow_infinite=True)
+                _integer_tick(interval_end, name="node_blocked end", allow_infinite=True)
+        node_blocked[node_id] = blocked_intervals
 
     safe_offsets = [0]
     safe_starts: list[float] = []
@@ -180,7 +284,9 @@ def _plan_sipp(
             node_blocked.get(node_id, ()),
         ):
             safe_starts.append(interval_start)
-            safe_ends.append(interval_end)
+            safe_ends.append(
+                interval_end - 1.0 if kinodynamic and math.isfinite(interval_end) else interval_end
+            )
         safe_offsets.append(len(safe_starts))
 
     edge_blocked: dict[tuple[int, int], list[TimeInterval]] = {}
@@ -191,7 +297,12 @@ def _plan_sipp(
         target_id = native_graph._node_id(edge[1])
         if source_id is None or target_id is None:
             raise ValueError(f"edge constraint references an unknown graph node: {edge!r}")
-        edge_blocked[(source_id, target_id)] = _intervals(intervals, name="edge_blocked")
+        blocked_intervals = _intervals(intervals, name="edge_blocked")
+        if kinodynamic:
+            for interval_start, interval_end in blocked_intervals:
+                _integer_tick(interval_start, name="edge_blocked start", allow_infinite=True)
+                _integer_tick(interval_end, name="edge_blocked end", allow_infinite=True)
+        edge_blocked[(source_id, target_id)] = blocked_intervals
 
     durations: dict[tuple[int, int], float] = {}
     duration_keys: set[tuple[int, int]] = set()
@@ -209,6 +320,8 @@ def _plan_sipp(
         value = float(duration)
         if not math.isfinite(value) or value <= 0.0:
             raise ValueError("edge durations must be positive finite numbers")
+        if kinodynamic:
+            _integer_tick(value, name="edge duration")
         durations[(source_id, target_id)] = value
         duration_keys.add((source_id, target_id))
 
@@ -218,6 +331,7 @@ def _plan_sipp(
     edge_durations: list[float] = []
     found_duration_keys: set[tuple[int, int]] = set()
     found_edge_keys: set[tuple[int, int]] = set()
+    duration_by_key: dict[tuple[int, int], float] = {}
     for source_id in range(int(view.node_count)):
         for edge_id in range(int(view.offsets[source_id]), int(view.offsets[source_id + 1])):
             target_id = int(view.neighbor_ids[edge_id])
@@ -227,6 +341,11 @@ def _plan_sipp(
             duration = durations.get(key, base_duration)
             if not math.isfinite(duration) or duration <= 0.0:
                 raise ValueError(f"edge {key!r} needs a positive finite duration")
+            if kinodynamic:
+                _integer_tick(duration, name="edge duration")
+                if key in duration_by_key and duration_by_key[key] != duration:
+                    raise ValueError("kinodynamic motion primitives require unique directed edges")
+                duration_by_key[key] = duration
             edge_durations.append(duration)
             intervals = edge_blocked.get(key, ())
             for interval_start, interval_end in intervals:
@@ -239,6 +358,13 @@ def _plan_sipp(
         raise ValueError("edge_durations references an edge that is not in the graph")
     if set(edge_blocked) - found_edge_keys:
         raise ValueError("edge_blocked references an edge that is not in the graph")
+    if kinodynamic and suboptimality_weight is not None:
+        raise ValueError("kinodynamic_sipp does not accept a suboptimality weight")
+    native_waitable = (
+        _kinodynamic_waitable_nodes(problem, native_graph, duration_by_key, found_edge_keys)
+        if kinodynamic
+        else None
+    )
 
     graph_init_s = time.perf_counter() - graph_started
     native_offsets = _as_array(safe_offsets, np.dtype(np.uint64))
@@ -251,7 +377,13 @@ def _plan_sipp(
     native_result = SippResult()
     native_trace = TraceResult() if trace is not None else None
     native_started = time.perf_counter()
-    if suboptimality_weight is None:
+    if kinodynamic:
+        function_name = (
+            "pp_kinodynamic_sipp_plan_traced"
+            if native_trace is not None
+            else "pp_kinodynamic_sipp_plan"
+        )
+    elif suboptimality_weight is None:
         function_name = "pp_sipp_plan_traced" if native_trace is not None else "pp_sipp_plan"
     else:
         function_name = (
@@ -279,6 +411,8 @@ def _plan_sipp(
         max_expansions or 0,
         max_runtime_ms,
     ]
+    if native_waitable is not None:
+        native_args.insert(4, _pointer(native_waitable, ctypes.c_uint8))
     if suboptimality_weight is not None:
         native_args.append(suboptimality_weight)
     if native_trace is not None:
@@ -331,6 +465,7 @@ def _plan_sipp(
                 + native_edge_block_starts.nbytes
                 + native_edge_block_ends.nbytes
                 + native_durations.nbytes
+                + (native_waitable.nbytes if native_waitable is not None else 0)
             )
             planner_trace = copy_trace_result(
                 native_trace,

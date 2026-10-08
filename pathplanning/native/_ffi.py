@@ -248,10 +248,10 @@ _SEARCH_METRICS_LIB: ctypes.CDLL | None = None
 _CONTINUOUS_TRACE_LIB: ctypes.CDLL | None = None
 
 # Keep these exact-match requirements synchronized with abi_version.h.
-_SEARCH_ABI_VERSION = 12
+_SEARCH_ABI_VERSION = 13
 _SEARCH_METRICS_ABI_VERSION = 2
 _CONTINUOUS_ABI_VERSION = 1
-_SEARCH_TRACE_ABI_VERSION = 7
+_SEARCH_TRACE_ABI_VERSION = 8
 _CONTINUOUS_TRACE_ABI_VERSION = 1
 
 
@@ -375,6 +375,45 @@ def _configure_sipp_function(library: ctypes.CDLL, name: str) -> None:
     library.pp_sipp_free_result.restype = None
 
 
+def _configure_kinodynamic_sipp_function(library: ctypes.CDLL, name: str) -> None:
+    pointer_u64 = ctypes.POINTER(ctypes.c_uint64)
+    pointer_u8 = ctypes.POINTER(ctypes.c_uint8)
+    pointer_double = ctypes.POINTER(ctypes.c_double)
+    arguments: list[Any] = [
+        ctypes.c_uint64,
+        ctypes.c_uint64,
+        pointer_u64,
+        pointer_u64,
+        pointer_u8,
+        pointer_double,
+        pointer_u64,
+        pointer_double,
+        pointer_double,
+        ctypes.c_uint64,
+        pointer_u64,
+        pointer_double,
+        pointer_double,
+        ctypes.c_uint64,
+        ctypes.c_uint64,
+        ctypes.c_uint64,
+        ctypes.c_double,
+        ctypes.c_int,
+        ctypes.c_uint64,
+        ctypes.c_double,
+    ]
+    is_traced = name == "pp_kinodynamic_sipp_plan_traced"
+    if is_traced:
+        arguments.append(ctypes.c_uint64)
+    arguments.append(ctypes.POINTER(SippResult))
+    if is_traced:
+        arguments.append(ctypes.POINTER(TraceResult))
+    function = getattr(library, name)
+    function.argtypes = arguments
+    function.restype = ctypes.c_int
+    library.pp_sipp_free_result.argtypes = [ctypes.POINTER(SippResult)]
+    library.pp_sipp_free_result.restype = None
+
+
 def load_native_library() -> ctypes.CDLL:
     """Load and configure the compiled C++ graph-search library once per process."""
     global _NATIVE_LIB
@@ -413,6 +452,7 @@ def load_native_library() -> ctypes.CDLL:
                 "pp_dstar_lite_trace_free_result",
                 "pp_sipp_plan",
                 "pp_bounded_sipp_plan",
+                "pp_kinodynamic_sipp_plan",
                 "pp_sipp_free_result",
                 "pp_search_free_result",
                 "pp_search_engine_version",
@@ -583,6 +623,7 @@ def load_native_library() -> ctypes.CDLL:
         library.pp_dstar_lite_trace_free_result.restype = None
         _configure_sipp_function(library, "pp_sipp_plan")
         _configure_sipp_function(library, "pp_bounded_sipp_plan")
+        _configure_kinodynamic_sipp_function(library, "pp_kinodynamic_sipp_plan")
         library.pp_search_free_result.argtypes = [ctypes.POINTER(SearchResult)]
         library.pp_search_free_result.restype = None
         library.pp_search_engine_version.argtypes = []
@@ -675,6 +716,7 @@ def load_search_trace_library() -> ctypes.CDLL:
                 "pp_native_lazy_theta_star_grid_traced",
                 "pp_sipp_plan_traced",
                 "pp_bounded_sipp_plan_traced",
+                "pp_kinodynamic_sipp_plan_traced",
                 "pp_sipp_free_result",
                 "pp_search_free_result",
                 "pp_search_trace_free_result",
@@ -771,6 +813,7 @@ def load_search_trace_library() -> ctypes.CDLL:
         _SEARCH_TRACE_LIB.pp_native_lazy_theta_star_grid_traced.restype = ctypes.c_int
         _configure_sipp_function(_SEARCH_TRACE_LIB, "pp_sipp_plan_traced")
         _configure_sipp_function(_SEARCH_TRACE_LIB, "pp_bounded_sipp_plan_traced")
+        _configure_kinodynamic_sipp_function(_SEARCH_TRACE_LIB, "pp_kinodynamic_sipp_plan_traced")
         _SEARCH_TRACE_LIB.pp_search_free_result.argtypes = [ctypes.POINTER(SearchResult)]
         _SEARCH_TRACE_LIB.pp_search_free_result.restype = None
         _SEARCH_TRACE_LIB.pp_search_trace_free_result.argtypes = [ctypes.POINTER(TraceResult)]

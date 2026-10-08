@@ -42,6 +42,7 @@ from pathplanning.planners.search.weighted_astar import plan_weighted_astar
 from pathplanning.planners.temporal.bounded_suboptimal_sipp import (
     plan_bounded_suboptimal_sipp,
 )
+from pathplanning.planners.temporal.kinodynamic_sipp import plan_kinodynamic_sipp
 from pathplanning.planners.temporal.sipp import plan_sipp
 
 ProblemKind = Literal["discrete", "continuous", "temporal"]
@@ -129,6 +130,18 @@ _PLANNER_SPECS: tuple[tuple[str, PlannerSpec], ...] = (
             (
                 "requires the same exact-goal temporal graph contract as SIPP; `w` must be finite "
                 "and at least 1; the w bound applies when stop_reason is success.",
+            ),
+        ),
+    ),
+    (
+        "kinodynamic_sipp",
+        PlannerSpec(
+            "temporal",
+            plan_kinodynamic_sipp,
+            (
+                "requires integer time ticks, velocity-labeled configurations, constant-acceleration "
+                "motion primitives, and finite speed/acceleration/deceleration limits; waiting is "
+                "allowed only at zero-speed nodes.",
             ),
         ),
     ),

@@ -252,6 +252,9 @@ with continuous arrival times and waiting. Pass half-open blocked intervals to
 Use `bounded_suboptimal_sipp` with `params={"w": 1.5}` to trade path optimality
 for focal-search guidance while retaining the configured suboptimality bound;
 see its [contract and example](docs/algorithms/bounded_suboptimal_sipp.md).
+For velocity-state graphs that cannot stop instantaneously, use
+`kinodynamic_sipp` with validated motion primitives and explicit speed and
+acceleration limits; see its [contract and example](docs/algorithms/kinodynamic_sipp.md).
 
 ### Native graph input
 

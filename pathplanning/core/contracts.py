@@ -105,6 +105,9 @@ class TemporalProblem(Generic[N]):
 
     Blocked intervals use the half-open convention ``[start, end)``. Edge
     durations default to the graph's edge costs when not supplied explicitly.
+    Kinodynamic SIPP additionally uses per-node speeds, per-edge distances, and
+    explicit speed/acceleration limits; graph edges then represent constant-
+    acceleration motion primitives between configurations.
     """
 
     graph: DiscreteGraph[N] | NativeGraph[N]
@@ -113,6 +116,11 @@ class TemporalProblem(Generic[N]):
     node_blocked: Mapping[N, Sequence[TimeInterval]] | None = None
     edge_blocked: Mapping[tuple[N, N], Sequence[TimeInterval]] | None = None
     edge_durations: Mapping[tuple[N, N], Float] | None = None
+    node_velocities: Mapping[N, Float] | None = None
+    edge_distances: Mapping[tuple[N, N], Float] | None = None
+    max_speed: Float | None = None
+    max_acceleration: Float | None = None
+    max_deceleration: Float | None = None
     start_time: Float = 0.0
     horizon: Float | None = None
     params: DiscreteParams | None = None

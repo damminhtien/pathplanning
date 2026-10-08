@@ -401,6 +401,30 @@ int pp_bounded_sipp_plan(
     pp_sipp_result* result
 );
 
+int pp_kinodynamic_sipp_plan(
+    uint64_t node_count,
+    uint64_t edge_count,
+    const uint64_t* offsets,
+    const uint64_t* neighbor_ids,
+    const uint8_t* waitable_nodes,
+    const double* edge_durations,
+    const uint64_t* node_safe_offsets,
+    const double* node_safe_starts,
+    const double* node_safe_ends,
+    uint64_t node_safe_interval_count,
+    const uint64_t* edge_block_offsets,
+    const double* edge_block_starts,
+    const double* edge_block_ends,
+    uint64_t edge_block_interval_count,
+    uint64_t start_id,
+    uint64_t goal_id,
+    double start_time,
+    int has_max_expansions,
+    uint64_t max_expansions,
+    double max_runtime_ms,
+    pp_sipp_result* result
+);
+
 void pp_sipp_free_result(pp_sipp_result* result);
 
 #if defined(PP_ENABLE_TRACE) && PP_ENABLE_TRACE
@@ -517,6 +541,32 @@ int pp_bounded_sipp_plan_traced(
     uint64_t max_expansions,
     double max_runtime_ms,
     double suboptimality_weight,
+    uint64_t trace_max_bytes,
+    pp_sipp_result* result,
+    pp_trace_result* trace
+);
+
+int pp_kinodynamic_sipp_plan_traced(
+    uint64_t node_count,
+    uint64_t edge_count,
+    const uint64_t* offsets,
+    const uint64_t* neighbor_ids,
+    const uint8_t* waitable_nodes,
+    const double* edge_durations,
+    const uint64_t* node_safe_offsets,
+    const double* node_safe_starts,
+    const double* node_safe_ends,
+    uint64_t node_safe_interval_count,
+    const uint64_t* edge_block_offsets,
+    const double* edge_block_starts,
+    const double* edge_block_ends,
+    uint64_t edge_block_interval_count,
+    uint64_t start_id,
+    uint64_t goal_id,
+    double start_time,
+    int has_max_expansions,
+    uint64_t max_expansions,
+    double max_runtime_ms,
     uint64_t trace_max_bytes,
     pp_sipp_result* result,
     pp_trace_result* trace

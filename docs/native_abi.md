@@ -8,9 +8,9 @@ its C ABI version.
 
 | Library | ABI constant | Probe function | Supported ABI |
 | --- | --- | --- | --- |
-| C++ graph search | `PP_SEARCH_ABI_VERSION` | `pp_search_abi_version()` | 12 |
+| C++ graph search | `PP_SEARCH_ABI_VERSION` | `pp_search_abi_version()` | 13 |
 | C sampling planners | `PP_CONTINUOUS_ABI_VERSION` | `pp_continuous_abi_version()` | 1 |
-| C++ diagnostic search | `PP_SEARCH_TRACE_ABI_VERSION` | `pp_search_trace_abi_version()` | 7 |
+| C++ diagnostic search | `PP_SEARCH_TRACE_ABI_VERSION` | `pp_search_trace_abi_version()` | 8 |
 | C++ diagnostic search metrics | `PP_SEARCH_METRICS_ABI_VERSION` | `pp_search_metrics_abi_version()` | 2 |
 | C diagnostic sampling | `PP_CONTINUOUS_TRACE_ABI_VERSION` | `pp_continuous_trace_abi_version()` | 1 |
 
@@ -59,6 +59,8 @@ Search ABI 11 adds SIPP's temporal graph search and its owned state/time path
 result. Search trace ABI 6 adds the matching bounded diagnostic entrypoint.
 Search ABI 12 adds focal bounded-suboptimal SIPP; search trace ABI 7 adds its
 bounded diagnostic entrypoint.
+Search ABI 13 adds SIPP with interval projection for kinodynamic configuration
+graphs; search trace ABI 8 adds its bounded diagnostic entrypoint.
 
 The production `_search_engine` is built without `PP_ENABLE_METRICS`; metric
 macros compile to no-ops and search containers use the normal

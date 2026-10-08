@@ -7,6 +7,7 @@
 #include <cstring>
 #include <functional>
 #include <limits>
+#include <map>
 #include <new>
 #include <optional>
 #include <queue>
@@ -573,6 +574,460 @@ private:
     double start_time_;
 };
 
+struct KinodynamicState {
+    uint64_t node;
+    uint64_t safe_interval;
+    double time_low;
+    double time_high;
+    double reachable_high;
+    uint64_t parent;
+    double parent_departure;
+    bool closed;
+};
+
+struct KinodynamicQueueEntry {
+    double f;
+    uint64_t sequence;
+    uint64_t state;
+};
+
+struct KinodynamicQueueEntryGreater {
+    bool operator()(const KinodynamicQueueEntry& left, const KinodynamicQueueEntry& right) const {
+        return std::tie(left.f, left.sequence) > std::tie(right.f, right.sequence);
+    }
+};
+
+class KinodynamicSippSearch {
+public:
+    KinodynamicSippSearch(
+        uint64_t node_count,
+        uint64_t edge_count,
+        const uint64_t* offsets,
+        const uint64_t* neighbor_ids,
+        const uint8_t* waitable_nodes,
+        const double* edge_durations,
+        const uint64_t* safe_offsets,
+        const double* safe_starts,
+        const double* safe_ends,
+        uint64_t safe_count,
+        const uint64_t* edge_block_offsets,
+        const double* edge_block_starts,
+        const double* edge_block_ends,
+        uint64_t edge_block_count,
+        uint64_t start_id,
+        uint64_t goal_id,
+        double start_time
+    ) : node_count_(node_count),
+        edge_count_(edge_count),
+        offsets_(offsets),
+        neighbor_ids_(neighbor_ids),
+        waitable_nodes_(waitable_nodes),
+        edge_durations_(edge_durations),
+        safe_offsets_(safe_offsets),
+        safe_starts_(safe_starts),
+        safe_ends_(safe_ends),
+        safe_count_(safe_count),
+        edge_block_offsets_(edge_block_offsets),
+        edge_block_starts_(edge_block_starts),
+        edge_block_ends_(edge_block_ends),
+        edge_block_count_(edge_block_count),
+        start_(start_id),
+        goal_(goal_id),
+        start_time_(start_time) {
+        validate();
+    }
+
+    int plan(
+        int has_max_expansions,
+        uint64_t max_expansions,
+        double max_runtime_ms,
+        pp_sipp_result* result,
+        TraceCapture* trace
+    ) const {
+        reset_result(result);
+        if ((has_max_expansions != 0 && max_expansions == 0) ||
+            (has_max_expansions != 0 && has_max_expansions != 1)) {
+            throw std::invalid_argument("max_expansions must be positive when enabled");
+        }
+        if (!std::isfinite(max_runtime_ms) || max_runtime_ms < 0.0) {
+            throw std::invalid_argument("max_runtime_ms must be finite and non-negative");
+        }
+
+        std::vector<double> heuristic(static_cast<size_t>(node_count_), kInfinity);
+        compute_heuristic(&heuristic);
+        std::vector<KinodynamicState> states;
+        std::map<std::tuple<uint64_t, uint64_t, double, double>, uint64_t> state_ids;
+        std::priority_queue<
+            KinodynamicQueueEntry,
+            std::vector<KinodynamicQueueEntry>,
+            KinodynamicQueueEntryGreater
+        > open;
+        uint64_t sequence = 0;
+
+        uint64_t start_safe_interval = kNoState;
+        for (uint64_t safe_id = safe_offsets_[start_];
+            safe_id < safe_offsets_[start_ + 1];
+            ++safe_id) {
+            if (safe_starts_[safe_id] <= start_time_ && start_time_ <= safe_ends_[safe_id]) {
+                start_safe_interval = safe_id;
+                break;
+            }
+        }
+        if (start_safe_interval == kNoState) {
+            result->stop_reason = PP_SEARCH_STOP_NO_PROGRESS;
+            return 0;
+        }
+
+        const double start_high = waitable_nodes_[start_] != 0 ?
+            safe_ends_[start_safe_interval] : start_time_;
+        const uint64_t start_state = add_state(
+            start_, start_safe_interval, start_time_, start_high, start_time_,
+            kNoState, start_time_, &states, &state_ids, &open, &sequence, trace
+        );
+        uint64_t best_goal = start_ == goal_ ? start_state : kNoState;
+        bool complete = best_goal != kNoState;
+        bool expansion_limited = false;
+        bool time_limited = false;
+        uint64_t expanded = 0;
+        const auto search_started = std::chrono::steady_clock::now();
+
+        while (!complete && !open.empty()) {
+            if (has_max_expansions != 0 && expanded >= max_expansions) {
+                expansion_limited = true;
+                break;
+            }
+            if (max_runtime_ms > 0.0 && std::chrono::duration<double, std::milli>(
+                    std::chrono::steady_clock::now() - search_started).count() >= max_runtime_ms) {
+                time_limited = true;
+                break;
+            }
+            const KinodynamicQueueEntry entry = open.top();
+            open.pop();
+            KinodynamicState& stored_state = states[static_cast<size_t>(entry.state)];
+            if (stored_state.closed) {
+                continue;
+            }
+            stored_state.closed = true;
+            const KinodynamicState source = stored_state;
+            if (source.node == goal_) {
+                best_goal = entry.state;
+                complete = true;
+                break;
+            }
+            ++expanded;
+            if (trace != nullptr) {
+                const uint64_t parent_node = source.parent == kNoState ? kNoState :
+                    states[static_cast<size_t>(source.parent)].node;
+                trace->record(PP_TRACE_EXPAND, source.node, parent_node, source.time_low);
+            }
+
+            for (uint64_t edge = offsets_[source.node]; edge < offsets_[source.node + 1]; ++edge) {
+                const uint64_t target = neighbor_ids_[edge];
+                const double duration = edge_durations_[edge];
+                const auto departures = valid_departure_intervals(
+                    source.time_low,
+                    source.time_high,
+                    edge_block_offsets_[edge],
+                    edge_block_offsets_[edge + 1],
+                    duration
+                );
+                for (const auto& departure_interval : departures) {
+                    const double arrival_low = departure_interval.first + duration;
+                    const double arrival_high = departure_interval.second + duration;
+                    for (uint64_t target_safe = safe_offsets_[target];
+                        target_safe < safe_offsets_[target + 1];
+                        ++target_safe) {
+                        const double raw_low = std::max(arrival_low, safe_starts_[target_safe]);
+                        const double raw_high = std::min(arrival_high, safe_ends_[target_safe]);
+                        if (raw_low > raw_high) {
+                            continue;
+                        }
+                        const double wait_high = waitable_nodes_[target] != 0 ?
+                            safe_ends_[target_safe] : raw_high;
+                        const uint64_t next_state = add_state(
+                            target,
+                            target_safe,
+                            raw_low,
+                            wait_high,
+                            raw_high,
+                            entry.state,
+                            raw_low - duration,
+                            &states,
+                            &state_ids,
+                            &open,
+                            &sequence,
+                            trace
+                        );
+                        if (target == goal_ && (best_goal == kNoState ||
+                            states[static_cast<size_t>(next_state)].time_low <
+                                states[static_cast<size_t>(best_goal)].time_low)) {
+                            best_goal = next_state;
+                        }
+                    }
+                }
+            }
+        }
+
+        result->iters = expanded;
+        result->nodes = states.size();
+        if (best_goal == kNoState) {
+            result->stop_reason = expansion_limited ? PP_SEARCH_STOP_MAX_ITERS :
+                time_limited ? PP_SEARCH_STOP_TIME_BUDGET : PP_SEARCH_STOP_NO_PROGRESS;
+            return 0;
+        }
+
+        std::vector<uint64_t> reverse_nodes;
+        std::vector<double> reverse_times;
+        uint64_t state = best_goal;
+        double arrival = states[static_cast<size_t>(state)].time_low;
+        while (true) {
+            const KinodynamicState& current = states[static_cast<size_t>(state)];
+            reverse_nodes.push_back(current.node);
+            reverse_times.push_back(arrival);
+            if (current.parent == kNoState) {
+                break;
+            }
+            const KinodynamicState& parent = states[static_cast<size_t>(current.parent)];
+            const double departure = current.parent_departure;
+            if (departure <= parent.reachable_high) {
+                arrival = departure;
+            } else if (waitable_nodes_[parent.node] != 0) {
+                arrival = parent.time_low;
+            } else {
+                throw std::runtime_error("kinodynamic SIPP interval projection lost its parent schedule");
+            }
+            if (arrival < parent.time_low || arrival > parent.time_high) {
+                throw std::runtime_error("kinodynamic SIPP parent time is outside its wait interval");
+            }
+            state = current.parent;
+            if (reverse_nodes.size() > states.size()) {
+                throw std::runtime_error("kinodynamic SIPP parent chain contains a cycle");
+            }
+        }
+        std::reverse(reverse_nodes.begin(), reverse_nodes.end());
+        std::reverse(reverse_times.begin(), reverse_times.end());
+        if (trace != nullptr) {
+            trace->record(PP_TRACE_SOLUTION, goal_, kNoState, reverse_times.back());
+        }
+        const size_t path_length = reverse_nodes.size();
+        result->path_ids = static_cast<uint64_t*>(std::malloc(path_length * sizeof(uint64_t)));
+        result->arrival_times = static_cast<double*>(std::malloc(path_length * sizeof(double)));
+        if (result->path_ids == nullptr || result->arrival_times == nullptr) {
+            std::free(result->path_ids);
+            std::free(result->arrival_times);
+            result->path_ids = nullptr;
+            result->arrival_times = nullptr;
+            throw std::bad_alloc();
+        }
+        for (size_t index = 0; index < path_length; ++index) {
+            result->path_ids[index] = reverse_nodes[index];
+            result->arrival_times[index] = reverse_times[index];
+        }
+        result->path_length = path_length;
+        result->arrival_time = reverse_times.back();
+        result->path_cost = result->arrival_time - start_time_;
+        result->success = 1;
+        result->stop_reason = complete ? PP_SEARCH_STOP_SUCCESS : expansion_limited ?
+            PP_SEARCH_STOP_MAX_ITERS : PP_SEARCH_STOP_TIME_BUDGET;
+        return 0;
+    }
+
+private:
+    std::vector<std::pair<double, double>> valid_departure_intervals(
+        double low,
+        double high,
+        uint64_t first_block,
+        uint64_t last_block,
+        double duration
+    ) const {
+        std::vector<std::pair<double, double>> intervals;
+        double cursor = low;
+        for (uint64_t block = first_block; block < last_block && cursor <= high; ++block) {
+            const double forbidden_low = edge_block_starts_[block] - duration + 1.0;
+            const double forbidden_high = edge_block_ends_[block] - 1.0;
+            if (forbidden_high < cursor || forbidden_low > high) {
+                continue;
+            }
+            if (forbidden_low > cursor) {
+                intervals.push_back({cursor, std::min(high, forbidden_low - 1.0)});
+            }
+            cursor = std::max(cursor, forbidden_high + 1.0);
+        }
+        if (cursor <= high) {
+            intervals.push_back({cursor, high});
+        }
+        return intervals;
+    }
+
+    uint64_t add_state(
+        uint64_t node,
+        uint64_t safe_interval,
+        double time_low,
+        double time_high,
+        double reachable_high,
+        uint64_t parent,
+        double parent_departure,
+        std::vector<KinodynamicState>* states,
+        std::map<std::tuple<uint64_t, uint64_t, double, double>, uint64_t>* state_ids,
+        std::priority_queue<
+            KinodynamicQueueEntry,
+            std::vector<KinodynamicQueueEntry>,
+            KinodynamicQueueEntryGreater
+        >* open,
+        uint64_t* sequence,
+        TraceCapture* trace
+    ) const {
+        const auto key = std::make_tuple(node, safe_interval, time_low, time_high);
+        const auto existing = state_ids->find(key);
+        if (existing != state_ids->end()) {
+            return existing->second;
+        }
+        const uint64_t state_id = static_cast<uint64_t>(states->size());
+        state_ids->emplace(key, state_id);
+        states->push_back({
+            node, safe_interval, time_low, time_high, reachable_high,
+            parent, parent_departure, false
+        });
+        open->push({time_low + heuristic_for(node), (*sequence)++, state_id});
+        if (trace != nullptr) {
+            trace->record(
+                PP_TRACE_DISCOVER,
+                node,
+                parent == kNoState ? kNoState : (*states)[static_cast<size_t>(parent)].node,
+                time_low
+            );
+            if (parent != kNoState) {
+                trace->record(
+                    PP_TRACE_PARENT,
+                    node,
+                    (*states)[static_cast<size_t>(parent)].node,
+                    time_low
+                );
+            }
+        }
+        return state_id;
+    }
+
+    double heuristic_for(uint64_t node) const {
+        return heuristic_cache_[static_cast<size_t>(node)];
+    }
+
+    void compute_heuristic(std::vector<double>* heuristic) const {
+        std::vector<std::vector<std::pair<uint64_t, double>>> reverse_edges(
+            static_cast<size_t>(node_count_)
+        );
+        for (uint64_t source = 0; source < node_count_; ++source) {
+            for (uint64_t edge = offsets_[source]; edge < offsets_[source + 1]; ++edge) {
+                reverse_edges[static_cast<size_t>(neighbor_ids_[edge])].push_back(
+                    {source, edge_durations_[edge]}
+                );
+            }
+        }
+        heuristic->assign(static_cast<size_t>(node_count_), kInfinity);
+        using DistanceEntry = std::pair<double, uint64_t>;
+        std::priority_queue<
+            DistanceEntry, std::vector<DistanceEntry>, std::greater<DistanceEntry>
+        > open;
+        (*heuristic)[static_cast<size_t>(goal_)] = 0.0;
+        open.push({0.0, goal_});
+        while (!open.empty()) {
+            const auto [distance, node] = open.top();
+            open.pop();
+            if (distance != (*heuristic)[static_cast<size_t>(node)]) {
+                continue;
+            }
+            for (const auto& [predecessor, duration] : reverse_edges[static_cast<size_t>(node)]) {
+                const double candidate = distance + duration;
+                const size_t predecessor_index = static_cast<size_t>(predecessor);
+                if (candidate < (*heuristic)[predecessor_index]) {
+                    (*heuristic)[predecessor_index] = candidate;
+                    open.push({candidate, predecessor});
+                }
+            }
+        }
+        heuristic_cache_ = *heuristic;
+    }
+
+    void validate() const {
+        if (node_count_ == 0 || offsets_ == nullptr || waitable_nodes_ == nullptr ||
+            safe_offsets_ == nullptr || edge_block_offsets_ == nullptr ||
+            start_ >= node_count_ || goal_ >= node_count_ || !std::isfinite(start_time_) ||
+            std::floor(start_time_) != start_time_) {
+            throw std::invalid_argument("kinodynamic SIPP graph, endpoints, or start time are invalid");
+        }
+        if (edge_count_ > 0 && (neighbor_ids_ == nullptr || edge_durations_ == nullptr)) {
+            throw std::invalid_argument("kinodynamic SIPP edge arrays must not be null");
+        }
+        if (safe_count_ > 0 && (safe_starts_ == nullptr || safe_ends_ == nullptr)) {
+            throw std::invalid_argument("kinodynamic SIPP safe interval arrays must not be null");
+        }
+        if (edge_block_count_ > 0 && (edge_block_starts_ == nullptr || edge_block_ends_ == nullptr)) {
+            throw std::invalid_argument("kinodynamic SIPP edge block arrays must not be null");
+        }
+        if (offsets_[0] != 0 || offsets_[node_count_] != edge_count_ ||
+            safe_offsets_[0] != 0 || safe_offsets_[node_count_] != safe_count_ ||
+            edge_block_offsets_[0] != 0 || edge_block_offsets_[edge_count_] != edge_block_count_) {
+            throw std::invalid_argument("kinodynamic SIPP CSR offsets do not match array lengths");
+        }
+        for (uint64_t node = 0; node < node_count_; ++node) {
+            if (waitable_nodes_[node] > 1 || offsets_[node] > offsets_[node + 1] ||
+                safe_offsets_[node] > safe_offsets_[node + 1]) {
+                throw std::invalid_argument("kinodynamic SIPP node data is invalid");
+            }
+            double previous_end = -kInfinity;
+            for (uint64_t safe = safe_offsets_[node]; safe < safe_offsets_[node + 1]; ++safe) {
+                const double start = safe_starts_[safe];
+                const double end = safe_ends_[safe];
+                if (!std::isfinite(start) || std::floor(start) != start ||
+                    std::isnan(end) || (std::isfinite(end) && std::floor(end) != end) ||
+                    start > end || start <= previous_end) {
+                    throw std::invalid_argument("kinodynamic SIPP safe intervals must be sorted inclusive ticks");
+                }
+                previous_end = end;
+            }
+        }
+        for (uint64_t edge = 0; edge < edge_count_; ++edge) {
+            const double duration = edge_durations_[edge];
+            if (neighbor_ids_[edge] >= node_count_ || !std::isfinite(duration) || duration <= 0.0 ||
+                std::floor(duration) != duration || edge_block_offsets_[edge] > edge_block_offsets_[edge + 1]) {
+                throw std::invalid_argument("kinodynamic SIPP edges require positive integer durations");
+            }
+            double previous_end = -kInfinity;
+            for (uint64_t block = edge_block_offsets_[edge];
+                block < edge_block_offsets_[edge + 1];
+                ++block) {
+                const double start = edge_block_starts_[block];
+                const double end = edge_block_ends_[block];
+                if (std::isnan(start) || std::isnan(end) || start >= end ||
+                    (std::isfinite(start) && std::floor(start) != start) ||
+                    (std::isfinite(end) && std::floor(end) != end) || start < previous_end) {
+                    throw std::invalid_argument("kinodynamic SIPP edge blocks must be sorted integer intervals");
+                }
+                previous_end = end;
+            }
+        }
+    }
+
+    uint64_t node_count_;
+    uint64_t edge_count_;
+    const uint64_t* offsets_;
+    const uint64_t* neighbor_ids_;
+    const uint8_t* waitable_nodes_;
+    const double* edge_durations_;
+    const uint64_t* safe_offsets_;
+    const double* safe_starts_;
+    const double* safe_ends_;
+    uint64_t safe_count_;
+    const uint64_t* edge_block_offsets_;
+    const double* edge_block_starts_;
+    const double* edge_block_ends_;
+    uint64_t edge_block_count_;
+    uint64_t start_;
+    uint64_t goal_;
+    double start_time_;
+    mutable std::vector<double> heuristic_cache_;
+};
+
 #if defined(PP_ENABLE_TRACE) && PP_ENABLE_TRACE
 int copy_trace(const TraceCapture& capture, pp_trace_result* trace) {
     const auto& events = capture.events();
@@ -633,6 +1088,50 @@ int run_sipp(
         return 1;
     } catch (...) {
         set_error(result, "unknown SIPP search error");
+        return 1;
+    }
+}
+
+int run_kinodynamic_sipp(
+    uint64_t node_count,
+    uint64_t edge_count,
+    const uint64_t* offsets,
+    const uint64_t* neighbor_ids,
+    const uint8_t* waitable_nodes,
+    const double* edge_durations,
+    const uint64_t* safe_offsets,
+    const double* safe_starts,
+    const double* safe_ends,
+    uint64_t safe_count,
+    const uint64_t* edge_block_offsets,
+    const double* edge_block_starts,
+    const double* edge_block_ends,
+    uint64_t edge_block_count,
+    uint64_t start_id,
+    uint64_t goal_id,
+    double start_time,
+    int has_max_expansions,
+    uint64_t max_expansions,
+    double max_runtime_ms,
+    pp_sipp_result* result,
+    TraceCapture* capture
+) {
+    if (result == nullptr) {
+        return 1;
+    }
+    try {
+        KinodynamicSippSearch search(
+            node_count, edge_count, offsets, neighbor_ids, waitable_nodes, edge_durations,
+            safe_offsets, safe_starts, safe_ends, safe_count,
+            edge_block_offsets, edge_block_starts, edge_block_ends, edge_block_count,
+            start_id, goal_id, start_time
+        );
+        return search.plan(has_max_expansions, max_expansions, max_runtime_ms, result, capture);
+    } catch (const std::exception& error) {
+        set_error(result, error.what());
+        return 1;
+    } catch (...) {
+        set_error(result, "unknown kinodynamic SIPP search error");
         return 1;
     }
 }
@@ -709,6 +1208,38 @@ extern "C" int pp_bounded_sipp_plan(
         edge_block_offsets, edge_block_starts, edge_block_ends, edge_block_interval_count,
         start_id, goal_id, start_time, has_max_expansions, max_expansions, max_runtime_ms,
         suboptimality_weight, result, nullptr
+    );
+}
+
+extern "C" int pp_kinodynamic_sipp_plan(
+    uint64_t node_count,
+    uint64_t edge_count,
+    const uint64_t* offsets,
+    const uint64_t* neighbor_ids,
+    const uint8_t* waitable_nodes,
+    const double* edge_durations,
+    const uint64_t* node_safe_offsets,
+    const double* node_safe_starts,
+    const double* node_safe_ends,
+    uint64_t node_safe_interval_count,
+    const uint64_t* edge_block_offsets,
+    const double* edge_block_starts,
+    const double* edge_block_ends,
+    uint64_t edge_block_interval_count,
+    uint64_t start_id,
+    uint64_t goal_id,
+    double start_time,
+    int has_max_expansions,
+    uint64_t max_expansions,
+    double max_runtime_ms,
+    pp_sipp_result* result
+) {
+    return run_kinodynamic_sipp(
+        node_count, edge_count, offsets, neighbor_ids, waitable_nodes, edge_durations,
+        node_safe_offsets, node_safe_starts, node_safe_ends, node_safe_interval_count,
+        edge_block_offsets, edge_block_starts, edge_block_ends, edge_block_interval_count,
+        start_id, goal_id, start_time, has_max_expansions, max_expansions, max_runtime_ms,
+        result, nullptr
     );
 }
 
@@ -806,6 +1337,55 @@ extern "C" int pp_bounded_sipp_plan_traced(
         pp_sipp_free_result(result);
         pp_search_trace_free_result(trace);
         set_error(result, "could not allocate bounded SIPP trace events");
+        return 1;
+    }
+    return status;
+}
+
+extern "C" int pp_kinodynamic_sipp_plan_traced(
+    uint64_t node_count,
+    uint64_t edge_count,
+    const uint64_t* offsets,
+    const uint64_t* neighbor_ids,
+    const uint8_t* waitable_nodes,
+    const double* edge_durations,
+    const uint64_t* node_safe_offsets,
+    const double* node_safe_starts,
+    const double* node_safe_ends,
+    uint64_t node_safe_interval_count,
+    const uint64_t* edge_block_offsets,
+    const double* edge_block_starts,
+    const double* edge_block_ends,
+    uint64_t edge_block_interval_count,
+    uint64_t start_id,
+    uint64_t goal_id,
+    double start_time,
+    int has_max_expansions,
+    uint64_t max_expansions,
+    double max_runtime_ms,
+    uint64_t trace_max_bytes,
+    pp_sipp_result* result,
+    pp_trace_result* trace
+) {
+    if (trace == nullptr) {
+        return 1;
+    }
+    *trace = pp_trace_result{};
+    if (result == nullptr) {
+        return 1;
+    }
+    TraceCapture capture(trace_max_bytes);
+    const int status = run_kinodynamic_sipp(
+        node_count, edge_count, offsets, neighbor_ids, waitable_nodes, edge_durations,
+        node_safe_offsets, node_safe_starts, node_safe_ends, node_safe_interval_count,
+        edge_block_offsets, edge_block_starts, edge_block_ends, edge_block_interval_count,
+        start_id, goal_id, start_time, has_max_expansions, max_expansions, max_runtime_ms,
+        result, &capture
+    );
+    if (copy_trace(capture, trace) != 0) {
+        pp_sipp_free_result(result);
+        pp_search_trace_free_result(trace);
+        set_error(result, "could not allocate kinodynamic SIPP trace events");
         return 1;
     }
     return status;
