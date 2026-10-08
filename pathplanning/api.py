@@ -15,7 +15,7 @@ from pathplanning.core.contracts import (
     State,
     TemporalProblem,
 )
-from pathplanning.core.params import RrtParams
+from pathplanning.core.params import RoadmapParams, RrtParams
 from pathplanning.core.results import MultiAgentPlanResult, PlanResult, TemporalPlanResult
 from pathplanning.core.trace import TraceOptions
 from pathplanning.core.types import RNG
@@ -29,7 +29,7 @@ from pathplanning.registry import (
 Result: TypeAlias = PlanResult
 Stats: TypeAlias = Mapping[str, float]
 DiscreteParams: TypeAlias = Mapping[str, object]
-ContinuousParams: TypeAlias = RrtParams | Mapping[str, object]
+ContinuousParams: TypeAlias = RrtParams | RoadmapParams | Mapping[str, object]
 TemporalParams: TypeAlias = Mapping[str, object]
 MultiAgentParams: TypeAlias = Mapping[str, object]
 
@@ -74,6 +74,8 @@ def plan_continuous(
     """Run one registered continuous planner on a ``ContinuousProblem``."""
     if trace is not None and type(trace) is not TraceOptions:
         raise TypeError("trace must be TraceOptions or None")
+    if isinstance(params, RoadmapParams) and planner != "prm_star":
+        raise TypeError("RoadmapParams can only be used with the prm_star planner")
     effective_rng = _resolve_rng(seed, rng)
     resolved_params: RrtParams | dict[str, object] | None
     if params is None or isinstance(params, RrtParams):
@@ -194,8 +196,8 @@ def plan(
     """Unified planner entrypoint dispatching by problem type."""
     if isinstance(problem, DiscreteProblem):
         resolved_planner = planner if planner is not None else "astar"
-        if isinstance(params, RrtParams):
-            raise TypeError("Discrete planning does not accept RrtParams")
+        if isinstance(params, (RrtParams, RoadmapParams)):
+            raise TypeError("Discrete planning does not accept continuous planner parameters")
         return plan_discrete(
             problem,
             planner=resolved_planner,
@@ -206,8 +208,8 @@ def plan(
         )
 
     if isinstance(problem, TemporalProblem):
-        if isinstance(params, RrtParams):
-            raise TypeError("Temporal planning does not accept RrtParams")
+        if isinstance(params, (RrtParams, RoadmapParams)):
+            raise TypeError("Temporal planning does not accept continuous planner parameters")
         return plan_temporal(
             problem,
             planner=planner or "sipp",
@@ -218,8 +220,8 @@ def plan(
         )
 
     if isinstance(problem, MultiAgentProblem):
-        if isinstance(params, RrtParams):
-            raise TypeError("Multi-agent planning does not accept RrtParams")
+        if isinstance(params, (RrtParams, RoadmapParams)):
+            raise TypeError("Multi-agent planning does not accept continuous planner parameters")
         return plan_multi_agent(
             problem,
             planner=planner or "eecbs",

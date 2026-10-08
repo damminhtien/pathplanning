@@ -34,7 +34,7 @@ from .contracts import (
     TimeInterval,
     ValidatingDiscreteGraph,
 )
-from .params import RrtParams
+from .params import RoadmapParams, RrtParams
 from .results import MultiAgentPlanResult, PlanResult, StopReason, TemporalPlanResult
 from .trace import PlannerTrace, TraceOptions
 from .types import RNG, BoolArray, Float, FloatArray, Mat, N, NodeId, S, Vec
@@ -67,6 +67,7 @@ __all__ = [
     "PlannerTrace",
     "TraceOptions",
     "RrtParams",
+    "RoadmapParams",
     "State",
     "NearestNeighborIndex",
     "NaiveNnIndex",

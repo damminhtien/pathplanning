@@ -131,6 +131,8 @@ typedef struct pp_dynamic_rrt_result {
     size_t invalid_count;
 } pp_dynamic_rrt_result;
 
+typedef struct pp_prm_star_roadmap pp_prm_star_roadmap;
+
 // Returns PP_CONTINUOUS_ABI_VERSION. This exact-match version covers exported
 // functions, structures, enums, and callback semantics.
 uint32_t pp_continuous_abi_version(void);
@@ -158,6 +160,22 @@ int pp_dynamic_rrt_plan(const pp_continuous_callbacks *callbacks,
                         int prune_only,
                         pp_dynamic_rrt_result *result);
 void pp_dynamic_rrt_free_result(pp_dynamic_rrt_result *result);
+
+int pp_prm_star_create(size_t dimension, uint64_t sample_count, double gamma,
+                       uint64_t max_sample_tries, uint64_t seed,
+                       pp_prm_star_roadmap **out, char *error, size_t error_capacity);
+int pp_prm_star_build(pp_prm_star_roadmap *roadmap,
+                      const pp_continuous_callbacks *callbacks,
+                      double collision_step, double time_budget_s,
+                      pp_continuous_result *result);
+int pp_prm_star_query(pp_prm_star_roadmap *roadmap,
+                      const pp_continuous_callbacks *callbacks,
+                      const double *start, const double *goal,
+                      double collision_step, uint64_t max_expansions,
+                      double time_budget_s, pp_continuous_result *result);
+void pp_prm_star_clear_query(pp_prm_star_roadmap *roadmap);
+void pp_prm_star_reset(pp_prm_star_roadmap *roadmap);
+void pp_prm_star_free(pp_prm_star_roadmap *roadmap);
 const char *pp_continuous_engine_version(void);
 
 #ifdef PP_ENABLE_TRACE
@@ -180,6 +198,12 @@ int pp_dynamic_rrt_plan_traced(const pp_continuous_callbacks *callbacks,
                                pp_dynamic_rrt_result *result,
                                uint64_t max_bytes, pp_trace_result *trace);
 void pp_continuous_trace_free_result(pp_trace_result *trace);
+int pp_prm_star_query_traced(pp_prm_star_roadmap *roadmap,
+                             const pp_continuous_callbacks *callbacks,
+                             const double *start, const double *goal,
+                             double collision_step, uint64_t max_expansions,
+                             double time_budget_s, pp_continuous_result *result,
+                             uint64_t max_bytes, pp_trace_result *trace);
 #endif
 
 #ifdef __cplusplus

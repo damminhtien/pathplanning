@@ -4,12 +4,13 @@ from __future__ import annotations
 
 import ctypes
 import math
+import time
 from typing import Any
 
 import numpy as np
 
 from pathplanning.core.contracts import ContinuousSpace, GoalRegion, Objective, State
-from pathplanning.core.params import RrtParams
+from pathplanning.core.params import RoadmapParams, RrtParams
 from pathplanning.core.results import PlanResult, StopReason
 from pathplanning.core.trace import PlannerTrace, TraceOptions
 from pathplanning.core.types import RNG
@@ -305,6 +306,374 @@ def _native_space_model(space: ContinuousSpace[State], dimension: int) -> _Owned
         obb_centers.shape[0],
     )
     return _OwnedSpaceModel(arrays, model)
+
+
+def _roadmap_callbacks(
+    space: ContinuousSpace[State], rng: RNG, dimension: int, allow_python_callbacks: bool
+) -> tuple[_Callbacks, tuple[Any, ...], _OwnedSpaceModel | None, list[BaseException]]:
+    """Build borrowed callbacks for one PRM* native call."""
+    owned_space = _native_space_model(space, dimension)
+    if owned_space is None and not allow_python_callbacks:
+        raise ValueError(
+            "Python callbacks are disabled for native planning (space has no native model). "
+            "Implement to_native_model() or set allow_python_callbacks=True."
+        )
+    callback_errors: list[BaseException] = []
+
+    def guarded(function, failure):
+        if callback_errors:
+            return failure
+        try:
+            return function()
+        except BaseException as exc:
+            callback_errors.append(exc)
+            return failure
+
+    def sample(_user_data, out_state, dim):
+        def call():
+            value = _copy_state(space.sample_free(rng), "sample", int(dim))
+            np.copyto(_array(out_state, int(dim)), value)
+            return 0
+
+        return guarded(call, -1)
+
+    def state_valid(_user_data, point, dim):
+        return guarded(lambda: int(bool(space.is_state_valid(_array(point, int(dim)).copy()))), -1)
+
+    def motion_valid(_user_data, first, second, dim, step):
+        def call():
+            a = _array(first, int(dim)).copy()
+            b = _array(second, int(dim)).copy()
+            checker = getattr(space, "is_motion_valid_with_step", None)
+            valid = checker(a, b, float(step)) if callable(checker) else space.is_motion_valid(a, b)
+            return int(bool(valid))
+
+        return guarded(call, -1)
+
+    def distance(_user_data, first, second, dim):
+        return guarded(
+            lambda: float(
+                space.distance(_array(first, int(dim)).copy(), _array(second, int(dim)).copy())
+            ),
+            math.nan,
+        )
+
+    callback_objects = (
+        _Sample(sample) if owned_space is None else _Sample(),
+        _StateValid(state_valid) if owned_space is None else _StateValid(),
+        _MotionValid(motion_valid) if owned_space is None else _MotionValid(),
+        _Distance(distance) if owned_space is None else _Distance(),
+        _Steer(),
+        _Goal(),
+        _GoalDistance(),
+        _Objective(),
+    )
+    model_pointer = (
+        ctypes.pointer(owned_space.model) if owned_space else ctypes.POINTER(_SpaceModel)()
+    )
+    callbacks = _Callbacks(None, *callback_objects, model_pointer, 0, 0.0)
+    return callbacks, callback_objects, owned_space, callback_errors
+
+
+class NativePrmStarRoadmap:
+    """Owner for a reusable C PRM* roadmap and its optional trace mirror."""
+
+    def __init__(
+        self,
+        space: ContinuousSpace[State],
+        dimension: int,
+        params: RoadmapParams,
+        rng: RNG,
+    ) -> None:
+        self.space = space
+        self.dimension = dimension
+        self.params = params.validate()
+        self.seed = int(rng.integers(0, np.iinfo(np.uint64).max, dtype=np.uint64))
+        self.library = load_continuous_library()
+        self.handle = self._create_handle(self.library)
+        self.trace_library = None
+        self.trace_handle = ctypes.c_void_p()
+        self.trace_built = False
+        self.world_version: object = object()
+        self.built = False
+        self.closed = False
+        self.build_stats: dict[str, float] = {}
+
+    def _configure_library(self, library, *, traced: bool) -> None:
+        library.pp_prm_star_create.argtypes = [
+            ctypes.c_size_t,
+            ctypes.c_uint64,
+            ctypes.c_double,
+            ctypes.c_uint64,
+            ctypes.c_uint64,
+            ctypes.POINTER(ctypes.c_void_p),
+            ctypes.POINTER(ctypes.c_char),
+            ctypes.c_size_t,
+        ]
+        library.pp_prm_star_create.restype = ctypes.c_int
+        library.pp_prm_star_build.argtypes = [
+            ctypes.c_void_p,
+            ctypes.POINTER(_Callbacks),
+            ctypes.c_double,
+            ctypes.c_double,
+            ctypes.POINTER(_Result),
+        ]
+        library.pp_prm_star_build.restype = ctypes.c_int
+        library.pp_prm_star_query.argtypes = [
+            ctypes.c_void_p,
+            ctypes.POINTER(_Callbacks),
+            _Point,
+            _Point,
+            ctypes.c_double,
+            ctypes.c_uint64,
+            ctypes.c_double,
+            ctypes.POINTER(_Result),
+        ]
+        library.pp_prm_star_query.restype = ctypes.c_int
+        library.pp_prm_star_clear_query.argtypes = [ctypes.c_void_p]
+        library.pp_prm_star_clear_query.restype = None
+        library.pp_prm_star_reset.argtypes = [ctypes.c_void_p]
+        library.pp_prm_star_reset.restype = None
+        library.pp_prm_star_free.argtypes = [ctypes.c_void_p]
+        library.pp_prm_star_free.restype = None
+        library.pp_continuous_free_result.argtypes = [ctypes.POINTER(_Result)]
+        library.pp_continuous_free_result.restype = None
+        if traced:
+            library.pp_prm_star_query_traced.argtypes = [
+                *library.pp_prm_star_query.argtypes,
+                ctypes.c_uint64,
+                ctypes.POINTER(TraceResult),
+            ]
+            library.pp_prm_star_query_traced.restype = ctypes.c_int
+            library.pp_continuous_trace_free_result.argtypes = [ctypes.POINTER(TraceResult)]
+            library.pp_continuous_trace_free_result.restype = None
+
+    def _create_handle(self, library) -> ctypes.c_void_p:
+        self._configure_library(library, traced=library is not self.library)
+        handle = ctypes.c_void_p()
+        error = ctypes.create_string_buffer(256)
+        status = library.pp_prm_star_create(
+            self.dimension,
+            self.params.sample_count,
+            self.params.gamma,
+            self.params.max_sample_tries,
+            self.seed,
+            ctypes.byref(handle),
+            error,
+            len(error),
+        )
+        if status != 0 or not handle.value:
+            message = (
+                error.value.decode("utf-8", errors="replace") or "could not create PRM* roadmap"
+            )
+            raise RuntimeError(message)
+        return handle
+
+    def _build_handle(self, library, handle: ctypes.c_void_p) -> dict[str, float]:
+        callbacks, callback_objects, owned_space, callback_errors = _roadmap_callbacks(
+            self.space,
+            np.random.default_rng(self.seed),
+            self.dimension,
+            self.params.allow_python_callbacks,
+        )
+        callback_lifetime = callback_objects, owned_space
+        result = _Result()
+        started = time.perf_counter()
+        status = library.pp_prm_star_build(
+            handle,
+            ctypes.byref(callbacks),
+            self.params.collision_step,
+            0.0 if self.params.time_budget_s is None else self.params.time_budget_s,
+            ctypes.byref(result),
+        )
+        elapsed = time.perf_counter() - started
+        try:
+            if callback_errors:
+                raise callback_errors[0]
+            if status != 0 or result.stop_reason == 4 or not result.success:
+                message = (
+                    result.error_message.decode("utf-8", errors="replace")
+                    if result.error_message
+                    else "native PRM* roadmap build failed"
+                )
+                raise RuntimeError(message)
+            return {
+                "roadmap_vertices": float(result.nodes),
+                "roadmap_motion_checks": float(result.motion_checks),
+                "roadmap_connection_candidates": float(result.iters),
+                "roadmap_build_s": float(result.elapsed_s),
+                "roadmap_api_s": elapsed,
+            }
+        finally:
+            library.pp_continuous_free_result(ctypes.byref(result))
+            _ = callback_lifetime
+
+    def build(self, *, world_version: object = 0) -> None:
+        """Build once per caller-managed world version; reuse matching roadmaps."""
+        if self.closed:
+            raise RuntimeError("PRM* roadmap is closed")
+        if self.built and self.world_version == world_version:
+            return
+        if self.built:
+            self.library.pp_prm_star_reset(self.handle)
+            if self.trace_handle.value:
+                self.trace_library.pp_prm_star_reset(self.trace_handle)
+        self.build_stats = self._build_handle(self.library, self.handle)
+        self.built = True
+        self.world_version = world_version
+        if self.trace_handle.value:
+            self.trace_built = False
+            self._build_handle(self.trace_library, self.trace_handle)
+            self.trace_built = True
+
+    def _ensure_trace_handle(self) -> None:
+        if not self.trace_handle.value:
+            self.trace_library = load_continuous_trace_library()
+            self.trace_handle = self._create_handle(self.trace_library)
+        if self.built and not self.trace_built:
+            self._build_handle(self.trace_library, self.trace_handle)
+            self.trace_built = True
+
+    def query(
+        self,
+        start: object,
+        goal: object,
+        *,
+        world_version: object = 0,
+        trace: TraceOptions | None = None,
+    ) -> PlanResult:
+        """Query the retained roadmap without deleting its built samples."""
+        if trace is not None and type(trace) is not TraceOptions:
+            raise TypeError("trace must be TraceOptions or None")
+        self.build(world_version=world_version)
+        start_state = _copy_state(start, "start", self.dimension)
+        goal_state = _copy_state(goal, "goal", self.dimension)
+        callbacks, callback_objects, owned_space, callback_errors = _roadmap_callbacks(
+            self.space,
+            np.random.default_rng(self.seed),
+            self.dimension,
+            self.params.allow_python_callbacks,
+        )
+        callback_lifetime = callback_objects, owned_space
+        native_result = _Result()
+        trace_result = TraceResult() if trace is not None else None
+        library = self.library
+        handle = self.handle
+        if trace_result is not None:
+            self._ensure_trace_handle()
+            library = self.trace_library
+            handle = self.trace_handle
+        args = [
+            handle,
+            ctypes.byref(callbacks),
+            start_state.ctypes.data_as(_Point),
+            goal_state.ctypes.data_as(_Point),
+            self.params.collision_step,
+            self.params.max_expansions,
+            0.0 if self.params.time_budget_s is None else self.params.time_budget_s,
+            ctypes.byref(native_result),
+        ]
+        if trace_result is not None:
+            assert trace is not None
+            args.extend((trace.max_bytes, ctypes.byref(trace_result)))
+        native_started = time.perf_counter()
+        status = (
+            library.pp_prm_star_query_traced(*args)
+            if trace_result is not None
+            else library.pp_prm_star_query(*args)
+        )
+        query_s = time.perf_counter() - native_started
+        try:
+            if callback_errors:
+                raise callback_errors[0]
+            if status != 0 or native_result.stop_reason == 4:
+                message = (
+                    native_result.error_message.decode("utf-8", errors="replace")
+                    if native_result.error_message
+                    else "native PRM* query failed"
+                )
+                raise RuntimeError(message)
+            path = None
+            if native_result.success and native_result.path:
+                flat_path = np.ctypeslib.as_array(
+                    native_result.path,
+                    shape=(int(native_result.path_length) * self.dimension,),
+                ).copy()
+                path = flat_path.reshape(int(native_result.path_length), self.dimension)
+            planner_trace = (
+                copy_trace_result(trace_result, kind="continuous")
+                if trace_result is not None
+                else None
+            )
+            return PlanResult(
+                success=bool(native_result.success),
+                path=path,
+                best_path=path if native_result.success else None,
+                stop_reason=_STOP_REASONS.get(
+                    int(native_result.stop_reason), StopReason.NO_PROGRESS
+                ),
+                iters=int(native_result.iters),
+                nodes=int(native_result.nodes),
+                stats={
+                    **self.build_stats,
+                    "expanded": float(native_result.iters),
+                    "sample_count": float(native_result.sample_count),
+                    "motion_checks": float(native_result.motion_checks),
+                    "query_s": query_s,
+                    "path_cost": float(native_result.path_cost) if native_result.success else 0.0,
+                },
+                trace=planner_trace,
+            )
+        finally:
+            library.pp_continuous_free_result(ctypes.byref(native_result))
+            if trace_result is not None:
+                library.pp_continuous_trace_free_result(ctypes.byref(trace_result))
+            _ = callback_lifetime
+
+    def clear_query(self) -> None:
+        """Clear query-local native state while preserving the roadmap."""
+        if self.closed:
+            raise RuntimeError("PRM* roadmap is closed")
+        self.library.pp_prm_star_clear_query(self.handle)
+        if self.trace_handle.value:
+            self.trace_library.pp_prm_star_clear_query(self.trace_handle)
+
+    def reset(self) -> None:
+        """Discard samples and validation data but keep this planner object."""
+        if self.closed:
+            raise RuntimeError("PRM* roadmap is closed")
+        self.library.pp_prm_star_reset(self.handle)
+        if self.trace_handle.value:
+            self.trace_library.pp_prm_star_reset(self.trace_handle)
+        self.built = False
+        self.trace_built = False
+        self.build_stats = {}
+
+    def close(self) -> None:
+        """Release native roadmap resources."""
+        if self.closed:
+            return
+        if self.handle.value:
+            self.library.pp_prm_star_free(self.handle)
+            self.handle = ctypes.c_void_p()
+        if self.trace_handle.value:
+            self.trace_library.pp_prm_star_free(self.trace_handle)
+            self.trace_handle = ctypes.c_void_p()
+        self.closed = True
+        self.built = False
+        self.trace_built = False
+
+    def __del__(self) -> None:
+        try:
+            self.close()
+        except BaseException:
+            pass
+
+    def __enter__(self) -> NativePrmStarRoadmap:
+        return self
+
+    def __exit__(self, *_exc: object) -> None:
+        self.close()
 
 
 def run_native_continuous(

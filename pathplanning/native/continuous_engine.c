@@ -5,13 +5,14 @@
 #include "continuous_engine.h"
 
 #include <math.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
 
 #define PP_C_INF INFINITY
 #define PP_C_NONE UINT32_MAX
-#define PP_C_VERSION "1.0.0"
+#define PP_C_VERSION "1.1.0"
 #define PP_C_KD_LEVELS 32
 
 typedef struct {
@@ -76,6 +77,27 @@ typedef struct {
     double tentative;
     uint64_t order;
 } pp_edge_entry;
+
+typedef struct {
+    uint32_t first;
+    uint32_t second;
+    double cost;
+} pp_prm_edge;
+
+struct pp_prm_star_roadmap {
+    size_t dimension;
+    uint64_t requested_samples;
+    uint64_t max_sample_tries;
+    uint64_t seed;
+    double gamma;
+    double connection_radius;
+    double *points;
+    size_t vertex_count;
+    pp_prm_edge *edges;
+    size_t edge_count;
+    size_t edge_capacity;
+    int built;
+};
 
 typedef struct {
     pp_edge_entry *items;
@@ -1796,6 +1818,509 @@ int pp_continuous_plan_traced(const pp_continuous_callbacks *callbacks,
     return status;
 }
 #endif
+
+static void pp_prm_star_clear_storage(pp_prm_star_roadmap *roadmap) {
+    if (roadmap == NULL) return;
+    free(roadmap->points);
+    free(roadmap->edges);
+    roadmap->points = NULL;
+    roadmap->edges = NULL;
+    roadmap->vertex_count = 0;
+    roadmap->edge_count = 0;
+    roadmap->edge_capacity = 0;
+    roadmap->connection_radius = 0.0;
+    roadmap->built = 0;
+}
+
+static int pp_prm_star_append_edge(pp_prm_star_roadmap *roadmap,
+                                   uint32_t first, uint32_t second, double cost) {
+    if (roadmap->edge_count == roadmap->edge_capacity) {
+        size_t capacity = roadmap->edge_capacity == 0 ? 64 : roadmap->edge_capacity * 2;
+        pp_prm_edge *grown;
+        if (capacity < roadmap->edge_capacity || capacity > SIZE_MAX / sizeof(*grown)) return -1;
+        grown = (pp_prm_edge *)realloc(roadmap->edges, capacity * sizeof(*grown));
+        if (grown == NULL) return -1;
+        roadmap->edges = grown;
+        roadmap->edge_capacity = capacity;
+    }
+    roadmap->edges[roadmap->edge_count++] = (pp_prm_edge){first, second, cost};
+    return 0;
+}
+
+static double pp_prm_star_radius(double gamma, size_t count, size_t dimension) {
+    if (count < 2) return gamma;
+    return gamma * pow(log((double)count) / (double)count, 1.0 / (double)dimension);
+}
+
+int pp_prm_star_create(size_t dimension, uint64_t sample_count, double gamma,
+                       uint64_t max_sample_tries, uint64_t seed,
+                       pp_prm_star_roadmap **out, char *error, size_t error_capacity) {
+    pp_prm_star_roadmap *roadmap;
+    if (out == NULL) return -1;
+    *out = NULL;
+    if (dimension == 0 || dimension > 1024 || sample_count == 0 || sample_count > UINT32_MAX ||
+        !(gamma > 0.0) || !isfinite(gamma) || max_sample_tries == 0) {
+        if (error != NULL && error_capacity > 0) {
+            snprintf(error, error_capacity, "PRM* roadmap parameters are invalid");
+        }
+        return -1;
+    }
+    roadmap = (pp_prm_star_roadmap *)calloc(1, sizeof(*roadmap));
+    if (roadmap == NULL) {
+        if (error != NULL && error_capacity > 0) {
+            snprintf(error, error_capacity, "out of memory creating PRM* roadmap");
+        }
+        return -1;
+    }
+    roadmap->dimension = dimension;
+    roadmap->requested_samples = sample_count;
+    roadmap->gamma = gamma;
+    roadmap->max_sample_tries = max_sample_tries;
+    roadmap->seed = seed;
+    *out = roadmap;
+    return 0;
+}
+
+int pp_prm_star_build(pp_prm_star_roadmap *roadmap,
+                      const pp_continuous_callbacks *callbacks,
+                      double collision_step, double time_budget_s,
+                      pp_continuous_result *result) {
+    pp_continuous_options options;
+    pp_context ctx;
+    double *sample = NULL;
+    size_t i, j;
+    int stop_reason = 0;
+    if (result == NULL) return -1;
+    memset(result, 0, sizeof(*result));
+    result->stop_reason = 4;
+    if (roadmap == NULL || callbacks == NULL ||
+        (callbacks->native_space == NULL &&
+         (callbacks->sample_free == NULL || callbacks->state_valid == NULL ||
+          callbacks->motion_valid == NULL || callbacks->distance == NULL)) ||
+        !(collision_step > 0.0) || !isfinite(collision_step) ||
+        !(time_budget_s >= 0.0) || !isfinite(time_budget_s)) {
+        pp_set_error(result, "PRM* build inputs are invalid");
+        return -1;
+    }
+    pp_prm_star_clear_storage(roadmap);
+    memset(&options, 0, sizeof(options));
+    options.max_sample_tries = roadmap->max_sample_tries;
+    options.collision_step = collision_step;
+    options.time_budget_s = time_budget_s;
+    memset(&ctx, 0, sizeof(ctx));
+    ctx.callbacks = callbacks;
+    ctx.options = &options;
+    ctx.dimension = roadmap->dimension;
+    ctx.started = pp_now();
+    pp_rng_seed(&ctx.rng, roadmap->seed);
+    if (roadmap->requested_samples > SIZE_MAX / roadmap->dimension / sizeof(double)) {
+        pp_set_error(result, "PRM* sample storage is too large");
+        return -1;
+    }
+    roadmap->points = (double *)malloc(
+        (size_t)roadmap->requested_samples * roadmap->dimension * sizeof(double)
+    );
+    sample = (double *)malloc(roadmap->dimension * sizeof(double));
+    if (roadmap->points == NULL || sample == NULL) {
+        pp_set_error(result, "out of memory allocating PRM* samples");
+        goto fail;
+    }
+    while (roadmap->vertex_count < roadmap->requested_samples) {
+        int status;
+        if (time_budget_s > 0.0 && pp_now() - ctx.started >= time_budget_s) {
+            stop_reason = 1;
+            break;
+        }
+        status = pp_sample(&ctx, sample);
+        if (status < 0) {
+            pp_set_error(result, status == -2 ? "PRM* could not sample enough free states" :
+                         "PRM* sample callback failed");
+            goto fail;
+        }
+        memcpy(roadmap->points + roadmap->vertex_count * roadmap->dimension,
+               sample, roadmap->dimension * sizeof(double));
+        ++roadmap->vertex_count;
+    }
+    free(sample);
+    sample = NULL;
+    roadmap->connection_radius = pp_prm_star_radius(
+        roadmap->gamma, roadmap->vertex_count, roadmap->dimension
+    );
+    for (i = 0; i < roadmap->vertex_count; ++i) {
+        const double *first = roadmap->points + i * roadmap->dimension;
+        for (j = 0; j < i; ++j) {
+            const double *second = roadmap->points + j * roadmap->dimension;
+            double distance, euclidean;
+            int valid;
+            if (time_budget_s > 0.0 && pp_now() - ctx.started >= time_budget_s) {
+                stop_reason = 1;
+                break;
+            }
+            ++result->iters;
+            if (pp_distance(&ctx, first, second, &distance) != 0) {
+                pp_set_error(result, "PRM* distance callback failed");
+                goto fail;
+            }
+            euclidean = sqrt(pp_distance2(first, second, roadmap->dimension));
+            if (fabs(distance - euclidean) > 1e-9 * fmax(1.0, euclidean)) {
+                pp_set_error(result, "PRM* requires Euclidean state-space distance");
+                goto fail;
+            }
+            if (distance > roadmap->connection_radius) continue;
+            valid = pp_valid_motion(&ctx, first, second);
+            if (valid < 0) {
+                pp_set_error(result, "PRM* motion-validity callback failed");
+                goto fail;
+            }
+            if (!valid) continue;
+            valid = pp_valid_motion(&ctx, second, first);
+            if (valid < 0) {
+                pp_set_error(result, "PRM* reverse motion-validity callback failed");
+                goto fail;
+            }
+            if (!valid) continue;
+            if (pp_prm_star_append_edge(roadmap, (uint32_t)i, (uint32_t)j, distance) != 0) {
+                pp_set_error(result, "out of memory storing PRM* roadmap edges");
+                goto fail;
+            }
+        }
+        if (stop_reason != 0) break;
+    }
+    roadmap->built = 1;
+    result->success = 1;
+    result->stop_reason = stop_reason;
+    result->nodes = roadmap->vertex_count;
+    result->sample_count = ctx.samples;
+    result->motion_checks = ctx.motion_checks;
+    result->elapsed_s = pp_now() - ctx.started;
+    return 0;
+fail:
+    free(sample);
+    pp_prm_star_clear_storage(roadmap);
+    result->stop_reason = 4;
+    result->elapsed_s = pp_now() - ctx.started;
+    return -1;
+}
+
+static int pp_prm_star_query_impl(pp_prm_star_roadmap *roadmap,
+                                  const pp_continuous_callbacks *callbacks,
+                                  const double *start, const double *goal,
+                                  double collision_step, uint64_t max_expansions,
+                                  double time_budget_s, pp_continuous_result *result
+#ifdef PP_ENABLE_TRACE
+                                  , pp_trace_buffer *trace
+#endif
+                                  ) {
+    pp_continuous_options options;
+    pp_context ctx;
+    pp_prm_edge *edges = NULL;
+    uint64_t *offsets = NULL;
+    uint32_t *neighbors = NULL;
+    double *costs = NULL, *distance = NULL;
+    uint32_t *parents = NULL;
+    uint8_t *closed = NULL;
+    pp_vertex_heap open = {0};
+    size_t edge_count, vertex_count, i, j, path_length = 0;
+    uint32_t start_id, goal_id;
+    int stop_reason = 3, status = -1;
+    if (result == NULL) return -1;
+    memset(result, 0, sizeof(*result));
+    result->stop_reason = 4;
+    if (roadmap == NULL || !roadmap->built || callbacks == NULL || start == NULL || goal == NULL ||
+        !(collision_step > 0.0) || !isfinite(collision_step) || max_expansions == 0 ||
+        !(time_budget_s >= 0.0) || !isfinite(time_budget_s)) {
+        pp_set_error(result, "PRM* query inputs are invalid or roadmap is not built");
+        return -1;
+    }
+    memset(&options, 0, sizeof(options));
+    options.collision_step = collision_step;
+    options.max_iters = max_expansions;
+    options.time_budget_s = time_budget_s;
+    memset(&ctx, 0, sizeof(ctx));
+    ctx.callbacks = callbacks;
+    ctx.options = &options;
+    ctx.dimension = roadmap->dimension;
+    ctx.started = pp_now();
+#ifdef PP_ENABLE_TRACE
+    ctx.trace = trace;
+#endif
+    if ((callbacks->native_space == NULL &&
+         (callbacks->state_valid == NULL || callbacks->motion_valid == NULL ||
+          callbacks->distance == NULL))) {
+        pp_set_error(result, "PRM* query callbacks are invalid");
+        return -1;
+    }
+    {
+        int valid = pp_valid_state(&ctx, start);
+        if (valid < 0) { pp_set_error(result, "PRM* start validity callback failed"); goto done; }
+        if (!valid) { pp_set_error(result, "PRM* start must be collision free"); goto done; }
+        valid = pp_valid_state(&ctx, goal);
+        if (valid < 0) { pp_set_error(result, "PRM* goal validity callback failed"); goto done; }
+        if (!valid) { pp_set_error(result, "PRM* goal must be collision free"); goto done; }
+    }
+    vertex_count = roadmap->vertex_count + 2;
+    if (vertex_count > UINT32_MAX || roadmap->vertex_count > (SIZE_MAX - 1) / 2 ||
+        roadmap->edge_count > (SIZE_MAX - 2 * roadmap->vertex_count - 1)) {
+        pp_set_error(result, "PRM* query graph is too large");
+        goto done;
+    }
+    edge_count = roadmap->edge_count + 2 * roadmap->vertex_count + 1;
+    if (edge_count > SIZE_MAX / sizeof(*edges) ||
+        edge_count > SIZE_MAX / (2 * sizeof(*neighbors)) ||
+        edge_count > SIZE_MAX / (2 * sizeof(*costs)) ||
+        vertex_count >= SIZE_MAX / sizeof(*offsets) ||
+        vertex_count > SIZE_MAX / sizeof(*distance) ||
+        vertex_count > SIZE_MAX / sizeof(*parents)) {
+        pp_set_error(result, "PRM* query graph is too large");
+        goto done;
+    }
+    edges = (pp_prm_edge *)malloc(edge_count * sizeof(*edges));
+    if (edges == NULL && edge_count > 0) { pp_set_error(result, "out of memory creating PRM* query edges"); goto done; }
+    if (roadmap->edge_count > 0) {
+        memcpy(edges, roadmap->edges, roadmap->edge_count * sizeof(*edges));
+    }
+    edge_count = roadmap->edge_count;
+    start_id = (uint32_t)roadmap->vertex_count;
+    goal_id = start_id + 1;
+    {
+        const double *endpoints[2] = {start, goal};
+        uint32_t ids[2] = {start_id, goal_id};
+        for (size_t endpoint = 0; endpoint < 2; ++endpoint) {
+            for (i = 0; i < roadmap->vertex_count; ++i) {
+                const double *point = roadmap->points + i * roadmap->dimension;
+                double d, euclidean;
+                int valid;
+                if (time_budget_s > 0.0 && pp_now() - ctx.started >= time_budget_s) {
+                    stop_reason = 1;
+                    goto query_done;
+                }
+                if (pp_distance(&ctx, endpoints[endpoint], point, &d) != 0) {
+                    pp_set_error(result, "PRM* endpoint distance callback failed");
+                    goto done;
+                }
+                euclidean = sqrt(pp_distance2(endpoints[endpoint], point, roadmap->dimension));
+                if (fabs(d - euclidean) > 1e-9 * fmax(1.0, euclidean)) {
+                    pp_set_error(result, "PRM* requires Euclidean state-space distance");
+                    goto done;
+                }
+                if (d > roadmap->connection_radius) continue;
+                valid = pp_valid_motion(&ctx, endpoints[endpoint], point);
+                if (valid < 0) { pp_set_error(result, "PRM* connector validity callback failed"); goto done; }
+                if (!valid) continue;
+                valid = pp_valid_motion(&ctx, point, endpoints[endpoint]);
+                if (valid < 0) { pp_set_error(result, "PRM* reverse connector validity callback failed"); goto done; }
+                if (valid) {
+                    edges[edge_count++] = (pp_prm_edge){ids[endpoint], (uint32_t)i, d};
+                }
+            }
+        }
+    }
+    {
+        double d, euclidean;
+        int valid;
+        if (pp_distance(&ctx, start, goal, &d) != 0) {
+            pp_set_error(result, "PRM* start-goal distance callback failed");
+            goto done;
+        }
+        euclidean = sqrt(pp_distance2(start, goal, roadmap->dimension));
+        if (fabs(d - euclidean) > 1e-9 * fmax(1.0, euclidean)) {
+            pp_set_error(result, "PRM* requires Euclidean state-space distance");
+            goto done;
+        }
+        if (d <= roadmap->connection_radius) {
+            valid = pp_valid_motion(&ctx, start, goal);
+            if (valid < 0) { pp_set_error(result, "PRM* direct motion callback failed"); goto done; }
+            if (valid) {
+                valid = pp_valid_motion(&ctx, goal, start);
+                if (valid < 0) { pp_set_error(result, "PRM* reverse direct motion callback failed"); goto done; }
+                if (valid) edges[edge_count++] = (pp_prm_edge){start_id, goal_id, d};
+            }
+        }
+    }
+query_done:
+    if (stop_reason == 1) goto finish;
+    offsets = (uint64_t *)calloc(vertex_count + 1, sizeof(*offsets));
+    neighbors = (uint32_t *)malloc(2 * edge_count * sizeof(*neighbors));
+    costs = (double *)malloc(2 * edge_count * sizeof(*costs));
+    distance = (double *)malloc(vertex_count * sizeof(*distance));
+    parents = (uint32_t *)malloc(vertex_count * sizeof(*parents));
+    closed = (uint8_t *)calloc(vertex_count, sizeof(*closed));
+    if (offsets == NULL || (edge_count > 0 && (neighbors == NULL || costs == NULL)) ||
+        distance == NULL || parents == NULL || closed == NULL) {
+        pp_set_error(result, "out of memory preparing PRM* shortest-path query");
+        goto done;
+    }
+    for (i = 0; i < edge_count; ++i) {
+        ++offsets[edges[i].first + 1];
+        ++offsets[edges[i].second + 1];
+    }
+    for (i = 1; i <= vertex_count; ++i) offsets[i] += offsets[i - 1];
+    {
+        uint64_t *cursor = (uint64_t *)malloc(vertex_count * sizeof(*cursor));
+        if (cursor == NULL) { pp_set_error(result, "out of memory preparing PRM* adjacency"); goto done; }
+        memcpy(cursor, offsets, vertex_count * sizeof(*cursor));
+        for (i = 0; i < edge_count; ++i) {
+            size_t first = edges[i].first, second = edges[i].second;
+            uint64_t left = cursor[first]++, right = cursor[second]++;
+            neighbors[left] = (uint32_t)second; costs[left] = edges[i].cost;
+            neighbors[right] = (uint32_t)first; costs[right] = edges[i].cost;
+        }
+        free(cursor);
+    }
+#ifdef PP_ENABLE_TRACE
+    if (trace != NULL) {
+        for (i = 0; i < vertex_count; ++i) {
+            const double *point = i < roadmap->vertex_count
+                ? roadmap->points + i * roadmap->dimension : (i == start_id ? start : goal);
+            uint64_t trace_id = pp_trace_append_point(trace, point);
+            if (trace_id != UINT64_MAX) (void)pp_trace_map_node(trace, (uint32_t)i, trace_id);
+        }
+    }
+#endif
+    for (i = 0; i < vertex_count; ++i) { distance[i] = PP_C_INF; parents[i] = PP_C_NONE; }
+    distance[start_id] = 0.0;
+    if (pp_vertex_push(&open, start_id, 0.0, 0.0) != 0) {
+        pp_set_error(result, "out of memory creating PRM* search queue");
+        goto done;
+    }
+    stop_reason = 3;
+    while (open.count > 0) {
+        pp_vertex_entry entry;
+        uint32_t current;
+        if (time_budget_s > 0.0 && pp_now() - ctx.started >= time_budget_s) { stop_reason = 1; break; }
+        if (result->iters >= max_expansions) { stop_reason = 2; break; }
+        (void)pp_vertex_pop(&open, &entry);
+        current = entry.node;
+        if (closed[current] || entry.queued_cost != distance[current]) continue;
+        closed[current] = 1;
+        ++result->iters;
+#ifdef PP_ENABLE_TRACE
+        pp_trace_native_event(trace, PP_TRACE_EXPAND, current,
+                              parents[current], distance[current], 0);
+#endif
+        if (current == goal_id) { stop_reason = 0; break; }
+        for (j = (size_t)offsets[current]; j < (size_t)offsets[current + 1]; ++j) {
+            uint32_t next = neighbors[j];
+            double candidate = distance[current] + costs[j];
+            if (closed[next] || candidate + 1e-12 >= distance[next]) continue;
+            distance[next] = candidate;
+            parents[next] = current;
+            if (pp_vertex_push(&open, next, candidate, candidate) != 0) {
+                pp_set_error(result, "out of memory updating PRM* search queue");
+                goto done;
+            }
+        }
+    }
+finish:
+    result->stop_reason = stop_reason;
+    result->nodes = vertex_count;
+    result->sample_count = roadmap->vertex_count;
+    result->motion_checks = ctx.motion_checks;
+    result->elapsed_s = pp_now() - ctx.started;
+    if (stop_reason == 0) {
+        uint32_t current = goal_id;
+        uint32_t *path_ids = (uint32_t *)malloc(vertex_count * sizeof(*path_ids));
+        if (path_ids == NULL) { pp_set_error(result, "out of memory reconstructing PRM* path"); goto done; }
+        while (current != PP_C_NONE && path_length < vertex_count) {
+            path_ids[path_length++] = current;
+            if (current == start_id) break;
+            current = parents[current];
+        }
+        if (path_length == 0 || path_ids[path_length - 1] != start_id) {
+            free(path_ids);
+            pp_set_error(result, "invalid PRM* parent chain");
+            goto done;
+        }
+        if (path_length > SIZE_MAX / roadmap->dimension / sizeof(double)) {
+            free(path_ids);
+            pp_set_error(result, "PRM* result path is too large");
+            goto done;
+        }
+        result->path = (double *)malloc(path_length * roadmap->dimension * sizeof(double));
+        if (result->path == NULL) { free(path_ids); pp_set_error(result, "out of memory returning PRM* path"); goto done; }
+        for (i = 0; i < path_length; ++i) {
+            uint32_t id = path_ids[path_length - i - 1];
+            const double *point = id < roadmap->vertex_count
+                ? roadmap->points + (size_t)id * roadmap->dimension
+                : (id == start_id ? start : goal);
+            memcpy(result->path + i * roadmap->dimension, point,
+                   roadmap->dimension * sizeof(double));
+        }
+        free(path_ids);
+        result->success = 1;
+        result->path_length = path_length;
+        result->dimension = roadmap->dimension;
+        result->path_cost = distance[goal_id];
+#ifdef PP_ENABLE_TRACE
+        if (trace != NULL && !trace->out->truncated) {
+            (void)pp_trace_append_event(trace, PP_TRACE_SOLUTION,
+                                        pp_trace_id(trace, goal_id),
+                                        pp_trace_id(trace, start_id),
+                                        distance[goal_id], 0);
+        }
+#endif
+    }
+done:
+    if (result->error_message != NULL) {
+        result->success = 0;
+        result->stop_reason = 4;
+        status = -1;
+    } else {
+        status = 0;
+    }
+    if (status != 0) {
+        free(result->path);
+        result->path = NULL;
+    }
+    free(edges); free(offsets); free(neighbors); free(costs);
+    free(distance); free(parents); free(closed); free(open.items);
+    return status;
+}
+
+int pp_prm_star_query(pp_prm_star_roadmap *roadmap,
+                      const pp_continuous_callbacks *callbacks,
+                      const double *start, const double *goal,
+                      double collision_step, uint64_t max_expansions,
+                      double time_budget_s, pp_continuous_result *result) {
+    return pp_prm_star_query_impl(roadmap, callbacks, start, goal, collision_step,
+                                  max_expansions, time_budget_s, result
+#ifdef PP_ENABLE_TRACE
+                                  , NULL
+#endif
+                                  );
+}
+
+#ifdef PP_ENABLE_TRACE
+int pp_prm_star_query_traced(pp_prm_star_roadmap *roadmap,
+                             const pp_continuous_callbacks *callbacks,
+                             const double *start, const double *goal,
+                             double collision_step, uint64_t max_expansions,
+                             double time_budget_s, pp_continuous_result *result,
+                             uint64_t max_bytes, pp_trace_result *trace) {
+    pp_trace_buffer buffer;
+    int status;
+    if (trace == NULL) return -1;
+    pp_trace_init(&buffer, trace, roadmap == NULL ? 0 : roadmap->dimension, max_bytes);
+    status = pp_prm_star_query_impl(roadmap, callbacks, start, goal, collision_step,
+                                    max_expansions, time_budget_s, result, &buffer);
+    pp_trace_finish(&buffer);
+    return status;
+}
+#endif
+
+void pp_prm_star_clear_query(pp_prm_star_roadmap *roadmap) {
+    (void)roadmap;
+}
+
+void pp_prm_star_reset(pp_prm_star_roadmap *roadmap) {
+    pp_prm_star_clear_storage(roadmap);
+}
+
+void pp_prm_star_free(pp_prm_star_roadmap *roadmap) {
+    if (roadmap == NULL) return;
+    pp_prm_star_clear_storage(roadmap);
+    free(roadmap);
+}
 
 static int pp_dynamic_return_path(pp_context *ctx, uint32_t goal_id,
                                   pp_dynamic_rrt_result *result) {

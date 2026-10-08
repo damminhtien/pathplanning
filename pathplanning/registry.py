@@ -24,6 +24,7 @@ from pathplanning.planners.sampling.abit_star import plan_abit_star
 from pathplanning.planners.sampling.bit_star import plan_bit_star
 from pathplanning.planners.sampling.fmt_star import plan_fmt_star
 from pathplanning.planners.sampling.informed_rrt_star import plan_informed_rrt_star
+from pathplanning.planners.sampling.prm_star import plan_prm_star
 from pathplanning.planners.sampling.rrt import plan_rrt
 from pathplanning.planners.sampling.rrt_connect import plan_rrt_connect
 from pathplanning.planners.sampling.rrt_star import plan_rrt_star
@@ -292,6 +293,18 @@ _PLANNER_SPECS: tuple[tuple[str, PlannerSpec], ...] = (
             "continuous",
             plan_fmt_star,
             (*_OPTIMAL_SAMPLING_CONSTRAINTS, "uses `sample_count` as its fixed sample set size."),
+        ),
+    ),
+    (
+        "prm_star",
+        PlannerSpec(
+            "continuous",
+            plan_prm_star,
+            (
+                "requires an exact point goal, Euclidean metric, additive path length, symmetric "
+                "local motion validity, and a positive roadmap gamma; custom Python callbacks are "
+                "opt-in through RoadmapParams.",
+            ),
         ),
     ),
     (

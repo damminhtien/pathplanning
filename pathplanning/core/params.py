@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterator, Mapping
 from dataclasses import dataclass
 import math
 
@@ -110,4 +111,53 @@ class RrtParams:
         if self.abit_truncation_parameter < 0:
             raise ValueError("abit_truncation_parameter must be >= 0")
 
+        return self
+
+
+@dataclass(slots=True)
+class RoadmapParams(Mapping[str, object]):
+    """Sampling, connection, and query limits for reusable PRM* roadmaps."""
+
+    sample_count: int = 512
+    gamma: float = 2.0
+    max_sample_tries: int = 1_000
+    max_expansions: int = 100_000
+    collision_step: float = 0.1
+    time_budget_s: float | None = None
+    allow_python_callbacks: bool = False
+
+    def __getitem__(self, key: str) -> object:
+        if key not in self.__dataclass_fields__:
+            raise KeyError(key)
+        return getattr(self, key)
+
+    def __iter__(self) -> Iterator[str]:
+        return iter(self.__dataclass_fields__)
+
+    def __len__(self) -> int:
+        return len(self.__dataclass_fields__)
+
+    def validate(self) -> RoadmapParams:
+        """Validate values before a native roadmap call."""
+        if type(self.allow_python_callbacks) is not bool:
+            raise TypeError("allow_python_callbacks must be a bool")
+        for name in ("sample_count", "max_sample_tries", "max_expansions"):
+            value = getattr(self, name)
+            if isinstance(value, bool) or type(value) is not int:
+                raise TypeError(f"{name} must be an integer")
+            if value <= 0:
+                raise ValueError(f"{name} must be > 0")
+        if not _is_valid_real(self.gamma):
+            raise TypeError("gamma must be a finite real number")
+        if self.gamma <= 0:
+            raise ValueError("gamma must be > 0")
+        if not _is_valid_real(self.collision_step):
+            raise TypeError("collision_step must be a finite real number")
+        if self.collision_step <= 0:
+            raise ValueError("collision_step must be > 0")
+        if self.time_budget_s is not None:
+            if not _is_valid_real(self.time_budget_s):
+                raise TypeError("time_budget_s must be a finite real number or None")
+            if self.time_budget_s <= 0:
+                raise ValueError("time_budget_s must be > 0 when provided")
         return self
