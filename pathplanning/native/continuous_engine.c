@@ -12,7 +12,7 @@
 
 #define PP_C_INF INFINITY
 #define PP_C_NONE UINT32_MAX
-#define PP_C_VERSION "1.3.0"
+#define PP_C_VERSION "1.4.0"
 #define PP_C_KD_LEVELS 32
 
 typedef struct {
@@ -73,7 +73,9 @@ typedef struct {
     uint32_t source;
     uint32_t target;
     double key;
+    double secondary_key;
     double source_cost;
+    double source_secondary;
     double tentative;
     uint64_t order;
 } pp_edge_entry;
@@ -1007,11 +1009,15 @@ static int pp_sample_informed(pp_context *ctx, double best_cost, double *out) {
 
 static int pp_edge_less(const pp_edge_entry *a, const pp_edge_entry *b) {
     if (a->key != b->key) return a->key < b->key;
+    if (a->secondary_key != b->secondary_key)
+        return a->secondary_key < b->secondary_key;
     return a->order < b->order;
 }
 
-static int pp_edge_push(pp_edge_heap *heap, uint32_t source, uint32_t target,
-                        double key, double source_cost, double tentative) {
+static int pp_edge_push_with_secondary(pp_edge_heap *heap, uint32_t source, uint32_t target,
+                                       double key, double secondary_key,
+                                       double source_cost, double source_secondary,
+                                       double tentative) {
     pp_edge_entry entry;
     size_t index;
     if (heap->count == heap->capacity) {
@@ -1023,7 +1029,9 @@ static int pp_edge_push(pp_edge_heap *heap, uint32_t source, uint32_t target,
         heap->items = grown; heap->capacity = capacity;
     }
     entry.source = source; entry.target = target; entry.key = key;
-    entry.source_cost = source_cost; entry.tentative = tentative; entry.order = heap->next_order++;
+    entry.secondary_key = secondary_key;
+    entry.source_cost = source_cost; entry.source_secondary = source_secondary;
+    entry.tentative = tentative; entry.order = heap->next_order++;
     index = heap->count++;
     while (index > 0) {
         size_t parent = (index - 1) / 2;
@@ -1031,6 +1039,12 @@ static int pp_edge_push(pp_edge_heap *heap, uint32_t source, uint32_t target,
         heap->items[index] = heap->items[parent]; index = parent;
     }
     heap->items[index] = entry; return 0;
+}
+
+static int pp_edge_push(pp_edge_heap *heap, uint32_t source, uint32_t target,
+                        double key, double source_cost, double tentative) {
+    return pp_edge_push_with_secondary(heap, source, target, key, 0.0,
+                                       source_cost, 0.0, tentative);
 }
 
 static int pp_edge_pop(pp_edge_heap *heap, pp_edge_entry *out) {
@@ -1051,6 +1065,7 @@ static int pp_edge_pop(pp_edge_heap *heap, pp_edge_entry *out) {
 typedef struct {
     uint32_t node;
     double key;
+    double secondary_key;
     double queued_cost;
     uint64_t order;
 } pp_vertex_entry;
@@ -1071,10 +1086,13 @@ typedef struct {
 
 static int pp_vertex_less(const pp_vertex_entry *a, const pp_vertex_entry *b) {
     if (a->key != b->key) return a->key < b->key;
+    if (a->secondary_key != b->secondary_key)
+        return a->secondary_key < b->secondary_key;
     return a->order < b->order;
 }
 
-static int pp_vertex_push(pp_vertex_heap *heap, uint32_t node, double key, double cost) {
+static int pp_vertex_push_with_secondary(pp_vertex_heap *heap, uint32_t node, double key,
+                                         double secondary_key, double cost) {
     pp_vertex_entry entry;
     size_t index;
     if (heap->count == heap->capacity) {
@@ -1085,7 +1103,8 @@ static int pp_vertex_push(pp_vertex_heap *heap, uint32_t node, double key, doubl
         if (grown == NULL) return -1;
         heap->items = grown; heap->capacity = capacity;
     }
-    entry.node = node; entry.key = key; entry.queued_cost = cost; entry.order = heap->next_order++;
+    entry.node = node; entry.key = key; entry.secondary_key = secondary_key;
+    entry.queued_cost = cost; entry.order = heap->next_order++;
     index = heap->count++;
     while (index > 0) {
         size_t parent = (index - 1) / 2;
@@ -1093,6 +1112,10 @@ static int pp_vertex_push(pp_vertex_heap *heap, uint32_t node, double key, doubl
         heap->items[index] = heap->items[parent]; index = parent;
     }
     heap->items[index] = entry; return 0;
+}
+
+static int pp_vertex_push(pp_vertex_heap *heap, uint32_t node, double key, double cost) {
+    return pp_vertex_push_with_secondary(heap, node, key, 0.0, cost);
 }
 
 static int pp_vertex_pop(pp_vertex_heap *heap, pp_vertex_entry *out) {
@@ -1697,12 +1720,34 @@ static int pp_ait_capture_path(uint32_t root, uint32_t goal, const uint32_t *par
     return 0;
 }
 
-static int pp_run_ait(pp_context *ctx, pp_continuous_result *result) {
+static int pp_ait_edge_cost(pp_context *ctx, uint32_t first, uint32_t second,
+                            double *edge_cost) {
+    double euclidean;
+    if (pp_distance(ctx, pp_point(&ctx->nodes, first),
+                    pp_point(&ctx->nodes, second), edge_cost) != 0) return -1;
+    euclidean = sqrt(pp_distance2(pp_point(&ctx->nodes, first),
+                                  pp_point(&ctx->nodes, second), ctx->dimension));
+    if (!isfinite(euclidean) ||
+        fabs(*edge_cost - euclidean) > 1e-9 * fmax(1.0, euclidean)) return -1;
+    return 0;
+}
+
+static double pp_ait_effort_cost(const pp_context *ctx, double edge_cost,
+                                 int edge_validity) {
+    double checks;
+    if (edge_validity > 0) return 0.0;
+    checks = ceil(edge_cost / ctx->options->collision_step);
+    return fmax(1.0, checks);
+}
+
+static int pp_run_asymmetric(pp_context *ctx, pp_continuous_result *result,
+                             int effort_informed) {
     pp_vertex_heap reverse_open = {0}, forward_vertices = {0};
     pp_edge_heap forward_edges = {0};
     pp_edge_cache edge_cache = {0};
     pp_ids near = {0};
-    double *sample = NULL, *heuristic = NULL, *g_cost = NULL, *expanded_cost = NULL;
+    double *sample = NULL, *heuristic = NULL, *effort_heuristic = NULL;
+    double *g_cost = NULL, *expanded_cost = NULL, *g_effort = NULL, *expanded_effort = NULL;
     uint32_t *parents = NULL, *best_ids = NULL;
     uint8_t *reverse_closed = NULL;
     size_t best_length = 0;
@@ -1749,12 +1794,23 @@ static int pp_run_ait(pp_context *ctx, pp_continuous_result *result) {
     }
     node_count = ctx->nodes.count;
     radius = pp_radius(ctx, node_count);
+    if ((size_t)node_count > SIZE_MAX / sizeof(double)) {
+        pp_set_error(result, "AIT*/EIT* sampled graph is too large");
+        goto done;
+    }
     heuristic = (double *)malloc((size_t)node_count * sizeof(*heuristic));
     g_cost = (double *)malloc((size_t)node_count * sizeof(*g_cost));
     expanded_cost = (double *)malloc((size_t)node_count * sizeof(*expanded_cost));
+    if (effort_informed) {
+        effort_heuristic = (double *)malloc((size_t)node_count * sizeof(*effort_heuristic));
+        g_effort = (double *)malloc((size_t)node_count * sizeof(*g_effort));
+        expanded_effort = (double *)malloc((size_t)node_count * sizeof(*expanded_effort));
+    }
     parents = (uint32_t *)malloc((size_t)node_count * sizeof(*parents));
     reverse_closed = (uint8_t *)malloc((size_t)node_count * sizeof(*reverse_closed));
     if (heuristic == NULL || g_cost == NULL || expanded_cost == NULL ||
+        (effort_informed && (effort_heuristic == NULL || g_effort == NULL ||
+                             expanded_effort == NULL)) ||
         parents == NULL || reverse_closed == NULL) {
         pp_set_error(result, "out of memory allocating AIT* search state");
         goto done;
@@ -1804,18 +1860,11 @@ static int pp_run_ait(pp_context *ctx, pp_continuous_result *result) {
             }
             for (i = 0; i < near.count; ++i) {
                 uint32_t target = near.items[i];
-                double edge_cost, euclidean, candidate;
+                double edge_cost, candidate;
                 if (target == current || pp_edge_cache_get(&edge_cache, current, target) < 0)
                     continue;
-                if (pp_distance(ctx, pp_point(&ctx->nodes, current),
-                                pp_point(&ctx->nodes, target), &edge_cost) != 0) {
-                    pp_set_error(result, "AIT* distance callback failed");
-                    goto done;
-                }
-                euclidean = sqrt(pp_distance2(pp_point(&ctx->nodes, current),
-                                              pp_point(&ctx->nodes, target), ctx->dimension));
-                if (fabs(edge_cost - euclidean) > 1e-9 * fmax(1.0, euclidean)) {
-                    pp_set_error(result, "AIT* requires Euclidean state-space distance");
+                if (pp_ait_edge_cost(ctx, current, target, &edge_cost) != 0) {
+                    pp_set_error(result, "AIT*/EIT* requires Euclidean state-space distance");
                     goto done;
                 }
                 candidate = heuristic[current] + edge_cost;
@@ -1833,6 +1882,73 @@ static int pp_run_ait(pp_context *ctx, pp_continuous_result *result) {
             break;
         }
 
+        if (effort_informed) {
+            reverse_open.count = 0;
+            reverse_open.next_order = 0;
+            for (node = 0; node < node_count; ++node) {
+                effort_heuristic[node] = PP_C_INF;
+                reverse_closed[node] = 0;
+            }
+            effort_heuristic[goal_id] = 0.0;
+            if (pp_vertex_push(&reverse_open, goal_id, 0.0, 0.0) != 0) {
+                pp_set_error(result, "out of memory creating EIT* effort queue");
+                goto done;
+            }
+            while (reverse_open.count > 0) {
+                pp_vertex_entry entry;
+                uint32_t current;
+                size_t i;
+                if (pp_timed_out(ctx)) {
+                    stop = 1;
+                    terminate = 1;
+                    break;
+                }
+                if (ctx->iterations >= ctx->options->max_iters) {
+                    stop = 2;
+                    terminate = 1;
+                    break;
+                }
+                (void)pp_vertex_pop(&reverse_open, &entry);
+                current = entry.node;
+                if (entry.queued_cost != effort_heuristic[current] || reverse_closed[current])
+                    continue;
+                reverse_closed[current] = 1;
+                ++ctx->iterations;
+#ifdef PP_ENABLE_TRACE
+                pp_trace_native_event(ctx->trace, PP_TRACE_EXPAND, current,
+                                      PP_C_NONE, effort_heuristic[current], 1);
+#endif
+                near.count = 0;
+                if (pp_radius_ids(ctx, &ctx->indices[0], pp_point(&ctx->nodes, current),
+                                  radius, &near) != 0) {
+                    pp_set_error(result, "EIT* effort neighbor query failed");
+                    goto done;
+                }
+                for (i = 0; i < near.count; ++i) {
+                    uint32_t target = near.items[i];
+                    int edge_validity;
+                    double edge_cost, candidate;
+                    if (target == current) continue;
+                    edge_validity = pp_edge_cache_get(&edge_cache, current, target);
+                    if (edge_validity < 0) continue;
+                    if (pp_ait_edge_cost(ctx, current, target, &edge_cost) != 0) {
+                        pp_set_error(result,
+                                     "AIT*/EIT* requires Euclidean state-space distance");
+                        goto done;
+                    }
+                    candidate = effort_heuristic[current] +
+                        pp_ait_effort_cost(ctx, edge_cost, edge_validity);
+                    if (candidate + 1e-12 >= effort_heuristic[target]) continue;
+                    effort_heuristic[target] = candidate;
+                    if (pp_vertex_push(&reverse_open, target, candidate, candidate) != 0) {
+                        pp_set_error(result, "out of memory updating EIT* effort queue");
+                        goto done;
+                    }
+                }
+            }
+            if (terminate) break;
+        }
+
         forward_vertices.count = 0;
         forward_vertices.next_order = 0;
         forward_edges.count = 0;
@@ -1840,10 +1956,17 @@ static int pp_run_ait(pp_context *ctx, pp_continuous_result *result) {
         for (node = 0; node < node_count; ++node) {
             g_cost[node] = PP_C_INF;
             expanded_cost[node] = PP_C_INF;
+            if (effort_informed) {
+                g_effort[node] = PP_C_INF;
+                expanded_effort[node] = PP_C_INF;
+            }
             parents[node] = PP_C_NONE;
         }
         g_cost[root] = 0.0;
-        if (pp_vertex_push(&forward_vertices, root, heuristic[root], 0.0) != 0) {
+        if (effort_informed) g_effort[root] = 0.0;
+        if (pp_vertex_push_with_secondary(&forward_vertices, root, heuristic[root],
+                                          effort_informed ? effort_heuristic[root] : 0.0,
+                                          0.0) != 0) {
             pp_set_error(result, "out of memory creating AIT* forward queue");
             goto done;
         }
@@ -1855,7 +1978,11 @@ static int pp_run_ait(pp_context *ctx, pp_continuous_result *result) {
             while (forward_vertices.count > 0) {
                 vertex_entry = forward_vertices.items[0];
                 if (vertex_entry.queued_cost != g_cost[vertex_entry.node] ||
-                    expanded_cost[vertex_entry.node] <= vertex_entry.queued_cost + 1e-12) {
+                    (effort_informed && vertex_entry.secondary_key !=
+                     g_effort[vertex_entry.node] + effort_heuristic[vertex_entry.node]) ||
+                    (expanded_cost[vertex_entry.node] <= vertex_entry.queued_cost + 1e-12 &&
+                     (!effort_informed || expanded_effort[vertex_entry.node] <=
+                      g_effort[vertex_entry.node] + 1e-12))) {
                     (void)pp_vertex_pop(&forward_vertices, &vertex_entry);
                     continue;
                 }
@@ -1864,6 +1991,8 @@ static int pp_run_ait(pp_context *ctx, pp_continuous_result *result) {
             while (forward_edges.count > 0) {
                 edge_entry = forward_edges.items[0];
                 if (edge_entry.source_cost != g_cost[edge_entry.source] ||
+                    (effort_informed && edge_entry.source_secondary !=
+                     g_effort[edge_entry.source]) ||
                     edge_entry.tentative + 1e-12 >= g_cost[edge_entry.target] ||
                     pp_edge_cache_get(&edge_cache, edge_entry.source, edge_entry.target) < 0) {
                     (void)pp_edge_pop(&forward_edges, &edge_entry);
@@ -1893,14 +2022,23 @@ static int pp_run_ait(pp_context *ctx, pp_continuous_result *result) {
                 terminate = 1;
                 break;
             }
-            if (vertex_key <= edge_key) {
+            if (vertex_key < edge_key ||
+                (vertex_key == edge_key &&
+                 (forward_edges.count == 0 ||
+                  forward_vertices.items[0].secondary_key <=
+                      forward_edges.items[0].secondary_key))) {
                 uint32_t current;
                 size_t i;
                 (void)pp_vertex_pop(&forward_vertices, &vertex_entry);
                 current = vertex_entry.node;
                 if (vertex_entry.queued_cost != g_cost[current] ||
-                    expanded_cost[current] <= g_cost[current] + 1e-12) continue;
+                    (effort_informed && vertex_entry.secondary_key !=
+                     g_effort[current] + effort_heuristic[current]) ||
+                    (expanded_cost[current] <= g_cost[current] + 1e-12 &&
+                     (!effort_informed || expanded_effort[current] <=
+                      g_effort[current] + 1e-12))) continue;
                 expanded_cost[current] = g_cost[current];
+                if (effort_informed) expanded_effort[current] = g_effort[current];
                 ++ctx->iterations;
 #ifdef PP_ENABLE_TRACE
                 pp_trace_native_event(ctx->trace, PP_TRACE_EXPAND, current,
@@ -1919,58 +2057,66 @@ static int pp_run_ait(pp_context *ctx, pp_continuous_result *result) {
                 }
                 for (i = 0; i < near.count; ++i) {
                     uint32_t target = near.items[i];
-                    double edge_cost, euclidean, tentative;
-                    if (target == current ||
-                        pp_edge_cache_get(&edge_cache, current, target) < 0 ||
-                        !isfinite(heuristic[target])) continue;
-                    if (pp_distance(ctx, pp_point(&ctx->nodes, current),
-                                    pp_point(&ctx->nodes, target), &edge_cost) != 0) {
-                        pp_set_error(result, "AIT* distance callback failed");
-                        goto done;
-                    }
-                    euclidean = sqrt(pp_distance2(pp_point(&ctx->nodes, current),
-                                                  pp_point(&ctx->nodes, target), ctx->dimension));
-                    if (fabs(edge_cost - euclidean) > 1e-9 * fmax(1.0, euclidean)) {
-                        pp_set_error(result, "AIT* requires Euclidean state-space distance");
+                    int edge_validity;
+                    double edge_cost, tentative, effort_tentative = 0.0;
+                    if (target == current || !isfinite(heuristic[target])) continue;
+                    edge_validity = pp_edge_cache_get(&edge_cache, current, target);
+                    if (edge_validity < 0) continue;
+                    if (pp_ait_edge_cost(ctx, current, target, &edge_cost) != 0) {
+                        pp_set_error(result,
+                                     "AIT*/EIT* requires Euclidean state-space distance");
                         goto done;
                     }
                     tentative = g_cost[current] + edge_cost;
+                    if (effort_informed) {
+                        if (!isfinite(effort_heuristic[target])) continue;
+                        effort_tentative = g_effort[current] +
+                            pp_ait_effort_cost(ctx, edge_cost, edge_validity);
+                    }
                     if (tentative + heuristic[target] + 1e-12 >= best_cost ||
                         tentative + 1e-12 >= g_cost[target]) continue;
-                    if (pp_edge_push(&forward_edges, current, target,
-                                     tentative + heuristic[target],
-                                     g_cost[current], tentative) != 0) {
+                    if (pp_edge_push_with_secondary(
+                            &forward_edges, current, target, tentative + heuristic[target],
+                            effort_informed ? effort_tentative + effort_heuristic[target] : 0.0,
+                            g_cost[current], effort_informed ? g_effort[current] : 0.0,
+                            tentative) != 0) {
                         pp_set_error(result, "out of memory updating AIT* edge queue");
                         goto done;
                     }
                 }
             } else {
                 uint32_t source, target;
-                int valid;
+                int valid, newly_validated;
                 (void)pp_edge_pop(&forward_edges, &edge_entry);
                 source = edge_entry.source;
                 target = edge_entry.target;
                 if (edge_entry.source_cost != g_cost[source] ||
+                    (effort_informed && edge_entry.source_secondary != g_effort[source]) ||
                     edge_entry.tentative + 1e-12 >= g_cost[target] ||
                     pp_edge_cache_get(&edge_cache, source, target) < 0) continue;
-                valid = pp_valid_motion(ctx, pp_point(&ctx->nodes, source),
-                                        pp_point(&ctx->nodes, target));
-                if (valid < 0) {
-                    pp_set_error(result, "AIT* motion-validity callback failed");
-                    goto done;
-                }
-                if (valid) {
-                    valid = pp_valid_motion(ctx, pp_point(&ctx->nodes, target),
-                                            pp_point(&ctx->nodes, source));
+                valid = pp_edge_cache_get(&edge_cache, source, target);
+                newly_validated = valid == 0;
+                if (valid == 0) {
+                    valid = pp_valid_motion(ctx, pp_point(&ctx->nodes, source),
+                                            pp_point(&ctx->nodes, target));
                     if (valid < 0) {
-                        pp_set_error(result, "AIT* reverse motion-validity callback failed");
+                        pp_set_error(result, "AIT*/EIT* motion-validity callback failed");
                         goto done;
                     }
-                }
-                if (pp_edge_cache_set(&edge_cache, source, target,
-                                      valid ? 1 : -1) != 0) {
-                    pp_set_error(result, "out of memory caching AIT* edge validity");
-                    goto done;
+                    if (valid) {
+                        valid = pp_valid_motion(ctx, pp_point(&ctx->nodes, target),
+                                                pp_point(&ctx->nodes, source));
+                        if (valid < 0) {
+                            pp_set_error(result,
+                                         "AIT*/EIT* reverse motion-validity callback failed");
+                            goto done;
+                        }
+                    }
+                    if (pp_edge_cache_set(&edge_cache, source, target,
+                                          valid ? 1 : -1) != 0) {
+                        pp_set_error(result, "out of memory caching AIT*/EIT* edge validity");
+                        goto done;
+                    }
                 }
                 if (!valid) {
                     repair = 1;
@@ -1978,6 +2124,11 @@ static int pp_run_ait(pp_context *ctx, pp_continuous_result *result) {
                 }
                 if (edge_entry.tentative + 1e-12 < g_cost[target]) {
                     g_cost[target] = edge_entry.tentative;
+                    if (effort_informed) {
+                        g_effort[target] = edge_entry.source_secondary +
+                            pp_ait_effort_cost(ctx, edge_entry.tentative - edge_entry.source_cost,
+                                               newly_validated ? 0 : 1);
+                    }
                     parents[target] = source;
                     if (target == goal_id &&
                         pp_ait_capture_path(root, goal_id, parents, node_count, g_cost,
@@ -1985,9 +2136,11 @@ static int pp_run_ait(pp_context *ctx, pp_continuous_result *result) {
                         pp_set_error(result, "could not retain AIT* incumbent path");
                         goto done;
                     }
-                    if (pp_vertex_push(&forward_vertices, target,
-                                       g_cost[target] + heuristic[target],
-                                       g_cost[target]) != 0) {
+                    if (pp_vertex_push_with_secondary(
+                            &forward_vertices, target, g_cost[target] + heuristic[target],
+                            effort_informed
+                                ? g_effort[target] + effort_heuristic[target] : 0.0,
+                            g_cost[target]) != 0) {
                         pp_set_error(result, "out of memory updating AIT* vertex queue");
                         goto done;
                     }
@@ -2020,8 +2173,11 @@ static int pp_run_ait(pp_context *ctx, pp_continuous_result *result) {
 done:
     free(sample);
     free(heuristic);
+    free(effort_heuristic);
     free(g_cost);
     free(expanded_cost);
+    free(g_effort);
+    free(expanded_effort);
     free(parents);
     free(best_ids);
     free(reverse_closed);
@@ -2185,7 +2341,7 @@ static int pp_continuous_plan_impl(const pp_continuous_callbacks *callbacks,
     if (callbacks->native_goal && (!has_goal_point || !isfinite(callbacks->goal_radius) || callbacks->goal_radius < 0.0)) {
         pp_set_error(result, "native goal requires a point goal and a finite non-negative radius"); return -1;
     }
-    if (options->algorithm < PP_CONTINUOUS_RRT || options->algorithm > PP_CONTINUOUS_AIT_STAR ||
+    if (options->algorithm < PP_CONTINUOUS_RRT || options->algorithm > PP_CONTINUOUS_EIT_STAR ||
         options->max_iters == 0 || options->max_sample_tries == 0 ||
         !(options->step_size > 0.0) || !(options->collision_step > 0.0) ||
         !(options->goal_sample_rate >= 0.0 && options->goal_sample_rate <= 1.0) ||
@@ -2197,9 +2353,10 @@ static int pp_continuous_plan_impl(const pp_continuous_callbacks *callbacks,
         (!has_goal_point || options->sample_count == 0 || options->batch_size == 0)) {
         pp_set_error(result, "informed sampling planners require an exact goal and positive samples"); return -1;
     }
-    if (options->algorithm == PP_CONTINUOUS_AIT_STAR &&
+    if ((options->algorithm == PP_CONTINUOUS_AIT_STAR ||
+         options->algorithm == PP_CONTINUOUS_EIT_STAR) &&
         (!has_goal_point || options->sample_count == 0)) {
-        pp_set_error(result, "AIT* requires an exact goal and positive samples"); return -1;
+        pp_set_error(result, "AIT*/EIT* requires an exact goal and positive samples"); return -1;
     }
     if (options->algorithm == PP_CONTINUOUS_RRT_CONNECT && !has_goal_point) {
         pp_set_error(result, "RRT-Connect requires an exact goal state"); return -1;
@@ -2244,7 +2401,8 @@ static int pp_continuous_plan_impl(const pp_continuous_callbacks *callbacks,
         case PP_CONTINUOUS_FMT_STAR: status = pp_run_fmt(&ctx, result); break;
         case PP_CONTINUOUS_BIT_STAR: status = pp_run_bit(&ctx, 0, result); break;
         case PP_CONTINUOUS_ABIT_STAR: status = pp_run_bit(&ctx, 1, result); break;
-        case PP_CONTINUOUS_AIT_STAR: status = pp_run_ait(&ctx, result); break;
+        case PP_CONTINUOUS_AIT_STAR: status = pp_run_asymmetric(&ctx, result, 0); break;
+        case PP_CONTINUOUS_EIT_STAR: status = pp_run_asymmetric(&ctx, result, 1); break;
         case PP_CONTINUOUS_RRT_CONNECT: status = pp_run_connect(&ctx, result); break;
         default: pp_set_error(result, "unknown continuous algorithm"); status = -1; break;
     }

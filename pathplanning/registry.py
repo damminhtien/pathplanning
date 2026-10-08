@@ -23,6 +23,7 @@ from pathplanning.planners.multi_agent.lacam_star import plan_lacam_star
 from pathplanning.planners.sampling.abit_star import plan_abit_star
 from pathplanning.planners.sampling.ait_star import plan_ait_star
 from pathplanning.planners.sampling.bit_star import plan_bit_star
+from pathplanning.planners.sampling.eit_star import plan_eit_star
 from pathplanning.planners.sampling.fmt_star import plan_fmt_star
 from pathplanning.planners.sampling.informed_rrt_star import plan_informed_rrt_star
 from pathplanning.planners.sampling.prm_star import plan_lazy_prm, plan_prm_star
@@ -328,6 +329,17 @@ _PLANNER_SPECS: tuple[tuple[str, PlannerSpec], ...] = (
             (
                 "requires an exact point goal, Euclidean metric, additive path length, and a "
                 "positive sample count; collision discovery repairs its reverse graph heuristic.",
+            ),
+        ),
+    ),
+    (
+        "eit_star",
+        PlannerSpec(
+            "continuous",
+            plan_eit_star,
+            (
+                "requires an exact point goal, Euclidean metric, and additive path length; "
+                "collision-check effort from collision_step breaks ties between cost estimates.",
             ),
         ),
     ),

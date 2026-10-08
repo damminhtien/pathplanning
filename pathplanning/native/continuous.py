@@ -145,6 +145,7 @@ _ALGORITHMS = {
     "abit_star": 6,
     "rrt_connect": 7,
     "ait_star": 8,
+    "eit_star": 9,
 }
 _STOP_REASONS = {
     0: StopReason.SUCCESS,
@@ -718,6 +719,7 @@ def run_native_continuous(
         "bit_star",
         "abit_star",
         "ait_star",
+        "eit_star",
         "rrt_connect",
     }:
         from pathplanning.planners.sampling._internal.continuous import exact_goal_state
@@ -861,7 +863,14 @@ def run_native_continuous(
     euclidean_index = (
         owned_space is not None or getattr(space, "distance_metric", None) == "euclidean"
     )
-    if planner in {"informed_rrt_star", "fmt_star", "bit_star", "abit_star", "ait_star"}:
+    if planner in {
+        "informed_rrt_star",
+        "fmt_star",
+        "bit_star",
+        "abit_star",
+        "ait_star",
+        "eit_star",
+    }:
         from pathplanning.planners.sampling._internal.continuous import euclidean_distance
 
         euclidean_distance(space, start_state, goal_state)
