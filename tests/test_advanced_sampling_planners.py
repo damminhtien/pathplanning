@@ -62,6 +62,7 @@ def _problem(sample_count: int = 64, batch_size: int = 16) -> ContinuousProblem[
         ("eit_star", 64, 16),
         ("fcit_star", 64, 16),
         ("rit_star", 64, 16),
+        ("jit_star", 64, 16),
         ("rrt_connect", 64, 16),
     ],
 )
@@ -70,8 +71,12 @@ def test_registered_advanced_sampling_planners_find_valid_paths(
     sample_count: int,
     batch_size: int,
 ) -> None:
+    problem = _problem(sample_count, batch_size)
+    if planner == "jit_star":
+        assert problem.params is not None
+        problem.params = {**problem.params, "manipulability_weight": 0.0}
     result = plan_continuous(
-        _problem(sample_count, batch_size),
+        problem,
         planner=planner,
         seed=13,
     )
@@ -93,6 +98,7 @@ def test_registered_advanced_sampling_planners_find_valid_paths(
         "eit_star",
         "fcit_star",
         "rit_star",
+        "jit_star",
         "informed_rrt_star",
     ],
 )
@@ -114,6 +120,7 @@ def test_optimal_sampling_planners_reject_custom_objectives(planner: str) -> Non
         "eit_star",
         "fcit_star",
         "rit_star",
+        "jit_star",
         "informed_rrt_star",
     ],
 )

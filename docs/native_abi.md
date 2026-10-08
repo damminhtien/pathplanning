@@ -9,10 +9,10 @@ its C ABI version.
 | Library | ABI constant | Probe function | Supported ABI |
 | --- | --- | --- | --- |
 | C++ graph search | `PP_SEARCH_ABI_VERSION` | `pp_search_abi_version()` | 15 |
-| C sampling planners | `PP_CONTINUOUS_ABI_VERSION` | `pp_continuous_abi_version()` | 8 |
+| C sampling planners | `PP_CONTINUOUS_ABI_VERSION` | `pp_continuous_abi_version()` | 9 |
 | C++ diagnostic search | `PP_SEARCH_TRACE_ABI_VERSION` | `pp_search_trace_abi_version()` | 10 |
 | C++ diagnostic search metrics | `PP_SEARCH_METRICS_ABI_VERSION` | `pp_search_metrics_abi_version()` | 2 |
-| C diagnostic sampling | `PP_CONTINUOUS_TRACE_ABI_VERSION` | `pp_continuous_trace_abi_version()` | 8 |
+| C diagnostic sampling | `PP_CONTINUOUS_TRACE_ABI_VERSION` | `pp_continuous_trace_abi_version()` | 9 |
 
 The constants are declared in `pathplanning/native/abi_version.h`. Increment
 an engine's ABI version when an exported function, struct layout, enum value,
@@ -95,6 +95,9 @@ quadrature and CARM options, and metric evaluation/update counters in
 definiteness in the native engine, integrates edge costs with Gauss-Legendre
 quadrature, and uses the existing continuous trace stream. Trace ABI 8 covers
 the updated callback, options, and result struct layouts.
+Continuous ABI 9 adds JIT* manipulability callbacks, ancestor/sample options,
+and Jacobian-evaluation and refinement counters. Trace ABI 9 covers those
+continuous callback, option, and result layout changes.
 
 The production `_search_engine` is built without `PP_ENABLE_METRICS`; metric
 macros compile to no-ops and search containers use the normal
@@ -155,6 +158,7 @@ Continuous callbacks use these rules:
 | `state_valid`, `motion_valid`, `is_goal` | `0` means false, `1` means true, and a negative value or a value greater than `1` means callback failure. |
 | `distance` | Must return a finite, non-negative value. A negative or non-finite value fails the plan. |
 | `metric_tensor` | Must write a finite, symmetric, positive-definite row-major tensor; a callback failure or invalid tensor fails RIT*. |
+| `manipulability` | Must write a finite, non-negative minimum Jacobian singular value; callback failure fails JIT*. |
 | `goal_distance` | Must return a non-negative value. Positive infinity means that no usable estimate is available; NaN or a negative value fails the plan. |
 | `path_objective` | Must return a finite value. A non-finite value fails the plan. |
 

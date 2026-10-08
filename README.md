@@ -317,6 +317,11 @@ tensor, with anisotropic neighborhoods, cascading edge-cost checks, and optional
 CARM updates from collision feedback. Custom metric spaces declare global
 eigenvalue bounds and opt into Python callbacks; see the [RIT* contract](docs/algorithms/rit_star.md).
 
+`jit_star` adds bounded ancestor checks and collision-guided sampling to a
+native RRT* tree. Robot spaces provide `jacobian(state)` to enable the
+manipulability-aware objective and explicitly opt into Python callbacks; see
+the [JIT* contract](docs/algorithms/jit_star.md).
+
 `EirmStarRoadmap` keeps a sampled graph and edge-validation results for multiple
 queries in one unchanged world. Its per-query search uses remaining collision
 effort to break equal-cost path ties; see the [EIRM* contract](docs/algorithms/eirm_star.md).

@@ -235,3 +235,90 @@ class RitParams(Mapping[str, object]):
             if self.time_budget_s <= 0:
                 raise ValueError("time_budget_s must be > 0 when provided")
         return self
+
+
+@dataclass(slots=True)
+class JitParams(Mapping[str, object]):
+    """Sampling, connectivity, and motion-performance parameters for JIT*."""
+
+    max_iters: int = 10_000
+    sample_count: int = 512
+    batch_size: int = 64
+    max_sample_tries: int = 1_000
+    step_size: float = 0.5
+    goal_sample_rate: float = 0.05
+    collision_step: float = 0.1
+    goal_reach_tolerance: float = 1e-9
+    time_budget_s: float | None = None
+    gamma: float = 2.0
+    max_connection_radius: float = 3.0
+    jit_ancestor_depth: int = 8
+    jit_sample_count: int = 4
+    jit_sample_radius: float = 0.25
+    jit_bias_probability: float = 0.35
+    manipulability_weight: float = 1.0
+    manipulability_eta: float = 0.1
+    manipulability_epsilon: float = 1e-6
+    allow_python_callbacks: bool = False
+
+    def __getitem__(self, key: str) -> object:
+        if key not in self.__dataclass_fields__:
+            raise KeyError(key)
+        return getattr(self, key)
+
+    def __iter__(self) -> Iterator[str]:
+        return iter(self.__dataclass_fields__)
+
+    def __len__(self) -> int:
+        return len(self.__dataclass_fields__)
+
+    def validate(self) -> JitParams:
+        """Validate budgets and motion-performance weights."""
+        if type(self.allow_python_callbacks) is not bool:
+            raise TypeError("allow_python_callbacks must be a bool")
+        for name in (
+            "max_iters",
+            "sample_count",
+            "batch_size",
+            "max_sample_tries",
+            "jit_ancestor_depth",
+            "jit_sample_count",
+        ):
+            value = getattr(self, name)
+            if isinstance(value, bool) or type(value) is not int:
+                raise TypeError(f"{name} must be an integer")
+            if value <= 0:
+                raise ValueError(f"{name} must be > 0")
+        for name in (
+            "step_size",
+            "collision_step",
+            "goal_reach_tolerance",
+            "gamma",
+            "max_connection_radius",
+            "jit_sample_radius",
+            "manipulability_eta",
+            "manipulability_epsilon",
+        ):
+            value = getattr(self, name)
+            if not _is_valid_real(value):
+                raise TypeError(f"{name} must be a finite real number")
+            if value <= 0:
+                raise ValueError(f"{name} must be > 0")
+        if not _is_valid_real(self.goal_sample_rate):
+            raise TypeError("goal_sample_rate must be a finite real number")
+        if not 0.0 <= self.goal_sample_rate <= 1.0:
+            raise ValueError("goal_sample_rate must be in [0, 1]")
+        if not _is_valid_real(self.jit_bias_probability):
+            raise TypeError("jit_bias_probability must be a finite real number")
+        if not 0.0 <= self.jit_bias_probability < 1.0:
+            raise ValueError("jit_bias_probability must be in [0, 1)")
+        if not _is_valid_real(self.manipulability_weight):
+            raise TypeError("manipulability_weight must be a finite real number")
+        if self.manipulability_weight < 0:
+            raise ValueError("manipulability_weight must be >= 0")
+        if self.time_budget_s is not None:
+            if not _is_valid_real(self.time_budget_s):
+                raise TypeError("time_budget_s must be a finite real number or None")
+            if self.time_budget_s <= 0:
+                raise ValueError("time_budget_s must be > 0 when provided")
+        return self

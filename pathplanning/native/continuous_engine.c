@@ -137,6 +137,16 @@ typedef struct {
 } pp_rit_state;
 
 typedef struct {
+    double *failed_edges;
+    size_t failure_count;
+    size_t failure_capacity;
+    size_t failure_next;
+    uint64_t biased_samples;
+    uint64_t ancestor_candidates;
+    uint64_t manipulability_evaluations;
+} pp_jit_state;
+
+typedef struct {
     const pp_continuous_callbacks *callbacks;
     const pp_continuous_options *options;
     size_t dimension;
@@ -152,8 +162,12 @@ typedef struct {
     uint64_t rewires;
     uint64_t metric_evaluations;
     uint64_t metric_updates;
+    uint64_t jit_biased_samples;
+    uint64_t jit_ancestor_candidates;
+    uint64_t manipulability_evaluations;
     double started;
     pp_rit_state *rit;
+    pp_jit_state *jit;
 #ifdef PP_ENABLE_TRACE
     pp_trace_buffer *trace;
 #endif
@@ -941,6 +955,9 @@ static int pp_path_to_result(pp_context *ctx, const uint32_t *ids, size_t length
     result->motion_checks = ctx->motion_checks; result->rewires = ctx->rewires;
     result->metric_evaluations = ctx->metric_evaluations;
     result->metric_updates = ctx->metric_updates;
+    result->jit_biased_samples = ctx->jit_biased_samples;
+    result->jit_ancestor_candidates = ctx->jit_ancestor_candidates;
+    result->manipulability_evaluations = ctx->manipulability_evaluations;
     result->path_cost = path_cost; result->elapsed_s = pp_now() - ctx->started;
     result->path = path; result->path_length = length; result->dimension = ctx->dimension;
 #ifdef PP_ENABLE_TRACE
@@ -1384,6 +1401,122 @@ static int pp_record_path(pp_context *ctx, uint32_t goal_id,
     return status;
 }
 
+static int pp_jit_manipulability_penalty(pp_context *ctx, const double *state,
+                                         double *out) {
+    double sigma_min, denominator, penalty;
+    if (ctx->options->manipulability_weight == 0.0) {
+        *out = 0.0;
+        return 0;
+    }
+    if (ctx->callbacks->manipulability == NULL ||
+        ctx->callbacks->manipulability(ctx->callbacks->user_data, state,
+                                       ctx->dimension, &sigma_min) != 0 ||
+        !isfinite(sigma_min) || sigma_min < 0.0) return -1;
+    ++ctx->manipulability_evaluations;
+    if (ctx->jit != NULL) ++ctx->jit->manipulability_evaluations;
+    denominator = sigma_min + ctx->options->manipulability_epsilon;
+    penalty = tanh(ctx->options->manipulability_eta / denominator) / denominator;
+    if (!isfinite(penalty) || penalty < 0.0) return -1;
+    *out = penalty;
+    return 0;
+}
+
+static int pp_jit_edge_cost(pp_context *ctx, const double *start,
+                            const double *end, double *out) {
+    size_t axis;
+    double distance = sqrt(pp_distance2(start, end, ctx->dimension));
+    double *midpoint = NULL;
+    double first_penalty, middle_penalty, last_penalty, average;
+    if (!isfinite(distance)) return -1;
+    if (distance == 0.0 || ctx->options->manipulability_weight == 0.0) {
+        *out = distance;
+        return 0;
+    }
+    midpoint = (double *)malloc(ctx->dimension * sizeof(*midpoint));
+    if (midpoint == NULL) return -1;
+    for (axis = 0; axis < ctx->dimension; ++axis)
+        midpoint[axis] = 0.5 * (start[axis] + end[axis]);
+    if (pp_jit_manipulability_penalty(ctx, start, &first_penalty) != 0 ||
+        pp_jit_manipulability_penalty(ctx, midpoint, &middle_penalty) != 0 ||
+        pp_jit_manipulability_penalty(ctx, end, &last_penalty) != 0) {
+        free(midpoint);
+        return -1;
+    }
+    average = (first_penalty + 4.0 * middle_penalty + last_penalty) / 6.0;
+    *out = distance * (1.0 + ctx->options->manipulability_weight * average);
+    free(midpoint);
+    return isfinite(*out) && *out >= distance ? 0 : -1;
+}
+
+static int pp_jit_record_failed_edge(pp_context *ctx, const double *start,
+                                     const double *end) {
+    pp_jit_state *jit = ctx->jit;
+    const size_t max_edges = 256;
+    size_t index;
+    if (jit == NULL || ctx->dimension > SIZE_MAX / 2 / sizeof(double)) return -1;
+    if (jit->failure_capacity < max_edges) {
+        size_t capacity = jit->failure_capacity == 0 ? 32 : jit->failure_capacity * 2;
+        double *grown;
+        if (capacity > max_edges) capacity = max_edges;
+        if (capacity > SIZE_MAX / 2 / ctx->dimension / sizeof(*grown)) return -1;
+        grown = (double *)realloc(
+            jit->failed_edges, capacity * 2 * ctx->dimension * sizeof(*grown)
+        );
+        if (grown == NULL) return -1;
+        jit->failed_edges = grown;
+        jit->failure_capacity = capacity;
+    }
+    if (jit->failure_count < jit->failure_capacity) {
+        index = jit->failure_count++;
+    } else {
+        index = jit->failure_next;
+        jit->failure_next = (jit->failure_next + 1) % jit->failure_capacity;
+    }
+    memcpy(jit->failed_edges + index * 2 * ctx->dimension,
+           start, ctx->dimension * sizeof(double));
+    memcpy(jit->failed_edges + (index * 2 + 1) * ctx->dimension,
+           end, ctx->dimension * sizeof(double));
+    return 0;
+}
+
+static int pp_jit_push_sample(pp_context *ctx, double *out, double best_cost) {
+    pp_jit_state *jit = ctx->jit;
+    const pp_continuous_options *options = ctx->options;
+    if (jit != NULL && jit->failure_count > 0 &&
+        pp_uniform(&ctx->rng) < options->jit_bias_probability) {
+        size_t failure = (size_t)(pp_uniform(&ctx->rng) * (double)jit->failure_count);
+        size_t attempt, axis;
+        if (failure >= jit->failure_count) failure = jit->failure_count - 1;
+        for (attempt = 0; attempt < options->jit_sample_count; ++attempt) {
+            const double *start = jit->failed_edges + failure * 2 * ctx->dimension;
+            const double *end = jit->failed_edges + (failure * 2 + 1) * ctx->dimension;
+            double fraction = pp_uniform(&ctx->rng);
+            for (axis = 0; axis < ctx->dimension; ++axis) {
+                double offset = (2.0 * pp_uniform(&ctx->rng) - 1.0) *
+                    options->jit_sample_radius;
+                out[axis] = start[axis] + fraction * (end[axis] - start[axis]) + offset;
+            }
+            if (isfinite(best_cost) &&
+                sqrt(pp_distance2(ctx->nodes.points, out, ctx->dimension)) +
+                    sqrt(pp_distance2(out, ctx->goal, ctx->dimension)) > best_cost)
+                continue;
+            {
+                int valid = pp_valid_state(ctx, out);
+                if (valid < 0) return -1;
+                if (!valid) continue;
+            }
+            ++ctx->samples;
+            ++ctx->jit_biased_samples;
+            ++jit->biased_samples;
+#ifdef PP_ENABLE_TRACE
+            pp_trace_sample(ctx, out);
+#endif
+            return 0;
+        }
+    }
+    return pp_push_sample(ctx, out, best_cost, 1);
+}
+
 static int pp_run_rrt(pp_context *ctx, int optimize, int informed,
                       pp_continuous_result *result) {
     double *sample = NULL, *candidate = NULL;
@@ -1392,6 +1525,7 @@ static int pp_run_rrt(pp_context *ctx, int optimize, int informed,
     double best_cost = PP_C_INF;
     uint64_t iteration;
     int stop_reason = 3, status = -1, root_goal;
+    int jit_mode = ctx->options->algorithm == PP_CONTINUOUS_JIT_STAR;
     sample = (double *)malloc(ctx->dimension * sizeof(double));
     candidate = (double *)malloc(ctx->dimension * sizeof(double));
     if (sample == NULL || candidate == NULL) { pp_set_error(result, "out of memory allocating sample state"); goto done; }
@@ -1413,8 +1547,20 @@ static int pp_run_rrt(pp_context *ctx, int optimize, int informed,
         int to_goal = ctx->has_goal_point && pp_uniform(&ctx->rng) < ctx->options->goal_sample_rate;
         int valid, found_goal;
         if (pp_timed_out(ctx)) { stop_reason = 1; break; }
+        if (jit_mode && ctx->samples >= ctx->options->sample_count) break;
         if (to_goal) memcpy(sample, ctx->goal, ctx->dimension * sizeof(double));
-        else if (pp_push_sample(ctx, sample, best_cost, informed) != 0) { pp_set_error(result, "failed to sample a valid state"); goto done; }
+        else if ((jit_mode ? pp_jit_push_sample(ctx, sample, best_cost)
+                           : pp_push_sample(ctx, sample, best_cost, informed)) != 0) {
+            pp_set_error(result, "failed to sample a valid state"); goto done;
+        }
+        if (jit_mode && to_goal) ++ctx->samples;
+        if (jit_mode && ctx->samples > 0 &&
+            (ctx->samples - 1) % ctx->options->batch_size == 0) {
+            ++ctx->batches;
+#ifdef PP_ENABLE_TRACE
+            pp_trace_phase(ctx, (double)ctx->batches);
+#endif
+        }
 #ifdef PP_ENABLE_TRACE
         if (to_goal) pp_trace_sample(ctx, sample);
 #endif
@@ -1453,7 +1599,20 @@ static int pp_run_rrt(pp_context *ctx, int optimize, int informed,
             size_t j;
             valid = pp_valid_motion(ctx, pp_point(&ctx->nodes, nearest), candidate);
             if (valid < 0) { pp_set_error(result, "motion-validity callback failed"); goto done; }
-            if (!valid) { parent_id = PP_C_NONE; best_parent_cost = PP_C_INF; }
+            if (!valid) {
+                if (jit_mode && pp_jit_record_failed_edge(
+                        ctx, pp_point(&ctx->nodes, nearest), candidate) != 0) {
+                    pp_set_error(result, "could not cache JIT* collision feedback"); goto done;
+                }
+                parent_id = PP_C_NONE; best_parent_cost = PP_C_INF;
+            }
+            else if (jit_mode) {
+                if (pp_jit_edge_cost(ctx, pp_point(&ctx->nodes, nearest), candidate,
+                                     &edge_length) != 0) {
+                    pp_set_error(result, "JIT* manipulability callback failed"); goto done;
+                }
+                best_parent_cost = ctx->nodes.cost[nearest] + edge_length;
+            }
             else if (ctx->callbacks->path_objective != NULL &&
                      pp_objective_for_parent(ctx, nearest, candidate, &best_parent_cost) != 0) {
                 pp_set_error(result, "objective callback failed while choosing a parent"); goto done;
@@ -1461,10 +1620,41 @@ static int pp_run_rrt(pp_context *ctx, int optimize, int informed,
             neighbors.count = 0;
             if (pp_radius_ids(ctx, ctx->options->use_euclidean_index ? &ctx->indices[0] : NULL,
                               candidate, radius, &neighbors) != 0) { pp_set_error(result, "near-node query failed"); goto done; }
+            if (jit_mode) {
+                uint32_t ancestor = ctx->nodes.parent[nearest];
+                uint64_t depth = 0;
+                while (ancestor != PP_C_NONE && depth < ctx->options->jit_ancestor_depth) {
+                    size_t existing;
+                    int already_listed = 0;
+                    for (existing = 0; existing < neighbors.count; ++existing) {
+                        if (neighbors.items[existing] == ancestor) {
+                            already_listed = 1;
+                            break;
+                        }
+                    }
+                    if (!already_listed) {
+                        if (pp_ids_append(&neighbors, ancestor) != 0) {
+                            pp_set_error(result, "out of memory growing JIT* ancestor candidates");
+                            goto done;
+                        }
+                        ++ctx->jit_ancestor_candidates;
+                        if (ctx->jit != NULL) ++ctx->jit->ancestor_candidates;
+                    }
+                    ancestor = ctx->nodes.parent[ancestor];
+                    ++depth;
+                }
+            }
             for (j = 0; j < neighbors.count; ++j) {
                 uint32_t near_id = neighbors.items[j];
                 double distance, proposed;
-                if (pp_distance(ctx, pp_point(&ctx->nodes, near_id), candidate, &distance) != 0) { pp_set_error(result, "distance callback failed"); goto done; }
+                if (jit_mode) {
+                    if (pp_jit_edge_cost(ctx, pp_point(&ctx->nodes, near_id), candidate,
+                                         &distance) != 0) {
+                        pp_set_error(result, "JIT* manipulability callback failed"); goto done;
+                    }
+                }
+                else if (pp_distance(ctx, pp_point(&ctx->nodes, near_id), candidate,
+                                     &distance) != 0) { pp_set_error(result, "distance callback failed"); goto done; }
                 if (ctx->callbacks->path_objective != NULL) {
                     if (pp_objective_for_parent(ctx, near_id, candidate, &proposed) != 0) { pp_set_error(result, "objective callback failed while choosing a parent"); goto done; }
                 } else proposed = ctx->nodes.cost[near_id] + distance;
@@ -1472,6 +1662,10 @@ static int pp_run_rrt(pp_context *ctx, int optimize, int informed,
                 valid = pp_valid_motion(ctx, pp_point(&ctx->nodes, near_id), candidate);
                 if (valid < 0) { pp_set_error(result, "motion-validity callback failed"); goto done; }
                 if (valid) { parent_id = near_id; best_parent_cost = proposed; edge_length = distance; }
+                else if (jit_mode && pp_jit_record_failed_edge(
+                             ctx, pp_point(&ctx->nodes, near_id), candidate) != 0) {
+                    pp_set_error(result, "could not cache JIT* collision feedback"); goto done;
+                }
             }
             if (parent_id == PP_C_NONE) { ++ctx->iterations; continue; }
         } else {
@@ -1489,14 +1683,27 @@ static int pp_run_rrt(pp_context *ctx, int optimize, int informed,
                 uint32_t near_id = neighbors.items[j];
                 double distance, proposed;
                 if (near_id == new_id || near_id == parent_id || pp_is_ancestor(&ctx->nodes, near_id, new_id)) continue;
-                if (pp_distance(ctx, candidate, pp_point(&ctx->nodes, near_id), &distance) != 0) { pp_set_error(result, "distance callback failed"); goto done; }
+                if (jit_mode) {
+                    if (pp_jit_edge_cost(ctx, candidate, pp_point(&ctx->nodes, near_id),
+                                         &distance) != 0) {
+                        pp_set_error(result, "JIT* manipulability callback failed"); goto done;
+                    }
+                }
+                else if (pp_distance(ctx, candidate, pp_point(&ctx->nodes, near_id),
+                                     &distance) != 0) { pp_set_error(result, "distance callback failed"); goto done; }
                 if (ctx->callbacks->path_objective != NULL) {
                     if (pp_objective_for_parent(ctx, new_id, pp_point(&ctx->nodes, near_id), &proposed) != 0) { pp_set_error(result, "objective callback failed while rewiring"); goto done; }
                 } else proposed = ctx->nodes.cost[new_id] + distance;
                 if (proposed + 1e-12 >= ctx->nodes.cost[near_id]) continue;
                 valid = pp_valid_motion(ctx, candidate, pp_point(&ctx->nodes, near_id));
                 if (valid < 0) { pp_set_error(result, "motion-validity callback failed"); goto done; }
-                if (!valid) continue;
+                if (!valid) {
+                    if (jit_mode && pp_jit_record_failed_edge(
+                            ctx, candidate, pp_point(&ctx->nodes, near_id)) != 0) {
+                        pp_set_error(result, "could not cache JIT* collision feedback"); goto done;
+                    }
+                    continue;
+                }
                 pp_node_attach(&ctx->nodes, near_id, new_id, distance, proposed);
                 if (pp_update_descendant_costs(ctx, near_id) != 0) { pp_set_error(result, "failed to update rewired subtree objective"); goto done; }
                 ++ctx->rewires;
@@ -1527,6 +1734,9 @@ static int pp_run_rrt(pp_context *ctx, int optimize, int informed,
     result->nodes = ctx->nodes.count; result->sample_count = ctx->samples;
     result->batches = ctx->batches; result->motion_checks = ctx->motion_checks;
     result->rewires = ctx->rewires; result->elapsed_s = pp_now() - ctx->started;
+    result->jit_biased_samples = ctx->jit_biased_samples;
+    result->jit_ancestor_candidates = ctx->jit_ancestor_candidates;
+    result->manipulability_evaluations = ctx->manipulability_evaluations;
     status = 0;
 done:
     free(sample); free(candidate); free(neighbors.items);
@@ -3655,6 +3865,7 @@ static int pp_continuous_plan_impl(const pp_continuous_callbacks *callbacks,
                                    ) {
     pp_context ctx;
     pp_rit_state rit = {0};
+    pp_jit_state jit = {0};
     int valid, status = -1;
     if (result == NULL) return -1;
     memset(result, 0, sizeof(*result)); result->stop_reason = 4;
@@ -3668,7 +3879,7 @@ static int pp_continuous_plan_impl(const pp_continuous_callbacks *callbacks,
     if (callbacks->native_goal && (!has_goal_point || !isfinite(callbacks->goal_radius) || callbacks->goal_radius < 0.0)) {
         pp_set_error(result, "native goal requires a point goal and a finite non-negative radius"); return -1;
     }
-    if (options->algorithm < PP_CONTINUOUS_RRT || options->algorithm > PP_CONTINUOUS_RIT_STAR ||
+    if (options->algorithm < PP_CONTINUOUS_RRT || options->algorithm > PP_CONTINUOUS_JIT_STAR ||
         options->max_iters == 0 || options->max_sample_tries == 0 ||
         !(options->step_size > 0.0) || !(options->collision_step > 0.0) ||
         !(options->goal_sample_rate >= 0.0 && options->goal_sample_rate <= 1.0) ||
@@ -3688,11 +3899,23 @@ static int pp_continuous_plan_impl(const pp_continuous_callbacks *callbacks,
          options->carm_alpha < 0.0)) {
         pp_set_error(result, "RIT* metric or sampling options are invalid"); return -1;
     }
+    if (options->algorithm == PP_CONTINUOUS_JIT_STAR &&
+        (options->jit_ancestor_depth == 0 || options->jit_sample_count == 0 ||
+         !isfinite(options->jit_sample_radius) || options->jit_sample_radius <= 0.0 ||
+         !isfinite(options->jit_bias_probability) || options->jit_bias_probability < 0.0 ||
+         options->jit_bias_probability >= 1.0 ||
+         !isfinite(options->manipulability_weight) || options->manipulability_weight < 0.0 ||
+         !isfinite(options->manipulability_eta) || options->manipulability_eta <= 0.0 ||
+         !isfinite(options->manipulability_epsilon) || options->manipulability_epsilon <= 0.0 ||
+         (options->manipulability_weight > 0.0 && callbacks->manipulability == NULL))) {
+        pp_set_error(result, "JIT* connectivity or manipulability options are invalid"); return -1;
+    }
     if ((options->algorithm == PP_CONTINUOUS_FMT_STAR || options->algorithm == PP_CONTINUOUS_BIT_STAR ||
          options->algorithm == PP_CONTINUOUS_ABIT_STAR ||
          options->algorithm == PP_CONTINUOUS_INFORMED_RRT_STAR ||
          options->algorithm == PP_CONTINUOUS_FCIT_STAR ||
-         options->algorithm == PP_CONTINUOUS_RIT_STAR) &&
+         options->algorithm == PP_CONTINUOUS_RIT_STAR ||
+         options->algorithm == PP_CONTINUOUS_JIT_STAR) &&
         (!has_goal_point || options->sample_count == 0 || options->batch_size == 0)) {
         pp_set_error(result, "informed sampling planners require an exact goal and positive samples"); return -1;
     }
@@ -3707,6 +3930,7 @@ static int pp_continuous_plan_impl(const pp_continuous_callbacks *callbacks,
     memset(&ctx, 0, sizeof(ctx));
     ctx.callbacks = callbacks; ctx.options = options; ctx.dimension = dimension;
     ctx.rit = options->algorithm == PP_CONTINUOUS_RIT_STAR ? &rit : NULL;
+    ctx.jit = options->algorithm == PP_CONTINUOUS_JIT_STAR ? &jit : NULL;
     ctx.has_goal_point = has_goal_point; ctx.goal = goal; ctx.started = pp_now();
     ctx.nodes.dimension = dimension;
 #ifdef PP_ENABLE_TRACE
@@ -3749,6 +3973,7 @@ static int pp_continuous_plan_impl(const pp_continuous_callbacks *callbacks,
         case PP_CONTINUOUS_EIT_STAR: status = pp_run_asymmetric(&ctx, result, 1); break;
         case PP_CONTINUOUS_FCIT_STAR: status = pp_run_fcit(&ctx, result); break;
         case PP_CONTINUOUS_RIT_STAR: status = pp_run_rit(&ctx, result); break;
+        case PP_CONTINUOUS_JIT_STAR: status = pp_run_rrt(&ctx, 1, 1, result); break;
         case PP_CONTINUOUS_RRT_CONNECT: status = pp_run_connect(&ctx, result); break;
         default: pp_set_error(result, "unknown continuous algorithm"); status = -1; break;
     }
@@ -3758,6 +3983,7 @@ done:
     pp_kd_free(&ctx.indices[0]); pp_kd_free(&ctx.indices[1]); pp_nodes_free(&ctx.nodes);
     free(rit.collision_points);
     free(rit.mean_metric_cholesky);
+    free(jit.failed_edges);
     return status;
 }
 

@@ -14,7 +14,7 @@ from pathplanning.core.contracts import (
     State,
     TemporalProblem,
 )
-from pathplanning.core.params import RitParams, RrtParams
+from pathplanning.core.params import JitParams, RitParams, RrtParams
 from pathplanning.core.results import MultiAgentPlanResult, PlanResult, TemporalPlanResult
 from pathplanning.core.trace import TraceOptions
 from pathplanning.core.types import RNG
@@ -28,6 +28,7 @@ from pathplanning.planners.sampling.eit_star import plan_eit_star
 from pathplanning.planners.sampling.fcit_star import plan_fcit_star
 from pathplanning.planners.sampling.fmt_star import plan_fmt_star
 from pathplanning.planners.sampling.informed_rrt_star import plan_informed_rrt_star
+from pathplanning.planners.sampling.jit_star import plan_jit_star
 from pathplanning.planners.sampling.prm_star import plan_lazy_prm, plan_prm_star
 from pathplanning.planners.sampling.rit_star import plan_rit_star
 from pathplanning.planners.sampling.rrt import plan_rrt
@@ -77,7 +78,7 @@ class ContinuousPlannerCallable(Protocol):
         self,
         problem: ContinuousProblem[State],
         *,
-        params: RitParams | RrtParams | Mapping[str, object] | None = None,
+        params: JitParams | RitParams | RrtParams | Mapping[str, object] | None = None,
         rng: RNG | None = None,
         trace: TraceOptions | None = None,
     ) -> PlanResult: ...
@@ -378,6 +379,18 @@ _PLANNER_SPECS: tuple[tuple[str, PlannerSpec], ...] = (
                 "requires an exact point goal and additive Riemannian arc length; metric tensors "
                 "must be symmetric positive definite with global eigenvalue bounds. Custom metric "
                 "callbacks are opt-in; CARM rescales the metric from collision samples.",
+            ),
+        ),
+    ),
+    (
+        "jit_star",
+        PlannerSpec(
+            "continuous",
+            plan_jit_star,
+            (
+                "requires an exact goal and additive Euclidean or Jacobian-weighted path cost. "
+                "Manipulability scoring requires a finite robot Jacobian and explicit Python "
+                "callback opt-in; JIT edge and sample refinements are native.",
             ),
         ),
     ),

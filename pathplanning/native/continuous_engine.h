@@ -24,7 +24,8 @@ typedef enum pp_continuous_algorithm {
     PP_CONTINUOUS_AIT_STAR = 8,
     PP_CONTINUOUS_EIT_STAR = 9,
     PP_CONTINUOUS_FCIT_STAR = 10,
-    PP_CONTINUOUS_RIT_STAR = 11
+    PP_CONTINUOUS_RIT_STAR = 11,
+    PP_CONTINUOUS_JIT_STAR = 12
 } pp_continuous_algorithm;
 
 // Return 0 on success and nonzero on failure. out_state is read only on success.
@@ -47,6 +48,9 @@ typedef int (*pp_motion_valid_batch_callback)(void *user_data,
 // reports a callback failure.
 typedef int (*pp_metric_tensor_callback)(void *user_data, const double *state,
                                          size_t dimension, double *out_tensor);
+// Return 0 and write the minimum singular value of the state's task Jacobian.
+typedef int (*pp_manipulability_callback)(void *user_data, const double *state,
+                                          size_t dimension, double *out_sigma_min);
 
 // Return a finite, non-negative value. Negative or non-finite values fail the
 // plan.
@@ -93,6 +97,7 @@ typedef struct pp_continuous_callbacks {
     pp_motion_valid_callback motion_valid;
     pp_motion_valid_batch_callback motion_valid_batch;
     pp_metric_tensor_callback metric_tensor;
+    pp_manipulability_callback manipulability;
     pp_distance_callback distance;
     pp_steer_callback steer;
     pp_goal_callback is_goal;
@@ -127,6 +132,13 @@ typedef struct pp_continuous_options {
     uint64_t carm_update_interval;
     double carm_sigma;
     double carm_alpha;
+    uint64_t jit_ancestor_depth;
+    uint64_t jit_sample_count;
+    double jit_sample_radius;
+    double jit_bias_probability;
+    double manipulability_weight;
+    double manipulability_eta;
+    double manipulability_epsilon;
 } pp_continuous_options;
 
 typedef struct pp_continuous_result {
@@ -140,6 +152,9 @@ typedef struct pp_continuous_result {
     uint64_t rewires;
     uint64_t metric_evaluations;
     uint64_t metric_updates;
+    uint64_t jit_biased_samples;
+    uint64_t jit_ancestor_candidates;
+    uint64_t manipulability_evaluations;
     double path_cost;
     double elapsed_s;
     double *path;

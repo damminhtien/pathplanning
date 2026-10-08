@@ -13,7 +13,7 @@ from .api import (
     plan_temporal,
 )
 from .core.contracts import MultiAgentProblem, TemporalProblem
-from .core.params import RitParams, RoadmapParams, RrtParams
+from .core.params import JitParams, RitParams, RoadmapParams, RrtParams
 from .core.results import MultiAgentPlanResult, PlanResult, StopReason, TemporalPlanResult
 from .core.trace import PlannerTrace, TraceOptions
 
@@ -27,6 +27,7 @@ __all__ = [
     "Stats",
     "RrtParams",
     "RitParams",
+    "JitParams",
     "RoadmapParams",
     "PlanResult",
     "TemporalPlanResult",

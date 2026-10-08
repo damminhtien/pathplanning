@@ -9,6 +9,7 @@ from pathplanning.spaces.grid2d import (
     GridCell,
 )
 from pathplanning.spaces.grid3d import Grid3DSearchSpace, Node3D
+from pathplanning.spaces.planar_manipulator import PlanarManipulatorSpace
 from pathplanning.spaces.terrain_grid2d import TerrainCostGrid2D
 
 __all__ = [
@@ -17,6 +18,7 @@ __all__ = [
     "Sphere",
     "ContinuousSpace3D",
     "AnisotropicContinuousSpace",
+    "PlanarManipulatorSpace",
     "GridCell",
     "Node3D",
     "Grid2DSamplingSpace",

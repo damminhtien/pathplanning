@@ -231,6 +231,15 @@ class RiemannianMetricSpace(Protocol[S_contra]):
 
 
 @runtime_checkable
+class ManipulabilitySpace(Protocol[S_contra]):
+    """Optional robot kinematics contract used by JIT* motion scoring."""
+
+    def jacobian(self, state: S_contra) -> Sequence[Sequence[Float]]:
+        """Return the geometric Jacobian mapping joint to task velocities."""
+        ...
+
+
+@runtime_checkable
 class SupportsBatchCollisionStepMotionCheck(Protocol[S_contra]):
     """Optional batched motion-check extension that accepts a local step size."""
 

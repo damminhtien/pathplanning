@@ -68,6 +68,8 @@ def test_sampling_trace_matches_production(planner: str) -> None:
         "goal_sample_rate": 0.2,
         "rrt_star_radius_gamma": 6.0,
     }
+    if planner == "jit_star":
+        params["manipulability_weight"] = 0.0
     first = plan_continuous(problem, planner=planner, params=params, seed=13)
     second = plan_continuous(
         problem, planner=planner, params=params, seed=13, trace=TraceOptions(32_768)

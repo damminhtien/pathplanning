@@ -11,7 +11,7 @@ from typing import Any, cast
 import numpy as np
 
 from pathplanning.core.contracts import ContinuousSpace, GoalRegion, Objective, State
-from pathplanning.core.params import RitParams, RoadmapParams, RrtParams
+from pathplanning.core.params import JitParams, RitParams, RoadmapParams, RrtParams
 from pathplanning.core.results import PlanResult, StopReason
 from pathplanning.core.trace import PlannerTrace, TraceOptions
 from pathplanning.core.types import RNG
@@ -45,6 +45,9 @@ _MotionValidBatch = ctypes.CFUNCTYPE(
     ctypes.POINTER(ctypes.c_uint8),
 )
 _MetricTensor = ctypes.CFUNCTYPE(ctypes.c_int, ctypes.c_void_p, _Point, ctypes.c_size_t, _Point)
+_Manipulability = ctypes.CFUNCTYPE(
+    ctypes.c_int, ctypes.c_void_p, _Point, ctypes.c_size_t, ctypes.POINTER(ctypes.c_double)
+)
 _Distance = ctypes.CFUNCTYPE(ctypes.c_double, ctypes.c_void_p, _Point, _Point, ctypes.c_size_t)
 _Steer = ctypes.CFUNCTYPE(
     ctypes.c_int, ctypes.c_void_p, _Point, _Point, ctypes.c_size_t, ctypes.c_double, _Point
@@ -88,6 +91,7 @@ _Callbacks._fields_ = [
     ("motion_valid", _MotionValid),
     ("motion_valid_batch", _MotionValidBatch),
     ("metric_tensor", _MetricTensor),
+    ("manipulability", _Manipulability),
     ("distance", _Distance),
     ("steer", _Steer),
     ("is_goal", _Goal),
@@ -124,6 +128,13 @@ class _Options(ctypes.Structure):
         ("carm_update_interval", ctypes.c_uint64),
         ("carm_sigma", ctypes.c_double),
         ("carm_alpha", ctypes.c_double),
+        ("jit_ancestor_depth", ctypes.c_uint64),
+        ("jit_sample_count", ctypes.c_uint64),
+        ("jit_sample_radius", ctypes.c_double),
+        ("jit_bias_probability", ctypes.c_double),
+        ("manipulability_weight", ctypes.c_double),
+        ("manipulability_eta", ctypes.c_double),
+        ("manipulability_epsilon", ctypes.c_double),
     ]
 
 
@@ -139,6 +150,9 @@ class _Result(ctypes.Structure):
         ("rewires", ctypes.c_uint64),
         ("metric_evaluations", ctypes.c_uint64),
         ("metric_updates", ctypes.c_uint64),
+        ("jit_biased_samples", ctypes.c_uint64),
+        ("jit_ancestor_candidates", ctypes.c_uint64),
+        ("manipulability_evaluations", ctypes.c_uint64),
         ("path_cost", ctypes.c_double),
         ("elapsed_s", ctypes.c_double),
         ("path", _Point),
@@ -171,6 +185,7 @@ _ALGORITHMS = {
     "eit_star": 9,
     "fcit_star": 10,
     "rit_star": 11,
+    "jit_star": 12,
 }
 _STOP_REASONS = {
     0: StopReason.SUCCESS,
@@ -444,6 +459,7 @@ def _roadmap_callbacks(
         if owned_space is None
         else _MotionValidBatch(),
         _MetricTensor(),
+        _Manipulability(),
         _Distance(distance) if owned_space is None else _Distance(),
         _Steer(),
         _Goal(),
@@ -777,7 +793,7 @@ def run_native_continuous(
     space: ContinuousSpace[State],
     start: object,
     goal_region: GoalRegion[State],
-    params: RrtParams | RitParams,
+    params: RrtParams | RitParams | JitParams,
     rng: RNG,
     *,
     planner: str,
@@ -797,6 +813,13 @@ def run_native_continuous(
     start_state = _copy_state(start_array, "start", dimension)
     owned_space = _native_space_model(space, dimension)
     metric_function = getattr(space, "metric_tensor", None) if planner == "rit_star" else None
+    manipulability_function = (
+        getattr(space, "jacobian", None)
+        if planner == "jit_star" and getattr(parameters, "manipulability_weight", 0.0) > 0.0
+        else None
+    )
+    if manipulability_function is not None and not callable(manipulability_function):
+        raise TypeError("space.jacobian must be callable")
     metric_bounds = (1.0, 1.0)
     metric_is_constant = True
     if planner == "rit_star":
@@ -826,6 +849,7 @@ def run_native_continuous(
         "eit_star",
         "fcit_star",
         "rit_star",
+        "jit_star",
         "rrt_connect",
     }:
         from pathplanning.planners.sampling._internal.continuous import exact_goal_state
@@ -849,6 +873,7 @@ def run_native_continuous(
         or not native_goal
         or objective is not None
         or metric_function is not None
+        or manipulability_function is not None
     )
     if requires_python_callbacks and not parameters.allow_python_callbacks:
         reasons = []
@@ -862,7 +887,15 @@ def run_native_continuous(
             reasons.append("objective requires a Python callback")
         if metric_function is not None:
             reasons.append("metric tensor requires a Python callback")
-        parameter_name = "RitParams" if planner == "rit_star" else "RrtParams"
+        if manipulability_function is not None:
+            reasons.append("robot Jacobian requires a Python callback")
+        parameter_name = (
+            "RitParams"
+            if planner == "rit_star"
+            else "JitParams"
+            if planner == "jit_star"
+            else "RrtParams"
+        )
         raise ValueError(
             "Python callbacks are disabled for native planning ("
             + "; ".join(reasons)
@@ -926,6 +959,8 @@ def run_native_continuous(
 
     def metric_tensor(_user_data, point, dim, out_tensor):
         def call():
+            if not callable(metric_function):
+                raise RuntimeError("metric_tensor callback is unavailable")
             width = int(dim)
             tensor = np.asarray(metric_function(_array(point, width).copy()), dtype=np.float64)
             if tensor.shape != (width, width) or not np.all(np.isfinite(tensor)):
@@ -934,6 +969,31 @@ def run_native_continuous(
                 np.ctypeslib.as_array(out_tensor, shape=(width * width,)),
                 tensor.reshape(-1),
             )
+            return 0
+
+        return guarded(call, -1)
+
+    def manipulability(_user_data, point, dim, out_sigma_min):
+        def call():
+            if not callable(manipulability_function):
+                raise RuntimeError("Jacobian callback is unavailable")
+            width = int(dim)
+            jacobian = np.asarray(
+                manipulability_function(_array(point, width).copy()), dtype=np.float64
+            )
+            if (
+                jacobian.ndim != 2
+                or jacobian.shape[0] == 0
+                or jacobian.shape[1] != width
+                or not np.all(np.isfinite(jacobian))
+            ):
+                raise ValueError(
+                    "space.jacobian(state) must be a finite matrix with one column per joint"
+                )
+            singular_values = np.linalg.svd(jacobian, compute_uv=False)
+            if singular_values.size == 0 or not np.isfinite(singular_values[-1]):
+                raise ValueError("space.jacobian(state) produced no finite singular values")
+            out_sigma_min[0] = float(singular_values[-1])
             return 0
 
         return guarded(call, -1)
@@ -973,6 +1033,7 @@ def run_native_continuous(
         if owned_space is None
         else _MotionValidBatch(),
         _MetricTensor(metric_tensor) if callable(metric_function) else _MetricTensor(),
+        _Manipulability(manipulability) if callable(manipulability_function) else _Manipulability(),
         _Distance(distance) if owned_space is None else _Distance(),
         _Steer(steer) if owned_space is None else _Steer(),
         _Goal(is_goal) if not native_goal else _Goal(),
@@ -1003,6 +1064,7 @@ def run_native_continuous(
         "ait_star",
         "eit_star",
         "fcit_star",
+        "jit_star",
     }:
         from pathplanning.planners.sampling._internal.continuous import euclidean_distance
 
@@ -1037,6 +1099,13 @@ def run_native_continuous(
         int(getattr(parameters, "carm_update_interval", 15)),
         float(getattr(parameters, "carm_sigma", 0.1)),
         float(getattr(parameters, "carm_alpha", 10.0)),
+        int(getattr(parameters, "jit_ancestor_depth", 8)),
+        int(getattr(parameters, "jit_sample_count", 4)),
+        float(getattr(parameters, "jit_sample_radius", 0.25)),
+        float(getattr(parameters, "jit_bias_probability", 0.35)),
+        float(getattr(parameters, "manipulability_weight", 0.0)),
+        float(getattr(parameters, "manipulability_eta", 0.1)),
+        float(getattr(parameters, "manipulability_epsilon", 1e-6)),
     )
     library = load_continuous_library() if trace is None else load_continuous_trace_library()
     library.pp_continuous_plan.argtypes = [
@@ -1105,6 +1174,9 @@ def run_native_continuous(
             "rewires": float(native_result.rewires),
             "metric_evaluations": float(native_result.metric_evaluations),
             "metric_updates": float(native_result.metric_updates),
+            "jit_biased_samples": float(native_result.jit_biased_samples),
+            "jit_ancestor_candidates": float(native_result.jit_ancestor_candidates),
+            "manipulability_evaluations": float(native_result.manipulability_evaluations),
             "python_callbacks": float(requires_python_callbacks),
             "native_space_model": float(owned_space is not None),
         }
@@ -1237,6 +1309,7 @@ def run_native_dynamic_rrt(
         if owned_space is None
         else _MotionValidBatch(),
         _MetricTensor(),
+        _Manipulability(),
         _Distance(distance) if owned_space is None else _Distance(),
         _Steer(steer) if owned_space is None else _Steer(),
         _Goal(),
@@ -1283,6 +1356,13 @@ def run_native_dynamic_rrt(
         15,
         0.1,
         10.0,
+        8,
+        4,
+        0.25,
+        0.35,
+        0.0,
+        0.1,
+        1e-6,
     )
     library = load_continuous_library() if trace is None else load_continuous_trace_library()
     library.pp_dynamic_rrt_plan.argtypes = [

@@ -24,6 +24,7 @@ from .contracts import (
     GoalTest,
     HeuristicDiscreteGraph,
     InterpolatingContinuousSpace,
+    ManipulabilitySpace,
     MultiAgentProblem,
     Objective,
     RiemannianMetricSpace,
@@ -35,7 +36,7 @@ from .contracts import (
     TimeInterval,
     ValidatingDiscreteGraph,
 )
-from .params import RitParams, RoadmapParams, RrtParams
+from .params import JitParams, RitParams, RoadmapParams, RrtParams
 from .results import MultiAgentPlanResult, PlanResult, StopReason, TemporalPlanResult
 from .trace import PlannerTrace, TraceOptions
 from .types import RNG, BoolArray, Float, FloatArray, Mat, N, NodeId, S, Vec
@@ -52,6 +53,7 @@ __all__ = [
     "TimeInterval",
     "ContinuousSpace",
     "InterpolatingContinuousSpace",
+    "ManipulabilitySpace",
     "ContinuousSpaceMetadata",
     "GoalRegion",
     "DistanceAwareGoalRegion",
@@ -71,6 +73,7 @@ __all__ = [
     "RrtParams",
     "RoadmapParams",
     "RitParams",
+    "JitParams",
     "State",
     "NearestNeighborIndex",
     "NaiveNnIndex",
