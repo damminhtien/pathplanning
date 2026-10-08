@@ -21,6 +21,7 @@ from pathplanning.core.types import RNG
 from pathplanning.planners.multi_agent.eecbs import plan_eecbs
 from pathplanning.planners.multi_agent.lacam_star import plan_lacam_star
 from pathplanning.planners.sampling.abit_star import plan_abit_star
+from pathplanning.planners.sampling.ait_star import plan_ait_star
 from pathplanning.planners.sampling.bit_star import plan_bit_star
 from pathplanning.planners.sampling.fmt_star import plan_fmt_star
 from pathplanning.planners.sampling.informed_rrt_star import plan_informed_rrt_star
@@ -316,6 +317,17 @@ _PLANNER_SPECS: tuple[tuple[str, PlannerSpec], ...] = (
                 "requires an exact point goal, Euclidean metric, additive path length, symmetric "
                 "local motion validity, and a positive roadmap gamma; edges are validated lazily "
                 "and cached, while custom Python callbacks are opt-in through RoadmapParams.",
+            ),
+        ),
+    ),
+    (
+        "ait_star",
+        PlannerSpec(
+            "continuous",
+            plan_ait_star,
+            (
+                "requires an exact point goal, Euclidean metric, additive path length, and a "
+                "positive sample count; collision discovery repairs its reverse graph heuristic.",
             ),
         ),
     ),

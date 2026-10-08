@@ -58,6 +58,7 @@ def _problem(sample_count: int = 64, batch_size: int = 16) -> ContinuousProblem[
         ("fmt_star", 256, 16),
         ("bit_star", 64, 16),
         ("abit_star", 64, 16),
+        ("ait_star", 64, 16),
         ("rrt_connect", 64, 16),
     ],
 )
@@ -79,7 +80,9 @@ def test_registered_advanced_sampling_planners_find_valid_paths(
     assert result.stats["path_cost"] == pytest.approx(1.0)
 
 
-@pytest.mark.parametrize("planner", ["fmt_star", "bit_star", "abit_star", "informed_rrt_star"])
+@pytest.mark.parametrize(
+    "planner", ["fmt_star", "bit_star", "abit_star", "ait_star", "informed_rrt_star"]
+)
 def test_optimal_sampling_planners_reject_custom_objectives(planner: str) -> None:
     problem = _problem()
     problem.objective = object()  # type: ignore[assignment]
@@ -88,7 +91,9 @@ def test_optimal_sampling_planners_reject_custom_objectives(planner: str) -> Non
         plan_continuous(problem, planner=planner, seed=13)
 
 
-@pytest.mark.parametrize("planner", ["fmt_star", "bit_star", "abit_star", "informed_rrt_star"])
+@pytest.mark.parametrize(
+    "planner", ["fmt_star", "bit_star", "abit_star", "ait_star", "informed_rrt_star"]
+)
 def test_euclidean_sampling_planners_reject_other_metrics(planner: str) -> None:
     problem = _problem()
     problem.space = _ScaledMetricSpace()

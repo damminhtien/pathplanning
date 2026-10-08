@@ -20,7 +20,8 @@ typedef enum pp_continuous_algorithm {
     PP_CONTINUOUS_FMT_STAR = 4,
     PP_CONTINUOUS_BIT_STAR = 5,
     PP_CONTINUOUS_ABIT_STAR = 6,
-    PP_CONTINUOUS_RRT_CONNECT = 7
+    PP_CONTINUOUS_RRT_CONNECT = 7,
+    PP_CONTINUOUS_AIT_STAR = 8
 } pp_continuous_algorithm;
 
 // Return 0 on success and nonzero on failure. out_state is read only on success.

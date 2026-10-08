@@ -9,10 +9,10 @@ its C ABI version.
 | Library | ABI constant | Probe function | Supported ABI |
 | --- | --- | --- | --- |
 | C++ graph search | `PP_SEARCH_ABI_VERSION` | `pp_search_abi_version()` | 15 |
-| C sampling planners | `PP_CONTINUOUS_ABI_VERSION` | `pp_continuous_abi_version()` | 3 |
+| C sampling planners | `PP_CONTINUOUS_ABI_VERSION` | `pp_continuous_abi_version()` | 4 |
 | C++ diagnostic search | `PP_SEARCH_TRACE_ABI_VERSION` | `pp_search_trace_abi_version()` | 10 |
 | C++ diagnostic search metrics | `PP_SEARCH_METRICS_ABI_VERSION` | `pp_search_metrics_abi_version()` | 2 |
-| C diagnostic sampling | `PP_CONTINUOUS_TRACE_ABI_VERSION` | `pp_continuous_trace_abi_version()` | 3 |
+| C diagnostic sampling | `PP_CONTINUOUS_TRACE_ABI_VERSION` | `pp_continuous_trace_abi_version()` | 4 |
 
 The constants are declared in `pathplanning/native/abi_version.h`. Increment
 an engine's ABI version when an exported function, struct layout, enum value,
@@ -70,6 +70,12 @@ Continuous ABI 2 adds a reusable native PRM* roadmap with build, query,
 query-clear, reset, and free operations. Continuous ABI 3 adds lazy edge
 validation and persistent edge validation states. Continuous trace ABI 3 adds
 bounded diagnostic recording for roadmap queries using either validation mode.
+Continuous ABI 4 adds AIT* planning for exact point goals and additive Euclidean
+path length. This implementation uses a fixed sampled graph, recomputes reverse
+shortest paths after a collision instead of maintaining the reference LPA*
+queue, and does not add further sample batches during a call. It therefore does
+not claim the reference algorithm's asymptotic-optimality guarantee. Continuous
+trace ABI 4 records AIT* reverse and forward vertex expansions.
 
 The production `_search_engine` is built without `PP_ENABLE_METRICS`; metric
 macros compile to no-ops and search containers use the normal

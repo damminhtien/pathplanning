@@ -35,6 +35,7 @@ from that registry.
 | `continuous` | `fmt_star` | `pathplanning.planners.sampling.fmt_star` | `plan_fmt_star` | supported |
 | `continuous` | `prm_star` | `pathplanning.planners.sampling.prm_star` | `plan_prm_star` | supported |
 | `continuous` | `lazy_prm` | `pathplanning.planners.sampling.prm_star` | `plan_lazy_prm` | supported |
+| `continuous` | `ait_star` | `pathplanning.planners.sampling.ait_star` | `plan_ait_star` | supported |
 | `continuous` | `bit_star` | `pathplanning.planners.sampling.bit_star` | `plan_bit_star` | supported |
 | `continuous` | `abit_star` | `pathplanning.planners.sampling.abit_star` | `plan_abit_star` | supported |
 | `continuous` | `rrt_connect` | `pathplanning.planners.sampling.rrt_connect` | `plan_rrt_connect` | supported |
@@ -58,6 +59,7 @@ Planner-specific constraints:
 - `fmt_star`: uses `sample_count` as its fixed sample set size.
 - `prm_star`: requires an exact point goal, Euclidean metric, additive path length, symmetric local motion validity, and a positive roadmap gamma; custom Python callbacks are opt-in through RoadmapParams.
 - `lazy_prm`: requires an exact point goal, Euclidean metric, additive path length, symmetric local motion validity, and a positive roadmap gamma; edges are validated lazily and cached, while custom Python callbacks are opt-in through RoadmapParams.
+- `ait_star`: requires an exact point goal, Euclidean metric, additive path length, and a positive sample count; collision discovery repairs its reverse graph heuristic.
 - `bit_star`, `abit_star`: use `sample_count` across batches and `batch_size` per batch.
 <!-- END GENERATED PLANNER MATRIX -->
 
