@@ -7,9 +7,14 @@ from dataclasses import dataclass
 from types import MappingProxyType
 from typing import Any, Literal, Protocol, Union, cast
 
-from pathplanning.core.contracts import ContinuousProblem, DiscreteProblem, State
+from pathplanning.core.contracts import (
+    ContinuousProblem,
+    DiscreteProblem,
+    State,
+    TemporalProblem,
+)
 from pathplanning.core.params import RrtParams
-from pathplanning.core.results import PlanResult
+from pathplanning.core.results import PlanResult, TemporalPlanResult
 from pathplanning.core.trace import TraceOptions
 from pathplanning.core.types import RNG
 from pathplanning.planners.sampling.abit_star import plan_abit_star
@@ -34,8 +39,9 @@ from pathplanning.planners.search.lazy_theta_star import plan_lazy_theta_star
 from pathplanning.planners.search.reexp_astar import plan_reexp_astar
 from pathplanning.planners.search.theta_star import plan_theta_star
 from pathplanning.planners.search.weighted_astar import plan_weighted_astar
+from pathplanning.planners.temporal.sipp import plan_sipp
 
-ProblemKind = Literal["discrete", "continuous"]
+ProblemKind = Literal["discrete", "continuous", "temporal"]
 
 
 class DiscretePlannerCallable(Protocol):
@@ -64,7 +70,24 @@ class ContinuousPlannerCallable(Protocol):
     ) -> PlanResult: ...
 
 
-PlannerCallable = Union[DiscretePlannerCallable, ContinuousPlannerCallable]
+class TemporalPlannerCallable(Protocol):
+    """Callable contract for one temporal planner implementation."""
+
+    def __call__(
+        self,
+        problem: TemporalProblem[Any],
+        *,
+        params: Mapping[str, object] | None = None,
+        rng: RNG | None = None,
+        trace: TraceOptions | None = None,
+    ) -> TemporalPlanResult[Any]: ...
+
+
+PlannerCallable = Union[
+    DiscretePlannerCallable,
+    ContinuousPlannerCallable,
+    TemporalPlannerCallable,
+]
 
 
 @dataclass(frozen=True, slots=True)
@@ -84,6 +107,17 @@ _OPTIMAL_SAMPLING_CONSTRAINTS = (
 # Keep every production planner declaration here. Public listings, dispatch, tests,
 # and the supported-planner document derive from this registry.
 _PLANNER_SPECS: tuple[tuple[str, PlannerSpec], ...] = (
+    (
+        "sipp",
+        PlannerSpec(
+            "temporal",
+            plan_sipp,
+            (
+                "requires positive finite edge durations and half-open node/edge blocked intervals; "
+                "waiting is allowed and the goal must be exact.",
+            ),
+        ),
+    ),
     ("bfs", PlannerSpec("discrete", plan_breadth_first_search)),
     ("dfs", PlannerSpec("discrete", plan_depth_first_search)),
     ("greedy_best_first", PlannerSpec("discrete", plan_greedy_best_first)),
@@ -267,6 +301,14 @@ def get_continuous_planner(planner: str) -> ContinuousPlannerCallable:
     return cast(ContinuousPlannerCallable, spec.planner)
 
 
+def get_temporal_planner(planner: str) -> TemporalPlannerCallable:
+    """Resolve one temporal planner by name."""
+    spec = PLANNER_REGISTRY.get(planner)
+    if spec is None or spec.problem_kind != "temporal":
+        raise KeyError(f"Unknown temporal planner: '{planner}'")
+    return cast(TemporalPlannerCallable, spec.planner)
+
+
 __all__ = [
     "ProblemKind",
     "DiscretePlannerCallable",
@@ -278,4 +320,5 @@ __all__ = [
     "planner_modules",
     "get_discrete_planner",
     "get_continuous_planner",
+    "get_temporal_planner",
 ]

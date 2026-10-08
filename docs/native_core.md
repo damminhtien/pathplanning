@@ -48,6 +48,11 @@ D* Lite stores its CSR adjacency, `g`/`rhs` values, key queue, and edge-cost
 overrides in `pathplanning/native/dstar_lite.cpp`. The Python session maps
 labels and computes heuristic arrays before native calls; `move_start()` and
 `update_edges()` retain the search state between plans.
+SIPP complements node-blocked intervals into safe intervals and sends those
+intervals, directed edge constraints, and travel durations to
+`pathplanning/native/temporal_search.cpp`. The C++ search keeps one earliest
+arrival per node/interval state and supports waiting without time-step
+discretization.
 
 Search state uses dense arrays by node ID for locality: an 8-byte path cost, a
 4-byte parent ID when the graph fits in 32-bit IDs (otherwise 8 bytes), and a

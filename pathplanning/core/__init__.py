@@ -29,10 +29,12 @@ from .contracts import (
     SupportsBatchCollisionStepMotionCheck,
     SupportsBatchMotionCheck,
     SupportsCollisionStepMotionCheck,
+    TemporalProblem,
+    TimeInterval,
     ValidatingDiscreteGraph,
 )
 from .params import RrtParams
-from .results import PlanResult, StopReason
+from .results import PlanResult, StopReason, TemporalPlanResult
 from .trace import PlannerTrace, TraceOptions
 from .types import RNG, BoolArray, Float, FloatArray, Mat, N, NodeId, S, Vec
 
@@ -43,6 +45,8 @@ __all__ = [
     "GoalTest",
     "ExactGoalTest",
     "DiscreteProblem",
+    "TemporalProblem",
+    "TimeInterval",
     "ContinuousSpace",
     "InterpolatingContinuousSpace",
     "ContinuousSpaceMetadata",
@@ -55,6 +59,7 @@ __all__ = [
     "Objective",
     "ContinuousProblem",
     "PlanResult",
+    "TemporalPlanResult",
     "StopReason",
     "PlannerTrace",
     "TraceOptions",

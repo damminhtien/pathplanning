@@ -9,6 +9,7 @@ from that registry.
 <!-- BEGIN GENERATED PLANNER MATRIX -->
 | Problem Kind | Planner | Module | Callable | Status |
 | ------------ | ------- | ------ | -------- | ------ |
+| `temporal` | `sipp` | `pathplanning.planners.temporal.sipp` | `plan_sipp` | supported |
 | `discrete` | `bfs` | `pathplanning.planners.search.breadth_first_search` | `plan_breadth_first_search` | supported |
 | `discrete` | `dfs` | `pathplanning.planners.search.depth_first_search` | `plan_depth_first_search` | supported |
 | `discrete` | `greedy_best_first` | `pathplanning.planners.search.greedy_best_first` | `plan_greedy_best_first` | supported |
@@ -34,6 +35,7 @@ from that registry.
 
 Planner-specific constraints:
 
+- `sipp`: requires positive finite edge durations and half-open node/edge blocked intervals; waiting is allowed and the goal must be exact.
 - `bidirectional_dijkstra`: uses two Dijkstra frontiers and does not evaluate a heuristic; it requires an exact goal node.
 - `bidirectional_astar`: runs the same native kernel over potential-reweighted edges and requires a consistent heuristic and an exact goal node.
 - `dstar_lite`: requires an exact goal and non-negative costs on stable directed edges; graph heuristics must be admissible and consistent.

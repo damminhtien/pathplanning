@@ -17,6 +17,7 @@ from pathplanning.registry import (
     _build_registry,
     get_continuous_planner,
     get_discrete_planner,
+    get_temporal_planner,
 )
 
 
@@ -163,10 +164,18 @@ def test_dispatch_resolves_planners_from_canonical_registry() -> None:
             assert get_discrete_planner(name) is spec.planner
             with pytest.raises(KeyError, match="Unknown continuous planner"):
                 get_continuous_planner(name)
-        else:
+        elif spec.problem_kind == "continuous":
             assert get_continuous_planner(name) is spec.planner
             with pytest.raises(KeyError, match="Unknown discrete planner"):
                 get_discrete_planner(name)
+            with pytest.raises(KeyError, match="Unknown temporal planner"):
+                get_temporal_planner(name)
+        else:
+            assert get_temporal_planner(name) is spec.planner
+            with pytest.raises(KeyError, match="Unknown discrete planner"):
+                get_discrete_planner(name)
+            with pytest.raises(KeyError, match="Unknown continuous planner"):
+                get_continuous_planner(name)
 
 
 def test_supported_planner_document_matches_registry() -> None:

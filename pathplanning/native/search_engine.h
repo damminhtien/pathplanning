@@ -55,6 +55,19 @@ typedef enum pp_search_tie_break {
 typedef struct pp_native_graph pp_native_graph;
 typedef struct pp_native_dstar_lite pp_native_dstar_lite;
 
+typedef struct pp_sipp_result {
+    int success;
+    int stop_reason;
+    uint64_t iters;
+    uint64_t nodes;
+    double path_cost;
+    double arrival_time;
+    uint64_t* path_ids;
+    double* arrival_times;
+    size_t path_length;
+    char* error_message;
+} pp_sipp_result;
+
 typedef struct pp_dstar_edge_update {
     uint64_t source_id;
     uint64_t target_id;
@@ -341,6 +354,31 @@ int pp_dstar_lite_reset(
 
 void pp_dstar_lite_trace_free_result(pp_trace_result* trace);
 
+int pp_sipp_plan(
+    uint64_t node_count,
+    uint64_t edge_count,
+    const uint64_t* offsets,
+    const uint64_t* neighbor_ids,
+    const double* edge_durations,
+    const uint64_t* node_safe_offsets,
+    const double* node_safe_starts,
+    const double* node_safe_ends,
+    uint64_t node_safe_interval_count,
+    const uint64_t* edge_block_offsets,
+    const double* edge_block_starts,
+    const double* edge_block_ends,
+    uint64_t edge_block_interval_count,
+    uint64_t start_id,
+    uint64_t goal_id,
+    double start_time,
+    int has_max_expansions,
+    uint64_t max_expansions,
+    double max_runtime_ms,
+    pp_sipp_result* result
+);
+
+void pp_sipp_free_result(pp_sipp_result* result);
+
 #if defined(PP_ENABLE_TRACE) && PP_ENABLE_TRACE
 int pp_native_jps_grid_traced(
     uint64_t width,
@@ -407,6 +445,31 @@ int pp_native_lazy_theta_star_grid_traced(
     pp_search_result* result,
     pp_trace_result* trace,
     pp_theta_metrics* metrics
+);
+
+int pp_sipp_plan_traced(
+    uint64_t node_count,
+    uint64_t edge_count,
+    const uint64_t* offsets,
+    const uint64_t* neighbor_ids,
+    const double* edge_durations,
+    const uint64_t* node_safe_offsets,
+    const double* node_safe_starts,
+    const double* node_safe_ends,
+    uint64_t node_safe_interval_count,
+    const uint64_t* edge_block_offsets,
+    const double* edge_block_starts,
+    const double* edge_block_ends,
+    uint64_t edge_block_interval_count,
+    uint64_t start_id,
+    uint64_t goal_id,
+    double start_time,
+    int has_max_expansions,
+    uint64_t max_expansions,
+    double max_runtime_ms,
+    uint64_t trace_max_bytes,
+    pp_sipp_result* result,
+    pp_trace_result* trace
 );
 #endif
 

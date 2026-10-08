@@ -4,7 +4,16 @@ from __future__ import annotations
 
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Generic, Protocol, TypeAlias, TypeVar, cast, runtime_checkable
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Generic,
+    Protocol,
+    TypeAlias,
+    TypeVar,
+    cast,
+    runtime_checkable,
+)
 
 from pathplanning.core.types import RNG, Float, N, S, Vec
 
@@ -60,6 +69,7 @@ class GoalTest(Protocol[N_contra]):
 
 
 DiscreteParams: TypeAlias = Mapping[str, object]
+TimeInterval: TypeAlias = tuple[Float, Float]
 
 
 @dataclass(frozen=True, slots=True)
@@ -87,6 +97,25 @@ class DiscreteProblem(Generic[N]):
         if hasattr(goal, "is_goal"):
             return cast(GoalTest[N], goal)
         return ExactGoalTest(cast(N, goal))
+
+
+@dataclass(slots=True)
+class TemporalProblem(Generic[N]):
+    """Graph planning problem with time-varying node and edge obstacles.
+
+    Blocked intervals use the half-open convention ``[start, end)``. Edge
+    durations default to the graph's edge costs when not supplied explicitly.
+    """
+
+    graph: DiscreteGraph[N] | NativeGraph[N]
+    start: N
+    goal: N
+    node_blocked: Mapping[N, Sequence[TimeInterval]] | None = None
+    edge_blocked: Mapping[tuple[N, N], Sequence[TimeInterval]] | None = None
+    edge_durations: Mapping[tuple[N, N], Float] | None = None
+    start_time: Float = 0.0
+    horizon: Float | None = None
+    params: DiscreteParams | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -200,7 +229,7 @@ class GoalState(Generic[S]):
             try:
                 return bool(equal)
             except ValueError:
-                return bool(equal.all())
+                return bool(cast(Any, equal).all())
         return self.distance_fn(x, self.state) <= self.radius
 
     def distance_to_goal(self, x: S) -> Float:

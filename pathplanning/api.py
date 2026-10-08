@@ -8,17 +8,27 @@ from typing import Any, TypeAlias, overload
 
 import numpy as np
 
-from pathplanning.core.contracts import ContinuousProblem, DiscreteProblem, State
+from pathplanning.core.contracts import (
+    ContinuousProblem,
+    DiscreteProblem,
+    State,
+    TemporalProblem,
+)
 from pathplanning.core.params import RrtParams
-from pathplanning.core.results import PlanResult
+from pathplanning.core.results import PlanResult, TemporalPlanResult
 from pathplanning.core.trace import TraceOptions
 from pathplanning.core.types import RNG
-from pathplanning.registry import get_continuous_planner, get_discrete_planner
+from pathplanning.registry import (
+    get_continuous_planner,
+    get_discrete_planner,
+    get_temporal_planner,
+)
 
 Result: TypeAlias = PlanResult
 Stats: TypeAlias = Mapping[str, float]
 DiscreteParams: TypeAlias = Mapping[str, object]
 ContinuousParams: TypeAlias = RrtParams | Mapping[str, object]
+TemporalParams: TypeAlias = Mapping[str, object]
 
 
 def _resolve_rng(seed: int | None, rng: RNG | None) -> RNG:
@@ -72,6 +82,29 @@ def plan_continuous(
     return planner_fn(problem, params=resolved_params, rng=effective_rng, trace=trace)
 
 
+def plan_temporal(
+    problem: TemporalProblem[Any],
+    *,
+    planner: str = "sipp",
+    params: TemporalParams | None = None,
+    seed: int | None = 0,
+    rng: RNG | None = None,
+    trace: TraceOptions | None = None,
+) -> TemporalPlanResult[Any]:
+    """Run a registered planner on a time-dependent graph problem."""
+    if trace is not None and type(trace) is not TraceOptions:
+        raise TypeError("trace must be TraceOptions or None")
+    effective_rng = _resolve_rng(seed, rng)
+    merged_params = dict(problem.params or {})
+    if params is not None:
+        merged_params.update(params)
+    resolved_problem = replace(problem, params=merged_params or None)
+    planner_fn = get_temporal_planner(planner)
+    return planner_fn(
+        resolved_problem, params=merged_params or None, rng=effective_rng, trace=trace
+    )
+
+
 @overload
 def plan(
     problem: DiscreteProblem[Any],
@@ -96,8 +129,20 @@ def plan(
 ) -> Result: ...
 
 
+@overload
 def plan(
-    problem: DiscreteProblem[Any] | ContinuousProblem[State],
+    problem: TemporalProblem[Any],
+    *,
+    planner: str | None = None,
+    params: TemporalParams | None = None,
+    seed: int | None = 0,
+    rng: RNG | None = None,
+    trace: TraceOptions | None = None,
+) -> TemporalPlanResult[Any]: ...
+
+
+def plan(
+    problem: DiscreteProblem[Any] | ContinuousProblem[State] | TemporalProblem[Any],
     *,
     planner: str | None = None,
     params: DiscreteParams | ContinuousParams | None = None,
@@ -113,6 +158,18 @@ def plan(
         return plan_discrete(
             problem,
             planner=resolved_planner,
+            params=params,
+            seed=seed,
+            rng=rng,
+            trace=trace,
+        )
+
+    if isinstance(problem, TemporalProblem):
+        if isinstance(params, RrtParams):
+            raise TypeError("Temporal planning does not accept RrtParams")
+        return plan_temporal(
+            problem,
+            planner=planner or "sipp",
             params=params,
             seed=seed,
             rng=rng,
@@ -135,5 +192,6 @@ __all__ = [
     "Stats",
     "plan_discrete",
     "plan_continuous",
+    "plan_temporal",
     "plan",
 ]

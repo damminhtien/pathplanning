@@ -246,6 +246,10 @@ keeps its search state across calls. Use `DStarLitePlanner` to move the start,
 block or reopen existing edges, and repair the route; see the [D* Lite contract
 and runnable example](docs/algorithms/dstar_lite.md).
 
+For known time-varying node and edge blocks, `sipp` searches safe intervals
+with continuous arrival times and waiting. Pass half-open blocked intervals to
+`TemporalProblem`; see the [SIPP contract and runnable example](docs/algorithms/sipp.md).
+
 ### Native graph input
 
 Discrete searches run against a C++-owned CSR graph. For repeated queries or
