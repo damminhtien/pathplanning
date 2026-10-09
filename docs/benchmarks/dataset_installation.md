@@ -25,14 +25,20 @@ The copied `catalog.json` retains the surveyed inventory and original source
 links. Both files and all downloaded data are under the ignored
 `benchmark-results/` directory.
 
+The illustration below uses examples from the installed assets. Each panel is
+an input view, not a performance result, difficulty score, or representative
+sample of its source.
+
+![Source examples from MovingAI, DIMACS, Monash, BARN, and OMPL, shown in separate panels with their problem semantics](images/benchmark_dataset_examples.png)
+
 | Source | Dataset entries | Installed files | Layout and current support |
 |---|---:|---:|---|
-| DIMACS | 25 | 37 | 25 graph files and 12 shared coordinate files under `dimacs/`; registered for graph-format adapters. |
-| BARN | 300 | 600 | 300 `.world` files and their 300 supplied `.npy` paths under `barn/`; registered data only. |
-| MovingAI | 853 | 1,706 | 789 land maps, 20 terrain maps, 44 voxel maps and linked scenarios under `movingai-v2/`, `movingai-terrain/`, and `movingai-3d/`. The current shortest-path runner supports the 789 2D land maps. |
-| Monash | 90 | 179 | 90 voxel maps and 89 linked scenarios under `monash/`; one map has no scenario linked by the source. |
-| OMPL / OMPL.app | 29 | 105 | 99 pinned OMPL.app resources, four demo source files, `KinematicChain.h`, and `floor.ppm` under `ompl/`; configs and referenced resources are registered, but no OMPL, Gazebo, or ROS software is installed. |
-| **Total** | **1,297** | **2,627** | One regional DIMACS coordinate file is shared by its distance and travel-time graphs. |
+| DIMACS | 25 | 37 | 25 graph files and 12 shared coordinate files under `dimacs/`; 13 graphs ran in the directed road cohort and 12 exceeded configured resource limits. |
+| BARN | 300 | 600 | 300 `.world` files and 300 supplied `.npy` paths under `barn/`; all 300 worlds ran in the separate point-robot XY cohort. |
+| MovingAI | 853 | 1,706 | 789 land maps, 20 terrain maps, 44 voxel maps and linked scenarios under `movingai-v2/`, `movingai-terrain/`, and `movingai-3d/`. Land maps were covered; one voxel map ran and 43 exceeded resource limits. Terrain remains unsupported without its source cost table. |
+| Monash | 90 | 179 | 90 voxel maps and 89 linked scenarios under `monash/`; one distinct map ran, 45 exceeded resource limits, and 44 Warframe maps are byte-identical older MovingAI mirrors. One map has no source-linked scenario. |
+| OMPL / OMPL.app | 29 | 105 | 99 pinned OMPL.app resources, four demo source files, `KinematicChain.h`, and `floor.ppm` under `ompl/`; resources are registered, but no OMPL, Gazebo, or ROS software is installed. |
+| **Total** | **1,297** | **2,627** | All installed files passed hash/completeness verification. One regional DIMACS coordinate file is shared by its distance and travel-time graphs. |
 
 MovingAI land maps and scenario files are placed beside one another in each
 family directory so the existing parser resolves the scenario's map reference.
@@ -69,11 +75,15 @@ python3.12 scripts/benchmark_shortest_path.py prepare \
   --manifest benchmark-results/pilot_manifest.json
 ```
 
-The other collections are installed and characterized, but their formats are
-not yet accepted by this MovingAI land runner. Dataset installation does not run
-planners or create benchmark measurements. See
+The MovingAI runner consumes only the 2D land profile. A separate source-aware
+format runner consumes compatible DIMACS, voxel, and BARN inputs without
+combining their semantics. OMPL.app resources and weighted terrain remain
+registration-only until their matching runtimes/cost models are available.
+Dataset installation itself does not run planners or create measurements. See
 [`shortest_path_benchmark_reproduction.md`](../shortest_path_benchmark_reproduction.md)
-for validation and campaign commands.
+for validation and campaign commands, and
+[`dataset_characterization.md`](dataset_characterization.md) for the latest
+coverage and interpretation boundaries.
 
 Original source pages and their terms are preserved in `index.json`: [DIMACS
 Challenge 9](https://www.diag.uniroma1.it/challenge9/download.shtml), [BARN

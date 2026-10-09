@@ -10,6 +10,13 @@ Pass `--output path/to/report.json` to write a report atomically. `--json`
 prints the same report to stdout. The output path is excluded from the source
 fingerprint so saving a report does not change the experiment identity.
 
+This v1 contract covers those two general repository commands. The dataset
+campaigns use source-aware runners and distinct contracts for grid,
+directed-road, voxel, and geometric inputs; see the
+[shortest-path benchmark contract](shortest_path_benchmark_contract.md) and
+[dataset characterization](benchmarks/dataset_characterization.md). Do not
+interpret v1 reports as the combined dataset-campaign record.
+
 ## Identity and provenance
 
 Each report records:

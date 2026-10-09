@@ -5,6 +5,11 @@ This is a separate `pathplanning_shortest_path_v2` report family. Existing
 `pathplanning_benchmark_v1` reports and planner return values keep their current
 meaning.
 
+The source inventory, benchmark coverage snapshot, and input illustrations are
+in the [dataset characterization](benchmarks/dataset_characterization.md).
+Execution commands and current campaign counts are in the
+[reproduction guide](shortest_path_benchmark_reproduction.md).
+
 ## MovingAI input profile
 
 `land_octile_v1` accepts ASCII `type octile` maps with exact declared dimensions.

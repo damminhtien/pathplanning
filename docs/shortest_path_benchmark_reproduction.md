@@ -14,6 +14,30 @@ cost 1, diagonal cost sqrt(2), and requires both side cells to be passable for
 a diagonal. The parser rejects symbols outside the profile instead of
 silently reclassifying them.
 
+![Examples of installed benchmark inputs across MovingAI, DIMACS, Monash, BARN, and OMPL; separate panels show distinct semantics and scales](benchmarks/images/benchmark_dataset_examples.png)
+
+## Latest completed campaign snapshot
+
+As of 2026-10-09, the separate campaigns contain 226,255 observations. The
+MovingAI land campaigns cover all 789 maps with selected query cohorts; scaling
+uses generated grid families, and the format runner keeps roads, voxels, and
+BARN geometry separate. OMPL.app resources and weighted terrain are installed
+but have no compatible planner cohort yet. Detailed denominators and caveats
+are in the [dataset characterization](benchmarks/dataset_characterization.md).
+
+| Campaign | Executed workloads | Outcome boundary |
+|---|---:|---|
+| MovingAI pilot | 2,890 reachable queries × 12 variants | 21,343 optimal and 13,337 valid suboptimal paths. |
+| MovingAI unreachable | 80 queries × 12 variants | All variants classified 80/80 correctly; reported independently of reachable-scenario coverage. |
+| MovingAI map coverage | 3,363 work queries × 12 variants | Latency uses 788 map/query identities × 12 × 7 runs; memory uses 30 × 12. |
+| Scaling | 1,600 work queries × 17 variants | Separate 400-query latency and 80-query memory sets. |
+| DIMACS / voxels | 13 road graphs and 2 distinct voxel maps × 13 variants | 12 of 25 road graphs and 88 non-mirror voxel maps are resource-limited; 44 identical Warframe mirrors are not double-counted. |
+| BARN | 300 worlds × 14 compatible planners | 2,673 valid paths and 1,527 no-solution outcomes; no invalid paths or planner errors. |
+
+These counts are execution coverage, not a cross-family leaderboard. The
+previous README pilot figures are an earlier eight-variant cohort and must not
+be substituted for these results.
+
 ## Build and run
 
 Install the surveyed collection once. The installer places MovingAI land maps
@@ -201,6 +225,24 @@ JPS and D* Lite are checked against the independent no-corner-cutting octile
 oracle. Theta* and Lazy Theta* are collision-checked in a separate any-angle
 cohort and are not ranked against the octile optimum. JPSW requires the missing
 terrain cost table, which the runner records as an exclusion.
+
+## Regenerate the dataset illustration
+
+The multi-format figure reads the installed source assets and uses only the
+Python standard library. To regenerate the SVG and a PNG for Markdown previews,
+install `rsvg-convert` and run:
+
+```text
+python3.12 scripts/render_benchmark_dataset_examples.py \
+  --dataset-root benchmark-results/datasets \
+  --output docs/benchmarks/images/benchmark_dataset_examples.svg \
+  --png-output docs/benchmarks/images/benchmark_dataset_examples.png
+```
+
+It shows a named MovingAI scenario rendering, a small induced DIMACS road
+subgraph, one slice from each of two 3D maps, BARN's source cylinders, and an
+OMPL image resource. It does not create planner observations or infer graph
+difficulty from visual density.
 
 ## Regenerate the README benchmark figures
 

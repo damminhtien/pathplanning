@@ -1,7 +1,8 @@
 # Characterizing benchmark datasets before comparing planners
 
-Research and tooling snapshot: 2026-10-08. This work characterizes inputs; it
-does not rank planners or report new planner performance results.
+Dataset characterization snapshot: 2026-10-09. Structural descriptors explain
+what each source represents; they do not rank planners. The completed campaign
+coverage and its outcome limits are recorded separately below.
 
 The population is the current single-agent MovingAI 2D collection (including
 terrain) and corrected 3D collection, DIMACS Challenge 9 core roads and Rome99,
@@ -10,6 +11,12 @@ geometric demo definitions and all OMPL.app problem configurations. Older 2D
 duplicates, MAPF, dynamic navigation, restricted DIMACS contributions and
 kinodynamic execution are outside the measured population. OMPL control configurations are retained and identified
 so that they cannot accidentally enter a geometric comparison.
+
+![Examples of the installed benchmark sources, including 2D and voxel maps, a directed road graph, BARN geometry, and an OMPL resource](images/benchmark_dataset_examples.png)
+
+The figure is an illustrative view of named source assets only. Panels use
+different scales, and visible density is not a difficulty metric or a sampling
+scheme.
 
 ## Three levels of classification
 
@@ -156,10 +163,10 @@ evaluation. DIMACS graph structure is profiled separately from query generation.
 
 The generated `cohort.json` proposes equal family then equal lineage weights
 inside each comparison key, with variants sharing their lineage's weight.
-Original/scaled Baldur's Gate collections share one originating-family weight. It
-retains unmeasured maps and excludes the old Warframe mirror from the proposed
-evaluation cohort. It is metadata for a future campaign, not evidence that all
-those inputs have already been independently validated or benchmarked.
+Original/scaled Baldur's Gate collections share one originating-family weight.
+It retains unmeasured maps and excludes the old Warframe mirror from the
+proposed evaluation cohort. These target weights are a protocol proposal; they
+do not describe the executed campaigns or imply that every asset was measured.
 
 ## Reproduction and interfaces
 
@@ -229,7 +236,32 @@ structural measurement coverage. Resource-limited and unsupported topology
 measurements remain explicit; quantitative conclusions must cite the actually
 measured map/family subset in the generated coverage report.
 
-## Measured snapshot and consequences
+## Completed campaign coverage, 2026-10-09
+
+The current campaign set contains 226,255 observations across 12 separate
+cohorts. The exact raw observations and campaign summaries are generated under
+the ignored `benchmark-results/final/` directory. The checked-in reproduction
+guide gives the commands to recreate them; this table records the coverage
+limits needed to interpret the results.
+
+| Cohort | Executed population | Result and exclusion boundary |
+|---|---:|---|
+| MovingAI land pilot | 2,890 reachable queries × 12 variants | 21,343 optimal and 13,337 valid suboptimal paths. The pilot is a selected query set, not full scenario coverage. |
+| MovingAI unreachable | 80 negative queries × 12 variants | Every variant classified 80/80 correctly; this decision-accuracy denominator is separate from reachable scenarios. |
+| MovingAI map coverage | 3,363 selected queries × 12 variants | Work pass reaches all 789 eligible land maps. Latency covers 788 map/query identities × 12 × 7 runs; memory covers 30 queries × 12. |
+| Scaling | 1,600 work queries × 17 variants | Separate latency (400 × 17 × 7) and memory (80 × 17) passes; size, density, and corridor topology remain identifiable. |
+| Grid specialists | 788 map/query pairs × 4 planners | JPS is optimal on 788; D* Lite on 750 and resource-limited on 38; Theta* variants return valid any-angle paths, not grid-optimal comparisons. |
+| DIMACS roads | 13 graphs × 13 variants | 130 optimal and 39 valid suboptimal outcomes. The other 12 of 25 graphs are recorded as resource-limited. |
+| Voxel maps | 2 distinct maps × 13 variants | 20 optimal and 6 valid suboptimal under a strict 26-neighbor oracle. Forty-four Warframe mirrors are deduplicated; 88 other voxel assets are resource-limited. |
+| BARN point-XY | 300 worlds × 14 compatible planners | 2,673 source-geometry-valid paths and 1,527 no-solution outcomes; no invalid paths or planner errors. There is no independent continuous optimality oracle. |
+| OMPL.app and terrain | Installed, no planner measurements | OMPL requires its source-compatible collision/state-space runtime; terrain lacks its original cost table. |
+
+These observations do not support a pooled cross-format ranking. DIMACS uses
+directed weighted arcs; voxels use strict 26-neighbor movement; BARN is a
+derived point-robot XY model; and grid-specialist any-angle paths use a
+different objective from octile-optimal grid paths.
+
+## Structural profile snapshot, 2026-10-08
 
 The seed-7 run selected 87 entries: three per map family, the sole Rome graph,
 and all 29 small OMPL definitions/configurations. It processed 86 entries without
@@ -259,23 +291,25 @@ respectively; pooling every query equally would already weight one map over thre
 times as heavily as the other. Report source-distribution and family/map-balanced
 views separately, with their target distributions stated.
 
-The 44 Monash Warframe entries are lineage-linked to MovingAI's 44 maps; they
-are excluded from the proposed cohort because their older scenario version is
-not independent evidence. Terrain rows retain their labels and query displacement
-statistics, while cost comparisons remain unavailable without the original cost
-table. OMPL inventory here is the explicitly named set above, not a claim that
-all possible OMPL-generated problems or plugin-specific state spaces were measured.
+The 44 Monash Warframe entries are lineage-linked to MovingAI's 44 maps; their
+older scenario version is not independent evidence, so they are not counted as
+additional maps in the voxel campaign. Terrain rows retain their labels and
+query-displacement statistics, while cost comparisons remain unavailable
+without the original cost table. OMPL inventory here is the explicitly named
+set above, not a claim that all possible OMPL-generated problems or
+plugin-specific state spaces were measured.
 
-## Validation snapshot
+## Historical validation snapshot, 2026-10-08
 
 Eighteen focused tests pass, covering strict movement, graph direction and
 parallel arcs, voxel duplicates, scenario discovery/versions, geometry transforms,
 sampling reproducibility, unknown reachability, cache invalidation and coverage
-weights. The new Python files pass Ruff checks and formatting; type checking
-reports no errors (the standalone script check reports three missing SciPy stub
-warnings). The native extension built successfully during repository validation.
-The final `make test-all` run was not green: four failures, 257 passes and one
-skip. The failures are the sampling-registry guard, direct-grid-import guard,
-PRM* trace-test parameter compatibility, and the discrete registry smoke test
-passing a regular grid to JPSW. These failures concern planner integration checks
-outside this addition; planner/native/API files were left untouched.
+weights. The Python files added for that characterization pass passed Ruff and
+formatting; type checking reports no errors (the standalone script check reports
+three missing SciPy stub warnings). The native extension built successfully
+during repository validation. The final `make test-all` run for that dated
+characterization change was not green: four failures, 257 passes and one skip.
+The failures were the sampling-registry guard, direct-grid-import guard, PRM*
+trace-test parameter compatibility, and the discrete registry smoke test passing
+a regular grid to JPSW. This is a historical quality-gate record for that
+change, not the validation status of the later benchmark campaigns.

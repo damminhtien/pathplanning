@@ -135,9 +135,38 @@ metrics instrumentation disabled. See the
 For interactive traces, custom scenes, and the rendering API, see the
 [visualization guide](docs/visualization.md).
 
-## MovingAI Pilot Benchmark Summary
+## Benchmark Datasets and Current Coverage
 
-These SciencePlots figures are rendered from the saved pilot summary at
+The installed collections contain different problem semantics, so results stay
+in separate grid, directed-road, voxel, geometric, and framework-resource
+cohorts. The gallery below uses local source assets to show those differences;
+the views use different scales and are not a representative sample or a measure
+of difficulty.
+
+<p align="center">
+  <img src="./docs/benchmarks/images/benchmark_dataset_examples.png" alt="Visual examples of MovingAI 2D and 3D grids, a DIMACS directed road graph, a Monash voxel level, BARN cylinder obstacles, and an OMPL image resource" width="100%"/>
+</p>
+
+| Cohort | Completed coverage | Result and limit |
+|---|---:|---|
+| MovingAI land | 789 maps; 2,890 reachable pilot queries and 3,363 map-coverage queries, each on 12 variants | 80 separate unreachable queries were classified correctly by all 12 variants. Latency and memory used their own frozen cohorts. |
+| MovingAI grid specialists | 788 map/query pairs × 4 planners | JPS was optimal on 788; D* Lite was optimal on 750 and resource-limited on 38; Theta* and Lazy Theta* returned valid any-angle paths on all 788. |
+| Scaling | 1,600 work queries × 17 variants; separate latency and memory passes | Size, density, and corridor-topology cohorts retain their own memberships. |
+| DIMACS roads | 13 of 25 directed graphs × 13 variants | 12 graphs exceeded configured resource limits; road costs and grid costs are not pooled. |
+| MovingAI and Monash voxels | 2 distinct maps × 13 variants | 20 optimal and 6 valid suboptimal results under the strict 26-neighbor oracle; mirrors and resource-limited maps remain visible in inventory. |
+| BARN | 300 worlds × 14 compatible planners | 2,673 paths passed source-geometry validation; 1,527 queries had no solution in the derived point-XY model. No invalid paths or planner errors. |
+| OMPL.app and terrain | Installed and registered | OMPL requires its matching collision/state-space runtime; terrain remains unsupported while the original cost table is unavailable. |
+
+The complete locally generated campaign report records 226,255 observations
+across the separate cohorts. See the [dataset installation guide](docs/benchmarks/dataset_installation.md),
+[dataset semantics and bias controls](docs/benchmarks/dataset_characterization.md),
+and [campaign reproduction commands](docs/shortest_path_benchmark_reproduction.md)
+for provenance, exclusions, and exact protocols.
+
+## Earlier MovingAI Pilot Benchmark Summary
+
+These figures show the earlier eight-variant pilot, not the later full-map and
+multi-format campaign totals. They are rendered from the saved summary at
 benchmark-results/pilot/summary.json. The latency cohort covers 360 queries,
 the work cohort covers 1,750, and the fresh-worker memory cohort covers 360;
 each compares the same eight planner variants. The latency, work, and memory

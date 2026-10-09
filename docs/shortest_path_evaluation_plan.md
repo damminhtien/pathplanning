@@ -1,8 +1,13 @@
 # Single-Agent Shortest-Path Evaluation Plan
 
-Review date: 2026-10-04. Plan version: 2.
+Design review: 2026-10-04. Plan version: 2. Status refreshed: 2026-10-09.
 
-Status: proposed for implementation. This document supersedes the plan from the discussion and fixes measurement definitions, work items, and acceptance criteria. Files and commands marked “planned” have not been implemented. This document contains no new benchmark results.
+This document preserves the original protocol design and implementation tickets.
+“Planned” labels, initial workload sizes, and estimates describe that design
+stage; consult the [reproduction guide](shortest_path_benchmark_reproduction.md)
+and [dataset characterization](benchmarks/dataset_characterization.md) for
+current commands, campaign coverage, and measured limits. The campaign figures
+are source-stratified and do not create a cross-format planner ranking.
 
 ## 1. Review findings and decisions
 
@@ -74,6 +79,11 @@ The planned workloads.py contains MovingAIGrid, whose to_native_graph returns th
 | pilot | Six families: DAO, Starcraft, room, maze, random, and street. Select three maps per family by low/median/high V_free, breaking ties by name; at most 100 scenarios per map: five C* quantiles × up to 20 rows, selected by hash with workload_seed=7. At most 1,800 queries. |
 | full | All maps/scenarios from the six chosen families, with the file list and hashes frozen. Record parser exclusions with reasons and counts. |
 | scaling | Generators and sweeps from section 9, with fixed seeds and versions. |
+
+These are initial design targets, not the current executed cohort sizes. The
+reproduction guide and frozen manifests describe the later 2,890-query pilot,
+3,363-query all-map coverage, 1,600-query scaling work pass, and separate
+format-specific campaigns.
 
 These families are in the [MovingAI 2D catalog](https://movingai.com/benchmarks/grids.html). Record missing maps/bins in the manifest; do not replace them based on candidate success. If the three map positions resolve to the same map, select the nearest distinct map using the fixed ordering. Attach baseline-expanded difficulty only after query selection, outside the measurement window.
 
@@ -283,19 +293,19 @@ Keep these acceptance gates to distinguish the MVP from extension tracks. Run Gr
 | SP-09 | Anytime pass observations, global budget, cooperative incumbent return | SP-08 | Correct work sums; total budget is not reset; verify first/last incumbent; correct termination and path availability. |
 | SP-10 | Full/scaling/ablation campaigns and frontier reports | SP-08; SP-09 for anytime | Freeze cohort/config; complete expected records; separate evidence for bounds and slopes; include every failure/limitation in the report. |
 
-### Implementation status, 2026-10-06
+### Implementation status, 2026-10-09
 
 | Ticket | Status |
 | --- | --- |
-| SP-01–SP-06 | Implemented; contract, MovingAI parser/oracle, native metrics/allocation hooks, and runner have tests. |
-| SP-07 | MVP report/plot implemented: latency, work counters, allocator memory, process RSS, quality, paired ratios, and bootstrap. Full per-map/difficulty strata, coverage-versus-budget, and Pareto frontier remain in SP-09/SP-10. |
-| SP-08 | End-to-end pilot passed: 1,750 workloads × 8 variants for work (14,000 observations); 360 workloads × 8 variants for latency (20,160 measured + 5,760 warmups) and memory (2,880 observations). All 42,800 observations were `ok`; there were no invalid paths, missing required metrics, or unexplained oracle discrepancies. Output in `benchmark-results/` is gitignored and must be regenerated using the reproduction guide. |
-| SP-09 | Not implemented: anytime pass observations, total resource budget, and incumbent events. |
-| SP-10 | Partial: scaling profile/generators, log-log fit, and ablation identity helpers exist; full/scaling/ablation campaigns and Pareto-frontier evidence have not been run/completed. |
+| SP-01–SP-06 | Implemented: input contract, MovingAI parser/oracle, native metrics/allocation hooks, and sequential resumable runner. Focused regression tests are in the repository. |
+| SP-07 | Implemented: reports and plots include latency, work counters, allocator memory, process RSS, path quality, paired ratios, and bootstrap. All-map coverage is measured; coverage-versus-budget and a multi-objective Pareto frontier are not claimed. |
+| SP-08 | Completed. The earlier eight-variant MVP pilot passed with 42,800 observations. The later campaign measured 2,890 reachable MovingAI queries × 12 variants and separate full-map, unreachable, grid-specialist, DIMACS, voxel, and BARN cohorts. See the [reproduction guide](shortest_path_benchmark_reproduction.md) for denominators and results. |
+| SP-09 | Open: no validated anytime campaign with a total per-query resource budget and incumbent-event records is included in the current results. |
+| SP-10 | Partial: scaling ran on 1,600 work queries × 17 variants, plus separate 400-query latency and 80-query memory cohorts. Source-format coverage also ran. The broader ablation set and Pareto-frontier evidence remain open. |
 
-SP-01→SP-08 comprise the MVP, and the pilot passed the correctness gates. SP-09/SP-10 remain follow-up work; the existence of profiles or sweep helpers does not mean those items are complete. Existing tests include `test_movingai_workloads.py`, `test_shortest_path_reference.py`, `test_native_metrics.py`, `test_shortest_path_benchmark_contract.py`, `test_shortest_path_benchmark_runner.py`, `test_shortest_path_benchmark_analysis.py`, and `test_shortest_path_scaling.py`. Use the [native graph tests](../tests/test_native_graph_search.py) and [trace parity tests](../tests/test_native_trace.py) for regression coverage.
+SP-01→SP-08 comprise the original MVP and have passed their recorded pilot correctness gates. SP-09 and the remaining SP-10 analyses stay open; generated profiles do not count as executed evidence. The current campaign counts and limits are summarized in the [dataset characterization](benchmarks/dataset_characterization.md). Existing tests include `test_movingai_workloads.py`, `test_shortest_path_reference.py`, `test_native_metrics.py`, `test_shortest_path_benchmark_contract.py`, `test_shortest_path_benchmark_runner.py`, `test_shortest_path_benchmark_analysis.py`, and `test_shortest_path_scaling.py`. Use the [native graph tests](../tests/test_native_graph_search.py) and [trace parity tests](../tests/test_native_trace.py) for regression coverage.
 
-Native/API validation requires release/metrics/trace builds, focused tests, ruff/pyright, and the non-slow suite from the Makefile when in scope; expand to full/slow tests based on failures/risk. This pilot ran the focused suite and Ruff; the test files above are implemented tests, not planned tests.
+Native/API changes require release/metrics/trace builds, focused tests, Ruff/Pyright, and the non-slow Makefile suite when in scope; expand to full/slow tests when failures or risk justify it. The test files above are implemented tests, not planned work.
 
 ## 12. Retained extension tracks
 
