@@ -203,3 +203,6 @@ __marimo__/
 .streamlit/secrets.toml
 # Reproducible benchmark inputs and generated experiment outputs.
 /benchmark-results/
+
+# Local Graphify code index and extraction cache.
+/graphify-out/
