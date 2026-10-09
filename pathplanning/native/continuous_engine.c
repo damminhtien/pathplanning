@@ -14,6 +14,7 @@
 #define PP_C_NONE UINT32_MAX
 #define PP_C_VERSION "1.7.0"
 #define PP_C_KD_LEVELS 32
+#define PP_C_PRM_KD_MIN_VERTICES 256
 #define PP_C_FCIT_BATCH_LIMIT 64
 
 typedef struct {
@@ -587,6 +588,12 @@ static int pp_ids_append(pp_ids *ids, uint32_t value) {
     }
     ids->items[ids->count++] = value;
     return 0;
+}
+
+static int pp_u32_compare(const void *left, const void *right) {
+    uint32_t first = *(const uint32_t *)left;
+    uint32_t second = *(const uint32_t *)right;
+    return (first > second) - (first < second);
 }
 
 static int pp_kd_radius_block(const uint32_t *ids, ptrdiff_t low, ptrdiff_t high,
@@ -4107,8 +4114,11 @@ int pp_prm_star_build(pp_prm_star_roadmap *roadmap,
                       pp_continuous_result *result) {
     pp_continuous_options options;
     pp_context ctx;
+    pp_kd_index native_index = {0};
+    pp_ids neighbors = {0};
     double *sample = NULL;
     size_t i, j;
+    int use_native_index = 0;
     int stop_reason = 0;
     if (result == NULL) return -1;
     memset(result, 0, sizeof(*result));
@@ -4166,10 +4176,62 @@ int pp_prm_star_build(pp_prm_star_roadmap *roadmap,
     roadmap->connection_radius = pp_prm_star_radius(
         roadmap->gamma, roadmap->vertex_count, roadmap->dimension
     );
-    for (i = 0; i < roadmap->vertex_count; ++i) {
+    if (time_budget_s > 0.0 && pp_now() - ctx.started >= time_budget_s) {
+        stop_reason = 1;
+    }
+    if (stop_reason == 0 && callbacks->native_space != NULL &&
+        roadmap->vertex_count >= PP_C_PRM_KD_MIN_VERTICES) {
+        uint32_t *ids;
+        if (roadmap->vertex_count > (size_t)PTRDIFF_MAX ||
+            roadmap->vertex_count > SIZE_MAX / sizeof(*ids)) {
+            pp_set_error(result, "PRM* roadmap index is too large");
+            goto fail;
+        }
+        ids = (uint32_t *)malloc(roadmap->vertex_count * sizeof(*ids));
+        if (ids == NULL) {
+            pp_set_error(result, "out of memory indexing PRM* roadmap");
+            goto fail;
+        }
+        for (i = 0; i < roadmap->vertex_count; ++i) ids[i] = (uint32_t)i;
+        pp_kd_build(ids, 0, (ptrdiff_t)roadmap->vertex_count - 1,
+                    roadmap->points, roadmap->dimension, 0);
+        native_index.blocks[0].ids = ids;
+        native_index.blocks[0].count = roadmap->vertex_count;
+        native_index.dimension = roadmap->dimension;
+        use_native_index = 1;
+    }
+    for (i = 0; stop_reason == 0 && i < roadmap->vertex_count; ++i) {
         const double *first = roadmap->points + i * roadmap->dimension;
-        for (j = 0; j < i; ++j) {
-            const double *second = roadmap->points + j * roadmap->dimension;
+        size_t candidate_count = i;
+        int use_index_candidates = use_native_index;
+        if (use_index_candidates) {
+            neighbors.count = 0;
+            if (pp_kd_radius(&native_index, first,
+                             nextafter(roadmap->connection_radius, INFINITY),
+                             roadmap->points, &neighbors) != 0) {
+                pp_set_error(result, "out of memory querying PRM* roadmap index");
+                goto fail;
+            }
+            if (time_budget_s > 0.0 && pp_now() - ctx.started >= time_budget_s) {
+                stop_reason = 1;
+                break;
+            }
+            candidate_count = 0;
+            for (j = 0; j < neighbors.count; ++j) {
+                if (neighbors.items[j] < i) {
+                    neighbors.items[candidate_count++] = neighbors.items[j];
+                }
+            }
+            if (candidate_count > i / 2) {
+                use_index_candidates = 0;
+                candidate_count = i;
+            } else if (candidate_count > 1) {
+                qsort(neighbors.items, candidate_count, sizeof(*neighbors.items), pp_u32_compare);
+            }
+        }
+        for (j = 0; j < candidate_count; ++j) {
+            size_t second_id = use_index_candidates ? neighbors.items[j] : j;
+            const double *second = roadmap->points + second_id * roadmap->dimension;
             double distance, euclidean;
             int valid;
             if (time_budget_s > 0.0 && pp_now() - ctx.started >= time_budget_s) {
@@ -4177,14 +4239,18 @@ int pp_prm_star_build(pp_prm_star_roadmap *roadmap,
                 break;
             }
             ++result->iters;
-            if (pp_distance(&ctx, first, second, &distance) != 0) {
-                pp_set_error(result, "PRM* distance callback failed");
-                goto fail;
-            }
-            euclidean = sqrt(pp_distance2(first, second, roadmap->dimension));
-            if (fabs(distance - euclidean) > 1e-9 * fmax(1.0, euclidean)) {
-                pp_set_error(result, "PRM* requires Euclidean state-space distance");
-                goto fail;
+            if (use_index_candidates) {
+                distance = sqrt(pp_distance2(first, second, roadmap->dimension));
+            } else {
+                if (pp_distance(&ctx, first, second, &distance) != 0) {
+                    pp_set_error(result, "PRM* distance callback failed");
+                    goto fail;
+                }
+                euclidean = sqrt(pp_distance2(first, second, roadmap->dimension));
+                if (fabs(distance - euclidean) > 1e-9 * fmax(1.0, euclidean)) {
+                    pp_set_error(result, "PRM* requires Euclidean state-space distance");
+                    goto fail;
+                }
             }
             if (distance > roadmap->connection_radius) continue;
             valid = 0;
@@ -4203,7 +4269,7 @@ int pp_prm_star_build(pp_prm_star_roadmap *roadmap,
                 if (!valid) continue;
                 valid = 1;
             }
-            if (pp_prm_star_append_edge(roadmap, (uint32_t)i, (uint32_t)j,
+            if (pp_prm_star_append_edge(roadmap, (uint32_t)i, (uint32_t)second_id,
                                         distance, valid) != 0) {
                 pp_set_error(result, "out of memory storing PRM* roadmap edges");
                 goto fail;
@@ -4218,9 +4284,13 @@ int pp_prm_star_build(pp_prm_star_roadmap *roadmap,
     result->sample_count = ctx.samples;
     result->motion_checks = ctx.motion_checks;
     result->elapsed_s = pp_now() - ctx.started;
+    pp_kd_free(&native_index);
+    free(neighbors.items);
     return 0;
 fail:
     free(sample);
+    pp_kd_free(&native_index);
+    free(neighbors.items);
     pp_prm_star_clear_storage(roadmap);
     result->stop_reason = 4;
     result->elapsed_s = pp_now() - ctx.started;

@@ -57,3 +57,19 @@ def test_prm_star_registry_entry_uses_native_roadmap() -> None:
     )
     assert result.success
     assert np.isclose(result.stats["path_cost"], 1.0)
+
+
+def test_prm_star_uses_spatial_index_for_native_roadmaps() -> None:
+    sample_count = 320
+    space = Grid2DSamplingSpace(x_range=(0.0, 20.0), y_range=(0.0, 20.0))
+    with PrmStarRoadmap(
+        space,
+        2,
+        RoadmapParams(sample_count=sample_count, gamma=8.0),
+        np.random.default_rng(23),
+    ) as roadmap:
+        roadmap.build(world_version="v1")
+
+        all_pairs = sample_count * (sample_count - 1) // 2
+        assert roadmap.build_stats["roadmap_vertices"] == sample_count
+        assert roadmap.build_stats["roadmap_connection_candidates"] < all_pairs // 4
