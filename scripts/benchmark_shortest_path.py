@@ -33,9 +33,13 @@ def main(argv: list[str] | None = None) -> int:
     run = commands.add_parser("run")
     run.add_argument("--manifest", type=Path, required=True)
     run.add_argument("--campaign", type=Path, required=True)
-    run.add_argument("--pass", dest="pass_name", choices=("latency", "work", "memory"), required=True)
+    run.add_argument(
+        "--pass", dest="pass_name", choices=("latency", "work", "memory"), required=True
+    )
     run.add_argument("--scope", choices=("public_api", "prepared_kernel"), default="public_api")
-    run.add_argument("--graph-state", choices=("reused_graph", "fresh_graph"), default="reused_graph")
+    run.add_argument(
+        "--graph-state", choices=("reused_graph", "fresh_graph"), default="reused_graph"
+    )
     run.add_argument("--repeats", type=int)
     run.add_argument("--warmups", type=int)
     run.add_argument("--schedule-seed", type=int, default=7)
@@ -48,18 +52,26 @@ def main(argv: list[str] | None = None) -> int:
 
     args = parser.parse_args(argv)
     if args.command == "prepare":
-        result = prepare_manifest(args.dataset_root, args.manifest, profile=args.profile, seed=args.seed)
+        result = prepare_manifest(
+            args.dataset_root, args.manifest, profile=args.profile, seed=args.seed
+        )
         print(f"prepared {len(result['cases'])} workloads in {args.manifest}")
         return 0
     if args.command == "validate":
         result = validate_manifest(args.manifest)
-        print(f"checked {result['checked']} workloads; discrepancies={len(result['discrepancies'])}")
+        print(
+            f"checked {result['checked']} workloads; discrepancies={len(result['discrepancies'])}"
+        )
         return 1 if result["discrepancies"] else 0
     if args.command == "run":
         result = run_campaign(
-            args.manifest, args.campaign, pass_name=args.pass_name,
-            scope=args.scope, graph_state=args.graph_state,
-            repeats=args.repeats, warmups=args.warmups,
+            args.manifest,
+            args.campaign,
+            pass_name=args.pass_name,
+            scope=args.scope,
+            graph_state=args.graph_state,
+            repeats=args.repeats,
+            warmups=args.warmups,
             schedule_seed=args.schedule_seed,
             query_timeout_s=args.query_timeout_s,
             setup_timeout_s=args.setup_timeout_s,

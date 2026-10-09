@@ -40,9 +40,7 @@ def test_no_corner_cutting_csr_and_octile_values(tmp_path: Path) -> None:
     assert offsets.tolist() == [0, 3, 6, 9, 12]
     assert indices[:3].tolist() == [2, 3, 1]
     assert costs[:3].tolist() == pytest.approx([1.0, math.sqrt(2), 1.0])
-    assert grid.native_heuristic_values(3).tolist() == pytest.approx(
-        [math.sqrt(2), 1.0, 1.0, 0.0]
-    )
+    assert grid.native_heuristic_values(3).tolist() == pytest.approx([math.sqrt(2), 1.0, 1.0, 0.0])
     assert all(not array.flags.writeable for array in (offsets, indices, costs))
 
     blocked = load_map(_map(tmp_path, "one-corner.map", (".@", "..")))
@@ -123,9 +121,7 @@ def test_pilot_selection_freezes_distinct_maps_and_query_subset(tmp_path: Path) 
     scenarios = parse_scenario(_scenario(tmp_path, rows), tmp_path, family="dao")
     first = select_pilot_cases({"dao": scenarios})
     second = select_pilot_cases({"dao": list(reversed(scenarios))})
-    assert [row.map_name for row in first.work_cases] == [
-        row.map_name for row in second.work_cases
-    ]
+    assert [row.map_name for row in first.work_cases] == [row.map_name for row in second.work_cases]
     assert set(row.map_name for row in first.work_cases) == {"a.map", "b.map", "c.map"}
     assert len(first.latency_cases) == 3
     assert first.metadata["work_cases"] == 3

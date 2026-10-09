@@ -25,8 +25,15 @@ from scripts.shortest_path_benchmark.scaling import (
 
 
 def _run(
-    workload: str, variant: str, *, time_s: float | None, reference_cost: float | None,
-    path_cost: float | None, repeat: int = 0, status: str = "ok", family: str = "test",
+    workload: str,
+    variant: str,
+    *,
+    time_s: float | None,
+    reference_cost: float | None,
+    path_cost: float | None,
+    repeat: int = 0,
+    status: str = "ok",
+    family: str = "test",
     map_id: str = "map-1",
 ) -> dict[str, object]:
     return {
@@ -61,21 +68,44 @@ def test_coverage_and_paired_latency_exclude_timeout_without_changing_denominato
     manifest = {"cases": cases, "cohorts": {"latency": {"workload_ids": ["w1", "w2", "w3", "w4"]}}}
     runs = []
     for repeat, elapsed in enumerate((2.0, 4.0, 6.0)):
-        runs.append(_run("w1", "dijkstra", time_s=elapsed, reference_cost=10,
-                         path_cost=10, repeat=repeat))
-        runs.append(_run("w1", "weighted", time_s=elapsed / 2, reference_cost=10,
-                         path_cost=11, repeat=repeat))
-        runs.append(_run("w2", "dijkstra", time_s=10, reference_cost=20,
-                         path_cost=20, repeat=repeat, map_id="map-2"))
-        runs.append(_run("w3", "dijkstra", time_s=1, reference_cost=0,
-                         path_cost=0, repeat=repeat))
-        runs.append(_run("w3", "weighted", time_s=0.5, reference_cost=0,
-                         path_cost=0, repeat=repeat))
-    runs.append(_run("w2", "weighted", time_s=5, reference_cost=20,
-                     path_cost=None, status="timeout", map_id="map-2"))
+        runs.append(
+            _run("w1", "dijkstra", time_s=elapsed, reference_cost=10, path_cost=10, repeat=repeat)
+        )
+        runs.append(
+            _run(
+                "w1", "weighted", time_s=elapsed / 2, reference_cost=10, path_cost=11, repeat=repeat
+            )
+        )
+        runs.append(
+            _run(
+                "w2",
+                "dijkstra",
+                time_s=10,
+                reference_cost=20,
+                path_cost=20,
+                repeat=repeat,
+                map_id="map-2",
+            )
+        )
+        runs.append(_run("w3", "dijkstra", time_s=1, reference_cost=0, path_cost=0, repeat=repeat))
+        runs.append(
+            _run("w3", "weighted", time_s=0.5, reference_cost=0, path_cost=0, repeat=repeat)
+        )
+    runs.append(
+        _run(
+            "w2",
+            "weighted",
+            time_s=5,
+            reference_cost=20,
+            path_cost=None,
+            status="timeout",
+            map_id="map-2",
+        )
+    )
     for variant in ("dijkstra", "weighted"):
-        runs.append(_run("w4", variant, time_s=1, reference_cost=None,
-                         path_cost=None, map_id="map-2"))
+        runs.append(
+            _run("w4", variant, time_s=1, reference_cost=None, path_cost=None, map_id="map-2")
+        )
     summary = summarize_campaign(runs, manifest=manifest, bootstrap_draws=50)
     cohort = summary["cohorts"][0]
     assert cohort["eligibility"]["source"] == "manifest_cohort"
@@ -109,12 +139,8 @@ def test_coverage_and_paired_latency_exclude_timeout_without_changing_denominato
 def test_report_includes_work_counters_and_separate_memory_boundaries(tmp_path):
     variants = ("dijkstra", "astar")
     manifest = {
-        "cases": [
-            {"workload_id": "w", "input": {"reference_cost": 10, "map_sha256": "map-1"}}
-        ],
-        "variants": [
-            {"id": name, "variant_id": name, "variant_name": name} for name in variants
-        ],
+        "cases": [{"workload_id": "w", "input": {"reference_cost": 10, "map_sha256": "map-1"}}],
+        "variants": [{"id": name, "variant_id": name, "variant_name": name} for name in variants],
         "cohorts": {
             "work": {"workload_ids": ["w"]},
             "memory": {"workload_ids": ["w"]},
@@ -159,9 +185,7 @@ def test_report_includes_work_counters_and_separate_memory_boundaries(tmp_path):
 
     summary = summarize_campaign(runs, manifest=manifest, bootstrap_draws=20)
     work = next(cohort for cohort in summary["cohorts"] if cohort["protocol"]["pass"] == "work")
-    memory = next(
-        cohort for cohort in summary["cohorts"] if cohort["protocol"]["pass"] == "memory"
-    )
+    memory = next(cohort for cohort in summary["cohorts"] if cohort["protocol"]["pass"] == "memory")
     assert work["variants"]["dijkstra"]["work"]["edges_examined"]["median"] == 20
     assert (
         work["variants"]["dijkstra"]["memory"]["query_workspace_peak_bytes"]["median"]
@@ -203,8 +227,9 @@ def test_repeated_outcome_inconsistency_blocks_paired_speedup():
     runs = [
         _run("w", "dijkstra", time_s=2, reference_cost=1, path_cost=1),
         _run("w", "candidate", time_s=1, reference_cost=1, path_cost=1),
-        _run("w", "candidate", time_s=1, reference_cost=1, path_cost=None,
-             repeat=1, status="timeout"),
+        _run(
+            "w", "candidate", time_s=1, reference_cost=1, path_cost=None, repeat=1, status="timeout"
+        ),
     ]
     result = summarize_campaign(runs, bootstrap_draws=10)["cohorts"][0]["variants"]["candidate"]
     assert result["observations"]["inconsistent_queries"] == ["w"]
@@ -235,8 +260,7 @@ def test_scaling_cases_are_reproducible_and_preserve_sweep_identity():
 
 
 def test_topology_heuristic_slope_and_ablation_contract():
-    cases = list(topology_sweep(size=64, opening_widths=(1,), seeds=(0,),
-                                queries_per_bin=1))
+    cases = list(topology_sweep(size=64, opening_widths=(1,), seeds=(0,), queries_per_bin=1))
     assert {case.topology for case in cases} == {"room", "serpentine_maze"}
     assert all(len(case.queries) == 5 for case in cases)
     assert [item["alpha"] for item in heuristic_variants()] == [0, 0.25, 0.5, 0.75, 1]
@@ -247,8 +271,13 @@ def test_topology_heuristic_slope_and_ablation_contract():
     fit = fit_loglog_slope([(1, 1), (2, 4), (4, 16), (8, 64)], draws=100)
     assert fit["slope"] == pytest.approx(2)
     assert fit["interpretation"] == "empirical_trend_only"
-    assert ablation_factor({"graph": "fresh", "h": "array"},
-                           {"graph": "reused", "h": "array"}, factor="graph")["factor"] == "graph"
+    assert (
+        ablation_factor(
+            {"graph": "fresh", "h": "array"}, {"graph": "reused", "h": "array"}, factor="graph"
+        )["factor"]
+        == "graph"
+    )
     with pytest.raises(ValueError, match="only graph"):
-        ablation_factor({"graph": "fresh", "h": "array"},
-                        {"graph": "reused", "h": "lazy"}, factor="graph")
+        ablation_factor(
+            {"graph": "fresh", "h": "array"}, {"graph": "reused", "h": "lazy"}, factor="graph"
+        )

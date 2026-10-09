@@ -124,9 +124,7 @@ class MovingAIGrid:
                 continue
             if self.occupancy[next_y, next_x]:
                 continue
-            if dx and dy and (
-                self.occupancy[y_coord, next_x] or self.occupancy[next_y, x_coord]
-            ):
+            if dx and dy and (self.occupancy[y_coord, next_x] or self.occupancy[next_y, x_coord]):
                 continue
             yield next_y * self.width + next_x
 
@@ -157,9 +155,9 @@ class MovingAIGrid:
         if x_lo >= x_hi or y_lo >= y_hi:
             return valid
         walkable = ~self.occupancy
-        area = walkable[y_lo:y_hi, x_lo:x_hi] & walkable[
-            y_lo + dy : y_hi + dy, x_lo + dx : x_hi + dx
-        ]
+        area = (
+            walkable[y_lo:y_hi, x_lo:x_hi] & walkable[y_lo + dy : y_hi + dy, x_lo + dx : x_hi + dx]
+        )
         if dx and dy:
             area &= walkable[y_lo:y_hi, x_lo + dx : x_hi + dx]
             area &= walkable[y_lo + dy : y_hi + dy, x_lo:x_hi]
@@ -233,7 +231,9 @@ def load_map(path: str | Path) -> MovingAIGrid:
     width = _uint(width_fields[1], "width", positive=True)
     symbols = tuple(lines[4:])
     if len(symbols) != height or any(len(row) != width for row in symbols):
-        raise DatasetError("dimension_mismatch", f"map rows do not match {width}x{height}: {map_path}")
+        raise DatasetError(
+            "dimension_mismatch", f"map rows do not match {width}x{height}: {map_path}"
+        )
     unknown = sorted(set("".join(symbols)) - _PASSABLE - _BLOCKED)
     if unknown:
         raise DatasetError("unknown_symbol", f"unknown map symbols {unknown!r}: {map_path}")
@@ -445,7 +445,9 @@ def select_pilot_cases(
                 round(index * (len(ordered_maps) - 1) / max(1, maps_per_family - 1))
                 for index in range(maps_per_family)
             ]
-            selected_maps = list(dict.fromkeys(ordered_maps[position] for position in evenly_spaced))
+            selected_maps = list(
+                dict.fromkeys(ordered_maps[position] for position in evenly_spaced)
+            )
         map_metadata: dict[str, object] = {}
         for map_path in selected_maps:
             rows = rows_by_map[map_path]

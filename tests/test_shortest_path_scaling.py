@@ -28,10 +28,13 @@ def test_consistent_heuristic_ablations_and_slope_ci() -> None:
     assert [variant["alpha"] for variant in variants] == [0, 0.25, 0.5, 0.75, 1]
     estimate = fit_loglog_slope([(10, 100), (20, 400), (40, 1600)], draws=100, seed=7)
     assert estimate["slope"] == pytest.approx(2.0)
-    assert estimate["ci95"] == fit_loglog_slope(
-        [(10, 100), (20, 400), (40, 1600)], draws=100, seed=7
-    )["ci95"]
+    assert (
+        estimate["ci95"]
+        == fit_loglog_slope([(10, 100), (20, 400), (40, 1600)], draws=100, seed=7)["ci95"]
+    )
     assert estimate["interpretation"] == "empirical_trend_only"
-    assert ablation_factor({"h": 1, "weight": 1}, {"h": 0.5, "weight": 1}, factor="h")["factor"] == "h"
+    assert (
+        ablation_factor({"h": 1, "weight": 1}, {"h": 0.5, "weight": 1}, factor="h")["factor"] == "h"
+    )
     with pytest.raises(ValueError, match="only h"):
         ablation_factor({"h": 1, "weight": 1}, {"h": 0.5, "weight": 2}, factor="h")

@@ -190,8 +190,11 @@ def _valid_solved(row: Mapping[str, Any]) -> bool:
     execution = outcome.get("execution_status")
     return (
         row.get("status") in _COMPLETE_STATUSES
-        and (execution is None or execution in _COMPLETE_STATUSES
-             or execution in {"valid_optimal", "valid_suboptimal"})
+        and (
+            execution is None
+            or execution in _COMPLETE_STATUSES
+            or execution in {"valid_optimal", "valid_suboptimal"}
+        )
         and outcome.get("path_present") is True
         and outcome.get("path_valid") is True
         and _finite_number(outcome.get("path_cost")) is not None
@@ -203,8 +206,10 @@ def _decision_correct(row: Mapping[str, Any]) -> bool:
     return (
         row.get("status") in _COMPLETE_STATUSES
         and outcome.get("path_present") is False
-        and (outcome.get("execution_status") == "proved_unreachable"
-             or outcome.get("planner_stop_reason") in {"no_progress", "unreachable", "no_path"})
+        and (
+            outcome.get("execution_status") == "proved_unreachable"
+            or outcome.get("planner_stop_reason") in {"no_progress", "unreachable", "no_path"}
+        )
     )
 
 
@@ -330,7 +335,10 @@ def preprocessing_break_even(
 def _metric_stats(observations: Mapping[str, dict[str, Any]], namespace: str) -> dict[str, Any]:
     values: dict[str, list[int | float]] = defaultdict(list)
     for observation in observations.values():
-        if not observation["consistent"] or observation["row"].get("status") not in _COMPLETE_STATUSES:
+        if (
+            not observation["consistent"]
+            or observation["row"].get("status") not in _COMPLETE_STATUSES
+        ):
             continue
         row = observation["row"]
         for name, value in (row.get(namespace) or {}).items():
@@ -425,9 +433,7 @@ def _group_analysis(
         grouped[variant_name][row["workload_id"]].append(row)
     for variant in manifest.get("variants", []):
         variant_name = (
-            variant.get("variant_name", variant.get("id"))
-            if isinstance(variant, dict)
-            else variant
+            variant.get("variant_name", variant.get("id")) if isinstance(variant, dict) else variant
         )
         if isinstance(variant_name, str):
             grouped[variant_name]
@@ -763,10 +769,7 @@ def _report_markdown(summary: Mapping[str, Any], plots: Mapping[int, str]) -> st
                     ]
                 )
                 for name, variant in cohort["variants"].items():
-                    values = [
-                        _metric_percentiles(variant, "work", key)
-                        for key, _ in work_metrics
-                    ]
+                    values = [_metric_percentiles(variant, "work", key) for key, _ in work_metrics]
                     lines.append("| " + name + " | " + " | ".join(values) + " |")
                 allocation_metrics = [
                     ("query_workspace_peak_bytes", "Query workspace MiB"),
@@ -780,7 +783,9 @@ def _report_markdown(summary: Mapping[str, Any], plots: Mapping[int, str]) -> st
                         "",
                         "### Instrumented query memory (median / P95 MiB)",
                         "",
-                        "| Variant | " + " | ".join(label for _, label in allocation_metrics) + " |",
+                        "| Variant | "
+                        + " | ".join(label for _, label in allocation_metrics)
+                        + " |",
                         "| --- | " + " | ".join("---:" for _ in allocation_metrics) + " |",
                     ]
                 )
