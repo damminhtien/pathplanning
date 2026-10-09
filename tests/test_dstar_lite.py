@@ -111,7 +111,7 @@ def test_dstar_lite_grid_adapter_keeps_blocked_edges_updateable() -> None:
     assert no_path.stop_reason is StopReason.NO_PROGRESS
 
     timed = plan_discrete(
-        DiscreteProblem(NativeGraph.from_edges((0, 1), ((0, 1, 1.0),)), 0, 1),
+        DiscreteProblem(NativeGraph.from_edges((0, 1, 2), ((0, 1, 1.0), (1, 2, 1.0))), 0, 2),
         planner="dstar_lite",
         params={"max_runtime_ms": 1e-12},
     )

@@ -24,7 +24,7 @@ from pathplanning.native._ffi import (
     copy_trace_result,
     load_native_library,
 )
-from pathplanning.planners.search._grid_utils import _max_expansions
+from pathplanning.planners.search._grid_utils import _max_expansions, _native_valid_nodes
 from pathplanning.planners.search._internal.native import NativeSearchError, _ProblemAdapter
 from pathplanning.spaces.grid2d import Grid2DSearchSpace
 
@@ -36,6 +36,13 @@ def _grid_native_graph(graph: Grid2DSearchSpace, max_nodes: int) -> NativeGraph[
     node_count = graph.x_range * graph.y_range
     if node_count > max_nodes:
         raise ValueError("grid exceeds max_materialized_nodes")
+    if (
+        type(graph) is Grid2DSearchSpace
+        and graph._is_blocked_callback is None
+        and getattr(graph.edge_cost, "__func__", None) is Grid2DSearchSpace.edge_cost
+    ):
+        return _grid_native_graph_vectorized(graph)
+
     offsets = [0]
     neighbor_ids: list[int] = []
     edge_costs: list[float] = []
@@ -48,6 +55,59 @@ def _grid_native_graph(graph: Grid2DSearchSpace, max_nodes: int) -> NativeGraph[
                     neighbor_ids.append(next_y * graph.x_range + next_x)
                     edge_costs.append(float(graph.edge_cost((x, y), (next_x, next_y))))
             offsets.append(len(neighbor_ids))
+    return NativeGraph.from_csr(
+        offsets,
+        neighbor_ids,
+        edge_costs,
+        node_labels=labels,
+        heuristic=graph.heuristic,
+    )
+
+
+def _grid_native_graph_vectorized(
+    graph: Grid2DSearchSpace,
+) -> NativeGraph[tuple[int, int]]:
+    """Materialize the built-in grid graph using NumPy rather than Python edge loops."""
+    width, height = graph.x_range, graph.y_range
+    node_count = width * height
+    node_ids = np.arange(node_count, dtype=np.int64)
+    x_coords = node_ids % width
+    y_coords = node_ids // width
+    valid_nodes = _native_valid_nodes(graph).astype(bool, copy=False)
+
+    edge_masks = []
+    degrees = np.zeros(node_count, dtype=np.uint64)
+    for dx, dy in graph.motions:
+        target_x = x_coords + dx
+        target_y = y_coords + dy
+        in_bounds = (target_x >= 0) & (target_x < width) & (target_y >= 0) & (target_y < height)
+        edge_masks.append((dx, dy, in_bounds))
+        degrees += in_bounds
+
+    offsets = np.empty(node_count + 1, dtype=np.uint64)
+    offsets[0] = 0
+    np.cumsum(degrees, out=offsets[1:])
+    edge_count = int(offsets[-1])
+    neighbor_ids = np.empty(edge_count, dtype=np.uint64)
+    edge_costs = np.empty(edge_count, dtype=np.float64)
+    cursors = offsets[:-1].copy()
+
+    for dx, dy, in_bounds in edge_masks:
+        sources = np.flatnonzero(in_bounds)
+        target_x = x_coords[sources] + dx
+        target_y = y_coords[sources] + dy
+        targets = target_y * width + target_x
+        positions = cursors[sources]
+        neighbor_ids[positions] = targets
+
+        costs = np.full(sources.size, np.inf, dtype=np.float64)
+        if max(abs(dx), abs(dy)) <= 1 and (dx != 0 or dy != 0):
+            edge_is_valid = valid_nodes[sources] & valid_nodes[targets]
+            costs[edge_is_valid] = np.hypot(float(dx), float(dy))
+        edge_costs[positions] = costs
+        cursors[sources] += 1
+
+    labels = [(x, y) for y in range(height) for x in range(width)]
     return NativeGraph.from_csr(
         offsets,
         neighbor_ids,
@@ -162,8 +222,22 @@ class DStarLitePlanner(Generic[N]):
         return value
 
     def _build_heuristic_values(self, start_id: int) -> np.ndarray:
+        if not self._use_heuristic:
+            return np.zeros(self._native_graph.node_count, dtype=np.float64)
+        graph = self.graph
+        if (
+            isinstance(graph, Grid2DSearchSpace)
+            and getattr(graph.heuristic, "__func__", None) is Grid2DSearchSpace.heuristic
+            and getattr(graph.native_heuristic_values, "__func__", None)
+            is Grid2DSearchSpace.native_heuristic_values
+        ):
+            start = (start_id % graph.x_range, start_id // graph.x_range)
+            return np.ascontiguousarray(graph.native_heuristic_values(start), dtype=np.float64)
         return np.fromiter(
-            (self._heuristic(start_id, node_id) for node_id in range(self._native_graph.node_count)),
+            (
+                self._heuristic(start_id, node_id)
+                for node_id in range(self._native_graph.node_count)
+            ),
             dtype=np.float64,
             count=self._native_graph.node_count,
         )
@@ -252,7 +326,9 @@ class DStarLitePlanner(Generic[N]):
         """Repair the route to the current goal and return the best valid path."""
         self._ensure_open()
         if max_expansions is not None and (
-            isinstance(max_expansions, bool) or type(max_expansions) is not int or max_expansions <= 0
+            isinstance(max_expansions, bool)
+            or type(max_expansions) is not int
+            or max_expansions <= 0
         ):
             raise ValueError("max_expansions must be a positive integer")
         runtime_limit = 0.0 if max_runtime_ms is None else _validate_runtime_limit(max_runtime_ms)
@@ -282,7 +358,9 @@ class DStarLitePlanner(Generic[N]):
         try:
             if status != 0:
                 message = native_result.error_message
-                detail = "unknown native D* Lite error" if message is None else message.decode("utf-8")
+                detail = (
+                    "unknown native D* Lite error" if message is None else message.decode("utf-8")
+                )
                 raise RuntimeError(detail)
             stop_reasons = {
                 0: StopReason.SUCCESS,
