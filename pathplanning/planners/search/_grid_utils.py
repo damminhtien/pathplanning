@@ -38,7 +38,13 @@ def _native_valid_nodes(graph: Grid2DSearchSpace) -> NDArray[np.uint8]:
     """Return a flattened C-order validity mask without per-cell Python calls."""
     width, height = graph.x_range, graph.y_range
     callback = graph._is_blocked_callback
-    if callback is not None:
+    uses_builtin_validity = (
+        callback is None
+        and getattr(graph.is_valid_node, "__func__", None) is Grid2DSearchSpace.is_valid_node
+        and getattr(graph._is_blocked, "__func__", None) is Grid2DSearchSpace._is_blocked
+        and getattr(graph._in_bounds, "__func__", None) is Grid2DSearchSpace._in_bounds
+    )
+    if not uses_builtin_validity:
         return np.fromiter(
             (graph.is_valid_node((x, y)) for y in range(height) for x in range(width)),
             dtype=np.uint8,

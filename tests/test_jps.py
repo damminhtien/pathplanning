@@ -147,3 +147,18 @@ def test_native_valid_mask_matches_occupancy_blocked_cells_and_callback() -> Non
         dtype=bool,
     )
     np.testing.assert_array_equal(actual, expected)
+
+    class CustomValidityGrid(Grid2DSearchSpace):
+        def is_valid_node(self, cell: tuple[int, int]) -> bool:
+            return super().is_valid_node(cell) and cell != (1, 1)
+
+    custom_graph = CustomValidityGrid(width=3, height=2, occupancy=occupancy)
+    custom_actual = _native_valid_nodes(custom_graph).reshape((2, 3)).astype(bool)
+    custom_expected = np.array(
+        [
+            [custom_graph.is_valid_node((x, y)) for x in range(custom_graph.x_range)]
+            for y in range(custom_graph.y_range)
+        ],
+        dtype=bool,
+    )
+    np.testing.assert_array_equal(custom_actual, custom_expected)
