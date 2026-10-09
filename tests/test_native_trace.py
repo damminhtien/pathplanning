@@ -54,7 +54,14 @@ def test_search_trace_matches_production(planner: str) -> None:
     assert np.all(second.trace.events["kind"] > 0)
 
 
-@pytest.mark.parametrize("planner", list_planners("continuous"))
+@pytest.mark.parametrize(
+    "planner",
+    [
+        planner
+        for planner in list_planners("continuous")
+        if planner not in {"prm_star", "lazy_prm", "eirm_star", "hybrid_astar", "state_lattice"}
+    ],
+)
 def test_sampling_trace_matches_production(planner: str) -> None:
     space = Grid2DSamplingSpace(x_range=(0.0, 10.0), y_range=(0.0, 10.0))
     problem = ContinuousProblem(

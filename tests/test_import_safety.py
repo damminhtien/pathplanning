@@ -84,10 +84,20 @@ def _imports_grid2d(path: Path) -> bool:
     return False
 
 
-def test_planners_do_not_import_grid2d_directly() -> None:
+def test_grid2d_imports_are_limited_to_grid_specialized_adapters() -> None:
     planner_files = sorted(Path("pathplanning/planners").rglob("*.py"))
-    offenders = [path.as_posix() for path in planner_files if _imports_grid2d(path)]
+    grid_specialized_adapters = {
+        "pathplanning/planners/search/_grid_utils.py",
+        "pathplanning/planners/search/dstar_lite.py",
+        "pathplanning/planners/search/jump_point.py",
+        "pathplanning/planners/search/theta_star.py",
+    }
+    offenders = [
+        path.as_posix()
+        for path in planner_files
+        if _imports_grid2d(path) and path.as_posix() not in grid_specialized_adapters
+    ]
     assert not offenders, (
-        "Planner modules must not import pathplanning.spaces.grid2d directly:\n"
-        + "\n".join(offenders)
+        "Only the shared grid adapter and grid-specialized planners may import "
+        "pathplanning.spaces.grid2d directly:\n" + "\n".join(offenders)
     )
