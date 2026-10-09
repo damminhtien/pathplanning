@@ -40,3 +40,6 @@ Agent Path Finding,” AAAI 2021. The implementation follows the paper's EES
 high-level selection and focal low-level bound; online estimates use a running
 average of observed child cost and conflict-count errors. See the [AAAI paper](https://ojs.aaai.org/index.php/AAAI/article/view/17466)
 and the [author's PDF](https://www.cs.unh.edu/~ruml/papers/eecbs-aaai21.pdf).
+
+Runnable example: [`examples/eecbs.py`](../../examples/eecbs.py).
+Run from the repository root with `python -m examples.eecbs`.

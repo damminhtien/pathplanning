@@ -45,3 +45,6 @@ print(result.success, result.stats.get("motion_checks"))
 
 Reference: [Strub and Gammell, AIT* and EIT*: Asymmetric bidirectional
 sampling-based path planning (IJRR 2022)](https://arxiv.org/abs/2111.01877).
+
+Runnable example: [`examples/eit_star.py`](../../examples/eit_star.py).
+Run from the repository root with `python -m examples.eit_star`.

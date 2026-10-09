@@ -29,3 +29,6 @@ with LazyPrmRoadmap(
 ```
 
 Reference: [Bohlin and Kavraki, Path Planning Using Lazy PRM (ICRA 2000)](https://www.kavrakilab.org/publications/bohlin-kavraki2000path-planning-using.pdf).
+
+Runnable example: [`examples/lazy_prm.py`](../../examples/lazy_prm.py).
+Run from the repository root with `python -m examples.lazy_prm`.

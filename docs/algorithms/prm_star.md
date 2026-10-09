@@ -42,3 +42,6 @@ motion-check, expansion, and timing counters. Small tests validate multi-query
 reuse and path validity; they do not prove asymptotic guarantees.
 
 Reference: [Karaman and Frazzoli, Sampling-based Algorithms for Optimal Motion Planning (IJRR 2011)](https://arxiv.org/abs/1105.1186).
+
+Runnable example: [`examples/prm_star.py`](../../examples/prm_star.py).
+Run from the repository root with `python -m examples.prm_star`.

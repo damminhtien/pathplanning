@@ -41,3 +41,6 @@ changes; doing so rebuilds the roadmap and clears its validation cache.
 Reference: [Hartmann et al., Effort Informed Roadmaps (EIRM*): Efficient
 Asymptotically Optimal Multiquery Planning by Actively Reusing Validation
 Effort (ISRR 2022)](https://arxiv.org/abs/2205.08480).
+
+Runnable example: [`examples/eirm_star.py`](../../examples/eirm_star.py).
+Run from the repository root with `python -m examples.eirm_star`.

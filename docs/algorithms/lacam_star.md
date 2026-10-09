@@ -46,3 +46,6 @@ claims.
 
 References: [Engineering LaCAM* (AAMAS 2024)](https://aamas.csc.liv.ac.uk/Proceedings/aamas2024/pdfs/p1501.pdf),
 [reference implementation](https://github.com/Kei18/lacam3).
+
+Runnable example: [`examples/lacam_star.py`](../../examples/lacam_star.py).
+Run from the repository root with `python -m examples.lacam_star`.

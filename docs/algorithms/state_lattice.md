@@ -29,3 +29,6 @@ opt-in. The example shows both reference motion models.
 Reference: M. Pivtoraiko and A. Kelly, “Efficient Constrained Path Planning
 via Search in State Lattices,” i-SAIRAS 2005,
 [paper](https://www.cs.cmu.edu/~alonzo/pubs/papers/isairas05Planning.pdf).
+
+Runnable example: [`examples/state_lattice.py`](../../examples/state_lattice.py).
+Run from the repository root with `python -m examples.state_lattice`.

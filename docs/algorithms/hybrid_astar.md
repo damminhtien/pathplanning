@@ -72,3 +72,6 @@ The Reeds-Shepp connector formulas are adapted from OMPL's
 the adapted source retains its BSD 3-Clause notice in
 [`pathplanning/THIRD_PARTY_NOTICES.md`](../../pathplanning/THIRD_PARTY_NOTICES.md).
 This package has no OMPL runtime dependency.
+
+Runnable example: [`examples/hybrid_astar.py`](../../examples/hybrid_astar.py).
+Run from the repository root with `python -m examples.hybrid_astar`.

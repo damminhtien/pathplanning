@@ -62,3 +62,6 @@ Python callbacks prioritize clarity over throughput.
 
 Reference: [Din et al., RIT*: Riemannian Informed Trees for Cost-Adaptive
 Optimal Motion Planning (2026, version 1)](https://arxiv.org/abs/2608.00822).
+
+Runnable example: [`examples/rit_star.py`](../../examples/rit_star.py).
+Run from the repository root with `python -m examples.rit_star`.

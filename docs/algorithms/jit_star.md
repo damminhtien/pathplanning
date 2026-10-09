@@ -67,3 +67,6 @@ claim the paper's asymptotic guarantee for finite budgets.
 Reference: [Cai et al., Just in time Informed Trees: Manipulability-Aware
 Asymptotically Optimized Motion Planning (2026, arXiv v1)](
 https://arxiv.org/abs/2601.19972).
+
+Runnable example: [`examples/jit_star.py`](../../examples/jit_star.py).
+Run from the repository root with `python -m examples.jit_star`.

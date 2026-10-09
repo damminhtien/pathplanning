@@ -41,3 +41,6 @@ the sample set grows.
 
 Reference: [Wilson et al., Nearest-Neighbourless Asymptotically Optimal Motion
 Planning with Fully Connected Informed Trees (ICRA 2025)](https://kavrakilab.org/publications/wilson2025-fcit.pdf).
+
+Runnable example: [`examples/fcit_star.py`](../../examples/fcit_star.py).
+Run from the repository root with `python -m examples.fcit_star`.
