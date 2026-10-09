@@ -136,6 +136,81 @@ def test_coverage_and_paired_latency_exclude_timeout_without_changing_denominato
     assert len(list((campaign / "plots").glob("*.svg"))) == 1
 
 
+def test_unreachable_work_campaign_uses_its_own_denominator_and_report(tmp_path):
+    cases = [
+        {
+            "workload_id": "reachable",
+            "input": {"reference_cost": 2.0, "family": "rooms", "map_sha256": "map-1"},
+        },
+        *[
+            {
+                "workload_id": workload_id,
+                "input": {
+                    "reference_reachable": False,
+                    "family": "rooms",
+                    "map_sha256": "map-1",
+                },
+            }
+            for workload_id in ("unreachable-1", "unreachable-2")
+        ],
+    ]
+    manifest = {
+        "cases": cases,
+        "variants": [
+            {"id": "dijkstra", "variant_id": "dijkstra", "variant_name": "dijkstra"}
+        ],
+        "cohorts": {
+            "work": {"workload_ids": ["reachable"]},
+            "unreachable": {"workload_ids": ["unreachable-1", "unreachable-2"]},
+        },
+    }
+    reachable = _run(
+        "reachable", "dijkstra", time_s=None, reference_cost=2.0, path_cost=2.0
+    )
+    reachable["pass"] = "work"
+    reachable["cohort"] = "work"
+    unreachable_runs = []
+    for workload_id in ("unreachable-1", "unreachable-2"):
+        row = _run(
+            workload_id,
+            "dijkstra",
+            time_s=None,
+            reference_cost=None,
+            path_cost=None,
+        )
+        row["pass"] = "work"
+        row["cohort"] = "unreachable"
+        row["input"]["reference_reachable"] = False
+        row["outcome"]["execution_status"] = "proved_unreachable"
+        row["outcome"]["planner_stop_reason"] = "unreachable"
+        unreachable_runs.append(row)
+
+    campaign = tmp_path / "campaign"
+    campaign.mkdir()
+    (campaign / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
+    (campaign / "runs.jsonl").write_text(
+        "".join(
+            json.dumps(row) + "\n"
+            for row in [reachable, *unreachable_runs]
+        ),
+        encoding="utf-8",
+    )
+
+    summary = analyze_campaign(campaign, bootstrap_draws=50)
+    unreachable = next(cohort for cohort in summary["cohorts"] if cohort["cohort"] == "unreachable")
+    coverage = unreachable["variants"]["dijkstra"]["coverage"]
+    report = (campaign / "report.md").read_text(encoding="utf-8")
+
+    assert len(summary["cohorts"]) == 2
+    assert unreachable["eligibility"]["workload_count"] == 2
+    assert unreachable["eligibility"]["oracle_solvable_count"] == 0
+    assert unreachable["eligibility"]["oracle_unreachable_count"] == 2
+    assert coverage["unreachable_correct_count"] == 2
+    assert coverage["unreachable_decision_accuracy"] == 1.0
+    assert "## work / unreachable:" in report
+    assert "| dijkstra | 0 / 0 | 2 / 2 |" in report
+
+
 def test_report_includes_work_counters_and_separate_memory_boundaries(tmp_path):
     variants = ("dijkstra", "astar")
     manifest = {

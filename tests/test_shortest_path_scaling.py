@@ -10,6 +10,7 @@ from scripts.shortest_path_benchmark.scaling import (
     heuristic_variants,
     sample_queries,
 )
+from scripts.shortest_path_benchmark.scaling_manifest import prepare_scaling_manifest
 
 
 def test_connectivity_and_sampled_queries_are_reproducible() -> None:
@@ -38,3 +39,51 @@ def test_consistent_heuristic_ablations_and_slope_ci() -> None:
     )
     with pytest.raises(ValueError, match="only h"):
         ablation_factor({"h": 1, "weight": 1}, {"h": 0.5, "weight": 2}, factor="h")
+
+
+def test_scaling_manifest_includes_size_density_topology_and_heuristic_sweeps(
+    tmp_path,
+) -> None:
+    import json
+
+    profile = {
+        "profile": "scaling-test",
+        "generator_version": "grid_sweep_v1",
+        "size_sweep": {
+            "side_lengths": [32],
+            "obstacle_density": 0.2,
+            "seeds": [1],
+            "queries_per_seed": 20,
+        },
+        "density_sweep": {"side_length": 32, "densities": [0.2], "seeds": [1]},
+        "corridor_widths": [1, 2],
+        "heuristic_alpha": [0, 1],
+    }
+    profile_path = tmp_path / "profile.json"
+    profile_path.write_text(json.dumps(profile))
+    manifest_path = tmp_path / "scaling" / "manifest.json"
+
+    manifest = prepare_scaling_manifest(profile_path, manifest_path)
+    assert manifest["selection"]["map_count"] == 6
+    assert manifest["selection"]["raw_generated_queries"] == 120
+    assert len(manifest["cohorts"]["work"]["workload_ids"]) == 100
+    assert set(manifest["cohorts"]) >= {"size", "density", "topology"}
+    assert len(manifest["cohorts"]["size"]["workload_ids"]) == 20
+    assert len(manifest["cohorts"]["density"]["workload_ids"]) == 20
+    assert len(manifest["cohorts"]["topology"]["workload_ids"]) == 80
+    assert len(manifest["cohorts"]["memory"]["workload_ids"]) == 5
+    assert {row["topology"] for row in manifest["cases"] if row["sweep"] == "topology"} == {
+        "room",
+        "serpentine_maze",
+    }
+    assert any(
+        set(row["sweep_memberships"]) == {"scaling:size:random", "scaling:density:random"}
+        for row in manifest["cases"]
+    )
+    assert {row["variant_name"] for row in manifest["variants"] if "halpha" in row["id"]} == {
+        "astar_halpha_0",
+        "astar_halpha_1",
+    }
+    first_hash = manifest["manifest_hash"]
+    repeated = prepare_scaling_manifest(profile_path, manifest_path)
+    assert repeated["manifest_hash"] == first_hash

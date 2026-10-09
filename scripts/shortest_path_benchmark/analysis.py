@@ -170,10 +170,20 @@ def _collect_reference(
 
 
 def _eligible_ids(
-    manifest: Mapping[str, Any], pass_name: str, observed: set[str], reference: Mapping[str, Any]
+    manifest: Mapping[str, Any],
+    pass_name: str,
+    observed: set[str],
+    reference: Mapping[str, Any],
+    *,
+    cohort_name: str | None = None,
 ) -> tuple[set[str], str]:
     cohorts = manifest.get("cohorts") or {}
-    pass_cohort = cohorts.get(pass_name, {}) if isinstance(cohorts, dict) else {}
+    selection_name = (
+        cohort_name
+        if isinstance(cohorts, dict) and isinstance(cohort_name, str) and cohort_name in cohorts
+        else pass_name
+    )
+    pass_cohort = cohorts.get(selection_name, {}) if isinstance(cohorts, dict) else {}
     if isinstance(pass_cohort, dict) and isinstance(pass_cohort.get("workload_ids"), list):
         return set(pass_cohort["workload_ids"]), "manifest_cohort"
     pass_key = f"{pass_name}_workload_ids"
@@ -413,8 +423,13 @@ def _group_analysis(
 ) -> dict[str, Any]:
     pass_name = str(rows[0].get("pass", "unknown"))
     protocol = _protocol(rows[0])
+    cohort_name = rows[0].get("cohort")
+    if not isinstance(cohort_name, str):
+        cohort_name = pass_name
     observed = {row["workload_id"] for row in rows}
-    eligible, denominator_source = _eligible_ids(manifest, pass_name, observed, reference)
+    eligible, denominator_source = _eligible_ids(
+        manifest, pass_name, observed, reference, cohort_name=cohort_name
+    )
     solvable = {key for key in eligible if reference.get(key, {}).get("state") == "solvable"}
     unreachable = {key for key in eligible if reference.get(key, {}).get("state") == "unreachable"}
     grouped: dict[str, dict[str, list[dict[str, Any]]]] = defaultdict(lambda: defaultdict(list))
@@ -546,6 +561,7 @@ def _group_analysis(
         }
     return {
         "pass": pass_name,
+        "cohort": cohort_name,
         "protocol": dict(zip(("pass", *_PROTOCOL_FIELDS, "movement_profile"), protocol)),
         "eligibility": {
             "source": denominator_source,
@@ -579,7 +595,10 @@ def summarize_campaign(
             row.get("variant_id"), str
         ):
             raise ValueError("Measured runs require workload_id and variant_id")
-        groups[_protocol(row)].append(row)
+        cohort_name = row.get("cohort")
+        if not isinstance(cohort_name, str):
+            cohort_name = str(row.get("pass", "unknown"))
+        groups[(*_protocol(row), cohort_name)].append(row)
     cohorts = [
         _group_analysis(
             rows,
@@ -695,9 +714,16 @@ def _report_markdown(summary: Mapping[str, Any], plots: Mapping[int, str]) -> st
     for index, cohort in enumerate(summary["cohorts"]):
         protocol = cohort["protocol"]
         pass_name = protocol["pass"]
+        cohort_name = cohort.get("cohort")
+        title = (
+            pass_name
+            if not isinstance(cohort_name, str) or cohort_name == pass_name
+            else f"{pass_name} / {cohort_name}"
+        )
+        has_unreachable = cohort["eligibility"]["oracle_unreachable_count"] > 0
         lines.extend(
             [
-                f"## {pass_name}: {protocol['scope']} / {protocol['graph_state']}",
+                f"## {title}: {protocol['scope']} / {protocol['graph_state']}",
                 "",
                 f"Eligibility: {cohort['eligibility']['source']} "
                 f"({cohort['eligibility']['oracle_solvable_count']} solvable, "
@@ -706,40 +732,66 @@ def _report_markdown(summary: Mapping[str, Any], plots: Mapping[int, str]) -> st
             ]
         )
         if pass_name == "latency":
+            columns = "| Variant | Valid / solvable |"
+            alignment = "| --- | ---: |"
+            if has_unreachable:
+                columns += " Correct unreachable |"
+                alignment += " ---: |"
             lines.extend(
                 [
-                    "| Variant | Valid / solvable | Median s | P95 s | Speedup vs baseline | "
-                    "Mean cost ratio | Timeouts | Inconsistent |",
-                    "| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |",
+                    columns
+                    + " Median s | P95 s | Speedup vs baseline | Mean cost ratio | Timeouts | Inconsistent |",
+                    alignment + " ---: | ---: | ---: | ---: | ---: | ---: |",
                 ]
             )
             for name, variant in cohort["variants"].items():
                 coverage = variant["coverage"]
                 timing = variant["timing"]["query_medians_s"]
                 paired = variant.get("paired_vs_baseline", {})
+                unreachable = (
+                    f"{coverage['unreachable_correct_count']} / "
+                    f"{coverage['oracle_unreachable_count']}"
+                    if has_unreachable
+                    else None
+                )
                 lines.append(
                     f"| {name} | {coverage['valid_solved_count']} / "
-                    f"{coverage['oracle_solvable_count']} | {_number(timing['median'])} | "
+                    f"{coverage['oracle_solvable_count']} | "
+                    + (f"{unreachable} | " if unreachable is not None else "")
+                    + f"{_number(timing['median'])} | "
                     f"{_number(timing['p95'])} | {_number(paired.get('median_speedup'))} | "
                     f"{_number(variant['quality']['mean_cost_ratio'])} | "
                     f"{variant['observations']['timeouts']} | "
                     f"{len(variant['observations']['inconsistent_queries'])} |"
                 )
         else:
+            columns = "| Variant | Valid / solvable |"
+            alignment = "| --- | ---: |"
+            if has_unreachable:
+                columns += " Correct unreachable |"
+                alignment += " ---: |"
             lines.extend(
                 [
-                    "| Variant | Valid / solvable | Optimal / known optimum | Mean cost ratio | "
-                    "Timeouts | Errors | Inconsistent |",
-                    "| --- | ---: | ---: | ---: | ---: | ---: | ---: |",
+                    columns
+                    + " Optimal / known optimum | Mean cost ratio | Timeouts | Errors | Inconsistent |",
+                    alignment + " ---: | ---: | ---: | ---: | ---: |",
                 ]
             )
             for name, variant in cohort["variants"].items():
                 coverage = variant["coverage"]
                 quality = variant["quality"]
                 observations = variant["observations"]
+                unreachable = (
+                    f"{coverage['unreachable_correct_count']} / "
+                    f"{coverage['oracle_unreachable_count']}"
+                    if has_unreachable
+                    else None
+                )
                 lines.append(
                     f"| {name} | {coverage['valid_solved_count']} / "
-                    f"{coverage['oracle_solvable_count']} | {quality['optimal_count']} / "
+                    f"{coverage['oracle_solvable_count']} | "
+                    + (f"{unreachable} | " if unreachable is not None else "")
+                    + f"{quality['optimal_count']} / "
                     f"{quality['solved_with_known_optimum_count']} | "
                     f"{_number(quality['mean_cost_ratio'])} | {observations['timeouts']} | "
                     f"{observations['errors']} | "

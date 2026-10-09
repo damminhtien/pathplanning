@@ -13,6 +13,7 @@ from scripts.shortest_path_benchmark.workloads import (
     load_map,
     make_case_record,
     parse_scenario,
+    sample_unreachable_pairs,
     select_pilot_cases,
 )
 
@@ -126,3 +127,17 @@ def test_pilot_selection_freezes_distinct_maps_and_query_subset(tmp_path: Path) 
     assert len(first.latency_cases) == 3
     assert first.metadata["work_cases"] == 3
     assert np.count_nonzero(scenarios[2].map.occupancy) == 2
+
+
+def test_unreachable_pair_sampler_is_deterministic_and_component_separated(
+    tmp_path: Path,
+) -> None:
+    grid = load_map(_map(tmp_path, "split.map", (".@.", ".@.", ".@.")))
+    first = sample_unreachable_pairs(grid, per_map=5, seed=31)
+    second = sample_unreachable_pairs(grid, per_map=5, seed=31)
+
+    assert first == second
+    assert len(first) == 5
+    assert len({tuple(sorted((row["start"], row["goal"]))) for row in first}) == 5
+    assert all(row["start"] % 3 != row["goal"] % 3 for row in first)
+    assert all(0 <= row["normalized_displacement"] <= 1 for row in first)

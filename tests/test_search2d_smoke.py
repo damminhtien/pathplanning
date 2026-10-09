@@ -2,20 +2,23 @@
 
 from __future__ import annotations
 
+import numpy as np
+
 from pathplanning.api import plan_discrete
 from pathplanning.core.contracts import DiscreteProblem
 from pathplanning.registry import list_planners
 from pathplanning.spaces.grid2d import Grid2DSearchSpace
+from pathplanning.spaces.terrain_grid2d import TerrainCostGrid2D
 
 
 def test_discrete_registered_planners_smoke() -> None:
-    problem = DiscreteProblem(
-        graph=Grid2DSearchSpace(),
-        start=(5, 5),
-        goal=(45, 25),
-    )
-
     for planner_name in list_planners("discrete"):
+        graph = (
+            TerrainCostGrid2D(np.ones((30, 50), dtype=np.float64))
+            if planner_name == "jpsw"
+            else Grid2DSearchSpace()
+        )
+        problem = DiscreteProblem(graph=graph, start=(5, 5), goal=(45, 25))
         result = plan_discrete(
             problem,
             planner=planner_name,

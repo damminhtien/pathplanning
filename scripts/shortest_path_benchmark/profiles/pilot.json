@@ -17,13 +17,17 @@
     "setup_timeout_s": 60
   },
   "variants": [
-    "dijkstra",
+    "breadth_first_search",
+    "depth_first_search",
+    "greedy_best_first",
     "astar",
-    "bidirectional_dijkstra",
-    "bidirectional_astar",
+    "dijkstra",
     "weighted_astar_1.25",
     "weighted_astar_1.5",
     "weighted_astar_2",
-    "greedy_best_first"
+    "bidirectional_dijkstra",
+    "bidirectional_astar",
+    "anytime_astar",
+    "reexp_astar"
   ]
 }

@@ -33,6 +33,8 @@ def main(argv: list[str] | None = None) -> int:
     profile.add_argument("--sample-size", type=int, default=4096)
     profile.add_argument("--seed", type=int, default=7)
     profile.add_argument("--cache", type=Path)
+    profile.add_argument("--dataset-root", type=Path)
+    profile.add_argument("--dataset-index", type=Path)
     report = commands.add_parser("report")
     report.add_argument("--profiles", type=Path, required=True)
     report.add_argument("--output", type=Path, required=True)
@@ -53,6 +55,8 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "profile":
         if args.max_download_mib < 1:
             parser.error("--max-download-mib must be positive")
+        if (args.dataset_root is None) != (args.dataset_index is None):
+            parser.error("--dataset-root and --dataset-index must be provided together")
         limits = Limits(
             max_cells=args.max_cells,
             max_arcs=args.max_arcs,
@@ -66,6 +70,8 @@ def main(argv: list[str] | None = None) -> int:
             per_family=args.per_family,
             maximum_bytes=args.max_download_mib << 20,
             cache=args.cache,
+            dataset_root=args.dataset_root,
+            dataset_index=args.dataset_index,
         )
         render_report(result, args.output)
         return 1 if any(record["status"] == "error" for record in result["records"]) else 0

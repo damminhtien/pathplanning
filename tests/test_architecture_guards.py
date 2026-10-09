@@ -137,13 +137,23 @@ def test_sampling_registry_contains_only_implemented_algorithms() -> None:
     from pathplanning.registry import PLANNER_REGISTRY
 
     expected = {
-        "rrt",
-        "rrt_star",
-        "informed_rrt_star",
-        "fmt_star",
-        "bit_star",
         "abit_star",
+        "ait_star",
+        "bit_star",
+        "eirm_star",
+        "eit_star",
+        "fcit_star",
+        "fmt_star",
+        "hybrid_astar",
+        "informed_rrt_star",
+        "jit_star",
+        "lazy_prm",
+        "prm_star",
+        "rit_star",
+        "rrt",
         "rrt_connect",
+        "rrt_star",
+        "state_lattice",
     }
     actual = {name for name, spec in PLANNER_REGISTRY.items() if spec.problem_kind == "continuous"}
     assert actual == expected

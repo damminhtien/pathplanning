@@ -1,4 +1,4 @@
-"""Prepare, validate, run, and analyze MovingAI shortest-path campaigns."""
+"""Prepare, validate, run, and analyze deterministic scaling campaigns."""
 
 from __future__ import annotations
 
@@ -11,78 +11,52 @@ if str(_ROOT) not in sys.path:
     sys.path.insert(0, str(_ROOT))
 
 from scripts.shortest_path_benchmark.analysis import analyze_campaign
-from scripts.shortest_path_benchmark.runner import (
-    augment_unreachable_manifest,
-    prepare_manifest,
-    run_campaign,
-    validate_manifest,
-)
+from scripts.shortest_path_benchmark.runner import run_campaign, validate_manifest
+from scripts.shortest_path_benchmark.scaling_manifest import prepare_scaling_manifest
+
+_DEFAULT_PROFILE = Path(__file__).parent / "shortest_path_benchmark" / "profiles" / "scaling.json"
 
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     commands = parser.add_subparsers(dest="command", required=True)
-    prepare = commands.add_parser("prepare")
-    prepare.add_argument("--dataset-root", type=Path, required=True)
-    prepare.add_argument("--profile", choices=("pilot", "coverage", "full"), default="pilot")
-    prepare.add_argument("--manifest", type=Path, required=True)
-    prepare.add_argument("--seed", type=int, default=7)
 
-    validate = commands.add_parser("validate")
+    prepare = commands.add_parser("prepare", help="freeze generated maps and workload ids")
+    prepare.add_argument("--profile", type=Path, default=_DEFAULT_PROFILE)
+    prepare.add_argument("--manifest", type=Path, required=True)
+
+    validate = commands.add_parser("validate", help="compute independent Dijkstra references")
     validate.add_argument("--manifest", type=Path, required=True)
 
-    augment = commands.add_parser(
-        "augment-unreachable", help="add a separately scheduled disconnected-query cohort"
-    )
-    augment.add_argument("--manifest", type=Path, required=True)
-    augment.add_argument("--output", type=Path, required=True)
-    augment.add_argument("--per-map", type=int, default=10)
-    augment.add_argument("--seed", type=int, default=7)
-
-    run = commands.add_parser("run")
+    run = commands.add_parser("run", help="run one separated measurement pass")
     run.add_argument("--manifest", type=Path, required=True)
     run.add_argument("--campaign", type=Path, required=True)
-    run.add_argument(
-        "--pass", dest="pass_name", choices=("latency", "work", "memory"), required=True
-    )
-    run.add_argument("--cohort", choices=("work", "latency", "memory", "unreachable"))
+    run.add_argument("--pass", dest="pass_name", choices=("latency", "work", "memory"), required=True)
     run.add_argument("--scope", choices=("public_api", "prepared_kernel"), default="public_api")
-    run.add_argument(
-        "--graph-state", choices=("reused_graph", "fresh_graph"), default="reused_graph"
-    )
+    run.add_argument("--graph-state", choices=("reused_graph", "fresh_graph"), default="reused_graph")
+    run.add_argument("--cohort", help="select one manifest cohort, such as size or topology")
     run.add_argument("--repeats", type=int)
     run.add_argument("--warmups", type=int)
     run.add_argument("--schedule-seed", type=int, default=7)
     run.add_argument("--query-timeout-s", type=float, default=5.0)
     run.add_argument("--setup-timeout-s", type=float, default=60.0)
 
-    analyze = commands.add_parser("analyze")
+    analyze = commands.add_parser("analyze", help="write the campaign report")
     analyze.add_argument("--campaign", type=Path, required=True)
     analyze.add_argument("--baseline", default="dijkstra")
 
     args = parser.parse_args(argv)
     if args.command == "prepare":
-        result = prepare_manifest(
-            args.dataset_root, args.manifest, profile=args.profile, seed=args.seed
+        result = prepare_scaling_manifest(args.profile, args.manifest)
+        print(
+            f"prepared {result['selection']['unique_workloads']} workloads across "
+            f"{result['selection']['map_count']} maps in {args.manifest}"
         )
-        print(f"prepared {len(result['cases'])} workloads in {args.manifest}")
         return 0
     if args.command == "validate":
         result = validate_manifest(args.manifest)
-        print(
-            f"checked {result['checked']} workloads; discrepancies={len(result['discrepancies'])}"
-        )
+        print(f"checked {result['checked']} workloads; discrepancies={len(result['discrepancies'])}")
         return 1 if result["discrepancies"] else 0
-    if args.command == "augment-unreachable":
-        result = augment_unreachable_manifest(
-            args.manifest, args.output, per_map=args.per_map, seed=args.seed
-        )
-        count = len(result["cohorts"]["unreachable"]["workload_ids"])
-        print(
-            f"added {count} unreachable workloads; "
-            f"validated {result['validation']['checked']} total workloads in {args.output}"
-        )
-        return 0
     if args.command == "run":
         result = run_campaign(
             args.manifest,

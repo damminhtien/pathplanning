@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import replace
+import hashlib
 import json
 from pathlib import Path
 import zipfile
@@ -26,7 +27,14 @@ from scripts.benchmark_datasets.profiles import (
     profile_voxels,
 )
 from scripts.benchmark_datasets.report import audit, balanced_cohort, stratify_queries
-from scripts.benchmark_datasets.runner import classify, run_profiles, select_entries, unpack
+from scripts.benchmark_datasets.runner import (
+    LocalDatasetAssets,
+    classify,
+    profile_entry,
+    run_profiles,
+    select_entries,
+    unpack,
+)
 
 
 def test_strict_diagonals_and_components_in_2d_and_3d() -> None:
@@ -186,6 +194,43 @@ def _entry(identifier: str, *, family: str = "maze") -> dict:
             "cost_model": "euclidean_grid",
         },
     }
+
+
+def test_profile_uses_hash_verified_installed_assets(tmp_path: Path) -> None:
+    relative = Path("movingai-v2/maze/tiny.map")
+    asset_path = tmp_path / "datasets" / relative
+    asset_path.parent.mkdir(parents=True)
+    asset_path.write_text("type octile\nheight 2\nwidth 2\nmap\n..\n..\n")
+    asset = {
+        "asset_id": "asset-1",
+        "relative_path": relative.as_posix(),
+        "sha256": hashlib.sha256(asset_path.read_bytes()).hexdigest(),
+        "url": "https://example.org/tiny.map",
+        "download_url": "https://example.org/tiny.map",
+        "role": "dataset",
+    }
+    index_path = tmp_path / "index.json"
+    index_path.write_text(
+        json.dumps(
+            {
+                "datasets": {"dataset-1": {"asset_ids": ["asset-1"]}},
+                "assets": {"asset-1": asset},
+            }
+        )
+    )
+    entry = _entry("dataset-1") | {"name": "tiny.map", "url": asset["url"]}
+    resolver = LocalDatasetAssets(tmp_path / "datasets", index_path)
+
+    record = profile_entry(
+        entry,
+        tmp_path / "cache",
+        Limits(),
+        maximum_bytes=1 << 20,
+        local_assets=resolver,
+    )
+    assert record["status"] == "profiled"
+    assert record["metrics"]["free_nodes"]["value"] == 4
+    assert resolver.verified == {"asset-1"}
 
 
 def test_selection_is_independent_of_order_and_outcomes() -> None:

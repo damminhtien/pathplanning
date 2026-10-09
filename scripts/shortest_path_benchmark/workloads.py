@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING, Mapping, Sequence
 
 import numpy as np
 from numpy.typing import NDArray
+from scipy import ndimage
 
 if TYPE_CHECKING:
     from pathplanning.native.graph import NativeGraph
@@ -380,6 +381,76 @@ def make_case_record(scenario: MovingAIScenario, reference_cost: float | None) -
         "directed_edges": grid.edge_count,
         "movement_profile": MOVEMENT_PROFILE,
     }
+
+
+def sample_unreachable_pairs(
+    grid: MovingAIGrid,
+    *,
+    per_map: int = 10,
+    seed: int = 7,
+) -> tuple[dict[str, int | float], ...]:
+    """Sample deterministic negative queries across distinct free-space components.
+
+    Components use cardinal connectivity. Under ``land_octile_v1`` every legal
+    diagonal also has both side cells free, so this is exactly the movement
+    model's reachability partition. Selection is equal-component weighted and
+    intentionally forms a separate diagnostic cohort.
+    """
+    if per_map < 1:
+        raise ValueError("per_map must be positive")
+    cardinal = np.asarray([[0, 1, 0], [1, 1, 1], [0, 1, 0]], dtype=np.uint8)
+    labels, component_count = ndimage.label(~grid.occupancy, structure=cardinal)
+    if component_count < 2:
+        return ()
+
+    flat_labels = labels.reshape(-1)
+    component_offsets = np.concatenate(
+        ([0], np.cumsum(np.bincount(flat_labels, minlength=component_count + 1)))
+    )
+    order = np.argsort(flat_labels, kind="stable")
+    component_cells = {
+        label: order[component_offsets[label] : component_offsets[label + 1]]
+        for label in range(1, component_count + 1)
+    }
+    map_seed = int.from_bytes(
+        hashlib.sha256(f"{seed}|{grid.map_sha256}|{MOVEMENT_PROFILE}".encode()).digest()[:8],
+        "big",
+    )
+    rng = np.random.default_rng(map_seed)
+    selected: list[dict[str, int | float]] = []
+    used_pairs: set[tuple[int, int]] = set()
+    attempts = max(100, per_map * 100)
+    for _ in range(attempts):
+        if len(selected) >= per_map:
+            break
+        first_label = int(rng.integers(1, component_count + 1))
+        second_label = int(rng.integers(1, component_count))
+        if second_label >= first_label:
+            second_label += 1
+        start = int(rng.choice(component_cells[first_label]))
+        goal = int(rng.choice(component_cells[second_label]))
+        pair_key = tuple(sorted((start, goal)))
+        if pair_key in used_pairs:
+            continue
+        used_pairs.add(pair_key)
+        start_x, start_y = start % grid.width, start // grid.width
+        goal_x, goal_y = goal % grid.width, goal // grid.width
+        diagonal = math.hypot(grid.width - 1, grid.height - 1)
+        displacement = (
+            math.hypot(goal_x - start_x, goal_y - start_y) / diagonal if diagonal else 0.0
+        )
+        selected.append(
+            {
+                "start": start,
+                "goal": goal,
+                "start_component": first_label,
+                "goal_component": second_label,
+                "start_component_size": int(component_cells[first_label].size),
+                "goal_component_size": int(component_cells[second_label].size),
+                "normalized_displacement": displacement,
+            }
+        )
+    return tuple(selected)
 
 
 @dataclass(frozen=True, slots=True)

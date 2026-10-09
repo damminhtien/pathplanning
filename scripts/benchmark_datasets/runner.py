@@ -90,6 +90,55 @@ def select_entries(entries: list[dict[str, Any]], *, per_family: int, seed: int)
     return selected
 
 
+class LocalDatasetAssets:
+    """Resolve and verify installed assets before falling back to network cache."""
+
+    def __init__(self, root: Path, index_path: Path) -> None:
+        self.root = root.expanduser().resolve()
+        self.index_path = index_path.expanduser().resolve()
+        index = json.loads(self.index_path.read_text())
+        self.datasets = index["datasets"]
+        self.assets = index["assets"]
+        self.verified: set[str] = set()
+
+    def fetch(
+        self,
+        entry: dict[str, Any],
+        url: str,
+        cache: Path,
+        maximum_bytes: int,
+    ) -> Path:
+        candidates: list[dict[str, Any]] = []
+        dataset = self.datasets.get(entry["dataset_id"], {})
+        for asset_id in dataset.get("asset_ids", []):
+            asset = self.assets.get(asset_id)
+            if asset and url in {asset.get("url"), asset.get("download_url")}:
+                candidates.append(asset)
+        if not candidates:
+            candidates = [
+                asset
+                for asset in self.assets.values()
+                if url in {asset.get("url"), asset.get("download_url")}
+            ]
+
+        for asset in candidates:
+            relative = Path(asset["relative_path"])
+            path = (self.root / relative).resolve()
+            if not path.is_relative_to(self.root):
+                raise ValueError("installed asset path escapes dataset root")
+            if not path.is_file():
+                continue
+            if path.stat().st_size > maximum_bytes:
+                raise ValueError("download_limit")
+            asset_id = str(asset["asset_id"])
+            if asset_id not in self.verified:
+                if content_hash(path) != asset["sha256"]:
+                    raise ValueError(f"installed asset hash mismatch: {relative}")
+                self.verified.add(asset_id)
+            return path
+        return cached_fetch(url, cache, maximum_bytes=maximum_bytes)
+
+
 def _cfg(path: Path) -> tuple[dict[str, Any], dict[str, Any]]:
     parser = configparser.ConfigParser(strict=False)
     parser.read(path)
@@ -188,10 +237,20 @@ def classify(
 
 
 def profile_entry(
-    entry: dict[str, Any], cache: Path, limits: Limits, *, maximum_bytes: int
+    entry: dict[str, Any],
+    cache: Path,
+    limits: Limits,
+    *,
+    maximum_bytes: int,
+    local_assets: LocalDatasetAssets | None = None,
 ) -> dict[str, Any]:
     """Profile one asset and retain its source and decoded hashes."""
-    path = cached_fetch(entry["url"], cache, maximum_bytes=maximum_bytes)
+    fetch_asset = (
+        (lambda url: local_assets.fetch(entry, url, cache, maximum_bytes))
+        if local_assets is not None
+        else (lambda url: cached_fetch(url, cache, maximum_bytes=maximum_bytes))
+    )
+    path = fetch_asset(entry["url"])
     raw_hash = content_hash(path)
     representation = entry["representation"]
     source_format = entry["metadata"].get("format")
@@ -257,9 +316,7 @@ def profile_entry(
             or entry["url"].replace("/world_", "/path_files/path_").removesuffix(".world") + ".npy"
         )
         if path_url:
-            source_path = np.load(
-                cached_fetch(path_url, cache, maximum_bytes=maximum_bytes), allow_pickle=False
-            )
+            source_path = np.load(fetch_asset(path_url), allow_pickle=False)
             if (
                 source_path.ndim != 2
                 or source_path.shape[1] != 2
@@ -287,7 +344,7 @@ def profile_entry(
         scenario_url = entry["metadata"].get("scenario_url")
         if scenario_url:
             scenario = unpack(
-                cached_fetch(scenario_url, cache, maximum_bytes=maximum_bytes),
+                fetch_asset(scenario_url),
                 cache,
                 ".3dscen",
                 maximum_bytes,
@@ -304,7 +361,7 @@ def profile_entry(
         scenario_url = entry["metadata"].get("scenario_url")
         if scenario_url:
             scenario = unpack(
-                cached_fetch(scenario_url, cache, maximum_bytes=maximum_bytes),
+                fetch_asset(scenario_url),
                 cache,
                 ".scen",
                 maximum_bytes,
@@ -331,12 +388,21 @@ def run_profiles(
     per_family: int = 3,
     maximum_bytes: int = 256 << 20,
     cache: Path | None = None,
+    dataset_root: Path | None = None,
+    dataset_index: Path | None = None,
 ) -> dict[str, Any]:
     """Resume complete records; account for every catalog entry including errors."""
     if catalog.get("schema_version") != SCHEMA:
         raise ValueError("Unsupported catalog schema")
     selected = select_entries(catalog["entries"], per_family=per_family, seed=limits.seed)
     cache = cache or output / "cache"
+    if (dataset_root is None) != (dataset_index is None):
+        raise ValueError("dataset_root and dataset_index must be provided together")
+    local_assets = (
+        LocalDatasetAssets(dataset_root, dataset_index)
+        if dataset_root is not None and dataset_index is not None
+        else None
+    )
     profiler_fingerprint = hashlib.sha256(
         Path(__file__).read_bytes() + Path(__file__).with_name("profiles.py").read_bytes()
     ).hexdigest()
@@ -348,6 +414,10 @@ def run_profiles(
         "catalog_fingerprint": hashlib.sha256(
             json.dumps(catalog["entries"], sort_keys=True).encode()
         ).hexdigest(),
+        "local_dataset_root": str(local_assets.root) if local_assets else None,
+        "local_asset_index_sha256": (
+            content_hash(local_assets.index_path) if local_assets else None
+        ),
     }
     config_hash = hashlib.sha256(json.dumps(settings, sort_keys=True).encode()).hexdigest()
     output.mkdir(parents=True, exist_ok=True)
@@ -368,7 +438,13 @@ def run_profiles(
         else:
             print(f"profiling {entry['source']}/{entry['family']}/{entry['name']}", flush=True)
             try:
-                record = profile_entry(entry, cache, limits, maximum_bytes=maximum_bytes)
+                record = profile_entry(
+                    entry,
+                    cache,
+                    limits,
+                    maximum_bytes=maximum_bytes,
+                    local_assets=local_assets,
+                )
             except Exception as exc:
                 record = {
                     "dataset_id": identifier,

@@ -11,6 +11,7 @@ from concurrent.futures import ProcessPoolExecutor
 import ctypes
 import hashlib
 import json
+import math
 import multiprocessing as mp
 import os
 from pathlib import Path
@@ -51,13 +52,20 @@ from scripts.shortest_path_benchmark.workloads import (
     load_map,
     make_case_record,
     parse_scenario,
+    sample_unreachable_pairs,
     select_pilot_cases,
 )
 
 SCHEMA = "pathplanning_shortest_path_v2"
 VARIANTS = (
-    {"id": "dijkstra", "planner": "dijkstra", "algorithm": 5, "weight": 0.0},
+    {"id": "breadth_first_search", "planner": "bfs", "algorithm": 1, "weight": 0.0},
+    {"id": "depth_first_search", "planner": "dfs", "algorithm": 2, "weight": 0.0},
+    {"id": "greedy_best_first", "planner": "greedy_best_first", "algorithm": 3, "weight": 1.0},
     {"id": "astar", "planner": "astar", "algorithm": 4, "weight": 1.0},
+    {"id": "dijkstra", "planner": "dijkstra", "algorithm": 5, "weight": 0.0},
+    {"id": "weighted_astar_1.25", "planner": "weighted_astar", "algorithm": 6, "weight": 1.25},
+    {"id": "weighted_astar_1.5", "planner": "weighted_astar", "algorithm": 6, "weight": 1.5},
+    {"id": "weighted_astar_2", "planner": "weighted_astar", "algorithm": 6, "weight": 2.0},
     {
         "id": "bidirectional_dijkstra",
         "planner": "bidirectional_dijkstra",
@@ -65,10 +73,14 @@ VARIANTS = (
         "weight": 0.0,
     },
     {"id": "bidirectional_astar", "planner": "bidirectional_astar", "algorithm": 9, "weight": 1.0},
-    {"id": "weighted_astar_1.25", "planner": "weighted_astar", "algorithm": 6, "weight": 1.25},
-    {"id": "weighted_astar_1.5", "planner": "weighted_astar", "algorithm": 6, "weight": 1.5},
-    {"id": "weighted_astar_2", "planner": "weighted_astar", "algorithm": 6, "weight": 2.0},
-    {"id": "greedy_best_first", "planner": "greedy_best_first", "algorithm": 3, "weight": 1.0},
+    {
+        "id": "anytime_astar",
+        "planner": "anytime_astar",
+        "algorithm": 8,
+        "weight": 1.0,
+        "anytime_weights": (2.0, 1.5, 1.25, 1.0),
+    },
+    {"id": "reexp_astar", "planner": "reexp_astar", "algorithm": 10, "weight": 1.0},
 )
 
 
@@ -163,6 +175,115 @@ def _write_json(path: Path, value: Any) -> None:
     write_json_atomic(path, value)
 
 
+def _prepare_map_coverage_cases(
+    root: Path,
+    scenarios: list[Path],
+    *,
+    seed: int,
+) -> tuple[list[dict[str, Any]], list[str], dict[str, Any], list[dict[str, str]]]:
+    """Select one source query per map and normalized-displacement bin."""
+    candidates: dict[tuple[str, int], tuple[str, dict[str, Any]]] = {}
+    source_rows = 0
+    excluded: list[dict[str, str]] = []
+    for scenario_path in scenarios:
+        family = scenario_path.relative_to(root).parts[0]
+        try:
+            parsed = parse_scenario(scenario_path, root, family=family)
+            for scenario in parsed:
+                source_rows += 1
+                grid = scenario.map
+                sx, sy = grid.cell_for(scenario.start_id)
+                gx, gy = grid.cell_for(scenario.goal_id)
+                diagonal = max(1.0, math.hypot(grid.width - 1, grid.height - 1))
+                displacement = math.hypot(gx - sx, gy - sy) / diagonal
+                displacement_bin = min(4, int(displacement * 5))
+                map_relative = grid.path.relative_to(root).as_posix()
+                identity = {
+                    "map_sha256": grid.map_sha256,
+                    "movement_profile": "land_octile_v1",
+                    "start": scenario.start_id,
+                    "goal": scenario.goal_id,
+                }
+                workload_id = stable_id("workload", identity)
+                score = hashlib.sha256(f"{seed}|{workload_id}".encode()).hexdigest()
+                key = map_relative, displacement_bin
+                prior = candidates.get(key)
+                if prior is None or score < prior[0]:
+                    candidates[key] = (
+                        score,
+                        {
+                            "workload_id": workload_id,
+                            "family": family,
+                            "map_path": map_relative,
+                            "map_sha256": grid.map_sha256,
+                            "scenario_path": scenario.scenario_path.relative_to(root).as_posix(),
+                            "scenario_line": scenario.line_number,
+                            "bucket": scenario.bucket,
+                            "start": scenario.start_id,
+                            "goal": scenario.goal_id,
+                            "scenario_optimum": scenario.optimal_length_str,
+                            "reference_cost": None,
+                            "reference_reachable": None,
+                            "reference_expanded": None,
+                            "movement_profile": "land_octile_v1",
+                            "query_kind": "source_scenario",
+                            "cohort": "work",
+                            "normalized_displacement": displacement,
+                            "displacement_bin": displacement_bin,
+                        },
+                    )
+        except Exception as exc:
+            excluded.append(
+                {"path": str(scenario_path.relative_to(root)), "reason": str(exc)}
+            )
+
+    selected = [value[1] for _, value in sorted(candidates.items())]
+    maps: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    for case in selected:
+        maps[case["map_path"]].append(case)
+    for map_path, cases in sorted(maps.items()):
+        grid = load_map(root / map_path)
+        expected_hash = cases[0]["map_sha256"]
+        if grid.map_sha256 != expected_hash:
+            raise ValueError(f"map changed during coverage preparation: {map_path}")
+        for case in cases:
+            case.update(
+                node_slots=grid.node_count,
+                free_nodes=grid.free_count,
+                directed_edges=grid.edge_count,
+            )
+    latency_ids = sorted(
+        min(
+            (case["workload_id"] for case in cases),
+            key=lambda workload_id: hashlib.sha256(
+                f"{seed}|latency|{workload_id}".encode()
+            ).hexdigest(),
+        )
+        for cases in maps.values()
+    )
+    bins_by_map: dict[str, set[int]] = {
+        map_path: {case["displacement_bin"] for case in cases}
+        for map_path, cases in maps.items()
+    }
+    metadata = {
+        "selection_version": "all_maps_displacement_bins_v1",
+        "workload_seed": seed,
+        "source_rows_scanned": source_rows,
+        "selected_maps": len(maps),
+        "selected_queries": len(selected),
+        "queries_per_map": "one hash-selected unique pair per available displacement bin",
+        "bins_per_map": 5,
+        "maps_with_all_bins": sum(len(bins) == 5 for bins in bins_by_map.values()),
+        "maps_with_missing_bins": {
+            map_path: sorted(set(range(5)) - bins)
+            for map_path, bins in sorted(bins_by_map.items())
+            if len(bins) < 5
+        },
+        "latency_selection": "one hash-selected query per map",
+    }
+    return selected, latency_ids, metadata, excluded
+
+
 def prepare_manifest(
     dataset_root: str | Path,
     output: str | Path,
@@ -179,6 +300,8 @@ def prepare_manifest(
         raise ValueError(f"no .scen files under {root}")
     scenarios_by_family: dict[str, list[Any]] = defaultdict(list)
     exclusions: list[dict[str, str]] = []
+    coverage_records: list[dict[str, Any]] | None = None
+    coverage_latency_ids: list[str] | None = None
     if profile == "pilot":
         scenario_maps, inventory, scan_failures = _rank_maps(root, scenarios)
         exclusions.extend(scan_failures)
@@ -226,6 +349,16 @@ def prepare_manifest(
                 Path(path).relative_to(root).as_posix()
                 for path in sorted(selected_paths.get(family, set()))
             ]
+    elif profile == "coverage":
+        (
+            coverage_records,
+            coverage_latency_ids,
+            selection_metadata,
+            coverage_exclusions,
+        ) = _prepare_map_coverage_cases(root, scenarios, seed=seed)
+        exclusions.extend(coverage_exclusions)
+        work_scenarios = ()
+        latency_scenarios = ()
     elif profile == "full":
         for scenario_path in scenarios:
             family = scenario_path.relative_to(root).parts[0]
@@ -251,18 +384,56 @@ def prepare_manifest(
         selection_metadata = {"selection_version": "all_valid_scenarios_v1"}
     else:
         raise ValueError(f"unsupported profile: {profile}")
-    selected_by_id = {
-        case["workload_id"]: case
-        for case in (make_case_record(scenario, None) for scenario in work_scenarios)
-    }
+    selected_by_id = (
+        {case["workload_id"]: case for case in coverage_records}
+        if coverage_records is not None
+        else {
+            case["workload_id"]: case
+            for case in (make_case_record(scenario, None) for scenario in work_scenarios)
+        }
+    )
     if profile == "pilot":
         bins = selection_metadata["workload_bins"]
         for workload_id, case in selected_by_id.items():
             case["difficulty_bin"] = bins[workload_id]
     selected = sorted(selected_by_id.values(), key=lambda case: case["workload_id"])
-    latency_ids = sorted(
-        {make_case_record(scenario, None)["workload_id"] for scenario in latency_scenarios}
+    latency_ids = (
+        coverage_latency_ids
+        if coverage_latency_ids is not None
+        else sorted(
+            {make_case_record(scenario, None)["workload_id"] for scenario in latency_scenarios}
+        )
     )
+    latency_id_set = set(latency_ids)
+    latency_by_map: dict[str, list[str]] = defaultdict(list)
+    for case in selected:
+        if case["workload_id"] in latency_id_set:
+            latency_by_map[case["map_path"]].append(case["workload_id"])
+    family_maps: dict[str, dict[str, list[str]]] = defaultdict(lambda: defaultdict(list))
+    map_free_nodes: dict[str, int] = {}
+    for case in selected:
+        map_path = str(case["map_path"])
+        family_maps[str(case["family"])][map_path].append(str(case["workload_id"]))
+        map_free_nodes[map_path] = int(case["free_nodes"])
+    memory_ids = []
+    for family, maps_in_family in sorted(family_maps.items()):
+        ordered_maps = sorted(
+            maps_in_family,
+            key=lambda map_path: (map_free_nodes[map_path], map_path),
+        )
+        positions = (0, (len(ordered_maps) - 1) // 2, len(ordered_maps) - 1)
+        for position in dict.fromkeys(positions):
+            map_path = ordered_maps[position]
+            candidates = latency_by_map.get(map_path) or maps_in_family[map_path]
+            memory_ids.append(
+                min(
+                    candidates,
+                    key=lambda workload_id: hashlib.sha256(
+                        f"{seed}|memory|{workload_id}".encode()
+                    ).hexdigest(),
+                )
+            )
+    memory_ids = sorted(set(memory_ids))
     variants = []
     for variant in VARIANTS:
         variant_name = variant["id"]
@@ -270,12 +441,19 @@ def prepare_manifest(
             "variant",
             {
                 "algorithm": variant["planner"],
-                "parameters": {"weight": variant["weight"]},
+                "parameters": _variant_identity_parameters(variant),
                 "heuristic_mode": "octile_precomputed_array" if variant["weight"] else "zero",
                 "tie_policy": "f_ascending_h_ascending_insertion_ascending",
             },
         )
-        variants.append({**variant, "variant_id": variant_id, "variant_name": variant_name})
+        manifest_variant = {
+            **variant,
+            "variant_id": variant_id,
+            "variant_name": variant_name,
+        }
+        if "anytime_weights" in manifest_variant:
+            manifest_variant["anytime_weights"] = list(manifest_variant["anytime_weights"])
+        variants.append(manifest_variant)
     manifest = {
         "schema_version": SCHEMA,
         "profile": profile,
@@ -293,7 +471,10 @@ def prepare_manifest(
         "cohorts": {
             "work": {"workload_ids": [case["workload_id"] for case in selected]},
             "latency": {"workload_ids": latency_ids},
-            "memory": {"workload_ids": latency_ids},
+            "memory": {
+                "workload_ids": memory_ids,
+                "selection_policy": "three_map_size_quantiles_per_family_one_query_per_map_v1",
+            },
         },
         "variants": variants,
         "exclusions": exclusions,
@@ -320,6 +501,109 @@ def load_manifest(path: str | Path) -> dict[str, Any]:
     if manifest.get("schema_version") != SCHEMA:
         raise ValueError("unsupported manifest schema")
     return manifest
+
+
+def augment_unreachable_manifest(
+    source_path: str | Path,
+    output_path: str | Path,
+    *,
+    per_map: int = 10,
+    seed: int = 7,
+) -> dict[str, Any]:
+    """Copy a validated land manifest and add a separately scheduled negative cohort."""
+    if per_map < 1:
+        raise ValueError("per_map must be positive")
+    source = Path(source_path)
+    output = Path(output_path)
+    if source.resolve() == output.resolve():
+        raise ValueError("output manifest must differ from source manifest")
+    manifest = load_manifest(source)
+    prior = manifest.get("validation", {})
+    if prior.get("checked") != len(manifest["cases"]) or prior.get("discrepancies"):
+        raise ValueError("source manifest must pass validation before adding unreachable queries")
+
+    base_cases = list(manifest["cases"])
+    map_cases: dict[str, dict[str, Any]] = {}
+    for case in base_cases:
+        map_cases.setdefault(case["map_path"], case)
+
+    extra_cases: list[dict[str, Any]] = []
+    skipped_connected: list[str] = []
+    for map_path, representative in sorted(map_cases.items()):
+        grid = _case_grid(manifest, representative)
+        pairs = sample_unreachable_pairs(grid, per_map=per_map, seed=seed)
+        if not pairs:
+            skipped_connected.append(map_path)
+            continue
+        for pair in pairs:
+            identity = {
+                "map_sha256": grid.map_sha256,
+                "movement_profile": manifest["movement_profile"],
+                "start": pair["start"],
+                "goal": pair["goal"],
+            }
+            extra_cases.append(
+                {
+                    "workload_id": stable_id("workload", identity),
+                    "family": representative["family"],
+                    "map_path": map_path,
+                    "map_sha256": grid.map_sha256,
+                    "scenario_path": None,
+                    "scenario_line": None,
+                    "bucket": None,
+                    "start": pair["start"],
+                    "goal": pair["goal"],
+                    "scenario_optimum": None,
+                    "reference_cost": None,
+                    "reference_reachable": None,
+                    "reference_expanded": None,
+                    "node_slots": grid.node_count,
+                    "free_nodes": grid.free_count,
+                    "directed_edges": grid.edge_count,
+                    "movement_profile": manifest["movement_profile"],
+                    "query_kind": "unreachable",
+                    "cohort": "unreachable",
+                    **pair,
+                }
+            )
+
+    new_ids = [str(case["workload_id"]) for case in extra_cases]
+    if len(set(new_ids)) != len(new_ids):
+        raise ValueError("unreachable query generator produced duplicate workload IDs")
+    existing_ids = {str(case["workload_id"]) for case in base_cases}
+    if existing_ids.intersection(new_ids):
+        raise ValueError("unreachable query IDs overlap source-scenario workloads")
+    manifest["cases"] = [*base_cases, *extra_cases]
+    manifest.setdefault("cohorts", {})["unreachable"] = {
+        "workload_ids": new_ids,
+        "selection_policy": "equal_map_equal_component_label_pair_seeded_v1",
+        "per_map_requested": per_map,
+        "seed": seed,
+        "maps_with_multiple_components": len(map_cases) - len(skipped_connected),
+        "maps_with_selected_queries": len({case["map_path"] for case in extra_cases}),
+        "maps_without_unreachable_pairs": skipped_connected,
+    }
+    manifest.setdefault("selection", {})["unreachable"] = {
+        "workload_count": len(extra_cases),
+        "selection_policy": "equal_map_equal_component_label_pair_seeded_v1",
+        "per_map_requested": per_map,
+        "seed": seed,
+    }
+    manifest.pop("validation", None)
+    manifest.pop("manifest_hash", None)
+    manifest["manifest_hash"] = _sha(manifest)
+    _write_json(output, manifest)
+
+    source_oracle = source.with_suffix(".oracle.jsonl")
+    if source_oracle.is_file():
+        output.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(source_oracle, output.with_suffix(".oracle.jsonl"))
+    validation = validate_manifest(output)
+    if validation["discrepancies"]:
+        raise ValueError(
+            f"unreachable manifest validation found {len(validation['discrepancies'])} discrepancies"
+        )
+    return load_manifest(output)
 
 
 def _case_grid(manifest: dict[str, Any], case: dict[str, Any]) -> Any:
@@ -445,7 +729,20 @@ def validate_manifest(path: str | Path) -> dict[str, Any]:
         case["reference_cost"] = cost
         case["reference_reachable"] = outcome["reference_reachable"]
         case["reference_expanded"] = outcome["reference_expanded"]
-        if cost is None or not scenario_matches_reference(case["scenario_optimum"], cost):
+        if case.get("query_kind") == "unreachable":
+            if outcome["reference_reachable"] or cost is not None:
+                discrepancies.append(
+                    {"workload_id": workload_id, "reason": "unreachable_workload_reachable"}
+                )
+        elif case.get("query_kind") == "synthetic_grid":
+            if bool(outcome["reference_reachable"]) != (cost is not None):
+                discrepancies.append(
+                    {
+                        "workload_id": workload_id,
+                        "reason": "synthetic_reference_reachability_mismatch",
+                    }
+                )
+        elif cost is None or not scenario_matches_reference(case["scenario_optimum"], cost):
             discrepancies.append(
                 {
                     "workload_id": workload_id,
@@ -471,17 +768,19 @@ def validate_manifest(path: str | Path) -> dict[str, Any]:
 class _PreparedGrid:
     """Share one native handle per variant while preparing a fresh h array per query."""
 
-    def __init__(self, grid: Any, native_graph: Any) -> None:
+    def __init__(self, grid: Any, native_graph: Any, heuristic_alpha: float = 1.0) -> None:
         self.grid = grid
         self.native_graph = native_graph
         self.x_range = grid.width
         self.y_range = grid.height
+        self.heuristic_alpha = heuristic_alpha
 
     def to_native_graph(self) -> Any:
         return self.native_graph
 
     def native_heuristic_values(self, goal: int) -> np.ndarray:
-        return self.grid.native_heuristic_values(goal)
+        values = self.grid.native_heuristic_values(goal)
+        return values if self.heuristic_alpha == 1.0 else values * self.heuristic_alpha
 
 
 def _peak_rss_bytes() -> int:
@@ -490,7 +789,20 @@ def _peak_rss_bytes() -> int:
 
 
 def _variant_params(variant: dict[str, Any]) -> dict[str, Any]:
-    return {"weight": variant["weight"]} if variant["planner"] == "weighted_astar" else {}
+    if variant["planner"] == "weighted_astar":
+        return {"weight": variant["weight"]}
+    if variant["planner"] == "anytime_astar":
+        return {"anytime_weights": tuple(variant["anytime_weights"])}
+    return {}
+
+
+def _variant_identity_parameters(variant: dict[str, Any]) -> dict[str, Any]:
+    parameters = {"weight": variant["weight"]}
+    if "anytime_weights" in variant:
+        parameters["anytime_weights"] = list(variant["anytime_weights"])
+    if "heuristic_alpha" in variant:
+        parameters["heuristic_alpha"] = variant["heuristic_alpha"]
+    return parameters
 
 
 def _path_ids(result: SearchResult) -> list[int] | None:
@@ -514,7 +826,18 @@ def _native_call(
 ) -> dict[str, Any]:
     goal = int(case["goal"])
     h_start = time.perf_counter()
-    heuristic = grid.native_heuristic_values(goal) if variant["weight"] else None
+    heuristic_alpha = float(variant.get("heuristic_alpha", 1.0))
+    use_heuristic = bool(variant["weight"]) and heuristic_alpha > 0.0
+    heuristic = grid.native_heuristic_values(goal) * heuristic_alpha if use_heuristic else None
+    anytime_weights = tuple(variant.get("anytime_weights", ()))
+    weight_array = (
+        (ctypes.c_double * len(anytime_weights))(*anytime_weights) if anytime_weights else None
+    )
+    weight_pointer = (
+        ctypes.cast(weight_array, ctypes.POINTER(ctypes.c_double))
+        if weight_array is not None
+        else ctypes.POINTER(ctypes.c_double)()
+    )
     h_time = time.perf_counter() - h_start
     options = SearchOptions(
         int(variant["algorithm"]),
@@ -524,8 +847,8 @@ def _native_call(
         0,
         1,
         goal,
-        ctypes.POINTER(ctypes.c_double)(),
-        0,
+        weight_pointer,
+        len(anytime_weights),
     )
     heuristic_ptr = (
         heuristic.ctypes.data_as(ctypes.POINTER(ctypes.c_double))
@@ -627,7 +950,9 @@ def _native_call(
 def _public_call(
     grid: Any, native_graph: Any, case: dict[str, Any], variant: dict[str, Any]
 ) -> dict[str, Any]:
-    source = _PreparedGrid(grid, native_graph)
+    source = _PreparedGrid(
+        grid, native_graph, float(variant.get("heuristic_alpha", 1.0))
+    )
     problem = DiscreteProblem(
         graph=source,
         start=int(case["start"]),
@@ -713,8 +1038,12 @@ def _input(case: dict[str, Any]) -> dict[str, Any]:
         "family": case["family"],
         "map_sha256": case["map_sha256"],
         "map_path": case["map_path"],
-        "scenario_line": case["scenario_line"],
+        "scenario_path": case.get("scenario_path"),
+        "scenario_line": case.get("scenario_line"),
+        "query_kind": case.get("query_kind", "source_scenario"),
+        "cohort": case.get("cohort", "work"),
         "reference_cost": case.get("reference_cost"),
+        "reference_reachable": case.get("reference_reachable"),
         "start": case["start"],
         "goal": case["goal"],
         "node_slots": case["node_slots"],
@@ -722,6 +1051,19 @@ def _input(case: dict[str, Any]) -> dict[str, Any]:
         "directed_edges": case["directed_edges"],
         "movement_profile": case.get("movement_profile", "land_octile_v1"),
         "difficulty_bin": case.get("difficulty_bin"),
+        "normalized_displacement": case.get("normalized_displacement"),
+        "start_component": case.get("start_component"),
+        "goal_component": case.get("goal_component"),
+        "map_occupancy_sha256": case.get("map_occupancy_sha256"),
+        "sweep": case.get("sweep"),
+        "topology": case.get("topology"),
+        "source_seed": case.get("source_seed"),
+        "requested_density": case.get("requested_density"),
+        "observed_density": case.get("observed_density"),
+        "opening_width": case.get("opening_width"),
+        "connected_components_4": case.get("connected_components_4"),
+        "displacement_bin": case.get("displacement_bin"),
+        "sweep_memberships": case.get("sweep_memberships"),
     }
 
 
@@ -968,12 +1310,17 @@ def _schedule(
     seed: int,
     scope: str,
     graph_state: str,
+    cohort_name: str | None = None,
 ) -> list[dict[str, Any]]:
     rng = random.Random(seed)
     cases = manifest["cases"]
-    if pass_name in ("latency", "memory"):
-        ids = set(manifest["cohorts"][pass_name]["workload_ids"])
+    selected_cohort = cohort_name or pass_name
+    cohorts = manifest.get("cohorts", {})
+    if selected_cohort in cohorts:
+        ids = set(cohorts[selected_cohort]["workload_ids"])
         cases = [case for case in cases if case["workload_id"] in ids]
+    elif cohort_name is not None or pass_name in ("latency", "memory"):
+        raise ValueError(f"manifest has no {selected_cohort!r} cohort")
     maps: dict[str, list[dict[str, Any]]] = defaultdict(list)
     for case in cases:
         maps[case["map_path"]].append(case)
@@ -1002,6 +1349,7 @@ def _schedule(
                             "pass": pass_name,
                             "scope": scope,
                             "graph_state": graph_state,
+                            "cohort": selected_cohort if selected_cohort in cohorts else "all",
                         }
                     )
     return schedule
@@ -1072,6 +1420,7 @@ def run_campaign(
     schedule_seed: int = 7,
     query_timeout_s: float = 5.0,
     setup_timeout_s: float = 60.0,
+    cohort_name: str | None = None,
 ) -> dict[str, Any]:
     """Run a pass with saved schedule, bounded workers, and resumable JSONL."""
     if pass_name not in {"latency", "work", "memory"}:
@@ -1104,6 +1453,7 @@ def run_campaign(
         seed=schedule_seed,
         scope=scope,
         graph_state=graph_state,
+        cohort_name=cohort_name,
     )
     protocol = {
         "pass": pass_name,
@@ -1114,6 +1464,7 @@ def run_campaign(
         "schedule_seed": schedule_seed,
         "query_timeout_s": query_timeout_s,
         "setup_timeout_s": setup_timeout_s,
+        "cohort": cohort_name or pass_name,
     }
     root = Path(__file__).resolve().parents[2]
     native = root / "pathplanning" / "native"
@@ -1330,8 +1681,22 @@ def run_campaign(
                 "variant_parameters": {
                     "planner": variant["planner"],
                     "weight": variant["weight"],
-                    "heuristic_mode": "octile_precomputed_array" if variant["weight"] else "zero",
+                    "heuristic_mode": (
+                        "scaled_octile_precomputed_array"
+                        if "heuristic_alpha" in variant
+                        else "octile_precomputed_array" if variant["weight"] else "zero"
+                    ),
                     "tie_policy": "f_ascending_h_ascending_insertion_ascending",
+                    **(
+                        {"anytime_weights": list(variant["anytime_weights"])}
+                        if "anytime_weights" in variant
+                        else {}
+                    ),
+                    **(
+                        {"heuristic_alpha": variant["heuristic_alpha"]}
+                        if "heuristic_alpha" in variant
+                        else {}
+                    ),
                 },
                 "provenance": {"run_config": config_path.name},
                 "error": failure,
