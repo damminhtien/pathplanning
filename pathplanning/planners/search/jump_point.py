@@ -20,7 +20,12 @@ from pathplanning.native._ffi import (
     load_native_library,
     load_search_trace_library,
 )
-from pathplanning.planners.search._grid_utils import Cell, _grid, _max_expansions
+from pathplanning.planners.search._grid_utils import (
+    Cell,
+    _grid,
+    _max_expansions,
+    _native_valid_nodes,
+)
 from pathplanning.spaces.grid2d import Grid2DSearchSpace
 
 
@@ -47,11 +52,7 @@ def plan_jps(
 
     width, height = graph.x_range, graph.y_range
     snapshot_started = time.perf_counter()
-    valid_nodes = np.fromiter(
-        (graph.is_valid_node((x, y)) for y in range(height) for x in range(width)),
-        dtype=np.uint8,
-        count=width * height,
-    )
+    valid_nodes = _native_valid_nodes(graph)
     grid_snapshot_s = time.perf_counter() - snapshot_started
     native_result = SearchResult()
     native_metrics = JpsMetrics()

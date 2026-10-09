@@ -9,6 +9,7 @@ import numpy as np
 
 from pathplanning.core.contracts import DiscreteProblem
 from pathplanning.core.results import StopReason
+from pathplanning.planners.search._grid_utils import _native_valid_nodes
 from pathplanning.planners.search.jump_point import plan_jps
 from pathplanning.spaces.grid2d import Grid2DSearchSpace
 
@@ -130,3 +131,19 @@ def test_jps_rejects_weighted_grid_subclasses() -> None:
         assert "uniform" in str(error)
     else:
         raise AssertionError("JPS should reject weighted edge costs")
+
+
+def test_native_valid_mask_matches_occupancy_blocked_cells_and_callback() -> None:
+    occupancy = np.array(
+        [[False, True, False], [False, False, False]],
+        dtype=bool,
+    )
+    graph = Grid2DSearchSpace(width=3, height=2, occupancy=occupancy, obstacles={(2, 0)})
+    graph.set_blocked_predicate(lambda cell: cell == (0, 1))
+
+    actual = _native_valid_nodes(graph).reshape((2, 3)).astype(bool)
+    expected = np.array(
+        [[graph.is_valid_node((x, y)) for x in range(graph.x_range)] for y in range(graph.y_range)],
+        dtype=bool,
+    )
+    np.testing.assert_array_equal(actual, expected)
