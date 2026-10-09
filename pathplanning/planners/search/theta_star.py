@@ -20,7 +20,12 @@ from pathplanning.native._ffi import (
     load_native_library,
     load_search_trace_library,
 )
-from pathplanning.planners.search._grid_utils import Cell, _grid, _max_expansions
+from pathplanning.planners.search._grid_utils import (
+    Cell,
+    _grid,
+    _max_expansions,
+    _native_valid_nodes,
+)
 from pathplanning.spaces.grid2d import Grid2DSearchSpace
 from pathplanning.spaces.terrain_grid2d import TerrainCostGrid2D
 
@@ -57,7 +62,9 @@ def _plan_any_angle(
         terrain_source = graph.terrain_costs
     else:
         if getattr(graph.edge_cost, "__func__", None) is not Grid2DSearchSpace.edge_cost:
-            raise ValueError(f"{planner_name} requires a built-in uniform or terrain grid cost model")
+            raise ValueError(
+                f"{planner_name} requires a built-in uniform or terrain grid cost model"
+            )
         terrain_source = None
 
     start = graph._coerce_cell(problem.start)
@@ -66,11 +73,7 @@ def _plan_any_angle(
     width, height = graph.x_range, graph.y_range
 
     snapshot_started = time.perf_counter()
-    valid_nodes = np.fromiter(
-        (graph.is_valid_node((x, y)) for y in range(height) for x in range(width)),
-        dtype=np.uint8,
-        count=width * height,
-    )
+    valid_nodes = _native_valid_nodes(graph)
     if terrain_source is None:
         terrain_costs = np.ones(width * height, dtype=np.float64)
     else:
@@ -123,7 +126,11 @@ def _plan_any_angle(
     try:
         if return_code != 0:
             message = native_result.error_message
-            detail = f"unknown native {planner_name} error" if message is None else message.decode("utf-8")
+            detail = (
+                f"unknown native {planner_name} error"
+                if message is None
+                else message.decode("utf-8")
+            )
             raise RuntimeError(detail)
         stop_reasons = {
             0: StopReason.SUCCESS,
