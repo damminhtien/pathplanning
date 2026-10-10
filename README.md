@@ -328,28 +328,40 @@ grids, grid specialists, DIMACS graph subtypes, both distinct voxel sources,
 and BARN point-robot worlds. The format cohorts keep their own cost, movement,
 and collision semantics; do not compare values across panels as one leaderboard.
 
-Latency shows the median and P95 of per-query medians for MovingAI land and
-scaling (two warm-ups and five measured repeats). The separate one-call panels
-show the median and P95 across independent graph, voxel, world, or map/query
-instances; those are descriptive spreads across problems, not repeated-query
-latency intervals. Work counters and cost ratios are limited to the compatible
-2D octile cohorts. Outcome shares remain within their dataset cohort, with
-octile, any-angle, and unreachable queries in separate panels. For BARN,
-`no_solution_found` is a planner outcome and does not mean an invalid returned
-path. Memory covers only MovingAI land and scaling, where the runner
-supports separate instrumented workspace and fresh-worker RSS passes.
+The latency figures separate repeated public-API calls from one-call-per-query
+results. Repeated cohorts show the median of five calls per query, then the
+median and P95 across query identities; one-call cohorts show the spread across
+source instances. A one-instance DIMACS or voxel panel is a case measurement,
+not an estimate of performance across that dataset. Work and path-cost figures
+use only the compatible 2D octile cohorts. The mean path-cost ratio uses a
+logarithmic axis because DFS averages 48.8× and 56.9× the oracle cost on the two
+cohorts; this keeps those outliers visible while preserving differences near
+1.0. Outcome shares are calculated within each compatible cohort, and the
+all-planner unreachable proof is reported as a separate completeness check.
+For BARN, `no_solution_found` is a planner outcome and does not mean an invalid
+returned path. Memory separates instrumented per-query workspace from total
+fresh-worker RSS, which also includes Python, map loading, and graph setup.
 
 <p align="center">
-  <img src="./assets/images/benchmark-full-latency.png" alt="Median and P95 public API latency across separate MovingAI, scaling, DIMACS, voxel, BARN, and grid-specialist cohorts" width="100%"/>
+  <img src="./assets/images/benchmark-full-latency.svg" alt="Median and P95 public API latency from five repeated calls for MovingAI land and scaling grids, shown in separate cohort panels" width="100%"/>
 </p>
 <p align="center">
-  <img src="./assets/images/benchmark-full-work-quality.png" alt="Expanded nodes, examined edges, frontier pushes, and mean path-cost ratio for all MovingAI land and scaling variants" width="100%"/>
+  <img src="./assets/images/benchmark-full-latency-specialists.svg" alt="One-call median and P95 latency across MovingAI octile and any-angle grid-specialist workloads, in separate panels" width="100%"/>
 </p>
 <p align="center">
-  <img src="./assets/images/benchmark-full-outcomes.png" alt="Outcome shares for MovingAI land, scaling, DIMACS, voxel, BARN, octile specialists, any-angle specialists, and unreachable queries, each kept separate" width="100%"/>
+  <img src="./assets/images/benchmark-full-latency-formats.svg" alt="One-call latency across separate DIMACS distance, travel-time, source-weight, MovingAI voxel, Monash voxel, and BARN cohorts; single-instance panels are descriptive cases" width="100%"/>
 </p>
 <p align="center">
-  <img src="./assets/images/benchmark-full-memory.png" alt="Tracked query workspace and fresh-worker process RSS for MovingAI land and scaling variants" width="100%"/>
+  <img src="./assets/images/benchmark-full-work-quality.svg" alt="Median and P95 search work, plus log-scaled mean path-cost ratio, for MovingAI land and scaling algorithm variants" width="100%"/>
+</p>
+<p align="center">
+  <img src="./assets/images/benchmark-full-outcomes-grids.svg" alt="Within-cohort outcome shares for the 12 MovingAI land and 17 scaling-grid variants; the 2,160-query unreachable proof is summarized separately" width="100%"/>
+</p>
+<p align="center">
+  <img src="./assets/images/benchmark-full-outcomes-formats.svg" alt="Within-cohort outcome shares for DIMACS graph subtypes, MovingAI and Monash voxel maps, and BARN point-robot worlds" width="100%"/>
+</p>
+<p align="center">
+  <img src="./assets/images/benchmark-full-memory.svg" alt="Instrumented query workspace and total fresh-worker RSS across MovingAI land and scaling variants, shown as separate measures" width="100%"/>
 </p>
 
 Terrain and OMPL remain unmeasured because the source terrain cost table and

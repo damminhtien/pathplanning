@@ -17,6 +17,7 @@ matplotlib.use("Agg")
 
 from matplotlib.patches import Patch
 import matplotlib.pyplot as plt
+import scienceplots  # noqa: F401  # Register the package's Matplotlib styles.
 
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_CAMPAIGN_ROOT = Path("benchmark-results/refresh_20261010")
@@ -183,25 +184,26 @@ def _ordered_variants(variants: dict[str, Any]) -> list[tuple[str, str, dict[str
 
 
 def _style() -> None:
-    plt.style.use("seaborn-v0_8-whitegrid")
+    plt.style.use(["science", "no-latex"])
     plt.rcParams.update(
         {
-            "font.family": "DejaVu Sans",
-            "font.size": 8.5,
+            "font.size": 8,
             "axes.titlesize": 9,
             "axes.labelsize": 8,
-            "xtick.labelsize": 7.5,
-            "ytick.labelsize": 7.5,
-            "legend.fontsize": 7.5,
+            "xtick.labelsize": 7,
+            "ytick.labelsize": 7,
+            "legend.fontsize": 7,
             "axes.titleweight": "bold",
-            "axes.edgecolor": "#C7D0D7",
-            "axes.labelcolor": "#374957",
-            "text.color": "#233746",
-            "xtick.color": "#526573",
-            "ytick.color": "#374957",
-            "grid.color": "#D9E1E6",
-            "grid.linewidth": 0.65,
+            "axes.edgecolor": "#9AA7B2",
+            "axes.labelcolor": "#273746",
+            "text.color": "#182B3A",
+            "xtick.color": "#425466",
+            "ytick.color": "#273746",
+            "grid.color": "#D5DDE4",
+            "grid.linewidth": 0.55,
             "savefig.dpi": 180,
+            "svg.fonttype": "none",
+            "svg.hashsalt": "pathplanning-benchmark-v1",
         }
     )
 
@@ -209,6 +211,13 @@ def _style() -> None:
 def _save(figure: Any, path: Path) -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
     figure.savefig(path, bbox_inches="tight", facecolor="white")
+    svg_path = path.with_suffix(".svg")
+    figure.savefig(svg_path, bbox_inches="tight", facecolor="white")
+    svg_lines = svg_path.read_text(encoding="utf-8").splitlines()
+    svg_path.write_text(
+        "\n".join(line.rstrip() for line in svg_lines) + "\n",
+        encoding="utf-8",
+    )
     plt.close(figure)
     return path
 
@@ -219,7 +228,6 @@ def _draw_latency_rows(
     *,
     title: str,
     color: str,
-    source_note: str,
 ) -> None:
     if not rows:
         raise ValueError(f"{title} has no usable latency observations")
@@ -248,16 +256,6 @@ def _draw_latency_rows(
     axis.grid(axis="x", which="both", alpha=0.55)
     axis.grid(axis="y", visible=False)
     axis.set_axisbelow(True)
-    axis.text(
-        0.99,
-        0.02,
-        source_note,
-        transform=axis.transAxes,
-        ha="right",
-        va="bottom",
-        fontsize=6.8,
-        color="#5A6B77",
-    )
 
 
 def _summary_latency_rows(cohort: dict[str, Any]) -> list[tuple[str, float, float, int]]:
@@ -335,21 +333,19 @@ def generate_latency(
     format_rows: list[dict[str, Any]],
     grid_rows: list[dict[str, Any]],
     output_dir: Path,
-) -> Path:
+) -> list[Path]:
     movingai_latency = _summary_cohort(movingai, "latency")
     scaling_latency = _summary_cohort(scaling, "latency")
-    panels: list[tuple[str, list[tuple[str, float, float, int]], str, str]] = [
+    repeated_panels: list[tuple[str, list[tuple[str, float, float, int]], str]] = [
         (
-            "MovingAI land · repeated · n=788 queries",
+            "MovingAI land · 5 repeats · n=788 queries",
             _summary_latency_rows(movingai_latency),
             COHORT_COLORS["movingai"],
-            "2 warm-ups + 5 repeats per query",
         ),
         (
-            "Scaling grids · repeated · n=386 queries",
+            "Scaling grids · 5 repeats · n=386 queries",
             _summary_latency_rows(scaling_latency),
             COHORT_COLORS["scaling"],
-            "2 warm-ups + 5 repeats per query",
         ),
     ]
 
@@ -381,18 +377,19 @@ def generate_latency(
         ),
         ("barn_point_xy_derived", "BARN point-robot XY · 300 worlds", COHORT_COLORS["barn"]),
     ]
+    format_panels: list[tuple[str, list[tuple[str, float, float, int]], str]] = []
+    specialist_panels: list[tuple[str, list[tuple[str, float, float, int]], str]] = []
     present = {row.get("cohort") for row in format_rows}
     missing = set(EXPECTED_FORMAT_COHORTS) - present
     if missing:
         raise ValueError(f"Format campaign is missing required cohorts: {sorted(missing)}")
     for cohort_name, title, color in single_panels:
         rows, count = _raw_latency_rows(format_rows, cohort_name=cohort_name)
-        panels.append(
+        format_panels.append(
             (
                 f"{title} · one call · n={count}",
                 rows,
                 color,
-                "P95 across instances; single call each",
             )
         )
 
@@ -405,29 +402,45 @@ def generate_latency(
         ("movingai_land_any_angle", "any-angle grid"),
     ):
         rows, count = _raw_latency_rows(grid_rows, cohort_name=cohort_name)
-        panels.append(
+        specialist_panels.append(
             (
-                f"MovingAI {label} specialists · one call · n={count}",
+                f"MovingAI {label} specialists · one call · n={count} pairs",
                 rows,
                 COHORT_COLORS["grid"],
-                "P95 across map/query pairs; single call each",
             )
         )
 
-    figure, axes = plt.subplots(5, 2, figsize=(15.5, 17), layout="constrained")
-    flat_axes = list(axes.flat)
-    for axis, (title, rows, color, note) in zip(flat_axes, panels):
-        _draw_latency_rows(axis, rows, title=title, color=color, source_note=note)
-    for axis in flat_axes[len(panels) :]:
-        axis.set_visible(False)
+    figure, axes = plt.subplots(1, 2, figsize=(15, 8.2), layout="constrained")
+    for axis, (title, rows, color) in zip(axes, repeated_panels, strict=True):
+        _draw_latency_rows(axis, rows, title=title, color=color)
     figure.suptitle(
-        "Latency across the compatible benchmark cohorts\n"
-        "Each panel preserves its own task model; repeated timings and one-call instance spreads use separate panels",
-        fontsize=13,
-        fontweight="bold",
-        color="#203746",
+        "Repeated-query latency for compatible 2D grid cohorts\n"
+        "Point = median of five calls per query; whisker = P95 across query medians",
+        fontsize=12,
     )
-    return _save(figure, output_dir / "benchmark-full-latency.png")
+    paths = [_save(figure, output_dir / "benchmark-full-latency.png")]
+
+    figure, axes = plt.subplots(1, 2, figsize=(13, 2.6), layout="constrained")
+    for axis, (title, rows, color) in zip(axes, specialist_panels, strict=True):
+        _draw_latency_rows(axis, rows, title=title, color=color)
+    figure.suptitle(
+        "One-call latency for MovingAI grid specialists\n"
+        "Point = median; one call per map/query pair; whisker = P95 across pairs",
+        fontsize=12,
+    )
+    paths.append(_save(figure, output_dir / "benchmark-full-latency-specialists.png"))
+
+    figure, axes = plt.subplots(2, 3, figsize=(17, 10.5), layout="constrained")
+    flat_axes = list(axes.flat)
+    for axis, (title, rows, color) in zip(flat_axes, format_panels, strict=True):
+        _draw_latency_rows(axis, rows, title=title, color=color)
+    figure.suptitle(
+        "Latency across separate source-format cohorts\n"
+        "One call per instance; point = cohort median, whisker = P95. n=1 panels are single cases.",
+        fontsize=12,
+    )
+    paths.append(_save(figure, output_dir / "benchmark-full-latency-formats.png"))
+    return paths
 
 
 def _plot_work_metric(
@@ -506,6 +519,14 @@ def _plot_cost_ratio(
     for position, ratio in enumerate(ratios):
         axis.hlines(position, 1.0, ratio, color=color, linewidth=2.3, alpha=0.65)
         axis.plot(ratio, position, "o", color=color, markersize=4.2, zorder=3)
+        axis.annotate(
+            f"{ratio:.3g}×",
+            (ratio, position),
+            xytext=(5, 0),
+            textcoords="offset points",
+            fontsize=6,
+            va="center",
+        )
     axis.set_title(f"{title} · n={counts.pop():,}", loc="left", pad=5)
     axis.set_xlabel("Mean path cost / oracle cost · 1.0 = optimal")
     axis.set_yticks(range(len(rows)))
@@ -513,8 +534,9 @@ def _plot_cost_ratio(
         axis.set_yticklabels([row[1] for row in rows])
     else:
         axis.tick_params(axis="y", labelleft=False)
-    axis.set_xlim(left=0.99)
-    axis.grid(axis="x", alpha=0.55)
+    axis.set_xscale("log")
+    axis.set_xlim(left=0.99, right=max(ratios) * 1.7)
+    axis.grid(axis="x", which="both", alpha=0.55)
     axis.grid(axis="y", visible=False)
     axis.set_axisbelow(True)
 
@@ -671,14 +693,60 @@ def _draw_outcome_panel(
     return set(statuses)
 
 
-def generate_format_outcomes(
+def _render_outcome_panels(
+    panels: list[tuple[list[tuple[str, dict[str, int], int]], str, int]],
+    *,
+    output_path: Path,
+    title: str,
+    subtitle: str,
+    columns: int,
+) -> Path:
+    rows = math.ceil(len(panels) / columns)
+    figure, axes = plt.subplots(
+        rows,
+        columns,
+        figsize=(6.4 * columns, 4.2 * rows),
+        layout="constrained",
+        squeeze=False,
+    )
+    flat_axes = list(axes.flat)
+    statuses_seen: set[str] = set()
+    for axis, (cohort_rows, panel_title, workload_count) in zip(flat_axes, panels):
+        statuses_seen.update(
+            _draw_outcome_panel(
+                axis,
+                cohort_rows,
+                title=panel_title,
+                workload_count=workload_count,
+            )
+        )
+    for axis in flat_axes[len(panels) :]:
+        axis.set_visible(False)
+    legend_handles = [
+        Patch(
+            facecolor=STATUS_COLORS.get(status, STATUS_COLORS["unclassified"]),
+            label=STATUS_LABELS.get(status, status.replace("_", " ")),
+        )
+        for status in sorted(statuses_seen)
+    ]
+    figure.legend(
+        handles=legend_handles,
+        loc="outside lower center",
+        ncol=min(5, len(legend_handles)),
+        frameon=False,
+    )
+    figure.suptitle(f"{title}\n{subtitle}", fontsize=12)
+    return _save(figure, output_path)
+
+
+def generate_outcomes(
     format_rows: list[dict[str, Any]],
     movingai_rows: list[dict[str, Any]],
     scaling_rows: list[dict[str, Any]],
     grid_rows: list[dict[str, Any]],
     unreachable_rows: list[dict[str, Any]],
     output_dir: Path,
-) -> Path:
+) -> list[Path]:
     format_groups = [
         ("dimacs_distance_directed_weighted_graph", "DIMACS · distance-weighted directed", 13, 6),
         ("dimacs_travel_time_directed_weighted_graph", "DIMACS · travel-time directed", 13, 6),
@@ -687,20 +755,18 @@ def generate_format_outcomes(
         ("monash_industrial-plants_strict_26_euclidean", "Monash · voxel / strict 26-neighbor", 13, 1),
         ("barn_point_xy_derived", "BARN · static point-robot XY", 14, 300),
     ]
-    panels: list[tuple[list[tuple[str, dict[str, int], int]], str, int]] = []
-    statuses_seen: set[str] = set()
+    format_panels: list[tuple[list[tuple[str, dict[str, int], int]], str, int]] = []
     for cohort_name, title, expected_variants, expected_workloads in format_groups:
         rows, count = _outcome_rows(format_rows, cohort_name=cohort_name)
-        panel_statuses = {status for _label, outcomes, _total in rows for status in outcomes}
         if not rows:
             raise ValueError(f"Format campaign is missing outcomes for {cohort_name}")
         if len(rows) != expected_variants or count != expected_workloads or any(
             total != expected_workloads for _, _, total in rows
         ):
             raise ValueError(f"{cohort_name} does not cover the complete variant/workload set")
-        statuses_seen.update(panel_statuses)
-        panels.append((rows, title, count))
+        format_panels.append((rows, title, count))
 
+    grid_panels: list[tuple[list[tuple[str, dict[str, int], int]], str, int]] = []
     for source_rows, cohort_name, title, expected_variants, expected_workloads in (
         (movingai_rows, "work", "MovingAI land · octile", 12, 3363),
         (scaling_rows, "work", "Scaling grids · octile", 17, 1600),
@@ -716,22 +782,17 @@ def generate_format_outcomes(
             or any(total != expected_workloads for _, _, total in rows)
         ):
             raise ValueError(f"{title} does not cover all variants on every workload")
-        statuses_seen.update(status for _label, outcomes, _total in rows for status in outcomes)
-        panels.append((rows, title, count))
+        grid_panels.append((rows, title, count))
 
-    for cohort_name, title, expected_variants in (
-        ("movingai_land_octile", "MovingAI · grid specialists / octile", 2),
-        ("movingai_land_any_angle", "MovingAI · grid specialists / any-angle", 2),
+    for cohort_name, expected_variants in (
+        ("movingai_land_octile", 2),
+        ("movingai_land_any_angle", 2),
     ):
         grid_rows_summary, grid_count = _outcome_rows(grid_rows, cohort_name=cohort_name)
         if len(grid_rows_summary) != expected_variants or grid_count != 788 or any(
             total != 788 for _, _, total in grid_rows_summary
         ):
             raise ValueError(f"Grid-specialist campaign has no outcomes for {cohort_name}")
-        statuses_seen.update(
-            status for _label, outcomes, _total in grid_rows_summary for status in outcomes
-        )
-        panels.append((grid_rows_summary, title, grid_count))
 
     unreachable_summary, unreachable_count = _outcome_rows(
         unreachable_rows,
@@ -750,47 +811,27 @@ def generate_format_outcomes(
         for _label, outcomes, total in unreachable_summary
     ):
         raise ValueError("Unreachable campaign must prove every workload unreachable")
-    statuses_seen.update(
-        status for _label, outcomes, _total in unreachable_summary for status in outcomes
+    grid_path = _render_outcome_panels(
+        grid_panels,
+        output_path=output_dir / "benchmark-full-outcomes-grids.png",
+        title="Outcome mix for repeated 2D octile cohorts",
+        subtitle=(
+            "Shares use each cohort's own workloads. Grid-specialist results remain separate; "
+            f"12 planners proved {unreachable_count:,}/{unreachable_count:,} unreachable queries."
+        ),
+        columns=2,
     )
-    panels.append(
-        (unreachable_summary, "MovingAI · unreachable-query correctness", unreachable_count)
+    format_path = _render_outcome_panels(
+        format_panels,
+        output_path=output_dir / "benchmark-full-outcomes-formats.png",
+        title="Outcome coverage across source-format cohorts",
+        subtitle=(
+            "Percentages use each cohort's own workload count; source-only n=1 panels are descriptive. "
+            "A BARN no-solution result is separate from path validity."
+        ),
+        columns=3,
     )
-
-    figure, axes = plt.subplots(4, 3, figsize=(20, 22.5), layout="constrained")
-    flat_axes = list(axes.flat)
-    if len(panels) > len(flat_axes):
-        raise ValueError("Outcome layout does not have enough panels")
-    for axis, (rows, title, workload_count) in zip(flat_axes, panels):
-        _draw_outcome_panel(
-            axis,
-            rows,
-            title=title,
-            workload_count=workload_count,
-        )
-    for axis in flat_axes[len(panels) :]:
-        axis.set_visible(False)
-    legend_handles = [
-        Patch(
-            facecolor=STATUS_COLORS.get(status, STATUS_COLORS["unclassified"]),
-            label=STATUS_LABELS.get(status, status.replace("_", " ")),
-        )
-        for status in sorted(statuses_seen)
-    ]
-    figure.legend(
-        handles=legend_handles,
-        loc="outside lower center",
-        ncol=min(5, len(legend_handles)),
-        frameon=False,
-    )
-    figure.suptitle(
-        "Outcome coverage within each compatible dataset cohort\n"
-        "Panels keep road-cost, voxel, geometric, octile, any-angle and unreachable semantics separate",
-        fontsize=13,
-        fontweight="bold",
-        color="#203746",
-    )
-    return _save(figure, output_dir / "benchmark-full-outcomes.png")
+    return [grid_path, format_path]
 
 
 def _plot_memory_rows(
@@ -874,7 +915,7 @@ def generate_memory(movingai: dict[str, Any], scaling: dict[str, Any], output_di
         axes[row_index, 1].invert_yaxis()
     figure.suptitle(
         "Memory measurements for the 2D grid cohorts\n"
-        "Query workspace is instrumented separately; process RSS includes Python, map loading and graph setup",
+        "Point = median; whisker = P95. RSS includes Python, map loading, and graph setup",
         fontsize=13,
         fontweight="bold",
         color="#203746",
@@ -910,9 +951,9 @@ def generate_assets(campaign_root: Path, output_dir: Path) -> list[Path]:
     unreachable_rows = _read_jsonl(campaign_root / "movingai_unreachable_full" / "runs.jsonl")
     _style()
     return [
-        generate_latency(movingai, scaling, format_rows, grid_rows, output_dir),
+        *generate_latency(movingai, scaling, format_rows, grid_rows, output_dir),
         generate_work_quality(movingai, scaling, output_dir),
-        generate_format_outcomes(
+        *generate_outcomes(
             format_rows,
             movingai_rows,
             scaling_rows,

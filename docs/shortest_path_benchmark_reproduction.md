@@ -302,8 +302,9 @@ python scripts/benchmark_shortest_path.py run \
   --pass work --cohort unreachable
 ```
 
-After all campaigns finish, install the optional plot dependencies with
-`python -m pip install -e ".[viz]"` and render all four cohort figures:
+After all campaigns finish, install the optional plotting dependencies with
+`python -m pip install -e ".[viz]"` and render the seven SciencePlots benchmark
+figures:
 
 ```text
 python scripts/generate_full_benchmark_assets.py \
@@ -312,14 +313,20 @@ python scripts/generate_full_benchmark_assets.py \
 ```
 
 The generator reads saved summaries and JSONL observations only; it does not
-run planners. Repeated latency panels use the median of five measured calls per
-query after two warm-ups, followed by the median and P95 across queries. DIMACS,
-voxel, BARN, and grid-specialist panels use one call per independent instance;
-their P95 describes workload spread and is kept separate from repeat-based
-latency. The work/quality figure uses the 2D octile oracle, while the outcome
-figure preserves each format's own success/status categories. The memory figure
-shows separately measured query workspace and fresh-worker RSS, which includes
-the interpreter, input loading, and graph setup.
+run planners. Each figure is saved as a PNG preview and an SVG vector asset.
+Repeated latency panels use the median of five measured calls per query after
+two warm-ups, followed by the median and P95 across queries. One-call panels
+show spreads across independent instances; the DIMACS source-weight graph and
+the two voxel maps each have only one measured instance, so their points are
+descriptive cases rather than dataset-level latency estimates. Work counters
+and cost ratios are restricted to the compatible 2D octile cohorts. The mean
+cost-ratio axis is logarithmic because DFS has large outliers (48.8× on MovingAI
+land and 56.9× on scaling), while most other variants are near 1.0. Outcome
+shares are normalized within each semantic cohort; the unreachable campaign is
+reported as an all-planner proof-completeness check rather than a redundant
+100% bar panel. The memory figure separates instrumented query workspace from
+fresh-worker RSS, which includes the interpreter, input loading, and graph
+setup and must not be read as planner-owned memory alone.
 
 ## Measurement boundaries
 
