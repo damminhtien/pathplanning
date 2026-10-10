@@ -16,12 +16,12 @@ ROOT = Path(__file__).resolve().parent.parent
 CANVAS_WIDTH = 1800
 CANVAS_HEIGHT = 1320
 PANEL_WIDTH = 554
-PANEL_HEIGHT = 540
-PANEL_GAP = 20
+PANEL_HEIGHT = 500
+PANEL_GAP = 22
 LEFT = 48
-TOP = 126
+TOP = 164
 IMAGE_WIDTH = 518
-IMAGE_HEIGHT = 350
+IMAGE_HEIGHT = 310
 
 
 def require_file(path: Path) -> Path:
@@ -33,20 +33,33 @@ def require_file(path: Path) -> Path:
     return path
 
 
-def panel_markup(index: int, title: str, subtitle: str, note: str) -> tuple[str, float, float]:
+def panel_position(index: int) -> tuple[float, float]:
     col = index % 3
     row = index // 3
-    x = LEFT + col * (PANEL_WIDTH + PANEL_GAP)
-    y = TOP + row * (PANEL_HEIGHT + PANEL_GAP)
+    return LEFT + col * (PANEL_WIDTH + PANEL_GAP), TOP + row * (PANEL_HEIGHT + PANEL_GAP)
+
+
+def panel_markup(
+    index: int,
+    category: str,
+    title: str,
+    subtitle: str,
+    note: str,
+    accent: str,
+) -> tuple[str, float, float]:
+    x, y = panel_position(index)
     markup = (
         f'<g class="panel"><rect x="{x}" y="{y}" width="{PANEL_WIDTH}" '
-        f'height="{PANEL_HEIGHT}" rx="18" fill="#ffffff" stroke="#d8e0eb"/>'
-        f'<text class="panel-title" x="{x + 22}" y="{y + 35}">{escape(title)}</text>'
-        f'<text class="panel-subtitle" x="{x + 22}" y="{y + 62}">{escape(subtitle)}</text>'
+        f'height="{PANEL_HEIGHT}" rx="22" fill="#fffdf8" stroke="#dedbcf" '
+        'stroke-width="1.5"/>'
+        f'<rect x="{x + 1}" y="{y + 24}" width="4" height="42" rx="2" fill="{accent}"/>'
+        f'<text class="category" x="{x + 22}" y="{y + 34}" fill="{accent}">{escape(category)}</text>'
+        f'<text class="panel-title" x="{x + 22}" y="{y + 67}">{escape(title)}</text>'
+        f'<text class="panel-subtitle" x="{x + 22}" y="{y + 92}">{escape(subtitle)}</text>'
         f'<text class="panel-note" x="{x + 22}" y="{y + PANEL_HEIGHT - 18}">{escape(note)}</text>'
         "</g>"
     )
-    return markup, x + 18, y + 92
+    return markup, x + 18, y + 122
 
 
 def image_markup(x: float, y: float, width: float, height: float, href: str) -> str:
@@ -80,8 +93,8 @@ def draw_grid(
     width: float,
     height: float,
     cells: list[bytearray],
-    free_color: str = "#f1f5f9",
-    blocked_color: str = "#26364a",
+    free_color: str = "#f7f6ef",
+    blocked_color: str = "#304b45",
 ) -> str:
     rows = len(cells)
     cols = len(cells[0]) if rows else 0
@@ -90,7 +103,8 @@ def draw_grid(
     origin_x, origin_y, scale = fit_bounds(x, y, width, height, cols, rows)
     cell = scale
     pieces = [
-        f'<rect x="{origin_x:.2f}" y="{origin_y:.2f}" width="{cols * cell:.2f}" height="{rows * cell:.2f}" fill="{free_color}"/>'
+        f'<rect x="{x}" y="{y}" width="{width}" height="{height}" rx="14" fill="#eceee5"/>',
+        f'<rect x="{origin_x:.2f}" y="{origin_y:.2f}" width="{cols * cell:.2f}" height="{rows * cell:.2f}" fill="{free_color}"/>',
     ]
     for row_index, row in enumerate(cells):
         start = 0
@@ -109,7 +123,7 @@ def draw_grid(
             start = end
     pieces.append(
         f'<rect x="{origin_x:.2f}" y="{origin_y:.2f}" width="{cols * cell:.2f}" '
-        f'height="{rows * cell:.2f}" fill="none" stroke="#94a3b8" stroke-width="1"/>'
+        f'height="{rows * cell:.2f}" fill="none" stroke="#9da99c" stroke-width="1.2"/>'
     )
     return "".join(pieces)
 
@@ -181,8 +195,9 @@ def dimacs_local_view(graph_path: Path, coordinates_path: Path) -> tuple[str, st
             if tail in selected and head in selected:
                 arcs.append((tail, head))
 
-    view_x = LEFT + (PANEL_WIDTH + PANEL_GAP) + 18
-    view_y = TOP + 92
+    panel_x, panel_y = panel_position(1)
+    view_x = panel_x + 18
+    view_y = panel_y + 122
     view_width = IMAGE_WIDTH
     view_height = IMAGE_HEIGHT
     graph_xs = [coords[node][0] for node in selected]
@@ -201,20 +216,20 @@ def dimacs_local_view(graph_path: Path, coordinates_path: Path) -> tuple[str, st
         if node in selected
     }
     pieces = [
-        f'<rect x="{view_x}" y="{view_y}" width="{view_width}" height="{view_height}" fill="#f7f9fc"/>'
+        f'<rect x="{view_x}" y="{view_y}" width="{view_width}" height="{view_height}" rx="14" fill="#edf0e8"/>'
     ]
     for tail, head in arcs:
         x1, y1 = points[tail]
         x2, y2 = points[head]
         pieces.append(
             f'<line x1="{x1:.2f}" y1="{y1:.2f}" x2="{x2:.2f}" y2="{y2:.2f}" '
-            'stroke="#5383ae" stroke-opacity="0.38" stroke-width="1"/>'
+            'stroke="#4d8177" stroke-opacity="0.40" stroke-width="1.1"/>'
         )
     for px, py in points.values():
-        pieces.append(f'<circle cx="{px:.2f}" cy="{py:.2f}" r="1.8" fill="#214d76"/>')
+        pieces.append(f'<circle cx="{px:.2f}" cy="{py:.2f}" r="1.9" fill="#235d55"/>')
     pieces.append(
         f'<rect x="{view_x}" y="{view_y}" width="{view_width}" height="{view_height}" '
-        'fill="none" stroke="#c4cfdd" stroke-width="1"/>'
+        'fill="none" stroke="#bbc8b8" stroke-width="1.2"/>'
     )
     note = f"Induced spatial crop: {len(selected):,} vertices, {len(arcs):,} directed arcs; arrowheads omitted"
     return "".join(pieces), note
@@ -247,13 +262,13 @@ def barn_circles(path: Path, x: float, y: float, width: float, height: float) ->
     origin_x, origin_y, scale = fit_bounds(
         x, y, width, height, y_max - y_min, x_max - x_min, padding=14
     )
-    pieces = [f'<rect x="{x}" y="{y}" width="{width}" height="{height}" fill="#f4f7f8"/>']
+    pieces = [f'<rect x="{x}" y="{y}" width="{width}" height="{height}" rx="14" fill="#f0eee5"/>']
     for center_x, center_y, radius in circles:
         px = origin_x + (center_y - y_min) * scale
         py = origin_y + (x_max - center_x) * scale
         pieces.append(
             f'<circle cx="{px:.2f}" cy="{py:.2f}" r="{radius * scale:.2f}" '
-            'fill="#e15b54" fill-opacity="0.72" stroke="#a83232" stroke-width="0.7"/>'
+            'fill="#d97058" fill-opacity="0.80" stroke="#a84b39" stroke-width="0.7"/>'
         )
     pieces.append(
         f'<rect x="{x}" y="{y}" width="{width}" height="{height}" '
@@ -310,7 +325,7 @@ def render_ppm(x: float, y: float, width: float, height: float, path: Path) -> s
     rows = max(1, round(image_height / sample_step))
     cell_width = image_width / cols * scale
     cell_height = image_height / rows * scale
-    pieces = [f'<rect x="{x}" y="{y}" width="{width}" height="{height}" fill="#202b36"/>']
+    pieces = [f'<rect x="{x}" y="{y}" width="{width}" height="{height}" rx="14" fill="#243d38"/>']
     for row in range(rows):
         source_y = min(image_height - 1, int((row + 0.5) * image_height / rows))
         for col in range(cols):
@@ -328,7 +343,61 @@ def render_ppm(x: float, y: float, width: float, height: float, path: Path) -> s
             )
     pieces.append(
         f'<rect x="{x}" y="{y}" width="{width}" height="{height}" '
-        'fill="none" stroke="#c4cfdd" stroke-width="1"/>'
+        'fill="none" stroke="#a8b6a7" stroke-width="1.2"/>'
+    )
+    return "".join(pieces)
+
+
+def movingai_land_panel(x: float, y: float, href: str) -> str:
+    """Show a tight map crop with a legend for the source search overlay."""
+    map_size = 300
+    map_x = x + 4
+    map_y = y + 4
+    legend_x = x + 316
+    legend_y = y + 4
+    pieces = [
+        f'<rect x="{x}" y="{y}" width="{IMAGE_WIDTH}" height="{IMAGE_HEIGHT}" rx="16" fill="#eceee5"/>',
+        f'<svg x="{map_x}" y="{map_y}" width="{map_size}" height="{map_size}" '
+        'viewBox="324 111 774 775" preserveAspectRatio="xMidYMid slice" overflow="hidden">'
+        f'<image x="0" y="0" width="1124" height="1098" href="{href}"/>'
+        "</svg>",
+        f'<rect x="{legend_x}" y="{legend_y}" width="194" height="302" rx="14" fill="#fffdf8"/>',
+        f'<text class="mini-label" x="{legend_x + 18}" y="{legend_y + 27}">MOVINGAI LAND</text>',
+        f'<text class="map-size" x="{legend_x + 18}" y="{legend_y + 63}">512 × 512</text>',
+        f'<text class="mini-copy" x="{legend_x + 18}" y="{legend_y + 82}">grid cells</text>',
+        f'<line x1="{legend_x + 18}" y1="{legend_y + 99}" x2="{legend_x + 176}" y2="{legend_y + 99}" stroke="#e2dfd4"/>',
+        f'<text class="mini-label" x="{legend_x + 18}" y="{legend_y + 121}">SEARCH OVERLAY</text>',
+    ]
+    rows = (
+        ("Expanded", "#55c88c", "rect"),
+        ("Frontier", "#f29b45", "rect"),
+        ("Path", "#ed3f42", "line"),
+        ("Start", "#12a36d", "circle"),
+        ("Goal", "#263a36", "star"),
+    )
+    for row, (label, color, shape) in enumerate(rows):
+        center_y = legend_y + 148 + row * 29
+        if shape == "rect":
+            pieces.append(
+                f'<rect x="{legend_x + 19}" y="{center_y - 5}" width="16" height="10" rx="3" fill="{color}"/>'
+            )
+        elif shape == "line":
+            pieces.append(
+                f'<line x1="{legend_x + 19}" y1="{center_y}" x2="{legend_x + 36}" y2="{center_y}" stroke="{color}" stroke-width="3"/>'
+            )
+        elif shape == "circle":
+            pieces.append(
+                f'<circle cx="{legend_x + 27}" cy="{center_y}" r="5" fill="{color}" stroke="#263a36" stroke-width="1.5"/>'
+            )
+        else:
+            pieces.append(
+                f'<path d="M {legend_x + 27} {center_y - 6} l 1.8 4.2 4.5 0.4 -3.4 3.1 1 4.4 -3.9 -2.3 -3.9 2.3 1 -4.4 -3.4 -3.1 4.5 -0.4 z" fill="{color}" stroke="#263a36" stroke-width="0.8"/>'
+            )
+        pieces.append(
+            f'<text class="legend-label" x="{legend_x + 46}" y="{center_y + 5}">{label}</text>'
+        )
+    pieces.append(
+        f'<rect x="{x}" y="{y}" width="{IMAGE_WIDTH}" height="{IMAGE_HEIGHT}" rx="16" fill="none" stroke="#d9d7cb" stroke-width="1.2"/>'
     )
     return "".join(pieces)
 
@@ -340,25 +409,40 @@ def render_figure(dataset_root: Path) -> str:
         f'<svg xmlns="http://www.w3.org/2000/svg" width="{CANVAS_WIDTH}" '
         f'height="{CANVAS_HEIGHT}" viewBox="0 0 {CANVAS_WIDTH} {CANVAS_HEIGHT}">',
         "<style>"
-        ".title{font:700 30px system-ui,-apple-system,sans-serif;fill:#142238}"
-        ".subtitle{font:15px system-ui,-apple-system,sans-serif;fill:#52647a}"
-        ".panel-title{font:650 19px system-ui,-apple-system,sans-serif;fill:#17283c}"
-        ".panel-subtitle{font:13px system-ui,-apple-system,sans-serif;fill:#52647a}"
-        ".panel-note{font:12px system-ui,-apple-system,sans-serif;fill:#42546a}"
-        ".footer{font:13px system-ui,-apple-system,sans-serif;fill:#52647a}"
+        ".eyebrow{font:700 12px system-ui,-apple-system,sans-serif;letter-spacing:2px;fill:#52716a}"
+        ".title{font:700 39px Georgia,'Times New Roman',serif;fill:#173d36}"
+        ".subtitle{font:15px system-ui,-apple-system,sans-serif;fill:#5d6d64}"
+        ".header-chip{font:700 11px system-ui,-apple-system,sans-serif;letter-spacing:1.2px;fill:#41675e}"
+        ".category{font:700 11px system-ui,-apple-system,sans-serif;letter-spacing:1.15px}"
+        ".panel-title{font:700 22px system-ui,-apple-system,sans-serif;fill:#203c36}"
+        ".panel-subtitle{font:14px system-ui,-apple-system,sans-serif;fill:#617067}"
+        ".panel-note{font:13px system-ui,-apple-system,sans-serif;fill:#53645b}"
+        ".mini-label{font:700 10px system-ui,-apple-system,sans-serif;letter-spacing:1.1px;fill:#69776d}"
+        ".mini-copy{font:12px system-ui,-apple-system,sans-serif;fill:#69776d}"
+        ".map-size{font:700 22px system-ui,-apple-system,sans-serif;fill:#203c36}"
+        ".legend-label{font:13px system-ui,-apple-system,sans-serif;fill:#42554c}"
+        ".footer-label{font:700 11px system-ui,-apple-system,sans-serif;letter-spacing:1px;fill:#e8c77c}"
+        ".footer-copy{font:14px system-ui,-apple-system,sans-serif;fill:#f4f2e9}"
+        ".footer-muted{font:14px system-ui,-apple-system,sans-serif;fill:#cbd8cc}"
         "</style>",
-        '<rect width="100%" height="100%" fill="#edf2f7"/>',
-        '<text class="title" x="48" y="52">Benchmark datasets contain different planning problems</text>',
-        '<text class="subtitle" x="48" y="82">Examples come from the installed source files; panels use separate scales and are not a statistical sample.</text>',
+        '<rect width="100%" height="100%" fill="#f2f0e8"/>',
+        '<text class="eyebrow" x="48" y="34">PATHPLANNING · BENCHMARK ATLAS</text>',
+        '<text class="title" x="48" y="82">A tour of six planning spaces</text>',
+        '<text class="subtitle" x="48" y="112">Source-derived examples, each drawn on its own scale and with its own semantics.</text>',
+        '<rect x="1370" y="46" width="382" height="38" rx="19" fill="#e4e8dc"/>',
+        '<circle cx="1392" cy="65" r="4" fill="#d17057"/>',
+        '<text class="header-chip" x="1408" y="69">COHORTS ARE NOT INTERCHANGEABLE</text>',
     ]
 
     panel, image_x, image_y = panel_markup(
         0,
-        "MovingAI land · maze512-1-0",
-        "Implicit 2D grid · octile movement and no corner cutting",
-        "Real map, scenario endpoints, and illustrative search path",
+        "2D GRID · MOVINGAI LAND",
+        "maze512-1-0",
+        "Octile movement · no corner cutting · paired scenario",
+        "Original map with an illustrative search overlay.",
+        "#c86c52",
     )
-    svg.extend((panel, image_markup(image_x, image_y, IMAGE_WIDTH, IMAGE_HEIGHT, maze_uri)))
+    svg.extend((panel, movingai_land_panel(image_x, image_y, maze_uri)))
 
     graph, graph_note = dimacs_local_view(
         dataset_root / "dimacs/distance/USA-road-d.NY.gr",
@@ -366,73 +450,65 @@ def render_figure(dataset_root: Path) -> str:
     )
     panel, _, _ = panel_markup(
         1,
-        "DIMACS · New York road network",
-        "Explicit directed weighted graph · coordinates are metadata",
+        "DIRECTED GRAPH · DIMACS",
+        "USA-road-d.NY.gr",
+        "Weighted road arcs · coordinates are spatial metadata",
         graph_note,
+        "#398476",
     )
     svg.extend((panel, graph))
 
-    panel, image_x, image_y = panel_markup(
-        2,
-        "MovingAI · Complex.3dmap",
-        "Voxel occupancy · most populated horizontal slice",
-        "A single z slice is shown; the source asset remains 3D",
-    )
-    svg.append(panel)
     grid, width, height, depth, slice_z, _ = parse_voxel_slice(
         dataset_root / "movingai-3d/Complex.3dmap"
     )
-    svg.append(draw_grid(image_x, image_y, IMAGE_WIDTH, IMAGE_HEIGHT, grid))
-    svg.append(
-        f'<text x="{image_x + 8}" y="{image_y + IMAGE_HEIGHT - 8}" '
-        'font-family="system-ui,sans-serif" font-size="12" fill="#52647a">'
-        f"{width} × {height} × {depth} voxels · z = {slice_z}</text>"
-    )
-
     panel, image_x, image_y = panel_markup(
-        3,
-        "Monash · Descent level02",
-        "Voxel map · game-level geometry",
-        "One horizontal slice; source query metadata is separate",
+        2,
+        "VOXEL SPACE · MOVINGAI",
+        "Complex.3dmap",
+        "Occupancy grid · densest horizontal slice",
+        f"{width} × {height} × {depth} voxels · z = {slice_z} shown.",
+        "#6e8b61",
     )
     svg.append(panel)
+    svg.append(draw_grid(image_x, image_y, IMAGE_WIDTH, IMAGE_HEIGHT, grid))
     grid, width, height, depth, slice_z, _ = parse_voxel_slice(
         dataset_root / "monash/descent/level02.3dmap"
     )
-    svg.append(draw_grid(image_x, image_y, IMAGE_WIDTH, IMAGE_HEIGHT, grid))
-    svg.append(
-        f'<text x="{image_x + 8}" y="{image_y + IMAGE_HEIGHT - 8}" '
-        'font-family="system-ui,sans-serif" font-size="12" fill="#52647a">'
-        f"{width} × {height} × {depth} voxels · z = {slice_z}</text>"
-    )
-
     panel, image_x, image_y = panel_markup(
-        4,
-        "BARN · world_11.world",
-        "Static cylinder obstacles · source XY geometry",
-        "Point-robot illustration; no path or planner score is implied",
+        3,
+        "VOXEL SPACE · MONASH",
+        "Descent · level02",
+        "Game-level geometry · source query metadata is separate",
+        f"{width} × {height} × {depth} voxels · z = {slice_z} shown.",
+        "#b78b42",
     )
     svg.append(panel)
+    svg.append(draw_grid(image_x, image_y, IMAGE_WIDTH, IMAGE_HEIGHT, grid))
+    barn_x, barn_y = panel_position(4)
     circles, circle_count = barn_circles(
         dataset_root / "barn/worlds/BARN/world_11.world",
-        image_x,
-        image_y,
+        barn_x + 18,
+        barn_y + 122,
         IMAGE_WIDTH,
         IMAGE_HEIGHT,
     )
-    svg.append(circles)
-    svg.append(
-        f'<text x="{image_x + 8}" y="{image_y + IMAGE_HEIGHT - 8}" '
-        'font-family="system-ui,sans-serif" font-size="12" fill="#52647a">'
-        f"{circle_count} source cylinders · axes rotated to fit the panel"
-        "</text>"
+    panel, image_x, image_y = panel_markup(
+        4,
+        "CONTINUOUS GEOMETRY · BARN",
+        "world_11.world",
+        "Static cylinders · source XY geometry",
+        f"{circle_count} cylinders · axes rotated to fit the panel.",
+        "#cb7057",
     )
-
+    svg.append(panel)
+    svg.append(circles)
     panel, image_x, image_y = panel_markup(
         5,
-        "OMPL resource · floor.ppm",
-        "Framework image resource · not a benchmark result",
-        "OMPL.app configs require matching collision and state-space semantics",
+        "FRAMEWORK RESOURCE · OMPL.APP",
+        "floor.ppm",
+        "Image resource · visualized as a collision map",
+        "Configs need matching state-space and collision semantics.",
+        "#7e70a4",
     )
     svg.append(panel)
     svg.append(
@@ -447,8 +523,10 @@ def render_figure(dataset_root: Path) -> str:
 
     svg.extend(
         (
-            '<text class="footer" x="48" y="1270">Keep grid-optimal, any-angle, directed-graph, voxel, geometric, and framework-resource cohorts separate.</text>',
-            '<text class="footer" x="48" y="1294">The pictures describe input structure; visual density does not rank difficulty, represent coverage, or establish planner performance.</text>',
+            '<rect x="48" y="1204" width="1704" height="78" rx="20" fill="#21463e"/>',
+            '<text class="footer-label" x="72" y="1249">READ SEMANTICS FIRST</text>',
+            '<text class="footer-copy" x="286" y="1249">Different movement rules, state spaces and collision models call for separate cohorts.</text>',
+            '<text class="footer-muted" x="286" y="1270">Visual density and apparent distance do not rank difficulty or planner performance.</text>',
             "</svg>",
         )
     )
