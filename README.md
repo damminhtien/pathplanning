@@ -1,109 +1,132 @@
 # PathPlanning
 
-PathPlanning is a Python package for search-based and sampling-based path-planning algorithms,
-with reusable planner contracts and optional visualization utilities.
+PathPlanning is a typed Python toolkit for discrete, continuous, temporal, and
+multi-agent planning. It provides 37 registered planners, reference spaces,
+native C/C++ search engines, and optional visualization.
 
-## Release
+## At a glance
 
-- Package: `pathplanning`
-- Version: `0.2.0`
-- Canonical repository: `https://github.com/damminhtien/pathplanning`
+- Package: `pathplanning` 0.2.0; Python `>=3.10`; NumPy is the only required
+  runtime dependency.
+- Planner support is defined by the canonical
+  [`PLANNER_REGISTRY`](pathplanning/registry.py) and generated
+  [supported-planner matrix](SUPPORTED_ALGORITHMS.md): 15 discrete, 17
+  continuous, 3 temporal, and 2 multi-agent planners.
+- Native graph, temporal, multi-agent, and vehicle search uses C++; continuous
+  sampling and roadmap kernels use C. Python supplies the public API, contracts,
+  validation, and adapters through a versioned C ABI.
+- The local benchmark catalog contains 1,297 dataset entries and 2,627 assets
+  from DIMACS, BARN, MovingAI, Monash, and OMPL. Installation, runner support,
+  and completed measurements are tracked separately below.
 
-## Overview
+## Architecture
 
-Current codebase organization:
+```mermaid
+flowchart TD
+    USER[Application / benchmark runner]
+    API[Public Python API]
+    CONTRACTS[Typed problem contracts and parameters]
+    REGISTRY[Canonical planner registry]
+    ADAPTERS[Planner adapters and validation]
+    SPACES[Reference spaces / NativeGraph]
+    CPP[C++17 graph, temporal, MAPF and vehicle kernels]
+    C[C11 continuous sampling and roadmap kernels]
+    RESULTS[Typed results, stats and optional trace]
 
-- `pathplanning/native`: C++ graph-search and C sampling-planner cores exposed through a stable C ABI
-- `pathplanning/planners/search`: Python planner wrappers around the native search core
-- `pathplanning/planners/sampling`: thin Python interfaces for native sampling planners
-- `pathplanning/spaces`: canonical environment/configuration-space layer
-- `pathplanning/nn`: nearest-neighbor index abstractions
-- `pathplanning/data_structures`: reusable tree/storage structures
-- `pathplanning/utils`: shared utilities (including priority queue)
-- `pathplanning/geometry`: geometry and trajectory generation utilities
-- `pathplanning/viz`: optional 2D/3D rendering and offline Matplotlib viewer
-
-## Repository Layout
-
-```text
-.
-├── pathplanning/
-│   ├── core/
-│   ├── native/       # C++ graph search and C sampling engines
-│   ├── planners/
-│   │   ├── search/
-│   │   └── sampling/
-│   ├── spaces/
-│   ├── nn/
-│   ├── data_structures/
-│   ├── utils/
-│   ├── geometry/
-│   └── viz/
-├── tests/
-├── docs/
-├── assets/
-├── scripts/
-├── pyproject.toml
-└── README.md
+    USER --> API
+    API --> CONTRACTS
+    API --> REGISTRY
+    CONTRACTS --> ADAPTERS
+    REGISTRY --> ADAPTERS
+    SPACES --> ADAPTERS
+    ADAPTERS -->|C ABI via ctypes| CPP
+    ADAPTERS -->|C ABI via ctypes| C
+    CPP --> RESULTS
+    C --> RESULTS
+    RESULTS --> USER
 ```
 
-## Production Support Matrix
+| Layer | Main files | Role |
+|---|---|---|
+| Public API | [`pathplanning/api.py`](pathplanning/api.py), [`pathplanning/__init__.py`](pathplanning/__init__.py) | `plan()` and the four problem-specific entry points validate inputs and dispatch a named planner. |
+| Contracts and results | [`pathplanning/core/`](pathplanning/core/) | Defines problem protocols, typed parameters, `PlanResult` variants, stop reasons, and trace options. |
+| Registry | [`pathplanning/registry.py`](pathplanning/registry.py) | Single source of truth for the 37 registered planner IDs, problem kinds, callables, and restrictions. |
+| Spaces and geometry | [`pathplanning/spaces/`](pathplanning/spaces/), [`pathplanning/geometry/`](pathplanning/geometry/) | Supplies grid, voxel, continuous, terrain, manipulator, and vehicle models plus reusable motion geometry. |
+| Planner adapters | [`pathplanning/planners/`](pathplanning/planners/) | Groups discrete search, continuous sampling, kinodynamic, temporal, and multi-agent implementations. |
+| Native runtime | [`pathplanning/native/`](pathplanning/native/) | Owns search state and hot loops; Python crosses the C ABI through `ctypes`. Discrete Python graphs are prepared as CSR before the C++ search loop. |
+| Tools and docs | [`scripts/`](scripts/), [`tests/`](tests/), [`docs/`](docs/) | Dataset installation, benchmark runners, validation, examples, API contracts, and architecture references. |
 
-Production API support is intentionally small and planner-registry driven.
+The C++ layer contains general graph search plus specialized grid kernels,
+temporal safe-interval search, multi-agent search, and SE(2) vehicle search.
+Continuous sampling planners and reusable PRM-family roadmaps execute in the C
+engine. Built-in spaces and spaces that provide a `NativeContinuousSpaceModel`
+run without Python callbacks; callback compatibility is an explicit opt-in.
+`DynamicRRT3D` is a stateful Python-facing API backed by the native C engine,
+but it is outside the planner registry.
 
-See `SUPPORTED_ALGORITHMS.md` for the canonical matrix.
+For implementation boundaries, memory ownership, build steps, callback behavior,
+and the production/trace library split, see [Native Planning Core](docs/native_core.md)
+and the [native ABI contract](docs/native_abi.md).
 
-The continuous registry provides `rrt`, `rrt_star`, `informed_rrt_star`,
-`fmt_star`, `bit_star`, `abit_star`, and `rrt_connect`. Stateful `DynamicRRT3D`
-also runs tree pruning and growth in the native C engine. The discrete registry
-includes native `bidirectional_dijkstra` and `bidirectional_astar`; the other
-registered discrete searches also run through the C++ graph-search core.
+## Problem contracts and reference spaces
 
-For Ackermann-like vehicles in SE(2), `hybrid_astar` searches continuous poses
-with discretized keys, footprint collision checks, and Dubins or Reeds-Shepp
-analytic expansions. See the [Hybrid A* guide](docs/algorithms/hybrid_astar.md)
-and [runnable example](examples/hybrid_astar.py).
+| Problem kind | Contract | Reference inputs and models |
+|---|---|---|
+| Discrete | `DiscreteProblem`: graph, start, exact goal or goal test | `NativeGraph`, `Grid2DSearchSpace`, `TerrainCostGrid2D`, `Grid3DSearchSpace` |
+| Continuous | `ContinuousProblem`: state space, start, goal region, optional objective | `ContinuousSpace3D`, `Grid2DSamplingSpace`, `AnisotropicContinuousSpace`, `PlanarManipulatorSpace` |
+| Temporal | `TemporalProblem`: graph plus half-open blocked node/edge intervals and travel times | SIPP variants; waiting is supported under each planner's motion contract |
+| Multi-agent | `MultiAgentProblem`: undirected unit-time graph and start/goal sets | EECBS and LaCAM* with vertex and edge-swap conflict rules |
 
-For robots with a precomputed set of feasible local motions, `state_lattice`
-uses native A* over discretized SE(2) poses. Spaces can provide Ackermann or
-differential-drive motion primitives; see the [guide](docs/algorithms/state_lattice.md)
-and [example](examples/state_lattice.py).
+`hybrid_astar` and `state_lattice` use the continuous API with specialized SE(2)
+vehicle models (`AckermannGridSpace` and `StateLatticeGridSpace`). A planner's
+registration does not imply compatibility with every space: goal, metric,
+motion, cost, and callback requirements are listed in the
+[planner matrix](SUPPORTED_ALGORITHMS.md).
 
-Sampling planners execute their search loops, trees, queues, geometry checks,
-and nearest-neighbor queries in C. Python validates inputs, converts built-in
-spaces or an explicit `NativeContinuousSpaceModel` to native data, and adapts
-path results. Python callbacks are disabled by default; pass
-`RrtParams(allow_python_callbacks=True)` to use a custom space, goal predicate,
-or RRT* objective that has no native representation.
+## Installed planner inventory
 
-See [Native Planning Core](docs/native_core.md) for the architecture, callback
-boundary, build requirements, and benchmark scope. The [native ABI contract](docs/native_abi.md)
-defines ABI versions, ownership, callback errors, and incompatible-library
-handling.
+These are the 37 planner IDs currently registered as supported API entry points.
+The full matrix includes module names and planner-specific preconditions.
 
-For a replayable diagnostic run, pass `trace=TraceOptions()` and then call
-`view_result(scene_from_problem(problem), result)`. Normal planning uses a
-production library compiled without trace code. See the
-[visualization guide](docs/visualization.md) for controls, custom scenes, and
-the plotting API migration notes.
+| Family | Count | Planner IDs |
+|---|---:|---|
+| Discrete graph and grid search | 15 | `bfs`, `dfs`, `greedy_best_first`, `astar`, `bidirectional_dijkstra`, `bidirectional_astar`, `dijkstra`, `dstar_lite`, `weighted_astar`, `reexp_astar`, `anytime_astar`, `jps`, `jpsw`, `theta_star`, `lazy_theta_star` |
+| Continuous sampling and roadmaps | 15 | `rrt`, `rrt_star`, `informed_rrt_star`, `fmt_star`, `prm_star`, `lazy_prm`, `ait_star`, `eit_star`, `eirm_star`, `fcit_star`, `rit_star`, `jit_star`, `bit_star`, `abit_star`, `rrt_connect` |
+| Continuous kinodynamic / vehicle | 2 | `hybrid_astar`, `state_lattice` |
+| Temporal graph search | 3 | `sipp`, `bounded_suboptimal_sipp`, `kinodynamic_sipp` |
+| Multi-agent path finding | 2 | `eecbs`, `lacam_star` |
 
-### Native model for a custom space
+`DynamicRRT3D` is an additional stateful API, not a registry entry. Reusable
+state is also exposed by D* Lite and the PRM*, Lazy PRM, and EIRM* roadmap APIs.
+See the [algorithm guides](docs/algorithms/) and
+[`SUPPORTED_ALGORITHMS.md`](SUPPORTED_ALGORITHMS.md) for constraints and usage.
 
-A custom space can avoid Python callbacks by returning native bounds and
-supported obstacle arrays from `to_native_model()`:
+## Benchmark dataset inventory
 
-```python
-from pathplanning.native import NativeContinuousSpaceModel
+The installer stores data and its provenance catalog under the ignored local
+directory `benchmark-results/datasets/`. The table distinguishes catalog size,
+installed files, compatible runner coverage, and source limitations; catalog
+entries are not independent geometries.
 
+<p align="center">
+  <img src="./docs/benchmarks/images/benchmark_dataset_examples.svg" alt="Separate visual examples of MovingAI grids and voxels, DIMACS roads, Monash voxels, BARN geometry, and an OMPL resource" width="100%"/>
+</p>
 
-class UnitLineSpace:
-    def to_native_model(self) -> NativeContinuousSpaceModel:
-        return NativeContinuousSpaceModel(lower_bounds=[0.0], upper_bounds=[1.0])
-```
+| Source | Entries / files | Data represented | Current runner and measurement coverage |
+|---|---:|---|---|
+| DIMACS | 25 / 37 | Directed weighted road graphs; 12 distance/time graph pairs plus Rome99, with 12 shared coordinate files. | 13 graphs measured: six distance, six travel-time, and one source-weight graph. Twelve graphs exceed configured resource limits. |
+| BARN | 300 / 600 | 300 static cylinder worlds and 300 supplied `.npy` paths. | All 300 worlds run as a derived point-robot XY cohort. Supplied paths are provenance only; no independent continuous optimality oracle is available. |
+| MovingAI | 853 / 1,706 | 789 2D land maps, 20 terrain maps, 44 voxel maps, and their scenarios. | All 789 land maps are covered. Terrain awaits its original cost table; one voxel map ran and 43 exceeded current resource limits. |
+| Monash | 90 / 179 | 90 voxel maps and 89 linked scenarios across Descent, Sandstone, Industrial Plants, and Warframe. | 44 Warframe maps mirror an older MovingAI release. One distinct map ran; 45 are resource-limited. `level27.3dmap` has no source-linked scenario. |
+| OMPL / OMPL.app | 29 / 105 | 25 OMPL.app configurations and four geometric demo definitions, with the referenced resources needed by the demos. | Files are installed and registered. No OMPL, Gazebo, or ROS runtime is bundled, so these resources have no planner measurements yet. |
+| **Total** | **1,297 / 2,627** | Five source collections with recorded lineage and SHA-256 metadata. | All 2,627 assets passed the recorded installation hash/completeness verification; the Monash missing-scenario source gap remains explicit. |
 
-The space's operations must have the same uniform sampling, Euclidean distance,
-steering, and collision semantics as the returned model. Otherwise, enable the
-Python compatibility path explicitly with `RrtParams(allow_python_callbacks=True)`.
+MovingAI land, terrain, and voxel maps stay in separate directories and use
+different semantics. DIMACS cost units, strict 26-neighbor voxel movement, BARN
+point-robot XY geometry, and OMPL configuration-space problems are also kept in
+separate benchmark cohorts. See the [dataset installation guide](docs/benchmarks/dataset_installation.md)
+for file layout and commands, and [dataset characterization](docs/benchmarks/dataset_characterization.md)
+for topology, lineage, bias controls, and unsupported measurements.
 
 ## MovingAI Scenario Gallery
 
@@ -135,16 +158,11 @@ metrics instrumentation disabled. See the
 For interactive traces, custom scenes, and the rendering API, see the
 [visualization guide](docs/visualization.md).
 
-## Benchmark Datasets and Current Coverage
+## Latest benchmark results
 
-Results refreshed 2026-10-10. The benchmark suite contains unlike task models,
-so each result stays within its dataset and movement-cost cohort. The gallery
-below uses local source assets to show those differences; the views use
-different scales and are not a representative sample or a measure of difficulty.
-
-<p align="center">
-  <img src="./docs/benchmarks/images/benchmark_dataset_examples.png" alt="Visual examples of MovingAI 2D and 3D grids, a DIMACS directed road graph, a Monash voxel level, BARN cylinder obstacles, and an OMPL image resource" width="100%"/>
-</p>
+Results below are from the 2026-10-10 refresh. Each cohort uses its own task,
+movement, cost, and collision model; the counts and figures are not a pooled
+planner ranking.
 
 | Cohort | Completed coverage | Result and limit |
 |---|---:|---|
@@ -320,7 +338,7 @@ see the [dataset installation guide](docs/benchmarks/dataset_installation.md),
 [dataset semantics and bias controls](docs/benchmarks/dataset_characterization.md),
 and [campaign reproduction guide](docs/shortest_path_benchmark_reproduction.md).
 
-## Full Benchmark Cohort Figures
+## Benchmark figures
 
 These figures use the 2026-10-10 refreshed complete cohorts. They cover every
 dataset-scale algorithm/dataset pairing that currently has a compatible
@@ -328,6 +346,8 @@ runner: MovingAI land, generated scaling
 grids, grid specialists, DIMACS graph subtypes, both distinct voxel sources,
 and BARN point-robot worlds. The format cohorts keep their own cost, movement,
 and collision semantics; do not compare values across panels as one leaderboard.
+The benchmark charts use Matplotlib with the SciencePlots `science` style and
+LaTeX rendering disabled.
 
 The latency figures separate repeated public-API calls from one-call-per-query
 results. Repeated cohorts show the median of five calls per query, then the
@@ -372,6 +392,8 @@ smoke references because the installed static datasets do not contain matching
 source tasks. The [reproduction guide](docs/shortest_path_benchmark_reproduction.md)
 records the refresh commands and measurement boundaries.
 
+### Non-grid cohorts
+
 The non-grid profiles below use metrics appropriate to each source. DIMACS
 distance and travel-time costs are analyzed in separate panels; each has six
 selected regional graphs, while Rome99 is a one-graph case. Points and P95
@@ -408,7 +430,25 @@ pip install .
 ```
 
 Python `>=3.10`, a C11 compiler, and a C++17 compiler are required when building
-from source. Graph search runs in C++; continuous planner kernels run in C.
+from source. Graph, temporal, multi-agent, and vehicle kernels run in C++;
+continuous sampling and roadmap kernels run in C.
+Install the optional viewer and plotting dependencies with `pip install -e ".[viz]"`.
+
+### Install the benchmark datasets
+
+Dataset assets are separate from the Python package and remain under the local,
+Git-ignored `benchmark-results/datasets/` directory. After installing the
+package dependencies, install and check the catalog with:
+
+```bash
+python scripts/install_benchmark_datasets.py install
+python scripts/install_benchmark_datasets.py status
+python scripts/install_benchmark_datasets.py verify
+```
+
+See the [dataset installation guide](docs/benchmarks/dataset_installation.md)
+for catalog selection, storage limits, source attribution, and MovingAI
+benchmark preparation. Dataset installation does not itself run planners.
 
 ## Package API
 
@@ -452,6 +492,25 @@ problem = DiscreteProblem(
 result = plan_discrete(problem, planner="astar", seed=0)
 print(result.success, result.iters)
 ```
+
+### Native models for custom spaces
+
+A custom space can avoid Python callbacks by exposing native bounds and
+supported obstacle arrays through `to_native_model()`:
+
+```python
+from pathplanning.native import NativeContinuousSpaceModel
+
+
+class UnitLineSpace:
+    def to_native_model(self) -> NativeContinuousSpaceModel:
+        return NativeContinuousSpaceModel(lower_bounds=[0.0], upper_bounds=[1.0])
+```
+
+The native model must match the space's sampling, distance, steering, and
+collision semantics. Otherwise, use the planner-specific callback opt-in.
+See [Native Planning Core](docs/native_core.md) for supported models and
+[Native ABI](docs/native_abi.md) for ownership and error behavior.
 
 For inconsistent heuristics, `reexp_astar` exposes Weighted A* with conditional
 closed-node re-expansion. Its parameters follow ReExpAstar: `weight`, `r`,
