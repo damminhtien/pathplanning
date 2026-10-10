@@ -211,34 +211,34 @@ latency figures.
 </details>
 
 <details>
-<summary>Directed DIMACS and strict 26-neighbor voxel outcomes</summary>
+<summary>DIMACS and voxel outcomes split by cost and source cohort</summary>
 
-Each of the 13 listed variants ran on 13 directed weighted graphs and two
-distinct voxel maps (`Simple.3dmap` and `plant01.3dmap`). Cells show valid
-paths / oracle-optimal paths. DIMACS includes six distance graphs, six travel
-time graphs, and one source-weight graph. Twelve of the 25 source graphs were
-resource-limited. Voxel optimality uses the strict 26-neighbor Euclidean
-oracle; neither dataset's latency is pooled with grid or geometric workloads.
+Each of the 13 listed variants ran one seeded query per selected graph or map.
+Cells show valid paths / oracle-optimal paths. DIMACS cost families and the two
+voxel source maps stay separate. Twelve of the 25 DIMACS source graphs exceeded
+the configured resource limits. Voxel optimality uses the strict 26-neighbor
+Euclidean oracle.
 
-| Variant | DIMACS, n=13 | Voxels, n=2 |
-|---|---:|---:|
-| `anytime_astar` | 13 / 13 | 2 / 2 |
-| `astar` | 13 / 13 | 2 / 2 |
-| `bfs` | 13 / 0 | 2 / 0 |
-| `bidirectional_astar` | 13 / 13 | 2 / 2 |
-| `bidirectional_dijkstra` | 13 / 13 | 2 / 2 |
-| `dfs` | 13 / 0 | 2 / 0 |
-| `dijkstra` | 13 / 13 | 2 / 2 |
-| `dstar_lite` | 13 / 13 | 2 / 2 |
-| `greedy_best_first` | 13 / 0 | 2 / 0 |
-| `reexp_astar` | 13 / 13 | 2 / 2 |
-| `weighted_astar` (`w=1.25`) | 13 / 13 | 2 / 2 |
-| `weighted_astar` (`w=1.5`) | 13 / 13 | 2 / 2 |
-| `weighted_astar` (`w=2`) | 13 / 13 | 2 / 2 |
+| Variant | Distance (6 graphs) | Travel time (6 graphs) | Rome99 source-weight (1 graph) | Warframe `Simple.3dmap` | Industrial `plant01.3dmap` |
+|---|---:|---:|---:|---:|---:|
+| `anytime_astar` | 6 / 6 | 6 / 6 | 1 / 1 | 1 / 1 | 1 / 1 |
+| `astar` | 6 / 6 | 6 / 6 | 1 / 1 | 1 / 1 | 1 / 1 |
+| `bfs` | 6 / 0 | 6 / 0 | 1 / 0 | 1 / 0 | 1 / 0 |
+| `bidirectional_astar` | 6 / 6 | 6 / 6 | 1 / 1 | 1 / 1 | 1 / 1 |
+| `bidirectional_dijkstra` | 6 / 6 | 6 / 6 | 1 / 1 | 1 / 1 | 1 / 1 |
+| `dfs` | 6 / 0 | 6 / 0 | 1 / 0 | 1 / 0 | 1 / 0 |
+| `dijkstra` | 6 / 6 | 6 / 6 | 1 / 1 | 1 / 1 | 1 / 1 |
+| `dstar_lite` | 6 / 6 | 6 / 6 | 1 / 1 | 1 / 1 | 1 / 1 |
+| `greedy_best_first` | 6 / 0 | 6 / 0 | 1 / 0 | 1 / 0 | 1 / 0 |
+| `reexp_astar` | 6 / 6 | 6 / 6 | 1 / 1 | 1 / 1 | 1 / 1 |
+| `weighted_astar` (`w=1.25`) | 6 / 6 | 6 / 6 | 1 / 1 | 1 / 1 | 1 / 1 |
+| `weighted_astar` (`w=1.5`) | 6 / 6 | 6 / 6 | 1 / 1 | 1 / 1 | 1 / 1 |
+| `weighted_astar` (`w=2`) | 6 / 6 | 6 / 6 | 1 / 1 | 1 / 1 | 1 / 1 |
 
 <small>Counts are valid / optimal, not runtime ranks. Parallel road arcs are
 coalesced by minimum cost per ordered pair; a zero heuristic is used because
-road-coordinate units are not assumed to match edge-cost units.</small>
+road-coordinate units are not assumed to match edge-cost units. The n=1
+Rome99 and voxel columns are single-case correctness results.</small>
 </details>
 
 <details>
@@ -260,31 +260,32 @@ terrain cost table is missing; `jpsw` therefore has only the separate
 <summary>BARN point-robot XY results for all 14 compatible continuous planners</summary>
 
 Each planner ran once on each of 300 derived static point-robot XY worlds.
-The table gives returned source-geometry-valid paths / 300 and the median
-public API time across the 300 worlds; a `no_solution_found` outcome is not
-counted as a path. All 2,673 returned paths passed exact source-circle
-validation, with zero invalid paths or runner errors. This cohort has no
-independent continuous optimality oracle, so it supports path-validity and
-completion analysis rather than optimality claims or a cross-planner speed
-ranking. The source `.npy` paths remain provenance only; they are not XY paths
-in the supplied world coordinates.
+The table gives returned source-geometry-valid paths / 300 and public API time
+across the 300 worlds; a `no_solution_found` outcome is not counted as a path.
+The P95 is workload spread across different worlds, not repeated-call latency.
+All 2,673 returned paths passed exact source-circle validation, with zero
+invalid paths or runner errors. This cohort has no independent continuous
+optimality oracle, so it supports path-validity and completion analysis rather
+than optimality claims or a cross-planner speed ranking. The source `.npy`
+paths remain provenance only; they are not XY paths in the supplied world
+coordinates.
 
-| Planner | Valid paths / 300 | Median API ms |
-|---|---:|---:|
-| `abit_star` | 0 | 0.710 |
-| `ait_star` | 0 | 0.581 |
-| `bit_star` | 0 | 0.592 |
-| `eirm_star` | 293 | 2.726 |
-| `eit_star` | 0 | 0.604 |
-| `fcit_star` | 295 | 22.655 |
-| `fmt_star` | 0 | 0.616 |
-| `informed_rrt_star` | 300 | 28.247 |
-| `lazy_prm` | 293 | 2.690 |
-| `prm_star` | 294 | 192.799 |
-| `rit_star` | 299 | 89.164 |
-| `rrt` | 299 | 1.544 |
-| `rrt_connect` | 300 | 0.571 |
-| `rrt_star` | 300 | 23.268 |
+| Planner | Valid paths / 300 | Median API ms | P95 API ms across worlds |
+|---|---:|---:|---:|
+| `abit_star` | 0 | 0.710 | 0.936 |
+| `ait_star` | 0 | 0.581 | 0.677 |
+| `bit_star` | 0 | 0.592 | 0.786 |
+| `eirm_star` | 293 | 2.726 | 12.790 |
+| `eit_star` | 0 | 0.604 | 0.727 |
+| `fcit_star` | 295 | 22.655 | 206.166 |
+| `fmt_star` | 0 | 0.616 | 0.800 |
+| `informed_rrt_star` | 300 | 28.247 | 34.977 |
+| `lazy_prm` | 293 | 2.690 | 12.589 |
+| `prm_star` | 294 | 192.799 | 247.685 |
+| `rit_star` | 299 | 89.164 | 2,182.312 |
+| `rrt` | 299 | 1.544 | 4.539 |
+| `rrt_connect` | 300 | 0.571 | 1.714 |
+| `rrt_star` | 300 | 23.268 | 29.474 |
 
 `jit_star` is excluded from BARN because this point-robot model does not
 provide the robot Jacobian required for manipulability scoring.
@@ -370,6 +371,29 @@ multi-agent, kinodynamic, and vehicle planners retain their separately labeled
 smoke references because the installed static datasets do not contain matching
 source tasks. The [reproduction guide](docs/shortest_path_benchmark_reproduction.md)
 records the refresh commands and measurement boundaries.
+
+The non-grid profiles below use metrics appropriate to each source. DIMACS
+distance and travel-time costs are analyzed in separate panels; each has six
+selected regional graphs, while Rome99 is a one-graph case. Points and P95
+whiskers summarize one seeded query per graph, so they describe graph-to-graph
+spread rather than repeated-call latency. The voxel panels show one selected
+MovingAI Warframe and one Monash Industrial Plants map, each with one query;
+their points are case measurements with no dataset-level spread estimate.
+BARN uses 300 derived point-robot XY worlds per planner and shows collision-
+valid path completion beside one-call latency spread across worlds. Its paths
+are geometry-validated, but there is no independent optimality oracle, so no
+path-cost ratio is reported. OMPL.app remains outside measured figures until
+the matching collision and state-space runtime is available.
+
+<p align="center">
+  <img src="./assets/images/benchmark-full-dimacs-work-quality.svg" alt="DIMACS algorithm latency, planner-reported nodes, and oracle cost ratio, separated into distance, travel-time, and single-case Rome99 cohorts" width="100%"/>
+</p>
+<p align="center">
+  <img src="./assets/images/benchmark-full-voxel-work-quality.svg" alt="Latency, planner-reported nodes, and strict 26-neighbor oracle cost ratio for one MovingAI Warframe map and one Monash Industrial Plants map" width="100%"/>
+</p>
+<p align="center">
+  <img src="./assets/images/benchmark-full-barn-completion-latency.svg" alt="Source-circle-valid path completion and one-call public API latency spread across 300 BARN point-robot XY worlds per planner" width="100%"/>
+</p>
 
 ## Installation
 

@@ -107,6 +107,40 @@ STATUS_COLORS = {
 }
 
 EXPECTED_FORMAT_COHORTS = tuple(COHORT_LABELS)
+DIMACS_PLOT_COHORTS = (
+    (
+        "dimacs_distance_directed_weighted_graph",
+        "Distance · 6 regional graphs",
+        6,
+        COHORT_COLORS["dimacs"],
+    ),
+    (
+        "dimacs_travel_time_directed_weighted_graph",
+        "Travel time · 6 regional graphs",
+        6,
+        COHORT_COLORS["dimacs"],
+    ),
+    (
+        "dimacs_source_weight_directed_weighted_graph",
+        "Source-weight · Rome99 single case",
+        1,
+        COHORT_COLORS["dimacs"],
+    ),
+)
+VOXEL_PLOT_COHORTS = (
+    (
+        "movingai_warframe_strict_26_euclidean",
+        "MovingAI Warframe · Simple.3dmap single case",
+        1,
+        COHORT_COLORS["movingai_voxel"],
+    ),
+    (
+        "monash_industrial-plants_strict_26_euclidean",
+        "Monash Industrial Plants · plant01.3dmap single case",
+        1,
+        COHORT_COLORS["monash_voxel"],
+    ),
+)
 
 
 def _resolve(path: Path) -> Path:
@@ -314,6 +348,280 @@ def _raw_latency_rows(
         for key, values in grouped.items()
     ]
     return sorted(aggregate, key=lambda row: row[0].casefold()), len(workload_ids)
+
+
+def _validate_oracle_format_cohort(
+    rows: list[dict[str, Any]], *, cohort_name: str, expected_workloads: int
+) -> list[dict[str, Any]]:
+    selected = [row for row in rows if row.get("cohort") == cohort_name]
+    if not selected:
+        raise ValueError(f"Missing format cohort: {cohort_name}")
+    variants: dict[tuple[str, str], int] = defaultdict(int)
+    for row in selected:
+        if row.get("error"):
+            raise ValueError(f"{cohort_name} contains a runner error")
+        if row.get("outcome", {}).get("path_valid") is not True:
+            raise ValueError(f"{cohort_name} contains a missing or invalid path")
+        if row.get("outcome", {}).get("status") not in {"valid_optimal", "valid_suboptimal"}:
+            raise ValueError(f"{cohort_name} contains an unexpected outcome status")
+        outcome = row["outcome"]
+        if _number(outcome.get("nodes"), f"{cohort_name} nodes") <= 0:
+            raise ValueError(f"{cohort_name} contains a non-positive node count")
+        if _number(outcome.get("oracle_cost"), f"{cohort_name} oracle cost") <= 0:
+            raise ValueError(f"{cohort_name} contains a non-positive oracle cost")
+        if _number(outcome.get("path_cost"), f"{cohort_name} path cost") <= 0:
+            raise ValueError(f"{cohort_name} contains a non-positive path cost")
+        variants[_variant_key(row)] += 1
+    if len(variants) != 13 or set(variants.values()) != {expected_workloads}:
+        raise ValueError(
+            f"{cohort_name} must contain 13 complete planner variants across "
+            f"{expected_workloads} workload(s)"
+        )
+    dataset_count = len({row.get("dataset_name") for row in selected})
+    if dataset_count != expected_workloads:
+        raise ValueError(
+            f"{cohort_name} has {dataset_count} maps, expected {expected_workloads}"
+        )
+    return selected
+
+
+def _format_metric_rows(
+    rows: list[dict[str, Any]], *, cohort_name: str, metric: str
+) -> list[tuple[str, float, float, int]]:
+    grouped: dict[tuple[str, str], list[float]] = defaultdict(list)
+    labels: dict[tuple[str, str], str] = {}
+    for row in rows:
+        key = _variant_key(row)
+        outcome = row["outcome"]
+        if metric == "latency_ms":
+            value = _number(row.get("timing", {}).get("public_api_s"), "public_api_s") * 1000
+        elif metric == "nodes":
+            value = _number(outcome.get("nodes"), f"{cohort_name} nodes")
+        elif metric == "cost_ratio":
+            path_cost = _number(outcome.get("path_cost"), f"{cohort_name} path cost")
+            oracle_cost = _number(outcome.get("oracle_cost"), f"{cohort_name} oracle cost")
+            value = path_cost / oracle_cost
+            if value < 1 - 1e-10:
+                raise ValueError(f"{cohort_name} returned a path below its oracle cost")
+        else:
+            raise ValueError(f"Unsupported format metric: {metric}")
+        if value <= 0:
+            raise ValueError(f"{cohort_name} has a non-positive {metric} value")
+        grouped[key].append(value)
+        labels[key] = _variant_label_from_row(row)
+    return sorted(
+        [
+            (labels[key], statistics.median(values), _percentile(values, 95), len(values))
+            for key, values in grouped.items()
+        ],
+        key=lambda row: row[0].casefold(),
+    )
+
+
+def _plot_format_metric(
+    axis: Any,
+    rows: list[tuple[str, float, float, int]],
+    *,
+    metric: str,
+    cohort_label: str,
+    color: str,
+    show_labels: bool,
+) -> None:
+    if not rows:
+        raise ValueError(f"{cohort_label} has no {metric} data")
+    counts = {row[3] for row in rows}
+    if len(counts) != 1:
+        raise ValueError(f"{cohort_label} has inconsistent {metric} counts: {counts}")
+    count = counts.pop()
+    for position, (_label, median, p95, _n) in enumerate(rows):
+        axis.errorbar(
+            median,
+            position,
+            xerr=[[0], [max(0.0, p95 - median)]],
+            fmt="o",
+            markersize=3.4,
+            capsize=2,
+            linewidth=1,
+            color=color,
+            ecolor=color,
+            zorder=3,
+        )
+    if metric == "cost_ratio":
+        axis.axvline(1.0, color="#73818C", linestyle=(0, (3, 2)), linewidth=0.9)
+        axis.set_xscale("log")
+        axis.set_xlim(left=0.99, right=max(row[2] for row in rows) * 1.55)
+        axis.set_xlabel("Path cost / independent oracle · 1 = optimal")
+        for position, (_label, median, _p95, _count) in enumerate(rows):
+            axis.annotate(
+                f"{median:.3g}×",
+                (median, position),
+                xytext=(4, 0),
+                textcoords="offset points",
+                fontsize=6,
+                va="center",
+            )
+    elif metric == "nodes":
+        axis.set_xscale("log")
+        axis.set_xlabel("Planner-reported nodes (log scale)")
+    else:
+        axis.set_xscale("log")
+        axis.set_xlabel("Public API latency (ms, log scale)")
+    axis.set_yticks(range(len(rows)))
+    if show_labels:
+        axis.set_yticklabels([row[0] for row in rows])
+    else:
+        axis.tick_params(axis="y", labelleft=False)
+    axis.invert_yaxis()
+    unit = "graph queries" if "graphs" in cohort_label or "Rome99" in cohort_label else "map/query"
+    axis.set_title(f"{cohort_label} · n={count} {unit}", loc="left", pad=5)
+    axis.grid(axis="x", which="both", alpha=0.55)
+    axis.grid(axis="y", visible=False)
+    axis.set_axisbelow(True)
+
+
+def _generate_oracle_format_figure(
+    rows: list[dict[str, Any]],
+    *,
+    cohorts: tuple[tuple[str, str, int, str], ...],
+    output_path: Path,
+    figure_title: str,
+) -> Path:
+    cohort_rows = [
+        _validate_oracle_format_cohort(
+            rows, cohort_name=name, expected_workloads=workload_count
+        )
+        for name, _label, workload_count, _color in cohorts
+    ]
+    figure, axes = plt.subplots(
+        3,
+        len(cohorts),
+        figsize=(6.1 * len(cohorts), 11.3),
+        layout="constrained",
+        squeeze=False,
+    )
+    metrics = (
+        ("latency_ms", "One-call latency"),
+        ("nodes", "Search work"),
+        ("cost_ratio", "Path quality"),
+    )
+    for column, ((cohort_name, label, _workload_count, color), selected) in enumerate(
+        zip(cohorts, cohort_rows, strict=True)
+    ):
+        for row_index, (metric, _metric_label) in enumerate(metrics):
+            values = _format_metric_rows(selected, cohort_name=cohort_name, metric=metric)
+            _plot_format_metric(
+                axes[row_index, column],
+                values,
+                metric=metric,
+                cohort_label=label,
+                color=color,
+                show_labels=column == 0,
+            )
+            if column == 0:
+                axes[row_index, column].set_ylabel(_metric_label)
+    figure.suptitle(
+        f"{figure_title}\n"
+        "Each source graph/map contributes one query; whiskers show P95 across queries, "
+        "and n=1 panels are single cases with no spread estimate",
+        fontsize=12,
+    )
+    return _save(figure, output_path)
+
+
+def generate_nongrid_quality(format_rows: list[dict[str, Any]], output_dir: Path) -> list[Path]:
+    dimacs_path = _generate_oracle_format_figure(
+        format_rows,
+        cohorts=DIMACS_PLOT_COHORTS,
+        output_path=output_dir / "benchmark-full-dimacs-work-quality.png",
+        figure_title="DIMACS directed-road graph performance by cost family",
+    )
+    voxel_path = _generate_oracle_format_figure(
+        format_rows,
+        cohorts=VOXEL_PLOT_COHORTS,
+        output_path=output_dir / "benchmark-full-voxel-work-quality.png",
+        figure_title="3D voxel algorithm profiles for two selected source maps",
+    )
+    return [dimacs_path, voxel_path]
+
+
+def generate_barn_performance(format_rows: list[dict[str, Any]], output_dir: Path) -> Path:
+    cohort_name = "barn_point_xy_derived"
+    rows = [row for row in format_rows if row.get("cohort") == cohort_name]
+    if len(rows) != 4200:
+        raise ValueError(f"BARN campaign must contain 4,200 observations, found {len(rows)}")
+    grouped: dict[tuple[str, str], dict[str, Any]] = {}
+    for row in rows:
+        if row.get("error"):
+            raise ValueError("BARN campaign contains a runner error")
+        key = _variant_key(row)
+        group = grouped.setdefault(
+            key,
+            {
+                "label": _variant_label_from_row(row),
+                "valid": 0,
+                "no_solution": 0,
+                "count": 0,
+            },
+        )
+        status = row.get("outcome", {}).get("status")
+        if status == "valid_path" and row.get("outcome", {}).get("path_valid") is True:
+            group["valid"] += 1
+        elif status == "no_solution_found":
+            group["no_solution"] += 1
+        else:
+            raise ValueError(f"Unexpected BARN outcome: {status}")
+        group["count"] += 1
+    ordered = sorted(grouped.values(), key=lambda item: item["label"].casefold())
+    if len(ordered) != 14 or any(item["count"] != 300 for item in ordered):
+        raise ValueError("BARN campaign must cover 14 planners on all 300 worlds")
+    latency_rows, workload_count = _raw_latency_rows(format_rows, cohort_name=cohort_name)
+    if workload_count != 300 or len(latency_rows) != 14:
+        raise ValueError("BARN latency must cover 14 planners on 300 worlds each")
+
+    figure, axes = plt.subplots(1, 2, figsize=(14, 7.8), layout="constrained")
+    positions = list(range(len(ordered)))
+    rates = [item["valid"] * 100 / item["count"] for item in ordered]
+    axes[0].barh(
+        positions,
+        rates,
+        height=0.66,
+        color=COHORT_COLORS["barn"],
+        alpha=0.88,
+    )
+    axes[0].set_yticks(positions)
+    axes[0].set_yticklabels([item["label"] for item in ordered])
+    axes[0].invert_yaxis()
+    axes[0].set_xlim(0, 112)
+    axes[0].set_xticks([0, 25, 50, 75, 100])
+    axes[0].set_xlabel("Returned source-circle-valid paths (%)")
+    axes[0].set_title("Completion on 300 BARN worlds", loc="left", pad=5)
+    for position, item in enumerate(ordered):
+        rate = rates[position]
+        label = f"{item['valid']} valid; {item['no_solution']} no-solution"
+        axes[0].text(
+            rate + 1 if rate < 94 else rate - 1,
+            position,
+            label,
+            ha="left" if rate < 94 else "right",
+            va="center",
+            fontsize=6.5,
+        )
+    _draw_latency_rows(
+        axes[1],
+        latency_rows,
+        title="Public API time · one call per world · n=300",
+        color=COHORT_COLORS["barn"],
+    )
+    axes[0].grid(axis="x", alpha=0.55)
+    axes[0].grid(axis="y", visible=False)
+    axes[0].set_axisbelow(True)
+    figure.suptitle(
+        "BARN derived point-robot XY · completion and runtime spread\n"
+        "Latency whiskers are P95 across different worlds, not repeated-call intervals; "
+        "no optimality oracle is available",
+        fontsize=12,
+    )
+    return _save(figure, output_dir / "benchmark-full-barn-completion-latency.png")
 
 
 def _percentile(values: list[float], percentile: float) -> float:
@@ -961,6 +1269,8 @@ def generate_assets(campaign_root: Path, output_dir: Path) -> list[Path]:
             unreachable_rows,
             output_dir,
         ),
+        *generate_nongrid_quality(format_rows, output_dir),
+        generate_barn_performance(format_rows, output_dir),
         generate_memory(movingai, scaling, output_dir),
     ]
 

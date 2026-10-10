@@ -303,7 +303,7 @@ python scripts/benchmark_shortest_path.py run \
 ```
 
 After all campaigns finish, install the optional plotting dependencies with
-`python -m pip install -e ".[viz]"` and render the seven SciencePlots benchmark
+`python -m pip install -e ".[viz]"` and render the ten SciencePlots benchmark
 figures:
 
 ```text
@@ -327,6 +327,18 @@ reported as an all-planner proof-completeness check rather than a redundant
 100% bar panel. The memory figure separates instrumented query workspace from
 fresh-worker RSS, which includes the interpreter, input loading, and graph
 setup and must not be read as planner-owned memory alone.
+
+The ten-figure set also includes non-grid work/quality profiles for DIMACS and
+the two selected strict-26 voxel maps, plus a BARN completion/latency figure.
+DIMACS distance and travel-time each summarize one seeded query on six regional
+graphs; Rome99 and each voxel panel contain one graph/map query and are shown as
+single cases. Their latency whiskers, where present, summarize P95 across graph
+queries rather than repeated timings. Path-cost ratios use the independent
+source-appropriate oracle and are kept within each cost/movement cohort. BARN
+plots source-circle-valid path completion and one-call latency spread across
+300 distinct worlds per planner; no continuous optimality oracle is available.
+OMPL.app and terrain stay unplotted because their compatible runtime and source
+terrain cost table are unavailable.
 
 ## Measurement boundaries
 
