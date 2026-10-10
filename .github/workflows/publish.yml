@@ -24,7 +24,10 @@ jobs:
           pip install build twine
 
       - name: Build distributions
-        run: python -m build
+        # The project ships native extensions. `build` on this Linux runner
+        # emits a raw linux_x86_64 wheel, which is not a portable PyPI wheel.
+        # Publish the sdist until the release workflow builds manylinux wheels.
+        run: python -m build --sdist
 
       - name: Twine check
         run: python -m twine check dist/*
