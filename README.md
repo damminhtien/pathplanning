@@ -137,11 +137,10 @@ For interactive traces, custom scenes, and the rendering API, see the
 
 ## Benchmark Datasets and Current Coverage
 
-The installed collections contain different problem semantics, so results stay
-in separate grid, directed-road, voxel, geometric, and framework-resource
-cohorts. The gallery below uses local source assets to show those differences;
-the views use different scales and are not a representative sample or a measure
-of difficulty.
+Results refreshed 2026-10-10. The benchmark suite contains unlike task models,
+so each result stays within its dataset and movement-cost cohort. The gallery
+below uses local source assets to show those differences; the views use
+different scales and are not a representative sample or a measure of difficulty.
 
 <p align="center">
   <img src="./docs/benchmarks/images/benchmark_dataset_examples.png" alt="Visual examples of MovingAI 2D and 3D grids, a DIMACS directed road graph, a Monash voxel level, BARN cylinder obstacles, and an OMPL image resource" width="100%"/>
@@ -149,19 +148,170 @@ of difficulty.
 
 | Cohort | Completed coverage | Result and limit |
 |---|---:|---|
-| MovingAI land | 789 maps; 2,890 reachable pilot queries and 3,363 map-coverage queries, each on 12 variants | 80 separate unreachable queries were classified correctly by all 12 variants. Latency and memory used their own frozen cohorts. |
+| MovingAI land | 789 maps; 2,890 reachable pilot queries and 3,363 map-coverage queries, each on 12 variants | The pilot returned 21,343 optimal and 13,337 valid suboptimal paths; all 80 separate unreachable queries were classified correctly by all 12 variants. Latency and memory used their own frozen cohorts. |
 | MovingAI grid specialists | 788 map/query pairs × 4 planners | JPS was optimal on 788; D* Lite was optimal on 750 and resource-limited on 38; Theta* and Lazy Theta* returned valid any-angle paths on all 788. |
 | Scaling | 1,600 work queries × 17 variants; separate latency and memory passes | Size, density, and corridor-topology cohorts retain their own memberships. |
 | DIMACS roads | 13 of 25 directed graphs × 13 variants | 12 graphs exceeded configured resource limits; road costs and grid costs are not pooled. |
 | MovingAI and Monash voxels | 2 distinct maps × 13 variants | 20 optimal and 6 valid suboptimal results under the strict 26-neighbor oracle; mirrors and resource-limited maps remain visible in inventory. |
-| BARN | 300 worlds × 14 compatible planners | 2,673 paths passed source-geometry validation; 1,527 queries had no solution in the derived point-XY model. No invalid paths or planner errors. |
+| BARN | 300 worlds × 14 compatible planners | 2,673 returned paths passed source-geometry validation; 1,527 runs ended with `no_solution_found`. No invalid paths or planner errors. |
 | OMPL.app and terrain | Installed and registered | OMPL requires its matching collision/state-space runtime; terrain remains unsupported while the original cost table is unavailable. |
 
-The complete locally generated campaign report records 226,255 observations
-across the separate cohorts. See the [dataset installation guide](docs/benchmarks/dataset_installation.md),
+The completed campaigns recorded 226,255 run entries across separate cohorts,
+including warm-up runs and separate work, latency, and memory passes. All 37
+planner IDs in the [supported planner registry](SUPPORTED_ALGORITHMS.md) have
+measured results: dataset-scale results where the source task matches, and
+explicitly labeled smoke results for temporal, multi-agent, vehicle, and other
+unsupported source-task contracts. The tables below report the latest usable
+measurements without combining unlike cohorts into a ranking.
+
+<details>
+<summary>MovingAI land and scaling results for all 17 search variants</summary>
+
+The MovingAI work pass covers 3,363 solvable map/query pairs; all 12 variants
+returned valid paths on every pair, with no errors, timeouts, or inconsistent
+results. The separate latency pass covers 788 solvable map/query identities,
+using two warm-ups and five measured repeats per variant. Scaling work covers
+1,538 solvable and 62 unreachable tasks; all 17 variants solved the 1,538 and
+classified all 62 unreachable tasks correctly. Scaling latency covers 386
+solvable identities from a separate 400-task cohort, also with two warm-ups
+and five measured repeats. The cost ratios and latency percentiles below are
+descriptive aggregates over their frozen cohorts, not universal planner ranks.
+
+| Variant | MovingAI optimal / 3,363; mean cost ratio | MovingAI median / P95 ms | Scaling optimal / 1,538; mean cost ratio | Scaling median / P95 ms |
+|---|---:|---:|---:|---:|
+| `anytime_astar` | 3,363; 1.000 | 2.310 / 49.040 | 1,538; 1.000 | 5.417 / 85.940 |
+| `astar` | 3,363; 1.000 | 1.411 / 20.344 | 1,538; 1.000 | 4.210 / 29.360 |
+| `astar_halpha_0` | — | — | 1,538; 1.000 | 10.370 / 34.120 |
+| `astar_halpha_0.25` | — | — | 1,538; 1.000 | 9.259 / 30.740 |
+| `astar_halpha_0.5` | — | — | 1,538; 1.000 | 8.856 / 31.310 |
+| `astar_halpha_0.75` | — | — | 1,538; 1.000 | 6.710 / 24.560 |
+| `astar_halpha_1` | — | — | 1,538; 1.000 | 4.250 / 29.260 |
+| `bidirectional_astar` | 3,363; 1.000 | 4.479 / 36.409 | 1,538; 1.000 | 12.950 / 42.820 |
+| `bidirectional_dijkstra` | 3,363; 1.000 | 1.863 / 22.644 | 1,538; 1.000 | 10.420 / 28.680 |
+| `breadth_first_search` (`bfs`) | 447; 1.077 | 0.536 / 6.631 | 169; 1.038 | 3.486 / 10.080 |
+| `depth_first_search` (`dfs`) | 85; 48.750 | 1.150 / 9.118 | 1; 56.940 | 3.904 / 17.580 |
+| `dijkstra` | 3,363; 1.000 | 1.906 / 26.924 | 1,538; 1.000 | 9.154 / 32.160 |
+| `greedy_best_first` | 684; 1.165 | 0.691 / 4.272 | 248; 1.112 | 0.812 / 15.780 |
+| `reexp_astar` | 3,363; 1.000 | 1.252 / 14.972 | 1,538; 1.000 | 3.291 / 23.300 |
+| `weighted_astar` (`w=1.25`) | 1,098; 1.017 | 0.841 / 13.460 | 502; 1.025 | 0.942 / 23.930 |
+| `weighted_astar` (`w=1.5`) | 962; 1.028 | 0.795 / 11.800 | 461; 1.039 | 0.872 / 24.580 |
+| `weighted_astar` (`w=2`) | 883; 1.042 | 0.751 / 10.330 | 440; 1.055 | 0.853 / 24.620 |
+
+The 17 scaling variants include five `astar_halpha_*` settings that were not
+part of the 12-variant MovingAI work and latency passes. Latency is the
+per-query median across repeats, then summarized by the median and P95 across
+the eligible query identities. The 80-query MovingAI unreachable check is a
+separate correctness cohort and is not included in these latency figures.
+</details>
+
+<details>
+<summary>Directed DIMACS and strict 26-neighbor voxel outcomes</summary>
+
+Each of the 13 listed variants ran on 13 directed weighted graphs and two
+distinct voxel maps (`Simple.3dmap` and `plant01.3dmap`). Cells show valid
+paths / oracle-optimal paths. DIMACS includes six distance graphs, six travel
+time graphs, and one source-weight graph. Twelve of the 25 source graphs were
+resource-limited. Voxel optimality uses the strict 26-neighbor Euclidean
+oracle; neither dataset's latency is pooled with grid or geometric workloads.
+
+| Variant | DIMACS, n=13 | Voxels, n=2 |
+|---|---:|---:|
+| `anytime_astar` | 13 / 13 | 2 / 2 |
+| `astar` | 13 / 13 | 2 / 2 |
+| `bfs` | 13 / 0 | 2 / 0 |
+| `bidirectional_astar` | 13 / 13 | 2 / 2 |
+| `bidirectional_dijkstra` | 13 / 13 | 2 / 2 |
+| `dfs` | 13 / 0 | 2 / 0 |
+| `dijkstra` | 13 / 13 | 2 / 2 |
+| `dstar_lite` | 13 / 13 | 2 / 2 |
+| `greedy_best_first` | 13 / 0 | 2 / 0 |
+| `reexp_astar` | 13 / 13 | 2 / 2 |
+| `weighted_astar` (`w=1.25`) | 13 / 13 | 2 / 2 |
+| `weighted_astar` (`w=1.5`) | 13 / 13 | 2 / 2 |
+| `weighted_astar` (`w=2`) | 13 / 13 | 2 / 2 |
+
+<small>Counts are valid / optimal, not runtime ranks. Parallel road arcs are
+coalesced by minimum cost per ordered pair; a zero heuristic is used because
+road-coordinate units are not assumed to match edge-cost units.</small>
+</details>
+
+<details>
+<summary>MovingAI grid-specialist results</summary>
+
+| Planner | Coverage | Result |
+|---|---:|---|
+| `jps` | 788 map/query pairs | 788/788 oracle-optimal paths |
+| `dstar_lite` | 788 map/query pairs | 750 optimal; 38 resource-limited |
+| `theta_star` | 788 map/query pairs | 788/788 valid any-angle paths; not scored against the grid-optimal cost |
+| `lazy_theta_star` | 788 map/query pairs | 788/788 valid any-angle paths; not scored against the grid-optimal cost |
+
+The MovingAI terrain assets remain outside these runs because the source
+terrain cost table is missing; `jpsw` therefore has only the separate
+10-workload smoke result below.
+</details>
+
+<details>
+<summary>BARN point-robot XY results for all 14 compatible continuous planners</summary>
+
+Each planner ran once on each of 300 derived static point-robot XY worlds.
+The table gives returned source-geometry-valid paths / 300 and the median
+public API time across the 300 worlds; a `no_solution_found` outcome is not
+counted as a path. All 2,673 returned paths passed exact source-circle
+validation, with zero invalid paths or runner errors. This cohort has no
+independent continuous optimality oracle, so it supports path-validity and
+completion analysis rather than optimality claims or a cross-planner speed
+ranking. The source `.npy` paths remain provenance only; they are not XY paths
+in the supplied world coordinates.
+
+| Planner | Valid paths / 300 | Median API ms |
+|---|---:|---:|
+| `abit_star` | 0 | 0.700 |
+| `ait_star` | 0 | 0.574 |
+| `bit_star` | 0 | 0.584 |
+| `eirm_star` | 293 | 2.652 |
+| `eit_star` | 0 | 0.593 |
+| `fcit_star` | 295 | 22.699 |
+| `fmt_star` | 0 | 0.606 |
+| `informed_rrt_star` | 300 | 28.165 |
+| `lazy_prm` | 293 | 2.633 |
+| `prm_star` | 294 | 190.206 |
+| `rit_star` | 299 | 86.921 |
+| `rrt` | 299 | 1.486 |
+| `rrt_connect` | 300 | 0.554 |
+| `rrt_star` | 300 | 23.091 |
+
+`jit_star` is excluded from BARN because this point-robot model does not
+provide the robot Jacobian required for manipulability scoring.
+</details>
+
+<details>
+<summary>Smoke-only measurements for the remaining task contracts</summary>
+
+These are one-run reference checks with fixed seeds and no warm-up, not
+dataset-scale results or statistically stable rankings. Timing values across
+different task contracts are not comparable.
+
+| Planner | Result | Smoke workload |
+|---|---|---|
+| `jpsw` | 10/10 successful; 77.820 ms median API | 10-family MovingAI smoke; source terrain costs unavailable |
+| `sipp` | 1/1; 0.146 ms; arrival 4, cost 4 | Temporal reference case |
+| `bounded_suboptimal_sipp` | 1/1; 0.077 ms; arrival 4, cost 4 | Temporal reference case |
+| `kinodynamic_sipp` | 1/1; 0.080 ms; arrival 6, cost 6 | Kinodynamic temporal reference case |
+| `eecbs` | 1/1; 0.130 ms; sum of costs 4, makespan 2 | Multi-agent reference case |
+| `lacam_star` | 1/1; 0.087 ms; sum of costs 4, makespan 2 | Multi-agent reference case |
+| `hybrid_astar` | 1/1; 0.223 ms; cost 13.894 | Vehicle reference case |
+| `state_lattice` | 1/1; 0.179 ms; cost 3 | Vehicle reference case |
+| `jit_star` | 1/1; 492.546 ms; 45 nodes | Jacobian-enabled continuous reference case |
+
+Temporal, multi-agent, and vehicle planners have no matching source tasks in
+the installed static single-agent datasets. `jit_star` has a reference result,
+but is not compatible with the BARN point-robot model.
+</details>
+
+For provenance, dataset exclusions, bias controls, and reproduction commands,
+see the [dataset installation guide](docs/benchmarks/dataset_installation.md),
 [dataset semantics and bias controls](docs/benchmarks/dataset_characterization.md),
-and [campaign reproduction commands](docs/shortest_path_benchmark_reproduction.md)
-for provenance, exclusions, and exact protocols.
+and [campaign reproduction guide](docs/shortest_path_benchmark_reproduction.md).
 
 ## Earlier MovingAI Pilot Benchmark Summary
 
