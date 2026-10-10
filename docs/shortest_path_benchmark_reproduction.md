@@ -18,25 +18,28 @@ silently reclassifying them.
 
 ## Latest completed campaign snapshot
 
-As of 2026-10-09, the separate campaigns contain 226,255 observations. The
-MovingAI land campaigns cover all 789 maps with selected query cohorts; scaling
-uses generated grid families, and the format runner keeps roads, voxels, and
-BARN geometry separate. OMPL.app resources and weighted terrain are installed
-but have no compatible planner cohort yet. Detailed denominators and caveats
-are in the [dataset characterization](benchmarks/dataset_characterization.md).
+The 2026-10-10 refresh contains 216,535 measurement entries in separate
+MovingAI land, scaling, unreachable, grid-specialist, DIMACS, voxel, and BARN
+cohorts. It covers all 789 MovingAI maps; the format runner keeps road-cost,
+voxel-movement, and BARN point-robot semantics separate. OMPL.app resources
+and weighted terrain are installed but have no compatible planner cohort yet.
+The task-model distinctions and source exclusions are in the
+[dataset characterization](benchmarks/dataset_characterization.md).
 
 | Campaign | Executed workloads | Outcome boundary |
 |---|---:|---|
-| MovingAI pilot | 2,890 reachable queries × 12 variants | 21,343 optimal and 13,337 valid suboptimal paths. |
-| MovingAI unreachable | 80 queries × 12 variants | All variants classified 80/80 correctly; reported independently of reachable-scenario coverage. |
-| MovingAI map coverage | 3,363 work queries × 12 variants | Latency uses 788 map/query identities × 12 × 7 runs; memory uses 30 × 12. |
-| Scaling | 1,600 work queries × 17 variants | Separate 400-query latency and 80-query memory sets. |
-| DIMACS / voxels | 13 road graphs and 2 distinct voxel maps × 13 variants | 12 of 25 road graphs and 88 non-mirror voxel maps are resource-limited; 44 identical Warframe mirrors are not double-counted. |
+| MovingAI land | 3,363 work queries × 12 variants | All 40,356 observations returned valid paths; latency uses 788 map/query identities × 12 × 7 scheduled runs; memory uses 30 × 12. |
+| MovingAI unreachable | 2,160 queries across 180 maps × 12 variants | All 25,920 observations correctly proved the queries unreachable; separate from reachable-scenario coverage. |
+| Scaling | 1,600 work queries × 17 variants | 1,538 reachable and 62 unreachable; latency uses 400 × 17 × 7 scheduled runs; memory uses 80 × 17. |
+| MovingAI grid specialists | 788 map/query pairs × 4 planners | 3,114 valid results; D* Lite was resource-limited on 38 pairs. |
+| DIMACS / voxels | 13 road graphs and 2 distinct voxel maps × 13 variants | Six distance, six travel-time and one source-weight graph; 20 voxel paths optimal and 6 suboptimal. |
 | BARN | 300 worlds × 14 compatible planners | 2,673 valid paths and 1,527 no-solution outcomes; no invalid paths or planner errors. |
 
-These counts are execution coverage, not a cross-family leaderboard. The
-previous README pilot figures are an earlier eight-variant cohort and must not
-be substituted for these results.
+These counts are execution coverage, not a cross-family leaderboard. The README
+figures are regenerated from the separate full-refresh campaigns; single-call
+dataset observations stay separate from repeated latency cohorts.
+Repeated timing runs used an Apple M2 Max with macOS 27.0.1 and Python 3.14.8;
+interpret these timings within that host and protocol.
 
 ## Build and run
 
@@ -244,23 +247,79 @@ subgraph, one slice from each of two 3D maps, BARN's source cylinders, and an
 OMPL image resource. It does not create planner observations or infer graph
 difficulty from visual density.
 
-## Regenerate the README benchmark figures
+## Refresh and regenerate the README benchmark figures
 
-After the analyze step has written summary.json, render the latency, work,
-quality, and memory figures used in the README:
+The README figure set is built from separate full-refresh campaigns. The
+following sequence validates the frozen MovingAI coverage manifest, measures
+the 2D land work/latency/memory passes, and analyzes them. The scaling, format,
+grid-specialist, and unreachable-query commands use the same refresh root so
+the figure generator reads one consistent result set. Existing completed
+manifests can be reused because their dataset and workload hashes are pinned.
 
-~~~text
-python3.12 scripts/generate_shortest_path_summary_assets.py \
-  --summary benchmark-results/pilot/summary.json \
+```text
+python scripts/benchmark_shortest_path.py validate \
+  --manifest benchmark-results/final/movingai_coverage_manifest.json
+python scripts/benchmark_shortest_path.py run \
+  --manifest benchmark-results/final/movingai_coverage_manifest.json \
+  --campaign benchmark-results/refresh_20261010/movingai_land --pass work
+python scripts/benchmark_shortest_path.py run \
+  --manifest benchmark-results/final/movingai_coverage_manifest.json \
+  --campaign benchmark-results/refresh_20261010/movingai_land \
+  --pass latency --repeats 5 --warmups 2
+python scripts/benchmark_shortest_path.py run \
+  --manifest benchmark-results/final/movingai_coverage_manifest.json \
+  --campaign benchmark-results/refresh_20261010/movingai_land --pass memory
+python scripts/benchmark_shortest_path.py analyze \
+  --campaign benchmark-results/refresh_20261010/movingai_land
+python scripts/benchmark_scaling.py run \
+  --manifest benchmark-results/final/scaling/manifest.json \
+  --campaign benchmark-results/refresh_20261010/scaling --pass work
+python scripts/benchmark_scaling.py run \
+  --manifest benchmark-results/final/scaling/manifest.json \
+  --campaign benchmark-results/refresh_20261010/scaling \
+  --pass latency --repeats 5 --warmups 2
+python scripts/benchmark_scaling.py run \
+  --manifest benchmark-results/final/scaling/manifest.json \
+  --campaign benchmark-results/refresh_20261010/scaling --pass memory
+python scripts/benchmark_scaling.py analyze \
+  --campaign benchmark-results/refresh_20261010/scaling
+python scripts/benchmark_format_cohorts.py run \
+  --dataset-root benchmark-results/datasets \
+  --dataset-index benchmark-results/datasets/index.json \
+  --output benchmark-results/refresh_20261010/format_cohorts \
+  --sources dimacs voxels barn
+python scripts/benchmark_movingai_grid_specialists.py run \
+  --dataset-root benchmark-results/datasets/movingai-v2 \
+  --manifest benchmark-results/final/movingai_coverage_manifest.json \
+  --output benchmark-results/refresh_20261010/grid_specialists
+python scripts/benchmark_shortest_path.py augment-unreachable \
+  --manifest benchmark-results/final/movingai_coverage_manifest.json \
+  --output benchmark-results/refresh_20261010/movingai_all_algorithms_with_unreachable_manifest.json \
+  --per-map 10 --seed 7
+python scripts/benchmark_shortest_path.py run \
+  --manifest benchmark-results/refresh_20261010/movingai_all_algorithms_with_unreachable_manifest.json \
+  --campaign benchmark-results/refresh_20261010/movingai_unreachable_full \
+  --pass work --cohort unreachable
+```
+
+After all campaigns finish, install the optional plot dependencies with
+`python -m pip install -e ".[viz]"` and render all four cohort figures:
+
+```text
+python scripts/generate_full_benchmark_assets.py \
+  --campaign-root benchmark-results/refresh_20261010 \
   --output-dir assets/images
-~~~
+```
 
-This script reads the saved summary only; it does not run planners or create new
-benchmark observations. It uses SciencePlots' science style with LaTeX
-rendering disabled. The latency figure reports the median and P95 of per-query
-medians. Work counters and tracked query workspace summarize the separate
-instrumented work pass. Process RSS summarizes the fresh-worker memory pass and
-includes interpreter, input-loading, and graph-setup memory.
+The generator reads saved summaries and JSONL observations only; it does not
+run planners. Repeated latency panels use the median of five measured calls per
+query after two warm-ups, followed by the median and P95 across queries. DIMACS,
+voxel, BARN, and grid-specialist panels use one call per independent instance;
+their P95 describes workload spread and is kept separate from repeat-based
+latency. The work/quality figure uses the 2D octile oracle, while the outcome
+figure preserves each format's own success/status categories. The memory figure
+shows separately measured query workspace and fresh-worker RSS, which includes
+the interpreter, input loading, and graph setup.
 
 ## Measurement boundaries
 

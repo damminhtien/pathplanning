@@ -148,60 +148,66 @@ different scales and are not a representative sample or a measure of difficulty.
 
 | Cohort | Completed coverage | Result and limit |
 |---|---:|---|
-| MovingAI land | 789 maps; 2,890 reachable pilot queries and 3,363 map-coverage queries, each on 12 variants | The pilot returned 21,343 optimal and 13,337 valid suboptimal paths; all 80 separate unreachable queries were classified correctly by all 12 variants. Latency and memory used their own frozen cohorts. |
+| MovingAI land | 789 maps; 3,363 reachable work queries × 12 variants; separate latency (788 queries) and memory (30 queries) cohorts | All 40,356 work observations returned valid paths without runner errors. A separate 2,160-query unreachable cohort across 180 maps was correctly classified by all 12 variants. |
 | MovingAI grid specialists | 788 map/query pairs × 4 planners | JPS was optimal on 788; D* Lite was optimal on 750 and resource-limited on 38; Theta* and Lazy Theta* returned valid any-angle paths on all 788. |
-| Scaling | 1,600 work queries × 17 variants; separate latency and memory passes | Size, density, and corridor-topology cohorts retain their own memberships. |
-| DIMACS roads | 13 of 25 directed graphs × 13 variants | 12 graphs exceeded configured resource limits; road costs and grid costs are not pooled. |
+| Scaling | 1,600 work queries × 17 variants; separate latency (400 queries) and memory (80 queries) cohorts | All 17 variants solved 1,538 reachable queries and correctly classified 62 unreachable queries; size, density, and corridor-topology cohorts retain their own memberships. |
+| DIMACS roads | 13 of 25 directed graphs × 13 variants | The selected cohort covers six distance, six travel-time, and one source-weight graph; the other 12 graphs exceed configured resource limits. Road costs and grid costs are not pooled. |
 | MovingAI and Monash voxels | 2 distinct maps × 13 variants | 20 optimal and 6 valid suboptimal results under the strict 26-neighbor oracle; mirrors and resource-limited maps remain visible in inventory. |
 | BARN | 300 worlds × 14 compatible planners | 2,673 returned paths passed source-geometry validation; 1,527 runs ended with `no_solution_found`. No invalid paths or planner errors. |
 | OMPL.app and terrain | Installed and registered | OMPL requires its matching collision/state-space runtime; terrain remains unsupported while the original cost table is unavailable. |
 
-The completed campaigns recorded 226,255 run entries across separate cohorts,
-including warm-up runs and separate work, latency, and memory passes. All 37
-planner IDs in the [supported planner registry](SUPPORTED_ALGORITHMS.md) have
-measured results: dataset-scale results where the source task matches, and
-explicitly labeled smoke results for temporal, multi-agent, vehicle, and other
-unsupported source-task contracts. The tables below report the latest usable
-measurements without combining unlike cohorts into a ranking.
+The 2026-10-10 refresh recorded 216,535 measurement entries across the
+MovingAI land, scaling, unreachable, grid-specialist, DIMACS, voxel, and BARN
+cohorts, including warm-up runs and separate work, latency, and memory passes.
+All 37 planner IDs in the [supported planner registry](SUPPORTED_ALGORITHMS.md)
+have measured results: dataset-scale results where the source task matches,
+and separately labeled smoke results for temporal, multi-agent, vehicle, and
+other unsupported source-task contracts. Smoke-only references are excluded
+from the 2026-10-10 refresh total. The tables below keep each task model and
+measurement protocol separate instead of combining them into a ranking.
+Timing observations in the refresh were collected on an Apple M2 Max running
+macOS 27.0.1 and Python 3.14.8; interpret timings within that host and protocol.
 
 <details>
 <summary>MovingAI land and scaling results for all 17 search variants</summary>
 
-The MovingAI work pass covers 3,363 solvable map/query pairs; all 12 variants
-returned valid paths on every pair, with no errors, timeouts, or inconsistent
-results. The separate latency pass covers 788 solvable map/query identities,
-using two warm-ups and five measured repeats per variant. Scaling work covers
-1,538 solvable and 62 unreachable tasks; all 17 variants solved the 1,538 and
-classified all 62 unreachable tasks correctly. Scaling latency covers 386
-solvable identities from a separate 400-task cohort, also with two warm-ups
-and five measured repeats. The cost ratios and latency percentiles below are
-descriptive aggregates over their frozen cohorts, not universal planner ranks.
+The 2026-10-10 refresh covers 3,363 solvable MovingAI map/query pairs in the
+work pass; all 12 variants returned valid paths on every pair, with no errors,
+timeouts, or inconsistent results. The separate latency pass covers 788
+solvable map/query identities, using two warm-ups and five measured repeats
+per variant. Scaling work covers 1,538 solvable and 62 unreachable tasks; all
+17 variants solved the 1,538 and classified all 62 unreachable tasks
+correctly. Scaling latency covers 386 solvable identities from a separate
+400-task cohort, also with two warm-ups and five measured repeats. The cost
+ratios and latency percentiles below are descriptive aggregates over their
+frozen cohorts, not universal planner ranks.
 
 | Variant | MovingAI optimal / 3,363; mean cost ratio | MovingAI median / P95 ms | Scaling optimal / 1,538; mean cost ratio | Scaling median / P95 ms |
 |---|---:|---:|---:|---:|
-| `anytime_astar` | 3,363; 1.000 | 2.310 / 49.040 | 1,538; 1.000 | 5.417 / 85.940 |
-| `astar` | 3,363; 1.000 | 1.411 / 20.344 | 1,538; 1.000 | 4.210 / 29.360 |
-| `astar_halpha_0` | — | — | 1,538; 1.000 | 10.370 / 34.120 |
-| `astar_halpha_0.25` | — | — | 1,538; 1.000 | 9.259 / 30.740 |
-| `astar_halpha_0.5` | — | — | 1,538; 1.000 | 8.856 / 31.310 |
-| `astar_halpha_0.75` | — | — | 1,538; 1.000 | 6.710 / 24.560 |
-| `astar_halpha_1` | — | — | 1,538; 1.000 | 4.250 / 29.260 |
-| `bidirectional_astar` | 3,363; 1.000 | 4.479 / 36.409 | 1,538; 1.000 | 12.950 / 42.820 |
-| `bidirectional_dijkstra` | 3,363; 1.000 | 1.863 / 22.644 | 1,538; 1.000 | 10.420 / 28.680 |
-| `breadth_first_search` (`bfs`) | 447; 1.077 | 0.536 / 6.631 | 169; 1.038 | 3.486 / 10.080 |
-| `depth_first_search` (`dfs`) | 85; 48.750 | 1.150 / 9.118 | 1; 56.940 | 3.904 / 17.580 |
-| `dijkstra` | 3,363; 1.000 | 1.906 / 26.924 | 1,538; 1.000 | 9.154 / 32.160 |
-| `greedy_best_first` | 684; 1.165 | 0.691 / 4.272 | 248; 1.112 | 0.812 / 15.780 |
-| `reexp_astar` | 3,363; 1.000 | 1.252 / 14.972 | 1,538; 1.000 | 3.291 / 23.300 |
-| `weighted_astar` (`w=1.25`) | 1,098; 1.017 | 0.841 / 13.460 | 502; 1.025 | 0.942 / 23.930 |
-| `weighted_astar` (`w=1.5`) | 962; 1.028 | 0.795 / 11.800 | 461; 1.039 | 0.872 / 24.580 |
-| `weighted_astar` (`w=2`) | 883; 1.042 | 0.751 / 10.330 | 440; 1.055 | 0.853 / 24.620 |
+| `anytime_astar` | 3,363; 1.000 | 2.214 / 48.115 | 1,538; 1.000 | 5.502 / 89.723 |
+| `astar` | 3,363; 1.000 | 1.374 / 19.965 | 1,538; 1.000 | 4.323 / 29.672 |
+| `astar_halpha_0` | — | — | 1,538; 1.000 | 10.711 / 30.380 |
+| `astar_halpha_0.25` | — | — | 1,538; 1.000 | 9.349 / 29.200 |
+| `astar_halpha_0.5` | — | — | 1,538; 1.000 | 8.817 / 31.462 |
+| `astar_halpha_0.75` | — | — | 1,538; 1.000 | 6.762 / 24.664 |
+| `astar_halpha_1` | — | — | 1,538; 1.000 | 4.308 / 29.736 |
+| `bidirectional_astar` | 3,363; 1.000 | 4.287 / 35.832 | 1,538; 1.000 | 13.114 / 43.055 |
+| `bidirectional_dijkstra` | 3,363; 1.000 | 1.805 / 22.188 | 1,538; 1.000 | 10.679 / 25.411 |
+| `breadth_first_search` (`bfs`) | 447; 1.077 | 0.503 / 6.503 | 169; 1.038 | 3.605 / 9.491 |
+| `depth_first_search` (`dfs`) | 85; 48.753 | 1.094 / 8.952 | 1; 56.935 | 3.942 / 17.875 |
+| `dijkstra` | 3,363; 1.000 | 1.841 / 26.555 | 1,538; 1.000 | 9.407 / 29.047 |
+| `greedy_best_first` | 684; 1.165 | 0.675 / 4.286 | 248; 1.112 | 0.838 / 16.318 |
+| `reexp_astar` | 3,363; 1.000 | 1.208 / 14.652 | 1,538; 1.000 | 3.371 / 23.672 |
+| `weighted_astar` (`w=1.25`) | 1,098; 1.017 | 0.806 / 13.099 | 502; 1.025 | 0.945 / 24.451 |
+| `weighted_astar` (`w=1.5`) | 962; 1.028 | 0.763 / 11.571 | 461; 1.039 | 0.902 / 24.817 |
+| `weighted_astar` (`w=2`) | 883; 1.042 | 0.731 / 10.156 | 440; 1.055 | 0.868 / 24.877 |
 
 The 17 scaling variants include five `astar_halpha_*` settings that were not
 part of the 12-variant MovingAI work and latency passes. Latency is the
 per-query median across repeats, then summarized by the median and P95 across
-the eligible query identities. The 80-query MovingAI unreachable check is a
-separate correctness cohort and is not included in these latency figures.
+the eligible query identities. The 2,160-query MovingAI unreachable check
+across 180 maps is a separate correctness cohort and is not included in these
+latency figures.
 </details>
 
 <details>
@@ -265,20 +271,20 @@ in the supplied world coordinates.
 
 | Planner | Valid paths / 300 | Median API ms |
 |---|---:|---:|
-| `abit_star` | 0 | 0.700 |
-| `ait_star` | 0 | 0.574 |
-| `bit_star` | 0 | 0.584 |
-| `eirm_star` | 293 | 2.652 |
-| `eit_star` | 0 | 0.593 |
-| `fcit_star` | 295 | 22.699 |
-| `fmt_star` | 0 | 0.606 |
-| `informed_rrt_star` | 300 | 28.165 |
-| `lazy_prm` | 293 | 2.633 |
-| `prm_star` | 294 | 190.206 |
-| `rit_star` | 299 | 86.921 |
-| `rrt` | 299 | 1.486 |
-| `rrt_connect` | 300 | 0.554 |
-| `rrt_star` | 300 | 23.091 |
+| `abit_star` | 0 | 0.710 |
+| `ait_star` | 0 | 0.581 |
+| `bit_star` | 0 | 0.592 |
+| `eirm_star` | 293 | 2.726 |
+| `eit_star` | 0 | 0.604 |
+| `fcit_star` | 295 | 22.655 |
+| `fmt_star` | 0 | 0.616 |
+| `informed_rrt_star` | 300 | 28.247 |
+| `lazy_prm` | 293 | 2.690 |
+| `prm_star` | 294 | 192.799 |
+| `rit_star` | 299 | 89.164 |
+| `rrt` | 299 | 1.544 |
+| `rrt_connect` | 300 | 0.571 |
+| `rrt_star` | 300 | 23.268 |
 
 `jit_star` is excluded from BARN because this point-robot model does not
 provide the robot Jacobian required for manipulability scoring.
@@ -313,31 +319,45 @@ see the [dataset installation guide](docs/benchmarks/dataset_installation.md),
 [dataset semantics and bias controls](docs/benchmarks/dataset_characterization.md),
 and [campaign reproduction guide](docs/shortest_path_benchmark_reproduction.md).
 
-## Earlier MovingAI Pilot Benchmark Summary
+## Full Benchmark Cohort Figures
 
-These figures show the earlier eight-variant pilot, not the later full-map and
-multi-format campaign totals. They are rendered from the saved summary at
-benchmark-results/pilot/summary.json. The latency cohort covers 360 queries,
-the work cohort covers 1,750, and the fresh-worker memory cohort covers 360;
-each compares the same eight planner variants. The latency, work, and memory
-passes are separate measurements. Latency shows per-query medians and their
-P95; work counters and query workspace come from the instrumented work pass.
-Process RSS includes Python, map loading, and graph setup, so it is not
-query-only memory. The cost-ratio panel uses 1,749 queries because the
-zero-cost start=goal case has no defined ratio.
+These figures use the 2026-10-10 refreshed complete cohorts. They cover every
+dataset-scale algorithm/dataset pairing that currently has a compatible
+runner: MovingAI land, generated scaling
+grids, grid specialists, DIMACS graph subtypes, both distinct voxel sources,
+and BARN point-robot worlds. The format cohorts keep their own cost, movement,
+and collision semantics; do not compare values across panels as one leaderboard.
+
+Latency shows the median and P95 of per-query medians for MovingAI land and
+scaling (two warm-ups and five measured repeats). The separate one-call panels
+show the median and P95 across independent graph, voxel, world, or map/query
+instances; those are descriptive spreads across problems, not repeated-query
+latency intervals. Work counters and cost ratios are limited to the compatible
+2D octile cohorts. Outcome shares remain within their dataset cohort, with
+octile, any-angle, and unreachable queries in separate panels. For BARN,
+`no_solution_found` is a planner outcome and does not mean an invalid returned
+path. Memory covers only MovingAI land and scaling, where the runner
+supports separate instrumented workspace and fresh-worker RSS passes.
 
 <p align="center">
-  <img src="./assets/images/movingai-pilot-latency.png" alt="SciencePlots chart of median and P95 public API latency by planner on the MovingAI pilot" width="100%"/>
+  <img src="./assets/images/benchmark-full-latency.png" alt="Median and P95 public API latency across separate MovingAI, scaling, DIMACS, voxel, BARN, and grid-specialist cohorts" width="100%"/>
 </p>
 <p align="center">
-  <img src="./assets/images/movingai-pilot-work-quality.png" alt="SciencePlots charts of expanded nodes, examined edges, frontier pushes, and mean path-cost ratio by planner on the MovingAI pilot" width="100%"/>
+  <img src="./assets/images/benchmark-full-work-quality.png" alt="Expanded nodes, examined edges, frontier pushes, and mean path-cost ratio for all MovingAI land and scaling variants" width="100%"/>
 </p>
 <p align="center">
-  <img src="./assets/images/movingai-pilot-memory.png" alt="SciencePlots charts of tracked query workspace and fresh-worker process RSS by planner on the MovingAI pilot" width="100%"/>
+  <img src="./assets/images/benchmark-full-outcomes.png" alt="Outcome shares for MovingAI land, scaling, DIMACS, voxel, BARN, octile specialists, any-angle specialists, and unreachable queries, each kept separate" width="100%"/>
+</p>
+<p align="center">
+  <img src="./assets/images/benchmark-full-memory.png" alt="Tracked query workspace and fresh-worker process RSS for MovingAI land and scaling variants" width="100%"/>
 </p>
 
-Regenerate these figures from the saved campaign with the
-[benchmark reproduction guide](docs/shortest_path_benchmark_reproduction.md).
+Terrain and OMPL remain unmeasured because the source terrain cost table and
+matching OMPL collision/state-space runtime are unavailable. Temporal,
+multi-agent, kinodynamic, and vehicle planners retain their separately labeled
+smoke references because the installed static datasets do not contain matching
+source tasks. The [reproduction guide](docs/shortest_path_benchmark_reproduction.md)
+records the refresh commands and measurement boundaries.
 
 ## Installation
 
