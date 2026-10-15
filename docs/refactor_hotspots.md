@@ -3,7 +3,8 @@
 > Historical inventory captured during the 2026-02 package refactor. Many
 > entries refer to legacy paths that are no longer the production planner
 > implementation. Do not treat the proposed fixes below as the current task
-> board; use `tasks.md` and the current architecture in `native_core.md`.
+> board; define active work in `.agent/TASK.md` and `.agent/PLAN.md`, and use
+> `architecture.md` and `native_core.md` for the current architecture.
 
 This inventory highlights planner coupling to environment construction, magic-number parameters, direct RNG usage, and plotting side effects. It is a baseline to guide later refactor tasks.
 

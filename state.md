@@ -1,4 +1,8 @@
-# Project State
+# Historical Project State — 2026-10-02
+
+> This dated snapshot is retained as project history and may be stale. Read
+> `docs/architecture.md` and the current code for today's architecture. Active
+> coding-agent task state lives in `.agent/STATE.md`.
 
 Last updated: 2026-10-02
 Branch: `main`

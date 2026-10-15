@@ -1,6 +1,7 @@
-# Handoff Notes
+# Historical Handoff Notes
 
-Use this file to transfer context between AI agents or from agent to human reviewer.
+This file preserves earlier handoffs as project history. Use `.agent/STATE.md`
+for the current task and its exact next step.
 
 ## Latest Handoff — 2026-10-04
 

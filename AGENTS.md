@@ -1,49 +1,25 @@
-# Repository Agent Instructions
+# Engineering rules
 
-## Project goals and architecture
+- Target Python `>=3.10`; native sources use C11 or C++17.
+- Keep the public planner API registry-driven. Do not expose incomplete or unstable planners.
+- Keep root imports lightweight and side-effect free; keep plotting in `pathplanning/viz`.
+- Preserve documented API/native-boundary contracts and deterministic planner defaults.
+- Behavior or support changes require regression tests and synchronized documentation.
+- Do not claim performance gains without representative benchmark evidence.
+- Before committing, inspect the diff, run `git diff --check`, and stage only task files.
 
-- Keep the production API registry-driven (`pathplanning.registry`). Do not expose incomplete or unstable planners through the public API.
-- Keep root imports lightweight and side-effect free; keep plotting imports out of core planning modules.
-- Preserve deterministic defaults for randomized planners and the documented contracts at Python/native boundaries.
-- Search planners live in `pathplanning/planners/search`; sampling planners live in `pathplanning/planners/sampling`; canonical spaces are in `pathplanning/spaces`.
-- Nearest-neighbor indexes, data structures, geometry, and visualization helpers live in `pathplanning/nn`, `pathplanning/data_structures`, `pathplanning/geometry`, and `pathplanning/viz`.
-- Discrete graph search runs in the C++17 core (`pathplanning/native/search_engine.cpp`). Continuous sampling kernels run in the C11 core (`pathplanning/native/continuous_engine.c`). Python modules own API contracts, registry dispatch, and FFI adaptation.
+## Read by topic
 
-## Working practices
+- Architecture overview: `docs/architecture.md`; core invariants: `docs/invariants.md`.
+- Native implementation and ABI: `docs/native_core.md`, `docs/native_abi.md`.
+- Supported planners: `SUPPORTED_ALGORITHMS.md`.
+- Coding, build, and test commands: `CODING_CONVENTIONS.md`, `CONTRIBUTING.md`, `Makefile`.
+- Benchmark rules: `docs/benchmark_contract.md`.
+- Durable project decisions: `decisions.md`.
+- Complex or long-running work: `.agent/PLANS.md` and the active files under `.agent/`.
 
-- Keep changes focused and readable. Update tests and documentation when behavior, API, or support scope changes.
-- Follow the contracts and parameter vocabulary of existing planners when adding or changing an algorithm.
-- Do not claim performance improvements without representative benchmark evidence.
-- Prefer `rtk` for compact exploration and checks; use `rg` and exact file reads when full output matters. Preserve command exit status.
-- Before committing, inspect the diff, run `git diff --check`, and stage only files in the requested change.
-- Source builds require Python `>=3.10`, a C11 compiler, and a C++17 compiler. Native ABI details are documented in `docs/native_core.md`.
+## Continuing work
 
-## Validation
-
-Run the relevant checks from the repository root. For native or broad changes, use the full project gates:
-
-```bash
-make build-ext
-ruff check .
-ruff format --check .
-pyright
-pytest -q
-```
-
-For import-safety refactors, also run:
-
-```bash
-pytest -q tests/test_import_safety.py tests/test_supported_modules_import.py
-```
-
-## Documentation and releases
-
-- Keep `README.md`, `CHANGELOG.md`, and `SUPPORTED_ALGORITHMS.md` synchronized with package behavior and supported scope.
-- For a version or release change, synchronize `pyproject.toml`, `README.md`, and `CHANGELOG.md`; review `state.md`, `tasks.md`, `decisions.md`, and `handoff.md` for stale information.
-- Record open risks and follow-ups in `handoff.md` when they affect maintainers or users.
-
-## Graphify
-
-- When `graphify-out/graph.json` exists, run `graphify query "<question>"` first for codebase and architecture questions. Use `graphify path "<A>" "<B>"` for relationships and `graphify explain "<concept>"` for focused concepts.
-- Use `graphify-out/wiki/index.md` for broad navigation when it exists. Read `GRAPH_REPORT.md` only for broad architecture reviews or when focused queries are insufficient.
-- After code changes, run `graphify update .` to refresh the local code graph. `graphify-out/` is generated local state and stays out of Git.
+- Before continuing an active task, read `.agent/TASK.md` and `.agent/STATE.md`; consult `.agent/PLAN.md` and `.agent/DECISIONS.md` for the next unfinished milestone.
+- Treat `tasks.md`, `state.md`, and `handoff.md` as historical records, not current task state.
+- After relevant source or agent-guidance changes, run `graphify update .`; generated `graphify-out/` stays untracked.

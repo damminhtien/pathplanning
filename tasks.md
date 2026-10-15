@@ -1,6 +1,8 @@
-# Task Board
+# Historical Task Board
 
-Use this as a lightweight execution board for AI agents.
+This file records completed work from earlier task cycles. It is retained as
+project history, not as the current task queue. Active task requirements and
+progress live in `.agent/TASK.md`, `.agent/PLAN.md`, and `.agent/STATE.md`.
 
 ## Status Legend
 

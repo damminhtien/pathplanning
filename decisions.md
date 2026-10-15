@@ -56,7 +56,7 @@ Track durable decisions so future agents do not re-litigate baseline choices.
 
 - Date: 2026-02-12
 - Status: accepted
-- Decision: Any version bump updates `pyproject.toml`, `README.md`, `CHANGELOG.md`, and agentic state files in the same change.
+- Decision: Any version bump updates `pyproject.toml`, `README.md`, and `CHANGELOG.md` in the same change. Update architecture or support documentation when the release changes those claims; keep `.agent/` files scoped to the active task.
 
 ## DEC-010: Keep planner algorithms in native C/C++ with a Python API boundary
 - Date: 2026-10-02
@@ -70,6 +70,15 @@ Track durable decisions so future agents do not re-litigate baseline choices.
 - 2026-02-11: Synced release metadata and agentic files for version `0.1.2`.
 - 2026-02-12: Completed `0.2.0` metadata/docs sync and architecture doc refresh.
 - 2026-10-02: Recorded the native C/C++ planner architecture and Python callback boundary.
+- 2026-10-15: Moved active coding-agent task state into `.agent/`; historical root task and handoff records remain available.
+
+## DEC-011: Keep active agent state separate from repository guidance
+
+- Date: 2026-10-15
+- Status: accepted
+- Context: Root guidance mixed stable engineering rules with task history and long-running execution notes.
+- Decision: Keep `AGENTS.md` as a compact invariant and routing file. Store the active task contract, verification-boundary plan, current state, and task decisions in `.agent/`. Keep root `tasks.md`, `state.md`, and `handoff.md` as dated project history; use `decisions.md` for durable project decisions.
+- Consequence: A fresh thread reads `AGENTS.md`, `.agent/TASK.md`, and `.agent/STATE.md`, then inspects only files needed for the next unfinished milestone.
 
 ## Decision Template
 
