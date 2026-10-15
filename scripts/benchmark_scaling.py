@@ -31,9 +31,13 @@ def main(argv: list[str] | None = None) -> int:
     run = commands.add_parser("run", help="run one separated measurement pass")
     run.add_argument("--manifest", type=Path, required=True)
     run.add_argument("--campaign", type=Path, required=True)
-    run.add_argument("--pass", dest="pass_name", choices=("latency", "work", "memory"), required=True)
+    run.add_argument(
+        "--pass", dest="pass_name", choices=("latency", "work", "memory"), required=True
+    )
     run.add_argument("--scope", choices=("public_api", "prepared_kernel"), default="public_api")
-    run.add_argument("--graph-state", choices=("reused_graph", "fresh_graph"), default="reused_graph")
+    run.add_argument(
+        "--graph-state", choices=("reused_graph", "fresh_graph"), default="reused_graph"
+    )
     run.add_argument("--cohort", help="select one manifest cohort, such as size or topology")
     run.add_argument("--repeats", type=int)
     run.add_argument("--warmups", type=int)
@@ -55,7 +59,9 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     if args.command == "validate":
         result = validate_manifest(args.manifest)
-        print(f"checked {result['checked']} workloads; discrepancies={len(result['discrepancies'])}")
+        print(
+            f"checked {result['checked']} workloads; discrepancies={len(result['discrepancies'])}"
+        )
         return 1 if result["discrepancies"] else 0
     if args.command == "run":
         result = run_campaign(

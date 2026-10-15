@@ -67,9 +67,7 @@ def _stable_id(value: Any) -> str:
     ).hexdigest()
 
 
-def _asset_rows(
-    dataset: dict[str, Any], index: dict[str, Any]
-) -> list[dict[str, Any]]:
+def _asset_rows(dataset: dict[str, Any], index: dict[str, Any]) -> list[dict[str, Any]]:
     return sorted(
         (index["assets"][asset_id] for asset_id in dataset["asset_ids"]),
         key=lambda asset: (asset["role"], asset["relative_path"]),
@@ -182,9 +180,7 @@ def load_voxel_map(path: str | Path) -> tuple[np.ndarray, tuple[int, int, int]]:
         slots = width * height * depth
         if slots > _VOXEL_LIMIT:
             raise ValueError(f"voxel grid exceeds configured node limit: {slots}")
-        blocked = np.full(
-            (depth, height, width), header[0] == "rev_voxel", dtype=np.bool_
-        )
+        blocked = np.full((depth, height, width), header[0] == "rev_voxel", dtype=np.bool_)
         for line in stream:
             if not line.strip():
                 continue
@@ -220,27 +216,16 @@ def strict_voxel_csr(
     x = node_ids % width
     y = (node_ids // width) % height
     z = node_ids // (width * height)
-    offsets_by_motion = [
-        (motion, _proper_side_offsets(motion)) for motion in _VOXEL_MOTIONS
-    ]
+    offsets_by_motion = [(motion, _proper_side_offsets(motion)) for motion in _VOXEL_MOTIONS]
 
     def source_mask(motion: tuple[int, int, int], sides: tuple[tuple[int, int, int], ...]):
         dx, dy, dz = motion
         tx, ty, tz = x + dx, y + dy, z + dz
-        inside = (
-            (tx >= 0)
-            & (tx < width)
-            & (ty >= 0)
-            & (ty < height)
-            & (tz >= 0)
-            & (tz < depth)
-        )
+        inside = (tx >= 0) & (tx < width) & (ty >= 0) & (ty < height) & (tz >= 0) & (tz < depth)
         target = np.clip(node_ids + dx + width * dy + width * height * dz, 0, count - 1)
         mask = valid & inside & valid[target]
         for sx, sy, sz in sides:
-            side = np.clip(
-                node_ids + sx + width * sy + width * height * sz, 0, count - 1
-            )
+            side = np.clip(node_ids + sx + width * sy + width * height * sz, 0, count - 1)
             mask &= valid[side]
         return mask
 
@@ -310,7 +295,9 @@ def _run_discrete_case(
     from pathplanning.api import plan_discrete
     from pathplanning.core.contracts import DiscreteProblem
 
-    matrix = sparse.csr_matrix((weights, indices, indptr), shape=(graph.node_count, graph.node_count))
+    matrix = sparse.csr_matrix(
+        (weights, indices, indptr), shape=(graph.node_count, graph.node_count)
+    )
     oracle = float(dijkstra(matrix, directed=True, indices=start)[goal])
     oracle_cost = oracle if math.isfinite(oracle) else None
     metadata = dict(input_metadata or {})
@@ -341,14 +328,14 @@ def _run_discrete_case(
                 if result.path is not None
                 else None
             )
-            path_valid, reconstructed_cost = _path_cost_and_validity(
-                path, indptr, indices, weights
-            )
+            path_valid, reconstructed_cost = _path_cost_and_validity(path, indptr, indices, weights)
             declared_cost = result.stats.get("path_cost")
             valid = bool(path_valid) and (
                 declared_cost is None
                 or reconstructed_cost is not None
-                and math.isclose(float(declared_cost), reconstructed_cost, rel_tol=1e-10, abs_tol=1e-8)
+                and math.isclose(
+                    float(declared_cost), reconstructed_cost, rel_tol=1e-10, abs_tol=1e-8
+                )
             )
             if oracle_cost is None:
                 outcome = "proved_unreachable" if path is None else "incorrect_unreachable_solution"
@@ -498,15 +485,18 @@ def _voxel_scenario_query(
     maximum = max(item[0] for item in candidates)
     far_candidates = [item for item in candidates if item[0] == maximum]
     selected = far_candidates[seed % len(far_candidates)]
-    query_id = _stable_id(
-        ["voxel_scenario", selected[1], selected[2], selected[3], seed]
+    query_id = _stable_id(["voxel_scenario", selected[1], selected[2], selected[3], seed])
+    return (
+        selected[1],
+        selected[2],
+        query_id,
+        {
+            "scenario_line": selected[3],
+            "source_scenario_optimum": selected[4],
+            "source_scenario_difficulty": selected[5],
+            "movement_semantics": "strict_26_neighbor_euclidean_no_corner_cutting",
+        },
     )
-    return selected[1], selected[2], query_id, {
-        "scenario_line": selected[3],
-        "source_scenario_optimum": selected[4],
-        "source_scenario_difficulty": selected[5],
-        "movement_semantics": "strict_26_neighbor_euclidean_no_corner_cutting",
-    }
 
 
 def _barn_geometry(path: Path) -> tuple[list[tuple[float, float, float]], np.ndarray]:
@@ -515,7 +505,11 @@ def _barn_geometry(path: Path) -> tuple[list[tuple[float, float, float]], np.nda
 
     def pose(element: ET.Element) -> tuple[float, float, float]:
         values = [float(value) for value in (element.findtext("pose") or "0 0 0 0 0 0").split()]
-        if len(values) != 6 or not all(math.isfinite(value) for value in values) or any(values[3:5]):
+        if (
+            len(values) != 6
+            or not all(math.isfinite(value) for value in values)
+            or any(values[3:5])
+        ):
             raise ValueError("unsupported or invalid BARN collision pose")
         return values[0], values[1], values[5]
 
@@ -633,14 +627,18 @@ def _barn_query(
     distances = np.sum((states[:, None, :] - states[None, :, :]) ** 2, axis=2)
     first_index, second_index = np.unravel_index(int(np.argmax(distances)), distances.shape)
     start, goal = states[first_index].copy(), states[second_index].copy()
-    return start, goal, {
-        "grid_resolution": resolution,
-        "free_grid_cells": int(valid.sum()),
-        "connected_components": int(count),
-        "selected_component_cells": int(sizes[component]),
-        "query_distance": float(np.linalg.norm(goal - start)),
-        "reachability_certificate": "collision_checked_point_robot_grid_path",
-    }
+    return (
+        start,
+        goal,
+        {
+            "grid_resolution": resolution,
+            "free_grid_cells": int(valid.sum()),
+            "connected_components": int(count),
+            "selected_component_cells": int(sizes[component]),
+            "query_distance": float(np.linalg.norm(goal - start)),
+            "reachability_certificate": "collision_checked_point_robot_grid_path",
+        },
+    )
 
 
 def _continuous_variants() -> list[str]:
@@ -674,7 +672,10 @@ def _continuous_params(planner: str) -> Any:
             allow_python_callbacks=False,
         )
     if planner == "rit_star":
-        return RitParams(**{key: value for key, value in common.items() if key not in {"goal_sample_rate"}}, gamma=8.0)
+        return RitParams(
+            **{key: value for key, value in common.items() if key not in {"goal_sample_rate"}},
+            gamma=8.0,
+        )
     return RrtParams(**common)
 
 
@@ -772,7 +773,9 @@ def _run_barn_dataset(
                         "dataset_id": dataset["dataset_id"],
                         "dataset_name": dataset["name"],
                         "cohort": "barn_point_xy_derived",
-                        "query_id": _stable_id([dataset["dataset_id"], start.tolist(), goal.tolist()]),
+                        "query_id": _stable_id(
+                            [dataset["dataset_id"], start.tolist(), goal.tolist()]
+                        ),
                         "variant_id": variant_id,
                         "planner": planner,
                         "seed": seed,
@@ -787,7 +790,9 @@ def _run_barn_dataset(
                             "planning_obstacle_margin_m": collision_margin,
                             "collision_checker": "native_sampling_with_half_step_obstacle_margin",
                             "path_validation_geometry": "exact_source_circles",
-                            "source_path_asset_sha256": path_asset["sha256"] if path_asset else None,
+                            "source_path_asset_sha256": path_asset["sha256"]
+                            if path_asset
+                            else None,
                             "source_path_coordinates": "not_used_row_column_not_world_xy",
                             "source_asset_hashes": asset_hashes,
                             **query_metadata,
@@ -813,7 +818,9 @@ def _run_barn_dataset(
                         "dataset_id": dataset["dataset_id"],
                         "dataset_name": dataset["name"],
                         "cohort": "barn_point_xy_derived",
-                        "query_id": _stable_id([dataset["dataset_id"], start.tolist(), goal.tolist()]),
+                        "query_id": _stable_id(
+                            [dataset["dataset_id"], start.tolist(), goal.tolist()]
+                        ),
                         "variant_id": variant_id,
                         "planner": planner,
                         "input": {"source_asset_hashes": asset_hashes},
@@ -877,7 +884,13 @@ def _run_dimacs_dataset(
                 seed = int(dataset["dataset_id"][:8], 16)
                 selected = _select_dimacs_query(offsets, indices, node_count, seed)
                 if selected is None:
-                    results.append({"source": "dimacs", "dataset_id": dataset["dataset_id"], "status": "no_strongly_connected_pair"})
+                    results.append(
+                        {
+                            "source": "dimacs",
+                            "dataset_id": dataset["dataset_id"],
+                            "status": "no_strongly_connected_pair",
+                        }
+                    )
                     continue
                 query_id = _stable_id([dataset["dataset_id"], selected, dataset["family"]])
                 _run_discrete_case(
@@ -944,7 +957,9 @@ def _run_voxel_datasets(
         if row["representation"] == "voxel3d" and row["source"] in {"movingai", "monash"}
     ]
     seen_map_hashes: dict[str, str] = {}
-    for dataset in sorted(datasets, key=lambda row: (row["source"] != "movingai", row["dataset_id"])):
+    for dataset in sorted(
+        datasets, key=lambda row: (row["source"] != "movingai", row["dataset_id"])
+    ):
         assets = _asset_rows(dataset, index)
         map_asset = next((asset for asset in assets if asset["role"] == "dataset"), None)
         scenario_asset = next((asset for asset in assets if asset["role"] == "scenario"), None)
@@ -1128,9 +1143,7 @@ def run_format_cohorts(
     _write_json = {
         "schema_version": "pathplanning_format_cohort_inventory_v1",
         "dataset_index_sha256": _sha_file(index_path),
-        "measurement_count": sum(
-            1 for row in _read_jsonl(runs_path) if row.get("schema_version")
-        ),
+        "measurement_count": sum(1 for row in _read_jsonl(runs_path) if row.get("schema_version")),
         "inventory": inventory,
         "unsupported": {
             "movingai_terrain": "source_terrain_cost_table_missing",
@@ -1143,7 +1156,10 @@ def run_format_cohorts(
     (campaign / "inventory.json").write_text(
         json.dumps(_write_json, sort_keys=True, indent=2) + "\n", encoding="utf-8"
     )
-    counts = Counter(row.get("outcome", {}).get("status", row.get("status", "unknown")) for row in _read_jsonl(runs_path))
+    counts = Counter(
+        row.get("outcome", {}).get("status", row.get("status", "unknown"))
+        for row in _read_jsonl(runs_path)
+    )
     summary = {
         "schema_version": "pathplanning_format_cohort_summary_v1",
         "dataset_index_sha256": _write_json["dataset_index_sha256"],
@@ -1168,9 +1184,16 @@ def main(argv: list[str] | None = None) -> int:
     commands = parser.add_subparsers(dest="command", required=True)
     run = commands.add_parser("run")
     run.add_argument("--dataset-root", type=Path, default=Path("benchmark-results/datasets"))
-    run.add_argument("--dataset-index", type=Path, default=Path("benchmark-results/datasets/index.json"))
+    run.add_argument(
+        "--dataset-index", type=Path, default=Path("benchmark-results/datasets/index.json")
+    )
     run.add_argument("--output", type=Path, required=True)
-    run.add_argument("--sources", nargs="+", choices=("dimacs", "voxels", "barn"), default=("dimacs", "voxels", "barn"))
+    run.add_argument(
+        "--sources",
+        nargs="+",
+        choices=("dimacs", "voxels", "barn"),
+        default=("dimacs", "voxels", "barn"),
+    )
     args = parser.parse_args(argv)
     result = run_format_cohorts(
         args.dataset_root, args.dataset_index, args.output, sources=args.sources

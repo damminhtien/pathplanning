@@ -1,7 +1,8 @@
 -r requirements.txt
 
 # Linting / formatting
-ruff>=0.9,<1.0
+# Ruff formatter output is part of the CI check; pin it for reproducible output.
+ruff==0.17.0
 pyright>=1.1,<1.2
 
 # Git hook framework

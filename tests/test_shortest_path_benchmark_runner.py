@@ -100,9 +100,7 @@ def test_work_schedule_can_select_unreachable_cohort_without_pooling() -> None:
     ]
     manifest = {
         "cases": cases,
-        "variants": [
-            {"id": "d", "variant_id": "variant-d", "variant_name": "dijkstra"}
-        ],
+        "variants": [{"id": "d", "variant_id": "variant-d", "variant_name": "dijkstra"}],
         "cohorts": {
             "work": {"workload_ids": ["reachable"]},
             "unreachable": {"workload_ids": ["unreachable"]},
@@ -224,9 +222,7 @@ def test_coverage_profile_selects_distance_bins_and_keeps_memory_sample_small(tm
     dataset_root = tmp_path / "dataset"
     family = dataset_root / "family"
     family.mkdir(parents=True)
-    (family / "map.map").write_text(
-        "type octile\nheight 4\nwidth 4\nmap\n....\n....\n....\n....\n"
-    )
+    (family / "map.map").write_text("type octile\nheight 4\nwidth 4\nmap\n....\n....\n....\n....\n")
     (family / "map.map.scen").write_text(
         "version 1\n"
         "0 map.map 4 4 0 0 1 0 1.000000000\n"

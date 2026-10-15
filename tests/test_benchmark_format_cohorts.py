@@ -53,12 +53,7 @@ def test_barn_half_step_inflation_prevents_missed_source_circle_collisions():
 def test_load_dimacs_csr_preserves_directed_parallel_arcs(tmp_path):
     graph_file = tmp_path / "tiny.gr"
     graph_file.write_text(
-        "c tiny directed graph\n"
-        "p sp 3 4\n"
-        "a 1 2 2\n"
-        "a 1 2 5\n"
-        "a 2 3 1\n"
-        "a 3 1 7\n",
+        "c tiny directed graph\np sp 3 4\na 1 2 2\na 1 2 5\na 2 3 1\na 3 1 7\n",
         encoding="ascii",
     )
 
@@ -72,12 +67,7 @@ def test_load_dimacs_csr_preserves_directed_parallel_arcs(tmp_path):
 def test_dimacs_coalescing_keeps_minimum_cost_for_each_directed_pair(tmp_path):
     graph_file = tmp_path / "parallel.gr"
     graph_file.write_text(
-        "p sp 3 5\n"
-        "a 1 2 5\n"
-        "a 1 2 2\n"
-        "a 2 3 1\n"
-        "a 3 1 7\n"
-        "a 2 1 9\n",
+        "p sp 3 5\na 1 2 5\na 1 2 2\na 2 3 1\na 3 1 7\na 2 1 9\n",
         encoding="ascii",
     )
 
@@ -101,10 +91,7 @@ def test_strict_voxel_diagonal_requires_every_proper_side_cell_free():
 def test_voxel_query_keeps_source_optimum_and_scenario_line(tmp_path):
     scenario = tmp_path / "tiny.3dscen"
     scenario.write_text(
-        "version 1\n"
-        "tiny.3dmap\n"
-        "0 0 0 1 1 0 1.41421356 1.0\n"
-        "0 0 0 1 0 0 1.0 1.0\n",
+        "version 1\ntiny.3dmap\n0 0 0 1 1 0 1.41421356 1.0\n0 0 0 1 0 0 1.0 1.0\n",
         encoding="ascii",
     )
 

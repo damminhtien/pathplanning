@@ -152,8 +152,7 @@ def _any_angle_metrics(
     if not np.allclose(points[-1], goal, rtol=0.0, atol=1e-7):
         return False, None
     visible = all(
-        _segment_visible(grid, tuple(first), tuple(last))
-        for first, last in zip(points, points[1:])
+        _segment_visible(grid, tuple(first), tuple(last)) for first, last in zip(points, points[1:])
     )
     length = float(np.linalg.norm(np.diff(points, axis=0), axis=1).sum())
     return visible, length
@@ -181,7 +180,9 @@ def _run_one(
         "source": "movingai",
         "dataset_id": workload["map_sha256"],
         "dataset_name": workload["map_path"],
-        "cohort": "movingai_land_octile" if movement == MOVEMENT_PROFILE else "movingai_land_any_angle",
+        "cohort": "movingai_land_octile"
+        if movement == MOVEMENT_PROFILE
+        else "movingai_land_any_angle",
         "workload_id": workload["workload_id"],
         "variant_id": _variant_id(planner),
         "planner": planner,
@@ -246,9 +247,7 @@ def _run_one(
             optimal = None
         else:
             valid, cost = (
-                _grid_path_metrics(grid, result.path)
-                if result.path is not None
-                else (None, None)
+                _grid_path_metrics(grid, result.path) if result.path is not None else (None, None)
             )
             declared_cost_matches = (
                 math.isclose(float(declared_cost), cost, rel_tol=1e-10, abs_tol=1e-8)
@@ -261,7 +260,9 @@ def _run_one(
                 status = "no_path"
             elif not valid:
                 status = "invalid_path"
-            elif math.isclose(cost or 0.0, float(oracle["reference_cost"]), rel_tol=1e-10, abs_tol=1e-8):
+            elif math.isclose(
+                cost or 0.0, float(oracle["reference_cost"]), rel_tol=1e-10, abs_tol=1e-8
+            ):
                 status = "valid_optimal"
             else:
                 status = "valid_suboptimal"
@@ -315,14 +316,15 @@ def run_grid_specialists(
     workloads = [
         case
         for case in manifest["cases"]
-        if case["workload_id"] in latency_ids
-        and case["movement_profile"] == MOVEMENT_PROFILE
+        if case["workload_id"] in latency_ids and case["movement_profile"] == MOVEMENT_PROFILE
     ]
     if not workloads:
         raise ValueError("coverage manifest has no supported land-grid workloads")
     missing = [row["workload_id"] for row in workloads if row["workload_id"] not in oracle_by_id]
     if missing:
-        raise ValueError(f"validate the coverage manifest first; {len(missing)} oracle rows are missing")
+        raise ValueError(
+            f"validate the coverage manifest first; {len(missing)} oracle rows are missing"
+        )
     chosen = tuple(dict.fromkeys(planners))
     if not chosen or set(chosen) - set(_PLANNERS):
         raise ValueError(f"supported planners are {_PLANNERS}")
@@ -344,7 +346,9 @@ def run_grid_specialists(
                 raise ValueError(f"map hash mismatch: {workload['map_path']}")
             oracle = oracle_by_id[workload["workload_id"]]
             if oracle.get("reference_reachable") is not True:
-                raise ValueError(f"source workload is not oracle-reachable: {workload['workload_id']}")
+                raise ValueError(
+                    f"source workload is not oracle-reachable: {workload['workload_id']}"
+                )
             for planner in chosen:
                 key = (workload["workload_id"], _variant_id(planner))
                 if key in completed:

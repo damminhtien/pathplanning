@@ -31,7 +31,7 @@ dependencies = [
 [project.optional-dependencies]
 dev = [
   "pyright",
-  "ruff",
+  "ruff==0.17.0",
   "pytest",
   "build>=1.2,<2.0",
   "scipy>=1.9,<2.0",

@@ -379,9 +379,7 @@ def _validate_oracle_format_cohort(
         )
     dataset_count = len({row.get("dataset_name") for row in selected})
     if dataset_count != expected_workloads:
-        raise ValueError(
-            f"{cohort_name} has {dataset_count} maps, expected {expected_workloads}"
-        )
+        raise ValueError(f"{cohort_name} has {dataset_count} maps, expected {expected_workloads}")
     return selected
 
 
@@ -487,9 +485,7 @@ def _generate_oracle_format_figure(
     figure_title: str,
 ) -> Path:
     cohort_rows = [
-        _validate_oracle_format_cohort(
-            rows, cohort_name=name, expected_workloads=workload_count
-        )
+        _validate_oracle_format_cohort(rows, cohort_name=name, expected_workloads=workload_count)
         for name, _label, workload_count, _color in cohorts
     ]
     figure, axes = plt.subplots(
@@ -1060,7 +1056,12 @@ def generate_outcomes(
         ("dimacs_travel_time_directed_weighted_graph", "DIMACS · travel-time directed", 13, 6),
         ("dimacs_source_weight_directed_weighted_graph", "DIMACS · source-weight directed", 13, 1),
         ("movingai_warframe_strict_26_euclidean", "MovingAI · voxel / strict 26-neighbor", 13, 1),
-        ("monash_industrial-plants_strict_26_euclidean", "Monash · voxel / strict 26-neighbor", 13, 1),
+        (
+            "monash_industrial-plants_strict_26_euclidean",
+            "Monash · voxel / strict 26-neighbor",
+            13,
+            1,
+        ),
         ("barn_point_xy_derived", "BARN · static point-robot XY", 14, 300),
     ]
     format_panels: list[tuple[list[tuple[str, dict[str, int], int]], str, int]] = []
@@ -1068,8 +1069,10 @@ def generate_outcomes(
         rows, count = _outcome_rows(format_rows, cohort_name=cohort_name)
         if not rows:
             raise ValueError(f"Format campaign is missing outcomes for {cohort_name}")
-        if len(rows) != expected_variants or count != expected_workloads or any(
-            total != expected_workloads for _, _, total in rows
+        if (
+            len(rows) != expected_variants
+            or count != expected_workloads
+            or any(total != expected_workloads for _, _, total in rows)
         ):
             raise ValueError(f"{cohort_name} does not cover the complete variant/workload set")
         format_panels.append((rows, title, count))
@@ -1097,8 +1100,10 @@ def generate_outcomes(
         ("movingai_land_any_angle", 2),
     ):
         grid_rows_summary, grid_count = _outcome_rows(grid_rows, cohort_name=cohort_name)
-        if len(grid_rows_summary) != expected_variants or grid_count != 788 or any(
-            total != 788 for _, _, total in grid_rows_summary
+        if (
+            len(grid_rows_summary) != expected_variants
+            or grid_count != 788
+            or any(total != 788 for _, _, total in grid_rows_summary)
         ):
             raise ValueError(f"Grid-specialist campaign has no outcomes for {cohort_name}")
 

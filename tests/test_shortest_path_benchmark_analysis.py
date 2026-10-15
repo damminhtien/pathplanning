@@ -156,17 +156,13 @@ def test_unreachable_work_campaign_uses_its_own_denominator_and_report(tmp_path)
     ]
     manifest = {
         "cases": cases,
-        "variants": [
-            {"id": "dijkstra", "variant_id": "dijkstra", "variant_name": "dijkstra"}
-        ],
+        "variants": [{"id": "dijkstra", "variant_id": "dijkstra", "variant_name": "dijkstra"}],
         "cohorts": {
             "work": {"workload_ids": ["reachable"]},
             "unreachable": {"workload_ids": ["unreachable-1", "unreachable-2"]},
         },
     }
-    reachable = _run(
-        "reachable", "dijkstra", time_s=None, reference_cost=2.0, path_cost=2.0
-    )
+    reachable = _run("reachable", "dijkstra", time_s=None, reference_cost=2.0, path_cost=2.0)
     reachable["pass"] = "work"
     reachable["cohort"] = "work"
     unreachable_runs = []
@@ -189,10 +185,7 @@ def test_unreachable_work_campaign_uses_its_own_denominator_and_report(tmp_path)
     campaign.mkdir()
     (campaign / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
     (campaign / "runs.jsonl").write_text(
-        "".join(
-            json.dumps(row) + "\n"
-            for row in [reachable, *unreachable_runs]
-        ),
+        "".join(json.dumps(row) + "\n" for row in [reachable, *unreachable_runs]),
         encoding="utf-8",
     )
 

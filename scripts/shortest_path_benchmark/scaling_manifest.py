@@ -171,8 +171,7 @@ def prepare_scaling_manifest(profile_path: str | Path, output_path: str | Path) 
                     "largest_component_nodes_4": scale_case.largest_component_nodes,
                     "displacement_bin": query.displacement_bin,
                     "normalized_displacement": (
-                        ((goal_x - start_x) ** 2 + (goal_y - start_y) ** 2) ** 0.5
-                        / diagonal
+                        ((goal_x - start_x) ** 2 + (goal_y - start_y) ** 2) ** 0.5 / diagonal
                     ),
                     "sweep_memberships": [],
                 }

@@ -233,9 +233,7 @@ def _prepare_map_coverage_cases(
                         },
                     )
         except Exception as exc:
-            excluded.append(
-                {"path": str(scenario_path.relative_to(root)), "reason": str(exc)}
-            )
+            excluded.append({"path": str(scenario_path.relative_to(root)), "reason": str(exc)})
 
     selected = [value[1] for _, value in sorted(candidates.items())]
     maps: dict[str, list[dict[str, Any]]] = defaultdict(list)
@@ -262,8 +260,7 @@ def _prepare_map_coverage_cases(
         for cases in maps.values()
     )
     bins_by_map: dict[str, set[int]] = {
-        map_path: {case["displacement_bin"] for case in cases}
-        for map_path, cases in maps.items()
+        map_path: {case["displacement_bin"] for case in cases} for map_path, cases in maps.items()
     }
     metadata = {
         "selection_version": "all_maps_displacement_bins_v1",
@@ -950,9 +947,7 @@ def _native_call(
 def _public_call(
     grid: Any, native_graph: Any, case: dict[str, Any], variant: dict[str, Any]
 ) -> dict[str, Any]:
-    source = _PreparedGrid(
-        grid, native_graph, float(variant.get("heuristic_alpha", 1.0))
-    )
+    source = _PreparedGrid(grid, native_graph, float(variant.get("heuristic_alpha", 1.0)))
     problem = DiscreteProblem(
         graph=source,
         start=int(case["start"]),
@@ -1684,7 +1679,9 @@ def run_campaign(
                     "heuristic_mode": (
                         "scaled_octile_precomputed_array"
                         if "heuristic_alpha" in variant
-                        else "octile_precomputed_array" if variant["weight"] else "zero"
+                        else "octile_precomputed_array"
+                        if variant["weight"]
+                        else "zero"
                     ),
                     "tie_policy": "f_ascending_h_ascending_insertion_ascending",
                     **(
