@@ -14,6 +14,10 @@ rebuilds it so obstacle, topology, or metric changes cannot reuse stale edges.
 `RoadmapParams` controls sample count, gamma, collision step, query expansions,
 time budget, and callback opt-in. Custom Python space callbacks run only when
 `allow_python_callbacks=True`; native built-in and declared models stay in C.
+Native box, sphere, and oriented-box collision checks are exact for straight
+segments and do not depend on `collision_step`. Native local motion is
+undirected, so each roadmap edge needs one collision check; custom callbacks
+are checked in both directions.
 
 ```python
 import numpy as np

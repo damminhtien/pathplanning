@@ -52,7 +52,9 @@ edge midpoints as collision feedback, applies updates every
 `carm_update_interval` batches, and retains at most 4096 feedback points. Each
 update recomputes tree costs before the next batch. `carm_sigma` sets the field
 width and `carm_alpha` its maximum scale increase; set `carm_alpha=0` to disable
-CARM.
+CARM. In 2D, a spatial hash evaluates nearby feedback points and omits Gaussian
+tails whose total contribution to the scale is bounded by `1e-14`; other
+dimensions use the full sum.
 
 Statistics include metric evaluations and updates, samples, edge expansions,
 collision checks, rewires, and final Riemannian path cost. The implementation

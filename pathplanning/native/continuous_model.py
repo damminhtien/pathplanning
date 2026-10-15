@@ -13,7 +13,9 @@ class NativeContinuousSpaceModel:
     """Euclidean bounds and obstacle arrays for callback-free native planning.
 
     Sampling is uniform within the bounds with rejection against the listed
-    obstacle primitives. Boxes and spheres use shape ``(count, dimension)``;
+    obstacle primitives. Straight-line motion is checked analytically against
+    those static primitives, so ``collision_step`` does not approximate their
+    validity. Boxes and spheres use shape ``(count, dimension)``;
     OBB centers/extents use ``(count, 3)`` and orientations use ``(count, 9)``
     row-major matrices. Empty obstacle arrays may be omitted.
     """

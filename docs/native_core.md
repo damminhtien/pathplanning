@@ -94,8 +94,11 @@ heuristic array.
 ### Continuous sampling planners
 
 `pathplanning/native/continuous_engine.c` owns the expansion loops, node and
-parent arrays, planner queues, collision sampling, and incremental nearest
-neighbor index. The current C engine implements `rrt`, `rrt_star`,
+parent arrays, planner queues, collision checks, and incremental nearest
+neighbor index. Straight segments in declared native continuous models are
+checked analytically against box, sphere, and oriented-box obstacles; custom
+Python motion callbacks retain their own collision-checking semantics. The
+current C engine implements `rrt`, `rrt_star`,
 `informed_rrt_star`, `fmt_star`, `bit_star`, `abit_star`, `rrt_connect`, and the
 tree-pruning and growth operations used by `DynamicRRT3D`.
 
@@ -104,6 +107,10 @@ converts inputs, keeps temporary native arrays alive during each call, invokes
 the C ABI, and converts result arrays into the existing Python result types.
 Public planner modules retain their Python API and delegate the search work to
 this adapter.
+
+RIT* reuses metric scratch arrays for each plan and uses a spatial hash for its
+2D collision-adaptive metric field; the bounded Gaussian-tail approximation is
+documented in the [RIT* contract](algorithms/rit_star.md).
 
 For the built-in `ContinuousSpace3D` and `Grid2DSamplingSpace` types, bounds and
 obstacle primitives are copied into contiguous arrays once per plan. A custom

@@ -1,29 +1,24 @@
-# Task: Refactor the Repository Coding-Agent Workflow
+# Task: Diagnose and fix measured performance bottlenecks
 
 ## Goal
 
-Make repository guidance compact and route-based, while storing long-running
-task requirements, milestones, progress, and decisions in `.agent/` files.
+Audit the current path-planning implementation for unresolved issues, identify
+performance bottlenecks with profiling, and fix verified root causes without
+expanding the routine test or benchmark workload.
 
 ## Constraints
 
-- Preserve the existing public API and runtime code.
-- Keep existing user changes outside this documentation task untouched.
-- Preserve historical project notes while clearly marking which files are no
-  longer the active task state.
-- Keep `AGENTS.md` short and focused on invariants, routing, and continuation.
+- Use the project Python 3.14 environment and install tools only when needed.
+- Keep regression tests small and focused.
+- Preserve public APIs, custom callback semantics, and native ABI contracts.
+- Run targeted diagnostic benchmarks during investigation; defer broad benchmark
+  data reruns until the end.
+- Stage explicit task files and commit focused changes after validation.
 
 ## Acceptance
 
-- `AGENTS.md` routes to focused architecture, invariant, development, and
-  benchmark references.
-- `.agent/` defines the task lifecycle, fresh-thread prompt, milestone plan,
-  current state, and task decision log.
-- Old task and handoff files are clearly historical, with stale cross-links
-  updated.
-- `git diff --check` passes, changed local Markdown links resolve, and
-  `graphify update .` succeeds.
-
-## Status
-
-Completed 2026-10-15. Validation evidence is recorded in `.agent/STATE.md`.
+- At least one measured bottleneck is fixed at its source and has a regression
+  test.
+- Focused tests, native build, lint/type checks, and `git diff --check` pass.
+- Before/after results use the same deterministic workload and explain limits.
+- Graphify is refreshed and all task changes are committed.

@@ -73,3 +73,44 @@ def test_prm_star_uses_spatial_index_for_native_roadmaps() -> None:
         all_pairs = sample_count * (sample_count - 1) // 2
         assert roadmap.build_stats["roadmap_vertices"] == sample_count
         assert roadmap.build_stats["roadmap_connection_candidates"] < all_pairs // 4
+        assert (
+            roadmap.build_stats["roadmap_motion_checks"]
+            <= roadmap.build_stats["roadmap_connection_candidates"]
+        )
+
+
+def test_prm_star_keeps_bidirectional_validation_for_python_callbacks() -> None:
+    motion_calls: list[tuple[tuple[float, ...], tuple[float, ...]]] = []
+
+    class CallbackSpace:
+        def sample_free(self, rng: np.random.Generator) -> np.ndarray:
+            return rng.uniform(0.0, 1.0, size=2)
+
+        def is_state_valid(self, _state: np.ndarray) -> bool:
+            return True
+
+        def is_motion_valid(self, start: np.ndarray, end: np.ndarray) -> bool:
+            motion_calls.append((tuple(start), tuple(end)))
+            return True
+
+        def distance(self, start: np.ndarray, end: np.ndarray) -> float:
+            return float(np.linalg.norm(end - start))
+
+        def steer(self, start: np.ndarray, target: np.ndarray, step_size: float) -> np.ndarray:
+            delta = target - start
+            length = float(np.linalg.norm(delta))
+            return target if length <= step_size else start + delta * (step_size / length)
+
+    with PrmStarRoadmap(
+        CallbackSpace(),
+        2,
+        RoadmapParams(sample_count=8, gamma=10.0, allow_python_callbacks=True),
+        np.random.default_rng(19),
+    ) as roadmap:
+        roadmap.build()
+
+        candidates = int(roadmap.build_stats["roadmap_connection_candidates"])
+        assert candidates > 0
+        assert roadmap.build_stats["roadmap_motion_checks"] == 2 * candidates
+        checked = set(motion_calls)
+        assert all((end, start) in checked for start, end in checked)

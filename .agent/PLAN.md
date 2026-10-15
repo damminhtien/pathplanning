@@ -1,8 +1,8 @@
-# Plan: Refactor the Coding-Agent Workflow
+# Plan: Performance audit and root-cause fixes
 
 | Milestone | Verification boundary | Status |
 | --- | --- | --- |
-| M1. Define document ownership | Root instructions route to stable architecture, invariants, development, and benchmark references. | done |
-| M2. Add long-running task workflow | `.agent/` explains task setup, verification-boundary milestones, checkpoints, fresh threads, and compaction recovery. | done |
-| M3. Migrate existing guidance | Historical root records and old cross-links no longer claim to be active task state. | done |
-| M4. Validate and checkpoint | Review scoped diff, resolve changed local links, pass `git diff --check`, refresh Graphify, then commit only this task. | done |
+| M1. Profile representative continuous workloads | Record native/API timings and counters for PRM* and RIT* on fixed BARN cases. | done |
+| M2. Fix static native collision checking | Exact segment checks cover boxes, spheres, and OBBs; sparse-step collision regression passes. | done |
+| M3. Reduce RIT* hot-loop overhead | Reuse per-plan metric workspaces and bound/index the 2D CARM Gaussian tail; preserve deterministic path cost. | done |
+| M4. Verify and checkpoint | Run focused tests, native build, lint/type checks, repeat targeted profiles, refresh Graphify, inspect and commit. | done |

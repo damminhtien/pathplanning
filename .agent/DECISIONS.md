@@ -1,18 +1,22 @@
-# Task Decisions: Coding-Agent Workflow
+# Task Decisions: Performance audit
 
-Task-specific decisions for the active workflow refactor. Durable repository
-decisions are recorded in `decisions.md`.
+## D-1: Keep native static geometry exact
 
-## D-1: Separate active task state from project history
+- Decision: check native-model line segments analytically against the declared
+  static primitives; keep custom callback motion validation unchanged.
+- Reason: sampled checks scale with edge length and can miss collisions when the
+  sample interval is large. The declared model contains convex static shapes.
 
-- Decision: `.agent/TASK.md`, `.agent/PLAN.md`, `.agent/STATE.md`, and
-  `.agent/DECISIONS.md` are the current task record; existing root task/state/
-  handoff files remain as history.
-- Reason: Old project logs contain useful evidence but should not be mistaken
-  for the next unfinished task.
+## D-2: Preserve direction for custom roadmap callbacks
 
-## D-2: Keep task plans verification-centered
+- Decision: skip reverse validation only for a native static model. Continue
+  checking both edge directions for custom callbacks.
+- Reason: callback-defined motion may be directed even when roadmap distances
+  are Euclidean.
 
-- Decision: Milestones carry explicit scope, acceptance criteria, and commands;
-  progress advances only after observed validation.
-- Reason: Each checkpoint should be independently reviewable and resumable.
+## D-3: Keep diagnostics bounded
+
+- Decision: use fixed BARN cases and a handful of repeats for before/after
+  profiles; keep the existing compact test cohort.
+- Reason: the goal is to verify each root-cause fix without repeating large
+  benchmark campaigns during ordinary development.

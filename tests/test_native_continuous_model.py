@@ -114,3 +114,57 @@ def test_native_space_model_rejects_mismatched_obstacle_arrays() -> None:
 
     with pytest.raises(ValueError, match="sphere_radii must match centers"):
         plan_continuous(problem, planner="rrt", seed=3)
+
+
+@pytest.mark.parametrize(
+    ("start", "goal", "obstacle_kwargs"),
+    [
+        (
+            [0.0, 0.0],
+            [2.0, 0.0],
+            {"sphere_centers": [[1.0, 0.0]], "sphere_radii": [0.2]},
+        ),
+        (
+            [0.0, 0.0],
+            [2.0, 0.0],
+            {"box_minima": [[0.9, -0.2]], "box_maxima": [[1.1, 0.2]]},
+        ),
+        (
+            [0.0, 0.0, 0.0],
+            [2.0, 0.0, 0.0],
+            {
+                "obb_centers": [[1.0, 0.0, 0.0]],
+                "obb_extents": [[0.1, 0.2, 0.2]],
+                "obb_orientations": [np.eye(3).ravel().tolist()],
+            },
+        ),
+    ],
+)
+def test_native_motion_check_catches_obstacles_between_sparse_samples(
+    start: list[float], goal: list[float], obstacle_kwargs: dict[str, object]
+) -> None:
+    class ObstacleSpace:
+        distance_metric = "euclidean"
+
+        def to_native_model(self) -> NativeContinuousSpaceModel:
+            dimension = len(start)
+            return NativeContinuousSpaceModel(
+                lower_bounds=[-1.0] * dimension,
+                upper_bounds=[3.0] * dimension,
+                **obstacle_kwargs,
+            )
+
+    space = ObstacleSpace()
+    result = plan_continuous(
+        ContinuousProblem(space, np.asarray(start), GoalState(np.asarray(goal))),
+        planner="rrt_connect",
+        params=RrtParams(
+            max_iters=1,
+            step_size=3.0,
+            collision_step=3.0,
+            goal_sample_rate=1.0,
+        ),
+        seed=3,
+    )
+
+    assert not result.success
