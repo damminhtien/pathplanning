@@ -160,13 +160,60 @@
         </div>
       </section>
 
-      <section class="loop-strip" aria-label="The autonomous agent loop">
+      <section class="loop-strip" aria-labelledby="agent-loop-title">
         <div class="loop-inner">
-          <span class="loop-kicker">THE AGENT LOOP</span>
-          <div class="loop-step"><span>01</span><b>Observe</b><small>World as it is</small></div>
-          <div class="loop-step"><span>02</span><b>Plan</b><small>A feasible route</small></div>
-          <div class="loop-step"><span>03</span><b>Act</b><small>Move a little</small></div>
-          <div class="loop-step"><span>04</span><b>Check again</b><small>Did the world change?</small></div>
+          <div class="loop-copy">
+            <p class="loop-kicker">The autonomous agent loop</p>
+            <h2 id="agent-loop-title">Sense. Decide. Move. Repeat.</h2>
+            <p>An autonomous agent reads its surroundings, plans a route, takes a step, then checks what changed. New information starts the next decision.</p>
+            <div class="loop-cycle-note"><span aria-hidden="true"></span>Continuous feedback, one step at a time</div>
+          </div>
+
+          <div class="loop-diagram">
+            <svg class="loop-track" viewBox="0 0 520 520" aria-hidden="true" focusable="false">
+              <circle class="loop-track-base" cx="260" cy="260" r="156" />
+              <circle class="loop-track-flow" cx="260" cy="260" r="156" />
+              <path class="loop-arrow loop-arrow-north-east" d="M381 161l-23 1 11-17z" />
+              <path class="loop-arrow loop-arrow-south-east" d="M359 381l-1-23 17 11z" />
+              <path class="loop-arrow loop-arrow-south-west" d="M139 359l23-1-11 17z" />
+              <path class="loop-arrow loop-arrow-north-west" d="M161 139l1 23-17-11z" />
+            </svg>
+            <div class="loop-orbit" aria-hidden="true"></div>
+
+            <ol class="loop-steps" aria-label="Four stages in the autonomous agent loop">
+              <li class="loop-step loop-step-observe">
+                <span class="loop-step-index" aria-hidden="true">01</span>
+                <b>Observe</b>
+                <small>Sense the world</small>
+              </li>
+              <li class="loop-step loop-step-plan">
+                <span class="loop-step-index" aria-hidden="true">02</span>
+                <b>Plan</b>
+                <small>Choose a route</small>
+              </li>
+              <li class="loop-step loop-step-act">
+                <span class="loop-step-index" aria-hidden="true">03</span>
+                <b>Act</b>
+                <small>Move one step</small>
+              </li>
+              <li class="loop-step loop-step-check">
+                <span class="loop-step-index" aria-hidden="true">04</span>
+                <b>Check again</b>
+                <small>Check for change</small>
+              </li>
+            </ol>
+
+            <div class="loop-core" aria-hidden="true">
+              <svg class="loop-core-mark" viewBox="0 0 40 40" focusable="false">
+                <circle cx="20" cy="20" r="15" />
+                <circle cx="20" cy="20" r="8" />
+                <path d="M20 2v7m0 22v7M2 20h7m22 0h7" />
+                <circle class="loop-core-point" cx="20" cy="20" r="2.5" />
+              </svg>
+              <span class="loop-core-title">AGENT</span>
+              <span class="loop-core-caption">world + goal</span>
+            </div>
+          </div>
         </div>
       </section>
 

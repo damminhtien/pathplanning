@@ -60,10 +60,20 @@ h1 { color: #172d47; }
 .hero-stats > div { border-color: var(--line); }
 .hero-stats strong { color: #1e3c5b; }
 .hero-stats span { color: #61778d; }
-.loop-strip { border-color: var(--line); background: rgb(238 245 252 / 86%); }
-.loop-kicker, .loop-step small { color: #536b83; }
-.loop-step span, .loop-return { color: #3378b4; }
-.loop-step b { color: #253e58; }
+.loop-strip {
+  --loop-accent: #3379b8;
+  --loop-accent-rgb: 47 112 173;
+  --loop-track: rgb(63 120 178 / 28%);
+  --loop-card: rgb(255 255 255 / 96%);
+  --loop-core: rgb(239 246 252 / 98%);
+  --loop-shadow: 0 12px 28px rgb(45 82 120 / 10%), inset 0 1px #fff;
+  border-color: var(--line);
+  background: linear-gradient(115deg, rgb(239 246 252 / 96%), rgb(247 250 255 / 89%));
+}
+.loop-copy h2 { color: #1b3048; }
+.loop-copy > p:not(.loop-kicker) { color: #4d647a; font-family: var(--reading-font); }
+.loop-step b { color: #203e5c; }
+.loop-step small, .loop-core-caption { color: #536b83; }
 .section-intro { color: #61768b; }
 .workbench { border-color: #a9bfd5; background: #142f4d; box-shadow: 0 18px 48px rgb(25 53 82 / 16%); }
 .workbench-top { border-color: rgb(186 208 231 / 17%); background: #193a5d; }
@@ -173,9 +183,9 @@ body { font-size: 18px; line-height: 1.7; }
 .eyebrow { font-size: 12px; }
 .hero-stats span { font-size: 14px; }
 .loop-kicker { font-size: 12px; }
-.loop-step span { font-size: 12px; }
-.loop-step b { font-size: 15px; }
-.loop-step small { font-size: 13px; }
+.loop-step-index { font-size: 10px; }
+.loop-step b { font-size: 13px; }
+.loop-step small { font-size: 12px; }
 .section-intro { font-size: 17px; line-height: 1.7; }
 .select-wrap label { font-size: 13px; }
 .control-button { font-size: 14px; }
@@ -236,10 +246,9 @@ body { font-size: 18px; line-height: 1.7; }
   .hero-lede { font-size: 17px; }
   .hero-note { font-size: 13px; }
   .hero-stats span { font-size: 13px; }
-  .loop-kicker { flex-basis: 100px; font-size: 11px; }
-  .loop-step span { font-size: 11px; }
-  .loop-step b { font-size: 14px; }
-  .loop-step small { max-width: 125px; font-size: 12px; }
+  .loop-kicker { font-size: 11px; }
+  .loop-step b { font-size: 12px; }
+  .loop-step small { font-size: 11px; }
   .section-intro { font-size: 16px; }
   .algorithm-note > p, .algorithm-note .observe-copy { font-size: 15px; }
   .planner-card p { font-size: 15px; }
