@@ -7,7 +7,7 @@
     <meta name="robots" content="index, follow, max-image-preview:large" />
     <meta
       name="description"
-      content="Learn autonomous robotics and motion planning through interactive algorithm animations, 37 planner guides, benchmark datasets, and evaluation methods."
+      content="Learn autonomous robotics and motion planning through interactive algorithm animations, {{PLANNER_COUNT}} planner guides, benchmark datasets, and evaluation methods."
     />
     <link rel="canonical" href="https://damminhtien.github.io/pathplanning/" />
     <link rel="icon" href="favicon.svg" type="image/svg+xml" />
@@ -18,7 +18,7 @@
     <meta property="og:title" content="Motion Planning, Made Visible | Pathplanning" />
     <meta
       property="og:description"
-      content="Explore 37 robot motion-planning algorithms with interactive visual guides, real benchmark coverage, and evaluation methods."
+      content="Explore {{PLANNER_COUNT}} robot motion-planning algorithms with interactive visual guides, real benchmark coverage, and evaluation methods."
     />
     <meta property="og:url" content="https://damminhtien.github.io/pathplanning/" />
     <meta property="og:image" content="https://damminhtien.github.io/pathplanning/og-image.png" />
@@ -81,12 +81,12 @@
         ]
       }
     </script>
-    <title>Motion Planning, Made Visible | 37 Robot Algorithms | Pathplanning</title>
+    <title>Motion Planning, Made Visible | {{PLANNER_COUNT}} Robot Algorithms | Pathplanning</title>
     <link rel="stylesheet" href="styles.css" />
     <link rel="stylesheet" href="theme.css" />
     <script>window.MathJax = {tex: {inlineMath: [["\\(", "\\)"], ["\\[", "\\]"]]}};</script>
     <script async id="mathjax-script" src="https://cdn.jsdelivr.net/npm/mathjax@4/tex-chtml.js"></script>
-    <script src="app.js" defer></script>
+    <script type="module" src="app.js"></script>
   </head>
   <body>
     <a class="skip-link" href="#main">Skip to content</a>
@@ -140,8 +140,8 @@
         </div>
 
         <div class="hero-stats" aria-label="Project overview">
-          <div><strong>37</strong><span>supported planners</span></div>
-          <div><strong>4</strong><span>problem families</span></div>
+          <div><strong>{{PLANNER_COUNT}}</strong><span>supported planners</span></div>
+          <div><strong>{{FAMILY_COUNT}}</strong><span>problem families</span></div>
           <div><strong>1,297</strong><span>catalogued data entries</span></div>
           <div><strong>226k+</strong><span>observations across recorded cohorts</span></div>
         </div>
@@ -192,7 +192,7 @@
               </div>
             </div>
             <aside class="algorithm-note" aria-live="polite" aria-atomic="true">
-              <div class="note-topline"><span id="planner-kind" class="kind-tag">GRID & GRAPH</span><span id="planner-index" class="planner-index">01 / 37</span></div>
+              <div class="note-topline"><span id="planner-kind" class="kind-tag">GRID & GRAPH</span><span id="planner-index" class="planner-index">01 / {{PLANNER_COUNT}}</span></div>
               <h3 id="planner-title">A*</h3>
               <p id="planner-description"></p>
               <div class="note-separator"></div>
@@ -210,22 +210,19 @@
         <div class="section-heading">
           <div>
             <p class="eyebrow">02 / ALGORITHM ATLAS</p>
-            <h2>37 ways to solve <span class="gradient-text">“get from here to there.”</span></h2>
+            <h2>{{PLANNER_COUNT}} ways to solve <span class="gradient-text">“get from here to there.”</span></h2>
           </div>
           <p class="section-intro">Find an idea that fits the map, the robot's motion, and the goal.</p>
         </div>
         <div class="catalog-controls">
           <div class="filter-row" role="group" aria-label="Filter by problem family">
-            <button class="filter-chip is-active" type="button" data-filter="all">All <span>37</span></button>
-            <button class="filter-chip" type="button" data-filter="discrete">Grid & graph <span>15</span></button>
-            <button class="filter-chip" type="button" data-filter="continuous">Continuous space <span>17</span></button>
-            <button class="filter-chip" type="button" data-filter="temporal">Time-aware <span>3</span></button>
-            <button class="filter-chip" type="button" data-filter="multi_agent">Multi-agent <span>2</span></button>
+            <button class="filter-chip is-active" type="button" data-filter="all">All <span>{{PLANNER_COUNT}}</span></button>
+            <!-- generated:planner-family-filters -->
           </div>
           <label class="search-box"><span class="sr-only">Search planners</span><input id="planner-search" type="search" placeholder="Find an algorithm or idea" autocomplete="off" /></label>
         </div>
-        <p class="catalog-count" id="catalog-count" aria-live="polite">Showing 37 planners</p>
-        <div class="planner-grid" id="planner-grid"></div>
+        <p class="catalog-count" id="catalog-count" aria-live="polite">Showing {{PLANNER_COUNT}} planners</p>
+        <div class="planner-grid" id="planner-grid"><!-- generated:planner-cards --></div>
         <noscript><p class="empty-state">Enable JavaScript to use the planner explorer. The supported planner list and source are available in <a href="https://github.com/damminhtien/pathplanning/blob/main/SUPPORTED_ALGORITHMS.md">the project documentation</a>.</p></noscript>
       </section>
 

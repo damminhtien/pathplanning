@@ -79,7 +79,7 @@
     },
     {
       "id": "planner-atlas",
-      "label": "Planner atlas, 37 algorithms",
+      "label": "Planner atlas",
       "type": "planner-collection",
       "summary": "The registry is the supported planner surface. Use the atlas to compare each planner's idea, limits, and project-specific contract.",
       "path": "SUPPORTED_ALGORITHMS.md",
