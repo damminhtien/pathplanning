@@ -1,6 +1,7 @@
 "use strict";
 
 import { createCatalog } from "./scripts/catalog.js";
+import { startApplicationScenes } from "./scripts/applications.js";
 import { createSimulator } from "./scripts/simulator.js";
 
 async function loadPlanners() {
@@ -36,3 +37,4 @@ async function startLearningLab() {
 }
 
 startLearningLab();
+startApplicationScenes();

@@ -34,6 +34,7 @@ flowchart LR
   PageRenderers --> Build
   Build --> Dist
   Browser --> Catalog
+  Browser --> ApplicationScenes[applications.js\nSVG application scenes]
   Browser --> Simulator
   Simulator --> Scenes
   Dist -. ships .-> Browser
@@ -42,7 +43,7 @@ flowchart LR
 ## Responsibilities
 
 - The dataset guide and source-specific profiles are generated from website/data/datasets.json. The builder validates their sections, citations, repository paths, and related-profile links before writing indexable pages and sitemap entries.
-- `data/` holds planner descriptions, lessons, algorithm analyses, research references, application examples, datasets, and the project map. Application examples are shared across the home page and family-specific lesson pages; project-evidence notes keep model analogies distinct from measured coverage.
+- `data/` holds planner descriptions, lessons, algorithm analyses, research references, application examples, datasets, and the project map. The six home-page application cards select named SVG scenes from `sitebuilder/renderers/application_visuals.py`; `scripts/applications.js` follows each scene's own SVG geometry, pauses off-screen, and honors reduced-motion preferences. Application examples are shared across the home page and family-specific lesson pages; project-evidence notes keep model analogies distinct from measured coverage.
 - `sitebuilder/content.py` loads the content once, checks it against `SUPPORTED_ALGORITHMS.md`, and validates lesson, analysis, reference, application, source-path, and cross-reference coverage.
 - `sitebuilder/math_text.py` handles safe HTML escaping and inline LaTeX conversion.
 - `sitebuilder/renderers/` owns static markup for the catalog, algorithm lessons, and project map. Each generated lesson remains directly indexable without JavaScript and includes its source-paper citation.

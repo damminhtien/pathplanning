@@ -15,6 +15,7 @@ from .config import (
     PROJECT_ROOT,
     WEBSITE_ROOT,
 )
+from .renderers.application_visuals import APPLICATION_VISUAL_IDS
 
 
 @dataclass(frozen=True)
@@ -204,12 +205,21 @@ def load_site_content() -> SiteContent:
             raise SystemExit(f"Application link points to an unknown {route_type} page: {link}")
 
     for application in application_overview:
-        required_fields = ("category", "title", "description", "project_note", "link_label")
+        required_fields = (
+            "category",
+            "title",
+            "description",
+            "project_note",
+            "link_label",
+            "visual",
+        )
         if not isinstance(application, dict) or not all(
             isinstance(application.get(field), str) and application[field].strip()
             for field in required_fields
         ):
             raise SystemExit("Application overview entries are incomplete.")
+        if application["visual"] not in APPLICATION_VISUAL_IDS:
+            raise SystemExit(f"Unknown application visual: {application['visual']}")
         validate_application_link(application.get("link"))
 
     for kind, family_applications in application_families.items():

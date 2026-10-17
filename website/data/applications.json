@@ -5,6 +5,7 @@
       "title": "Help game characters navigate a level",
       "description": "An NPC can search a maze, a tactical grid, or a voxel level for a legal route. The map and movement rules determine whether the character can move diagonally, cross terrain, or pass through a cell.",
       "project_note": "MovingAI and Monash profiles include game-derived maps. They are map collections, not evaluations inside a game engine.",
+      "visual": "game-grid",
       "link": "datasets/movingai-grids/",
       "link_label": "Explore game-map data"
     },
@@ -13,14 +14,16 @@
       "title": "Route across a road network",
       "description": "A route can minimize distance or travel time across directed streets. Edge direction, turn rules, and cost units change what the shortest route means.",
       "project_note": "DIMACS road graphs form a separate benchmark cohort with explicit distance and time weights.",
+      "visual": "city-network",
       "link": "datasets/dimacs-roads/",
       "link_label": "Read the road-network profile"
     },
     {
-      "category": "Warehouse and delivery fleets",
-      "title": "Coordinate many vehicles in shared aisles",
-      "description": "Several carts may need to move at once without occupying the same place or swapping across the same narrow aisle. This is a multi-agent pathfinding problem, not just many independent shortest paths.",
-      "project_note": "EECBS and LaCAM* cover graph-based conflict resolution. The project does not claim a production warehouse integration.",
+      "category": "Shared-space coordination",
+      "title": "Coordinate movement through shared bottlenecks",
+      "description": "Carts, game units, or route abstractions may need to share narrow aisles and passages without blocking one another. Each route depends on where other agents are and when they arrive.",
+      "project_note": "EECBS and LaCAM* cover graph-based multi-agent coordination. They do not model pedestrian behavior or validate evacuation safety.",
+      "visual": "shared-space",
       "link": "algorithms/eecbs/",
       "link_label": "Explore multi-agent planning"
     },
@@ -29,6 +32,7 @@
       "title": "Plan a maneuver a car can actually drive",
       "description": "A car-like agent needs to account for heading, turning radius, and body clearance. A geometrically short line may be impossible for the vehicle to follow.",
       "project_note": "Hybrid A* and State Lattice demonstrate curvature-bounded vehicle motions in a modeled space; they are not a validated driving stack.",
+      "visual": "car-maneuver",
       "link": "algorithms/hybrid_astar/",
       "link_label": "Explore car-like planning"
     },
@@ -37,22 +41,16 @@
       "title": "Move through a crowded workcell",
       "description": "An arm's route is a sequence of joint configurations. Collision checking must account for the shape swept by the arm, not only the path of its endpoint.",
       "project_note": "The site catalogs OMPL problem resources and configurations; no OMPL planner runs are included in the recorded campaigns.",
+      "visual": "robotic-arm",
       "link": "datasets/ompl-problems/",
       "link_label": "Read the OMPL resource profile"
-    },
-    {
-      "category": "Pedestrian and evacuation models",
-      "title": "Study routes through shared bottlenecks",
-      "description": "A time-aware graph can represent blocked passages, waiting, and shared bottlenecks. A crowd model also needs human behavior, capacity, and domain-specific safety assumptions.",
-      "project_note": "This project illustrates graph and time-window planning; it does not simulate people or validate evacuation plans.",
-      "link": "algorithms/sipp/",
-      "link_label": "Explore safe time windows"
     },
     {
       "category": "Computer and communication networks",
       "title": "Find a low-cost route through connected systems",
       "description": "The same graph-search questions apply to weighted links between routers, services, or infrastructure sites: which states are reachable, what does each link cost, and how should the route respond to change?",
       "project_note": "Network routing is a model analogy here; no computer-network dataset is part of the current benchmark collection.",
+      "visual": "service-network",
       "link": "algorithms/dijkstra/",
       "link_label": "Explore weighted graph search"
     }
