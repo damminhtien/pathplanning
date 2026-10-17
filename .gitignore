@@ -203,3 +203,6 @@ __marimo__/
 
 # Local Graphify code index and extraction cache.
 /graphify-out/
+
+# Generated GitHub Pages output.
+/website/dist/

@@ -183,6 +183,11 @@ h2 { margin-bottom: 0; font-size: clamp(30px, 4vw, 45px); line-height: 1.13; let
 .planner-card p { margin-bottom: 13px; color: #98a7bb; font-size: 10px; line-height: 1.55; }
 .planner-card-footer { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: auto; padding-top: 8px; border-top: 1px solid rgba(184, 204, 230, .08); }
 .planner-principle { overflow: hidden; color: #8ba1b7; font-family: ui-monospace, monospace; font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
+.planner-card-actions { display: flex; align-items: center; gap: 8px; }
+.planner-card-title { color: inherit; text-decoration: underline; text-decoration-color: transparent; text-underline-offset: 3px; }
+.planner-card-title:hover { text-decoration-color: var(--mint); }
+.card-lesson { color: #a8efd9; font-size: 9px; white-space: nowrap; }
+.card-lesson:hover { text-decoration: underline; text-underline-offset: 3px; }
 .card-demo { padding: 4px 7px; border: 1px solid rgba(131, 240, 205, .18); border-radius: 7px; color: #a8efd9; background: transparent; cursor: pointer; font-size: 9px; white-space: nowrap; }
 .card-demo:hover { background: rgba(131, 240, 205, .1); }
 .empty-state { grid-column: 1 / -1; padding: 38px; border: 1px dashed var(--line); border-radius: 14px; color: var(--muted); text-align: center; }
@@ -288,7 +293,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 @media (max-width: 720px) {
   .topbar { width: calc(100% - 30px); height: 62px; }
   .topbar nav { gap: 13px; font-size: 11px; }
-  .topbar nav a:nth-child(2), .topbar nav a:nth-child(3) { display: none; }
+  .topbar nav a:nth-child(2), .topbar nav a:nth-child(3), .topbar nav a:nth-child(4) { display: none; }
   .topbar .nav-github { padding: 6px 9px; }
   .section-wrap, .loop-inner, .footer { width: calc(100% - 34px); }
   .hero { grid-template-columns: 1fr; gap: 31px; padding-top: 57px; }
@@ -365,4 +370,24 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
+}
+
+html.demo-mode, html.demo-mode body { min-height: 100%; overflow: hidden; }
+html.demo-mode body > .skip-link, html.demo-mode body > .topbar, html.demo-mode body > .loop-strip, html.demo-mode body > .footer { display: none !important; }
+html.demo-mode body > main#main { position: fixed; inset: 0; display: block; width: 100%; height: 100%; overflow: auto; padding: 0 14px; }
+html.demo-mode body > main#main > section:not(#playground) { display: none !important; }
+html.demo-mode #playground { display: flex; width: min(1320px, 100%); min-height: 100%; flex-direction: column; padding: 14px 0; }
+html.demo-mode #playground .section-heading, html.demo-mode #playground .under-note { display: none; }
+html.demo-mode #playground .workbench { display: flex; flex: 1; flex-direction: column; min-height: 0; }
+html.demo-mode #playground .workbench-body { flex: 1; min-height: 0; }
+html.demo-mode #playground .canvas-panel { display: flex; flex-direction: column; }
+html.demo-mode #playground #sim-canvas { flex: 1; min-height: 220px; aspect-ratio: auto; }
+@media (max-width: 720px) {
+  html.demo-mode body > main#main { padding: 0 10px; }
+  html.demo-mode #playground { padding: 8px 0; }
+  html.demo-mode #playground .workbench-top { gap: 9px; padding: 10px; }
+  html.demo-mode #playground .workbench-body { min-height: 0; }
+  html.demo-mode #playground .canvas-panel { min-height: 340px; }
+  html.demo-mode #playground #sim-canvas { flex: 1; min-height: 240px; }
+  html.demo-mode #playground .algorithm-note { min-height: 0; }
 }

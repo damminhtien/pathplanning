@@ -1,0 +1,71 @@
+.mindmap-body { --accent: #2d6fa8; }
+.map-shell { padding: 70px 0 86px; }
+.map-hero { max-width: 790px; padding-bottom: 30px; }
+.map-hero .lesson-section-label { margin-bottom: 14px; }
+.map-hero h1 { margin-bottom: 18px; color: var(--ink); font-family: var(--reading-font); font-size: clamp(48px, 7.2vw, 78px); font-weight: 500; line-height: .99; letter-spacing: -.065em; }
+.map-hero h1 span { color: #397bb5; }
+.map-hero > p:last-child { max-width: 680px; color: var(--ink-soft); font-size: 15px; line-height: 1.75; }
+.map-controls { position: sticky; top: 70px; z-index: 8; display: flex; justify-content: space-between; gap: 14px; padding: 13px 0; border-top: 1px solid var(--rule); border-bottom: 1px solid var(--rule); background: rgb(248 251 255 / 94%); backdrop-filter: blur(12px); }
+.map-search { display: flex; flex: 1 1 400px; align-items: center; gap: 9px; max-width: 510px; min-height: 42px; padding: 0 12px; border: 1px solid #cfdae6; border-radius: 9px; color: #557b9a; background: #fff; }
+.map-search > span:first-child { font-size: 20px; }
+.map-search input { width: 100%; border: 0; outline: 0; color: var(--ink); background: transparent; font-size: 12px; }
+.map-search input::placeholder { color: #8092a4; }
+.map-actions { display: flex; align-items: center; gap: 7px; }
+.map-actions button { min-height: 39px; padding: 0 11px; border: 1px solid #cfdae6; border-radius: 8px; color: var(--ink-soft); background: #fff; cursor: pointer; font-size: 10px; }
+.map-actions button:hover { border-color: #84ad9c; color: var(--accent); }
+.map-layout { display: grid; grid-template-columns: minmax(0, 1fr) 275px; align-items: start; gap: 25px; padding-top: 27px; }
+.mindmap-stage { min-width: 0; overflow: hidden; padding: 25px; border: 1px solid var(--rule); border-radius: 16px; background: #fff; box-shadow: 0 12px 34px rgb(41 55 47 / 5%); }
+.map-root { position: relative; display: grid; justify-items: center; width: max-content; max-width: 100%; margin: 0 auto 25px; padding: 14px 28px 12px; border: 1px solid #75a6d0; border-radius: 13px; color: #f6fbff; background: #285f91; box-shadow: 0 8px 24px rgb(35 82 126 / 14%); }
+.map-root strong { font-size: 16px; letter-spacing: -.03em; }
+.map-root small { color: #d4e7f7; font-size: 9px; }
+.map-root-orbit { position: absolute; inset: -7px; border: 1px solid #bad7ca; border-radius: 17px; pointer-events: none; }
+.mindmap-branches, .mindmap-children { margin: 0; padding: 0; list-style: none; }
+.mindmap-branches { display: grid; gap: 9px; }
+.mindmap-item { position: relative; min-width: 0; }
+.mindmap-children { display: grid; gap: 7px; margin: 9px 0 3px 13px; padding-left: 15px; border-left: 1px solid #cfdae6; }
+.mindmap-node { min-width: 0; }
+.mindmap-node > summary { display: flex; align-items: center; gap: 9px; min-height: 41px; padding: 7px 10px; border: 1px solid #dce5ed; border-radius: 8px; color: var(--ink); background: #f4f8fc; cursor: pointer; list-style: none; }
+.mindmap-node > summary::-webkit-details-marker { display: none; }
+.mindmap-node > summary::before { width: 14px; flex: 0 0 14px; color: #8b978d; content: "›"; font-size: 18px; line-height: 1; text-align: center; transition: transform .15s ease; }
+.mindmap-node[open] > summary::before { transform: rotate(90deg); }
+.mindmap-node > summary:hover { border-color: #a0bdd7; background: #edf5fc; }
+.mindmap-dot { width: 8px; height: 8px; flex: 0 0 8px; border-radius: 50%; background: #6c9dc7; }
+.mindmap-node[data-type="planner"] > summary { background: #f4f7f2; }
+.mindmap-node[data-type="planner"] .mindmap-dot { background: #557fae; }
+.mindmap-node[data-type="evaluation"] .mindmap-dot { background: #c58a39; }
+.mindmap-label { overflow-wrap: anywhere; font-size: 11px; font-weight: 670; line-height: 1.35; }
+.mindmap-type { margin-left: auto; color: #86918a; font-size: 8px; text-transform: uppercase; letter-spacing: .08em; }
+.mindmap-content { padding: 10px 11px 6px 33px; }
+.mindmap-content > p { margin: 0 0 9px; color: var(--ink-soft); font-size: 11px; line-height: 1.65; }
+.mindmap-source, .mindmap-lesson { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px; width: 100%; margin: 5px 0; padding: 7px 9px; border: 1px solid #dce5ed; border-radius: 7px; color: var(--ink-soft); background: #fff; font-size: 9px; }
+.mindmap-source:hover, .mindmap-lesson:hover { border-color: #aac8b7; color: var(--accent); }
+.mindmap-source code, .mindmap-lesson code { max-width: 75%; overflow-wrap: anywhere; color: inherit; font-size: 9px; }
+.mindmap-focus { margin: 5px 0 2px; padding: 4px 0; border: 0; color: var(--accent); background: transparent; cursor: pointer; font-size: 9px; }
+.mindmap-focus:hover { text-decoration: underline; text-underline-offset: 3px; }
+.mindmap-node.is-selected > summary { border-color: #6699c5; box-shadow: 0 0 0 2px rgb(73 129 179 / 12%); }
+.mindmap-node[hidden], .mindmap-item[hidden] { display: none !important; }
+.map-empty { margin: 14px 0 0; padding: 18px; border: 1px dashed #c8d1c8; border-radius: 9px; color: var(--quiet-ink); font-size: 12px; text-align: center; }
+.map-inspector { position: sticky; top: 140px; padding: 20px; border: 1px solid #d7e2ed; border-radius: 13px; background: #edf4fb; }
+.map-inspector .lesson-section-label { margin-bottom: 12px; }
+.map-inspector h2 { margin-bottom: 10px; color: var(--ink); font-family: Georgia, "Times New Roman", serif; font-size: 26px; font-weight: 500; line-height: 1.1; letter-spacing: -.04em; }
+.map-inspector > p:not(.lesson-section-label) { color: var(--ink-soft); font-size: 11px; line-height: 1.7; }
+.map-inspector .mindmap-source { margin: 13px 0; }
+.map-inspector [hidden] { display: none !important; }
+.map-inspector .button { min-height: 38px; width: 100%; color: white; background: #2f70a7; font-size: 10px; }
+.map-inspector .inspector-hint { margin: 15px 0 0; padding-top: 13px; border-top: 1px solid #d7e2ed; color: var(--quiet-ink); font-size: 9px; }
+.map-reading { max-width: 720px; padding: 45px 0 0; }
+.map-reading > p:not(.lesson-section-label) { font-size: 13px; }
+@media (max-width: 860px) {
+  .map-shell { padding-top: 48px; }
+  .map-layout { grid-template-columns: 1fr; }
+  .map-inspector { position: static; }
+}
+@media (max-width: 600px) {
+  .map-controls { position: static; align-items: stretch; flex-direction: column; }
+  .map-search { flex-basis: auto; max-width: none; }
+  .map-actions button { flex: 1; }
+  .mindmap-stage { padding: 13px; }
+  .mindmap-content { padding-left: 25px; }
+  .mindmap-children { margin-left: 8px; padding-left: 10px; }
+  .mindmap-type { display: none; }
+}

@@ -1,0 +1,166 @@
+:root {
+  color-scheme: light;
+  --bg: #f7faff;
+  --bg-deep: #edf4fb;
+  --panel: #ffffff;
+  --panel-soft: #f0f6fc;
+  --line: rgb(59 91 126 / 16%);
+  --text: #1b3048;
+  --muted: #506981;
+  --quiet: #70839a;
+  --mint: #6da9e5;
+  --mint-deep: #367bbd;
+  --blue: #73a9df;
+  --violet: #8799ce;
+  --orange: #c98743;
+  --red: #c96e7b;
+  --ui-font: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --reading-font: Georgia, "Times New Roman", serif;
+  font-family: var(--ui-font);
+}
+body {
+  color: var(--text);
+  background:
+    radial-gradient(ellipse at 82% 2%, rgb(120 177 228 / 13%), transparent 30%),
+    radial-gradient(ellipse at 10% 45%, rgb(147 194 235 / 10%), transparent 31%),
+    var(--bg);
+}
+::selection { color: #15365c; background: #cfe4fa; }
+.topbar { border-color: rgb(53 83 116 / 13%); background: rgb(250 252 255 / 91%); }
+.brand-accent { color: #6a7e94; }
+.topbar nav { color: #465d75; }
+.topbar .nav-github { color: var(--text); background: rgb(255 255 255 / 70%); }
+.topbar nav a:hover, .footer a:hover { color: #286ca8; }
+h1, h2, .closing-inner h2 { font-family: var(--reading-font); font-weight: 500; letter-spacing: -.055em; }
+h1 { color: #172d47; }
+.hero-lede, .section-intro, .closing-inner > div:first-child > p:last-child { font-family: var(--reading-font); }
+.section-intro { font-size: 15px; }
+.gradient-text { color: #3178b7; background: linear-gradient(100deg, #356ca7 7%, #5592cc 56%, #7183bd); background-clip: text; -webkit-text-fill-color: transparent; }
+.eyebrow { color: #2f6fa9; }
+.eyebrow-dot { background: #4e91ce; box-shadow: 0 0 14px rgb(84 149 206 / 45%); }
+.hero-lede, .hero-note { color: #576d83; }
+.hero-note span { color: #3479b8; }
+.button-primary { color: #ffffff; background: #2f70ad; box-shadow: 0 7px 24px rgb(47 112 173 / 18%); }
+.button-primary:hover { background: #235c93; }
+.button-quiet, .button-outline { border-color: #cfdae6; color: #36526e; background: rgb(255 255 255 / 72%); }
+.button-quiet:hover, .button-outline:hover { border-color: #8bb5dd; background: #edf5fc; }
+.hero-art { border-color: #cfdeed; background: linear-gradient(145deg, #eff6fd, #dfeefa); box-shadow: 0 24px 70px rgb(47 79 110 / 10%), inset 0 1px #fff; }
+.hero-art::before { opacity: .45; background-image: radial-gradient(rgb(83 124 165 / 35%) .65px, transparent .65px); }
+.art-caption, .art-footer { color: #66809a; }
+.art-footer b { color: #294968; }
+.art-grid { border-color: rgb(81 122 164 / 18%); background-image: linear-gradient(rgb(84 124 165 / 10%) 1px, transparent 1px), linear-gradient(90deg, rgb(84 124 165 / 10%) 1px, transparent 1px); }
+.wall { border-color: rgb(65 104 143 / 25%); background: linear-gradient(145deg, #b5cee6, #92b3d3); box-shadow: inset 0 1px rgb(255 255 255 / 45%); }
+.art-path-shadow { stroke: rgb(52 115 174 / 20%); }
+.art-path { stroke: #3578b5; }
+.art-pulse { fill: rgb(69 137 196 / 12%); stroke: #3578b5; }
+.art-goal { fill: rgb(201 135 67 / 18%); stroke: var(--orange); }
+.art-robot rect { fill: #3c81bd; stroke: #f5fbff; filter: drop-shadow(0 0 8px rgb(48 113 169 / 45%)); }
+.art-robot path { stroke: #f5fbff; }
+.orbit { border-color: rgb(81 126 170 / 16%); }
+.hero-stats { border-color: var(--line); }
+.hero-stats > div { border-color: var(--line); }
+.hero-stats strong { color: #1e3c5b; }
+.hero-stats span { color: #61778d; }
+.loop-strip { border-color: var(--line); background: rgb(238 245 252 / 86%); }
+.loop-kicker, .loop-step small { color: #708298; }
+.loop-step span, .loop-return { color: #3378b4; }
+.loop-step b { color: #253e58; }
+.loop-arrow { color: #90a5b8; }
+.section-intro { color: #61768b; }
+.workbench { border-color: #a9bfd5; background: #142f4d; box-shadow: 0 18px 48px rgb(25 53 82 / 16%); }
+.workbench-top { border-color: rgb(186 208 231 / 17%); background: #193a5d; }
+.select-wrap label { color: #d0dfee; }
+.select-wrap select { border-color: #557795; color: #f4f8fc; background: #24486b; }
+.select-wrap select:focus { border-color: #8ec4f6; box-shadow: 0 0 0 3px rgb(109 169 229 / 20%); }
+.control-button { border-color: rgb(194 216 240 / 24%); color: #e1ebf5; background: rgb(244 249 255 / 6%); }
+.control-button:hover { border-color: #8ec4f6; color: #fff; background: rgb(112 170 224 / 18%); }
+.control-primary { border-color: #a2cef3; color: #173454; background: #9bc9f1; }
+.control-primary:hover { color: #122c48; background: #b7dafa; }
+.control-change { border-color: rgb(231 181 124 / 52%); color: #f3cc9e; }
+.workbench-body { border-color: rgb(186 208 231 / 17%); }
+.canvas-panel { border-color: rgb(186 208 231 / 17%); background: #102a46; }
+.canvas-toolbar, .planner-index { color: #a9bfd5; }
+.canvas-live { color: #e0eaf4; }
+.canvas-live i { background: #88c5f4; box-shadow: 0 0 8px rgb(136 197 244 / 65%); }
+#sim-canvas { border-color: rgb(188 212 238 / 18%); background: #101b2b; }
+.canvas-legend { color: #c3d1df; }
+.legend-start, .legend-path { background: #83b9e8; }
+.legend-open { background: rgb(142 191 238 / 78%); }
+.kind-tag, .cohort-tag { color: #9acbf4; }
+.algorithm-note > p { color: #cfdae6; }
+.algorithm-note .question-label { color: #f0c58e; }
+.algorithm-note .observe-copy { color: #edf4fb; }
+.note-metric { border-color: rgb(132 189 235 / 28%); color: #c8e2f7; background: rgb(106 167 222 / 11%); }
+.metric-icon { color: #a2d0f6; }
+.algorithm-note .simulation-disclaimer { color: #a4b7ca; }
+.under-note { color: #62788d; }
+.under-note b { color: #315d84; }
+.filter-chip { border-color: #d3deea; color: #506982; }
+.filter-chip span { color: #788da2; }
+.filter-chip:hover, .filter-chip.is-active { border-color: #83afd9; color: #245f94; background: #eaf4fd; }
+.filter-chip.is-active span { color: #3178b7; }
+.search-box { border-color: #d0dce8; color: #71869a; background: #fff; }
+.search-box input { color: #233e58; }
+.search-box input::placeholder { color: #8092a4; }
+.search-box:focus-within { border-color: #75a8d6; }
+.catalog-count { color: #71849a; }
+.planner-card { border-color: #d9e3ed; background: linear-gradient(150deg, #fff, #f2f7fc); }
+.planner-card:hover { border-color: #8eb8df; background: linear-gradient(150deg, #fff, #eaf4fd); }
+.planner-family { color: #6e8297; }
+.planner-mark { border-color: #c4dced; color: #347ab9; background: #edf6fd; }
+.planner-card p { color: #5a6f84; }
+.planner-card-footer { border-color: #e1e8ef; }
+.planner-principle { color: #5d7892; }
+.planner-card-title:hover { text-decoration-color: #367bb8; }
+.card-lesson { color: #286ba5; }
+.card-demo { border-color: #b9d1e7; color: #286ba5; background: #f5faff; }
+.card-demo:hover { background: #e7f2fc; }
+.empty-state { color: #687d92; }
+.evaluation-section { border-color: #dae4ee; background: linear-gradient(180deg, #edf4fb, #f8fbff); }
+.inventory-head { border-color: #c9dceb; background: linear-gradient(110deg, #e9f3fc, #f8fbff); }
+.big-number { color: #2e76b3; }
+.big-label { color: #36516d; }
+.big-label small, .inventory-head > p { color: #687d91; }
+.dataset-card { border-color: #d9e3ed; background: #fff; }
+.dataset-icon { color: #347ab9; background: #edf6fd; }
+.dataset-count { color: #60768c; }
+.dataset-card p { color: #5e7287; }
+.dataset-bar { background: #e5edf4; }
+.dataset-bar i { background: linear-gradient(90deg, #3b80bb, #8bb9e5); }
+.dataset-card small, .chart-caption { color: #73869a; }
+.campaign-panel { border-color: #cfdae5; background: #fff; }
+.campaign-intro { border-color: #dbe4ec; background: linear-gradient(145deg, #e9f2fa, #f9fbfd); }
+.campaign-intro strong { color: #244665; }
+.campaign-intro > span { color: #2f75b1; }
+.campaign-intro > p:not(.eyebrow), .campaign-highlights p { color: #63788c; }
+.text-link, .evaluation-footnote a { color: #286ba5; }
+.campaign-highlights article { border-color: #e1e8ee; }
+.cohort-tag { color: #4b79a6; }
+.campaign-highlights h3 { color: #213a53; }
+.not-leaderboard { color: #61758a; }
+.not-leaderboard b { color: #2a4560; }
+.method-track { border-color: #d5e0ea; background: #fff; }
+.method-step { border-color: #e0e7ee; }
+.step-number { color: #5f82a2; }
+.step-art i { border-color: rgb(67 128 185 / 42%); background: rgb(84 148 205 / 9%); }
+.art-pair i:first-child { border-color: rgb(66 127 184 / 60%); }
+.art-pair i:last-child { border-color: rgb(201 135 67 / 55%); }
+.art-check i:nth-child(2) { border-color: rgb(201 135 67 / 55%); }
+.art-check i:nth-child(3) { border-right-color: #2f78b7; border-bottom-color: #2f78b7; }
+.art-report i:nth-child(2) { border-color: rgb(98 156 207 / 70%); }
+.art-report i:nth-child(3) { border-color: rgb(201 135 67 / 60%); }
+.method-step p, .metric-cards p { color: #63788c; }
+.metric-cards article { border-color: #d9e3ed; background: #fff; }
+.metric-symbol { border-color: #c5dcec; color: #347ab9; }
+.evaluation-footnote { border-color: rgb(201 135 67 / 55%); color: #5f7182; background: #f7f2e9; }
+.evaluation-footnote b { color: #304a63; }
+.closing-section { border-color: #cfdeec; background: radial-gradient(ellipse at 79% 49%, rgb(102 160 210 / 12%), transparent 35%), #eaf3fb; }
+.closing-inner > div:first-child > p:last-child { color: #5e7388; }
+.footer { border-color: #d7e1ea; }
+.footer p, .footer small { color: #708297; }
+.footer > a:last-of-type { color: #405b76; }
+.skip-link { color: #fff; background: #286da8; }
+button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible { outline-color: #327bb8; }
+@media (prefers-reduced-motion: reduce) {
+  .art-path, .art-pulse { animation: none; }
+}

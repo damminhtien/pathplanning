@@ -1,48 +1,24 @@
-(() => {
+(async () => {
   "use strict";
 
-  const planners = [
-    { id: "bfs", title: "Breadth-First Search", kind: "discrete", principle: "queue · level by level", description: "Explores an unweighted graph one layer at a time. It returns the fewest-edge path when every move has the same cost.", observe: "The frontier spreads evenly outward from the start, even when the goal lies in one direction.", tradeoff: "Simple and complete on finite graphs, but it ignores goal direction and edge costs." },
-    { id: "dfs", title: "Depth-First Search", kind: "discrete", principle: "stack · follow a branch", description: "Follows one branch as far as it can before backing up. It is useful for reachability, but it does not generally find a shortest path.", observe: "One narrow tendril dives through the maze before nearby alternatives are explored.", tradeoff: "Uses a compact frontier; its route quality can vary sharply with neighbor order." },
-    { id: "greedy_best_first", title: "Greedy Best-First", kind: "discrete", principle: "prioritize h(n)", description: "Ranks frontier nodes by estimated distance to the goal. It is an eager goal seeker that may overlook the cost already paid.", observe: "The search leans toward the goal and can get caught exploring the wrong side of an obstacle.", tradeoff: "Often reaches a goal quickly, with no general shortest-path guarantee." },
-    { id: "astar", title: "A*", kind: "discrete", principle: "f(n) = g(n) + h(n)", description: "Balances the cost already traveled, g, with a lower-bound estimate to the goal, h. With a suitable admissible heuristic, it can find an optimal path.", observe: "The frontier follows a corridor between the start-cost wave and the goal estimate.", tradeoff: "A useful heuristic can reduce search; memory use can grow with the explored frontier." },
-    { id: "bidirectional_dijkstra", title: "Bidirectional Dijkstra", kind: "discrete", principle: "two cost frontiers", description: "Runs Dijkstra search from both endpoints and joins the two explored regions. It requires an exact goal node.", observe: "Two waves move toward one another and meet before either crosses the entire map.", tradeoff: "Can reduce explored distance on suitable graphs; maintains two search states." },
-    { id: "bidirectional_astar", title: "Bidirectional A*", kind: "discrete", principle: "two heuristic frontiers", description: "Searches from both endpoints with potential-reweighted edges. The supported contract requires a consistent heuristic and an exact goal.", observe: "Two guided frontiers advance toward a meeting point rather than searching from only one end.", tradeoff: "Benefits depend on the heuristic and graph; consistency is part of the correctness contract." },
-    { id: "dijkstra", title: "Dijkstra", kind: "discrete", principle: "prioritize g(n)", description: "Expands the currently cheapest known route without a goal-directed heuristic. It finds shortest paths with non-negative edge costs.", observe: "A cost wave expands in every direction, reaching nearby cheap cells first.", tradeoff: "Reliable with non-negative costs, though it may explore far beyond the useful corridor." },
-    { id: "dstar_lite", title: "D* Lite", kind: "discrete", principle: "repair g / rhs values", description: "Reuses search information when edge costs change on a stable graph topology. The planner can move its start and update directed edges between queries.", observe: "After an obstacle appears, the route is repaired around the changed region.", tradeoff: "Useful for repeated replanning; topology changes require a new planner session." },
-    { id: "weighted_astar", title: "Weighted A*", kind: "discrete", principle: "f(n) = g(n) + w·h(n)", description: "Gives the goal estimate extra weight so the search can focus more aggressively. Path quality depends on the chosen weight and stopping condition.", observe: "The frontier narrows toward the goal, sometimes accepting a longer detour around a wall.", tradeoff: "Can reach a feasible route sooner, trading away ordinary A* optimality." },
-    { id: "reexp_astar", title: "Re-expansion A*", kind: "discrete", principle: "weighted search + reopen", description: "Uses Weighted A* with conditional reopening of closed nodes when a better route is discovered. Reopening behavior is controlled by the configured threshold mode.", observe: "A previously settled node can re-enter the search when a sufficiently better route arrives.", tradeoff: "Adds recovery from inconsistent ordering; more re-expansions can mean more work." },
-    { id: "anytime_astar", title: "Anytime A*", kind: "discrete", principle: "find first · improve", description: "Runs a sequence of weighted A* searches and keeps the best solution found. Each pass has its own expansion budget; the returned result reports the final incumbent.", observe: "A usable path appears first, then later passes try to shorten it.", tradeoff: "Can provide an early feasible path; total work spans multiple search passes." },
-    { id: "jps", title: "Jump Point Search", kind: "discrete", principle: "prune grid symmetry", description: "Skips symmetric intermediate expansions on uniform-cost 2D grids while retaining jump points. Returned paths still include every traversed cell.", observe: "Long straight stretches collapse into a few meaningful turning points.", tradeoff: "Specialized for the standard uniform 8-connected grid and its corner rule." },
-    { id: "jpsw", title: "Weighted Jump Point Search", kind: "discrete", principle: "jump points + terrain cost", description: "Applies jump-point reasoning to a positive-cost terrain grid. Moves account for the terrain values they cross; diagonal corner cutting is forbidden.", observe: "The route bends around costly terrain as well as blocked cells.", tradeoff: "Requires a terrain grid with valid positive costs; not interchangeable with uniform JPS." },
-    { id: "theta_star", title: "Theta*", kind: "discrete", principle: "line-of-sight parent", description: "Extends grid search with visible parent shortcuts, producing any-angle paths between grid waypoints. Every segment is checked against obstacles.", observe: "The route cuts visible corners instead of turning at every grid cell.", tradeoff: "Optimizes a different path space from octile-optimal grid paths." },
-    { id: "lazy_theta_star", title: "Lazy Theta*", kind: "discrete", principle: "assume · validate later", description: "Considers candidate any-angle parent shortcuts optimistically, then checks visibility when a node is expanded and repairs blocked shortcuts.", observe: "A promising shortcut appears first; blocked line segments are checked and replaced later.", tradeoff: "Can defer visibility checks; candidate paths must still be validated." },
+  let planners;
+  try {
+    const response = await fetch(new URL("data/planners.json", window.location.href));
+    if (!response.ok) throw new Error(`Planner catalogue request failed: ${response.status}`);
+    planners = await response.json();
+  } catch (error) {
+    const status = document.querySelector("#simulation-status");
+    if (status) status.textContent = "Could not load the planner catalogue";
+    console.error(error);
+    return;
+  }
 
-    { id: "rrt", title: "RRT", kind: "continuous", principle: "sample · extend", description: "Grows a tree from the start by sampling free-space targets and extending toward them. It is designed to find a feasible route in continuous spaces.", observe: "Branches grow toward scattered samples while obstacle-crossing motions are rejected.", tradeoff: "Good at finding feasible paths in broad spaces; paths are not generally optimal." },
-    { id: "rrt_star", title: "RRT*", kind: "continuous", principle: "extend · rewire", description: "Adds neighborhood rewiring to RRT so new states can improve nearby parent choices. Its asymptotic behavior depends on the sampling and neighborhood conditions.", observe: "The tree changes its local connections after new samples arrive.", tradeoff: "Extra neighbor checks can improve path quality over time but add computation." },
-    { id: "informed_rrt_star", title: "Informed RRT*", kind: "continuous", principle: "sample inside an informed set", description: "After finding a solution, focuses new samples inside a region that could improve the current path, under the supported Euclidean path-length objective.", observe: "Once a first route exists, sampling concentrates in an ellipse around promising paths.", tradeoff: "Informed bounds depend on an exact point goal and additive Euclidean path length." },
-    { id: "fmt_star", title: "FMT*", kind: "continuous", principle: "fixed samples · wavefront", description: "Plans through a fixed random sample set using a lazy dynamic-programming wavefront. In this project, sample_count defines that fixed set.", observe: "A connected wavefront moves across samples instead of adding a new sample at every step.", tradeoff: "The fixed batch limits the candidate set for that planning call." },
-    { id: "prm_star", title: "PRM*", kind: "continuous", principle: "sample · build roadmap", description: "Builds a reusable random geometric roadmap, then connects exact query endpoints and searches the graph. Local motions are checked for validity.", observe: "Free samples are joined into a roadmap, then a route is traced through it.", tradeoff: "Roadmap construction can be reused across queries; sample count and connection radius matter." },
-    { id: "lazy_prm", title: "Lazy PRM", kind: "continuous", principle: "query · validate route", description: "Builds a roadmap with unvalidated candidate edges. It checks only edges on a candidate route, removes blocked ones and searches again.", observe: "Only the current best-looking route is collision-checked; a blocked edge triggers another route search.", tradeoff: "Can avoid checking many unused edges; validation and cache state affect later queries." },
-    { id: "ait_star", title: "AIT*", kind: "continuous", principle: "reverse estimate · forward search", description: "Uses a reverse search over a finite sampled graph to estimate cost-to-go, then prioritizes forward edge checks. This implementation does not claim the paper's asymptotic-optimality guarantee.", observe: "A goal-side estimate guides which start-side edge is checked next.", tradeoff: "The current implementation uses a finite sample graph and recomputes reverse shortest paths after blocked edges." },
-    { id: "eit_star", title: "EIT*", kind: "continuous", principle: "cost + collision effort", description: "Adds estimated collision-check effort to an asymmetric reverse/forward search. The current implementation uses a fixed sample graph and does not claim the paper's asymptotic-optimality guarantee.", observe: "Edges expected to be easier to validate are preferred among similarly promising choices.", tradeoff: "Collision effort is an estimate; this implementation omits some reference-algorithm features." },
-    { id: "eirm_star", title: "EIRM*", kind: "continuous", principle: "reuse samples and edge checks", description: "Keeps a sampled roadmap and caches valid or blocked edges for repeated exact start/goal queries in a caller-managed world version.", observe: "Later queries can reuse roadmap edges whose validity is already known.", tradeoff: "World changes must advance the version or reset the roadmap to avoid stale validity." },
-    { id: "fcit_star", title: "FCIT*", kind: "continuous", principle: "informed edges · batched search", description: "Orders useful outgoing edges from reached samples in a fully connected sampled graph and restarts over new informed batches while retaining the valid tree.", observe: "An edge queue narrows toward connections that could improve the current path.", tradeoff: "A fully connected batch can create many candidate edges." },
-    { id: "rit_star", title: "RIT*", kind: "continuous", principle: "Riemannian metric · informed batches", description: "Uses a positive-definite metric tensor to price motion and shape sampling or connection neighborhoods for additive Riemannian arc length.", observe: "The search region stretches along directions that are cheaper under the local metric.", tradeoff: "Metric bounds and tensor validity are part of the planning contract." },
-    { id: "jit_star", title: "JIT*", kind: "continuous", principle: "collision-guided · just-in-time", description: "Uses collision feedback to focus later samples near failed edges, while retaining nonzero uniform sampling. Its objective can include manipulability.", observe: "A failed motion seeds a focused sampling corridor; exploration still extends beyond it.", tradeoff: "The manipulability objective requires a compatible robot Jacobian." },
-    { id: "hybrid_astar", title: "Hybrid A*", kind: "continuous", principle: "pose search + vehicle primitives", description: "Searches continuous SE(2) poses grouped by discretized position, heading and gear, using curvature-bounded vehicle motions with footprint checks.", observe: "The vehicle turns through feasible arcs instead of sliding sideways between grid cells.", tradeoff: "Motion primitives and collision sampling must match the vehicle geometry." },
-    { id: "state_lattice", title: "State Lattice", kind: "continuous", principle: "A* over motion primitives", description: "Runs A* over discretized SE(2) poses connected by supplied local-frame motion primitives, checking the robot footprint along each motion.", observe: "The reachable pose graph is built from physically shaped local moves.", tradeoff: "The primitive set determines which motions are representable." },
-    { id: "bit_star", title: "BIT*", kind: "continuous", principle: "batch samples · ordered edges", description: "Connects batches of samples through an ordered edge search and focuses later batches using the best known solution, under additive Euclidean path length.", observe: "New sample batches appear, then the edge queue prioritizes the most promising connections.", tradeoff: "The exact point-goal, metric and objective restrictions matter for its bounds." },
-    { id: "abit_star", title: "ABIT*", kind: "continuous", principle: "anytime bounded-suboptimal batches", description: "Runs informed batch searches with progressively refined search effort and keeps an incumbent solution. It shares the supported additive path-length restrictions.", observe: "A feasible route is retained while later search passes refine the candidate set.", tradeoff: "Solution quality and work depend on the search schedule and stopping budget." },
-    { id: "rrt_connect", title: "RRT-Connect", kind: "continuous", principle: "grow two trees · connect", description: "Grows trees from both start and goal and repeatedly tries to connect them through free space.", observe: "Two branches approach one another until they form a continuous route.", tradeoff: "Often finds feasible paths quickly; it does not generally optimize path length." },
+  const requestedDemoId = new URLSearchParams(window.location.search).get("demo");
+  const initialPlanner = planners.find((planner) => planner.id === requestedDemoId)
+    || planners.find((planner) => planner.id === "astar");
+  const isDemoMode = initialPlanner.id === requestedDemoId;
+  if (isDemoMode) document.documentElement.classList.add("demo-mode");
 
-    { id: "sipp", title: "SIPP", kind: "temporal", principle: "search safe time intervals", description: "Plans through a graph whose nodes and edges have blocked time intervals. The agent can wait while its current node remains safe.", observe: "The route waits at a safe location, then crosses when the next time window opens.", tradeoff: "Requires known positive durations and half-open blocked intervals." },
-    { id: "bounded_suboptimal_sipp", title: "Bounded-Suboptimal SIPP", kind: "temporal", principle: "FOCAL within w × best f", description: "Keeps states within a weight-bounded band of the best lower-bound estimate and chooses among them by remaining graph distance.", observe: "A slightly later but simpler safe schedule may be selected from the focal band.", tradeoff: "The w bound is guaranteed only when the search finishes successfully." },
-    { id: "kinodynamic_sipp", title: "Kinodynamic SIPP", kind: "temporal", principle: "safe intervals + reachable speeds", description: "Propagates arrival-time intervals through speed-labeled configurations using constant-acceleration motion primitives.", observe: "The agent must slow to zero before it can wait; a moving robot cannot pause instantly.", tradeoff: "Requires integer time ticks and finite speed, acceleration and deceleration limits." },
-
-    { id: "eecbs", title: "EECBS", kind: "multi_agent", principle: "conflict tree + focal search", description: "Plans for multiple agents with conflict-based search, explicit estimation for high-level node selection and focal A* for each constrained path.", observe: "A detected collision branches into constraints that redirect one agent at a time.", tradeoff: "The suboptimality guarantee depends on the weight and successful termination." },
-    { id: "lacam_star", title: "LaCAM*", kind: "multi_agent", principle: "lazy joint configurations", description: "Builds collision-free joint moves lazily by assigning one agent's next location at a time and rejecting partial assignments with conflicts.", observe: "Agents negotiate a shared next configuration rather than planning independent paths only.", tradeoff: "Uses unit-weight undirected graphs; agents remain at their goals after arrival." },
-  ];
 
   const kindLabels = {
     discrete: "Grid & graph search",
@@ -67,7 +43,7 @@
   const resetButton = document.querySelector("#reset-button");
   const changeButton = document.querySelector("#change-button");
   const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-  const state = { planner: planners.find((item) => item.id === "astar"), progress: 0.4, playing: !prefersReducedMotion, changed: false, seed: 7, lastFrame: 0, width: 900, height: 500 };
+  const state = { planner: initialPlanner, progress: isDemoMode ? 0 : 0.4, playing: !prefersReducedMotion, changed: false, seed: 7, lastFrame: 0, width: 900, height: 500 };
 
   function fillSelector() {
     const kinds = ["discrete", "continuous", "temporal", "multi_agent"];
@@ -118,7 +94,46 @@
     for (const planner of visible) {
       const card = document.createElement("article");
       card.className = "planner-card";
-      card.innerHTML = `<div class="planner-card-top"><span class="planner-family">${kindLabels[planner.kind]}</span><span class="planner-mark" aria-hidden="true">${kindSymbols[planner.kind]}</span></div><h3>${planner.title}</h3><p>${planner.description}</p><div class="planner-card-footer"><span class="planner-principle">${planner.principle}</span><button class="card-demo" type="button" data-planner="${planner.id}" aria-label="Show ${planner.title} in the simulator">Explore ↗</button></div>`;
+      const top = document.createElement("div");
+      top.className = "planner-card-top";
+      const family = document.createElement("span");
+      family.className = "planner-family";
+      family.textContent = kindLabels[planner.kind];
+      const mark = document.createElement("span");
+      mark.className = "planner-mark";
+      mark.setAttribute("aria-hidden", "true");
+      mark.textContent = kindSymbols[planner.kind];
+      top.append(family, mark);
+
+      const heading = document.createElement("h3");
+      const lessonLink = document.createElement("a");
+      lessonLink.className = "planner-card-title";
+      lessonLink.href = `algorithms/${encodeURIComponent(planner.id)}/`;
+      lessonLink.textContent = planner.title;
+      heading.append(lessonLink);
+
+      const description = document.createElement("p");
+      description.textContent = planner.description;
+      const footer = document.createElement("div");
+      footer.className = "planner-card-footer";
+      const principle = document.createElement("span");
+      principle.className = "planner-principle";
+      principle.textContent = planner.principle;
+      const actions = document.createElement("span");
+      actions.className = "planner-card-actions";
+      const readLink = document.createElement("a");
+      readLink.className = "card-lesson";
+      readLink.href = lessonLink.href;
+      readLink.textContent = "Read lesson ↗";
+      const demoButton = document.createElement("button");
+      demoButton.className = "card-demo";
+      demoButton.type = "button";
+      demoButton.dataset.planner = planner.id;
+      demoButton.setAttribute("aria-label", `Show ${planner.title} in the simulator`);
+      demoButton.textContent = "Try it";
+      actions.append(readLink, demoButton);
+      footer.append(principle, actions);
+      card.append(top, heading, description, footer);
       grid.append(card);
     }
     document.querySelector("#catalog-count").textContent = `Showing ${visible.length} of ${planners.length} planners`;

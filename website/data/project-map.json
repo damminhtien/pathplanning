@@ -1,0 +1,158 @@
+{
+  "id": "pathplanning",
+  "label": "pathplanning",
+  "type": "root",
+  "summary": "A Python motion-planning toolkit: describe a world, choose a planner, validate a route, and learn from the result.",
+  "children": [
+    {
+      "id": "agent-loop",
+      "label": "The agent loop",
+      "type": "concept",
+      "summary": "An autonomous agent observes a world, builds a planning problem, chooses a route, checks it, moves, then observes again.",
+      "children": [
+        {"id": "observe", "label": "Observe", "type": "concept", "summary": "Read the map or state the agent currently knows. The world model may become stale after the robot moves."},
+        {"id": "model", "label": "Model the problem", "type": "concept", "summary": "Choose states, legal actions, motion rules, costs, and goal conditions. These choices define what a planner can know."},
+        {"id": "plan", "label": "Plan", "type": "concept", "summary": "Select a supported algorithm that fits the graph, robot, timing rules, and number of agents."},
+        {"id": "validate", "label": "Validate", "type": "concept", "summary": "Check endpoints, legal motions, collisions, timing, and objective cost with the problem's independent rules."},
+        {"id": "act", "label": "Act", "type": "concept", "summary": "Execute a safe part of the route. The planner returns a path; a controller decides how to follow it."},
+        {"id": "replan", "label": "Observe again", "type": "concept", "summary": "If the world or goal changes, decide whether the old plan is still valid or a new planning call is needed."}
+      ]
+    },
+    {
+      "id": "problem-models",
+      "label": "Worlds & problem models",
+      "type": "domain",
+      "summary": "Algorithms operate on a model of states and legal moves, not on a picture of the real world.",
+      "path": "pathplanning/core/contracts.py",
+      "children": [
+        {
+          "id": "discrete-worlds",
+          "label": "Discrete graphs",
+          "type": "domain",
+          "summary": "A graph exposes nodes, neighbors, and edge costs. Grid worlds are one useful graph representation.",
+          "path": "pathplanning/core/contracts.py",
+          "children": [
+            {"id": "grid-2d", "label": "Grid2DSearchSpace", "type": "module", "summary": "A reference graph for 2D cell movement, corner rules, and optional terrain costs.", "path": "pathplanning/spaces/grid2d.py"},
+            {"id": "grid-3d", "label": "3D grids", "type": "module", "summary": "Voxel worlds expose 3D cell neighbors and their movement costs.", "path": "pathplanning/spaces/grid3d.py"},
+            {"id": "graph-weights", "label": "Costs & heuristics", "type": "concept", "summary": "Edge costs say what a move costs; a heuristic estimates remaining cost and has algorithm-specific correctness rules."}
+          ]
+        },
+        {
+          "id": "continuous-worlds",
+          "label": "Continuous spaces",
+          "type": "domain",
+          "summary": "A space can sample free states, check motions, measure distance, and steer between states.",
+          "path": "pathplanning/core/contracts.py",
+          "children": [
+            {"id": "continuous-2d-3d-nd", "label": "2D · 3D · N-D", "type": "module", "summary": "Spaces represent configurations in two dimensions, three dimensions, or a general state vector.", "path": "pathplanning/spaces/continuous_nd.py"},
+            {"id": "obstacles", "label": "Obstacles & motion checks", "type": "concept", "summary": "A state may be valid while the motion between two valid states still collides with an obstacle."},
+            {"id": "goals", "label": "Goal regions", "type": "concept", "summary": "A goal can be an exact state or a region that contains many acceptable states.", "path": "pathplanning/core/contracts.py"}
+          ]
+        },
+        {
+          "id": "kinodynamic-worlds",
+          "label": "Vehicles & motion primitives",
+          "type": "domain",
+          "summary": "Some robots can only move through trajectories allowed by their steering, speed, and acceleration limits.",
+          "path": "pathplanning/spaces/ackermann_grid.py",
+          "children": [
+            {"id": "ackermann", "label": "Ackermann / SE(2)", "type": "module", "summary": "Vehicle states include position and heading; motions must respect steering and body-size constraints.", "path": "pathplanning/spaces/ackermann_grid.py"},
+            {"id": "state-lattice-space", "label": "State lattice", "type": "module", "summary": "A finite set of sampled local-frame motion primitives defines the allowed local moves.", "path": "pathplanning/spaces/state_lattice.py"},
+            {"id": "kinodynamic", "label": "Dynamics & time", "type": "concept", "summary": "Velocity and acceleration affect which motions can be followed and where the robot may safely wait."}
+          ]
+        },
+        {
+          "id": "temporal-worlds",
+          "label": "Time & safe intervals",
+          "type": "domain",
+          "summary": "A location can be safe at one time and blocked at another. Timed edges have durations; blocked intervals define when movement is unsafe.",
+          "path": "pathplanning/planners/temporal/sipp.py"
+        },
+        {
+          "id": "multi-agent-worlds",
+          "label": "Several agents",
+          "type": "domain",
+          "summary": "Plans must account for the team moving together, including vertex conflicts and edge-swap conflicts.",
+          "path": "pathplanning/planners/multi_agent"
+        }
+      ]
+    },
+    {
+      "id": "planner-atlas",
+      "label": "Planner atlas · 37 algorithms",
+      "type": "planner-collection",
+      "summary": "The registry is the supported planner surface. Use the atlas to compare each planner's idea, limits, and project-specific contract.",
+      "path": "SUPPORTED_ALGORITHMS.md",
+      "childrenFrom": "plannerKinds"
+    },
+    {
+      "id": "public-api",
+      "label": "Public API & contracts",
+      "type": "architecture",
+      "summary": "Typed problem contracts, registry dispatch, planner parameters, result objects, and optional trace callbacks form the public boundary.",
+      "path": "pathplanning/api.py",
+      "children": [
+        {"id": "api", "label": "Planning entry points", "type": "module", "summary": "Public calls validate a problem and dispatch to its registered planner.", "path": "pathplanning/api.py"},
+        {"id": "registry", "label": "Planner registry", "type": "module", "summary": "The registry declares supported IDs, problem kinds, and callable adapters.", "path": "pathplanning/registry.py"},
+        {"id": "contracts", "label": "Problem contracts", "type": "module", "summary": "DiscreteProblem and ContinuousProblem describe the world, start, goal, and optional settings.", "path": "pathplanning/core/contracts.py"},
+        {"id": "parameters", "label": "Parameters & results", "type": "module", "summary": "Planner settings and PlanResult keep behavior, stop reasons, metrics, and paths explicit.", "path": "pathplanning/core/params.py"},
+        {"id": "tracing", "label": "Trace callbacks", "type": "module", "summary": "Opt-in trace events expose selected planning progress without loading visualization at import time.", "path": "pathplanning/core/trace.py"}
+      ]
+    },
+    {
+      "id": "engines",
+      "label": "Python ↔ native engines",
+      "type": "architecture",
+      "summary": "Python owns the API contracts and adapters. Native engines own the hot search and sampling loops behind a documented ABI.",
+      "path": "docs/native_core.md",
+      "children": [
+        {"id": "python-adapters", "label": "Python validation & adapters", "type": "module", "summary": "Validate inputs, prepare native models, adapt results, and keep custom callback use explicit.", "path": "pathplanning/planners"},
+        {"id": "ffi", "label": "C ABI / FFI", "type": "module", "summary": "Private ctypes declarations connect Python data layouts to native functions.", "path": "pathplanning/native/_ffi.py"},
+        {"id": "cpp-search", "label": "C++ graph search", "type": "module", "summary": "Native discrete graph and kinodynamic search engines own frontiers, search state, and CSR data.", "path": "pathplanning/native/search_engine.cpp"},
+        {"id": "c-sampling", "label": "C sampling engine", "type": "module", "summary": "Native sampling kernels own planner expansion, tree storage, edge queues, and built-in collision work.", "path": "pathplanning/native/continuous_engine.c"},
+        {"id": "abi", "label": "ABI, ownership & errors", "type": "module", "summary": "Versioning and ownership rules keep native layouts and Python declarations aligned.", "path": "docs/native_abi.md"},
+        {"id": "native-metrics", "label": "Metrics & replay traces", "type": "module", "summary": "Native metrics and trace interfaces expose measured work and selected search events.", "path": "pathplanning/native/trace_engine.h"}
+      ]
+    },
+    {
+      "id": "geometry-foundations",
+      "label": "Geometry & data structures",
+      "type": "architecture",
+      "summary": "Reusable geometric curves, nearest-neighbor indexes, queues, and tree storage support multiple planner families.",
+      "path": "pathplanning/geometry",
+      "children": [
+        {"id": "curves", "label": "Curves & vehicle paths", "type": "module", "summary": "Bezier, B-spline, cubic, polynomial, Dubins, and Reeds-Shepp path tools.", "path": "pathplanning/geometry"},
+        {"id": "nearest-neighbors", "label": "Nearest-neighbor indexes", "type": "module", "summary": "Sampling planners use reusable nearest-neighbor support for large sets of states.", "path": "pathplanning/nn"},
+        {"id": "queues", "label": "Queues & priority queues", "type": "module", "summary": "FIFO, LIFO, and priority queues organize frontier work for search algorithms.", "path": "pathplanning/utils/priority_queue.py"},
+        {"id": "tree-array", "label": "Tree storage", "type": "module", "summary": "Array-backed tree structures keep large sampled search trees compact.", "path": "pathplanning/data_structures/tree_array.py"}
+      ]
+    },
+    {
+      "id": "evidence",
+      "label": "Datasets & evaluation",
+      "type": "evaluation",
+      "summary": "The project records separate benchmark cohorts and checks routes against problem-specific correctness oracles.",
+      "path": "docs/benchmark_contract.md",
+      "children": [
+        {"id": "dataset-catalog", "label": "Dataset inventory", "type": "evaluation", "summary": "MovingAI, BARN, Monash, OMPL, and DIMACS collections have different world models and data lineage.", "path": "scripts/benchmark_datasets/catalog.py"},
+        {"id": "benchmark-contracts", "label": "Frozen protocols", "type": "evaluation", "summary": "Inputs, versions, hashes, seeds, and workload selection are recorded before runs.", "path": "docs/benchmark_contract.md"},
+        {"id": "correctness-oracles", "label": "Independent route checks", "type": "evaluation", "summary": "Validate endpoints, collisions, legal transitions, timing, and reconstructed cost with an independent check."},
+        {"id": "measures", "label": "What gets measured", "type": "evaluation", "summary": "Keep solved coverage beside latency, path quality, work counters, memory, timeouts, and missing results."},
+        {"id": "cohort-boundaries", "label": "Keep cohorts separate", "type": "evaluation", "summary": "Grid, road-graph, voxel, temporal, and continuous workloads use different costs and correctness rules; they are not one leaderboard."}
+      ]
+    },
+    {
+      "id": "visualize-test",
+      "label": "Visualization, examples & tests",
+      "type": "learning",
+      "summary": "Learn by watching a route, try the API in examples, and use focused tests to check contracts and regressions.",
+      "path": "pathplanning/viz",
+      "children": [
+        {"id": "viz", "label": "Render · replay · inspect", "type": "module", "summary": "Visualization stays optional and is loaded through explicit rendering or replay calls.", "path": "pathplanning/viz"},
+        {"id": "examples", "label": "Runnable examples", "type": "learning", "summary": "Small examples show custom worlds, planner calls, and rendered routes.", "path": "examples"},
+        {"id": "tests", "label": "Contract & regression tests", "type": "learning", "summary": "Focused tests cover public contracts, search behavior, native ABI, benchmarks, and visualization.", "path": "tests"},
+        {"id": "docs", "label": "Project guides", "type": "learning", "summary": "Architecture, planner support, native boundaries, and benchmark rules live in versioned documentation.", "path": "docs"}
+      ]
+    }
+  ]
+}
