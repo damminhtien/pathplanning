@@ -7,6 +7,7 @@ const REVEAL_GROUPS = [
   [".loop-copy, .loop-diagram", false],
   [".section-heading", false],
   [".application-card", true],
+  [".environment-preview", true],
   [".workbench, .under-note, .catalog-controls, .catalog-count", false],
   [".inventory-head", false],
   [".dataset-card", true],

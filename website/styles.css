@@ -176,6 +176,14 @@ h1 { max-width: 700px; margin-bottom: 22px; font-size: clamp(43px, 6.4vw, 76px);
 h2 { margin-bottom: 0; font-size: clamp(30px, 4vw, 45px); line-height: 1.13; letter-spacing: -.05em; font-weight: 720; }
 .section-intro { max-width: 365px; margin: 0 0 3px; color: #9caac0; font-size: 13px; line-height: 1.65; }
 
+.environment-preview-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-bottom: 20px; }
+.environment-preview { min-width: 0; padding: 11px; border: 1px solid var(--line); border-radius: 15px; background: var(--panel); box-shadow: 0 10px 28px rgba(20, 43, 68, .06); }
+.environment-preview-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin-bottom: 9px; }
+.environment-preview-heading h3 { margin: 0; color: var(--text); font-family: var(--reading-font, Georgia, serif); font-size: 15px; line-height: 1.2; }
+.environment-preview-heading span { color: var(--quiet); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 8px; letter-spacing: .1em; }
+.environment-preview canvas { display: block; width: 100%; aspect-ratio: 1.8; border: 1px solid rgba(116, 155, 194, .2); border-radius: 10px; background: #101b2b; }
+.environment-preview p { margin: 9px 1px 1px; color: var(--muted); font-family: var(--reading-font, Georgia, serif); font-size: 12px; line-height: 1.45; }
+
 .workbench { overflow: hidden; border: 1px solid rgba(163, 195, 226, .16); border-radius: var(--radius); background: #0e1525; box-shadow: 0 20px 55px rgba(0, 0, 0, .2); }
 .workbench-top { display: flex; align-items: end; justify-content: space-between; gap: 20px; padding: 19px 21px; border-bottom: 1px solid var(--line); background: rgba(255, 255, 255, .018); }
 .select-wrap { display: grid; gap: 6px; min-width: 220px; }
@@ -391,6 +399,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 @media (max-width: 980px) {
   .hero { gap: 32px; padding-top: 72px; }
   .hero-art { min-height: 280px; }
+  .environment-preview-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .workbench-body { grid-template-columns: minmax(0, 1.4fr) minmax(230px, .8fr); }
   .algorithm-note { padding: 22px 18px; }
   .planner-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -422,6 +431,12 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
   .section-heading { display: block; margin-bottom: 27px; }
   .section-intro { margin-top: 13px; font-size: 12px; }
   h2 { font-size: clamp(30px, 8vw, 41px); }
+  .environment-preview-grid { gap: 9px; margin-bottom: 15px; }
+  .environment-preview { padding: 8px; border-radius: 12px; }
+  .environment-preview-heading { align-items: flex-start; flex-direction: column; gap: 3px; margin-bottom: 7px; }
+  .environment-preview-heading h3 { font-size: 13px; }
+  .environment-preview-heading span { font-size: 7px; }
+  .environment-preview p { margin-top: 7px; font-size: 11px; }
   .workbench-top { align-items: stretch; flex-direction: column; padding: 15px; }
   .select-wrap { min-width: 0; }
   .select-wrap select { max-width: none; width: 100%; }

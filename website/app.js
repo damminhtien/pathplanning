@@ -2,6 +2,7 @@
 
 import { createCatalog } from "./scripts/catalog.js";
 import { startApplicationScenes } from "./scripts/applications.js";
+import { startEnvironmentPreviews } from "./scripts/environment-previews.js";
 import { startLandingMotion } from "./scripts/landing-motion.js";
 import { createSimulator } from "./scripts/simulator.js";
 
@@ -34,6 +35,7 @@ async function startLearningLab() {
   if (isDemoMode) document.documentElement.classList.add("demo-mode");
 
   const simulator = createSimulator(planners, initialPlanner, isDemoMode);
+  startEnvironmentPreviews(planners);
   createCatalog(planners, simulator.setPlanner);
 }
 
