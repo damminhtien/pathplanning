@@ -39,7 +39,6 @@ h1 { color: #172d47; }
 .eyebrow { color: #2f6fa9; }
 .eyebrow-dot { background: #4e91ce; box-shadow: 0 0 14px rgb(84 149 206 / 45%); }
 .hero-lede, .hero-note { color: #576d83; }
-.hero-note span { color: #3479b8; }
 .button-primary { color: #ffffff; background: #2f70ad; box-shadow: 0 7px 24px rgb(47 112 173 / 18%); }
 .button-primary:hover { background: #235c93; }
 .button-quiet, .button-outline { border-color: #cfdae6; color: #36526e; background: rgb(255 255 255 / 72%); }
@@ -65,7 +64,6 @@ h1 { color: #172d47; }
 .loop-kicker, .loop-step small { color: #536b83; }
 .loop-step span, .loop-return { color: #3378b4; }
 .loop-step b { color: #253e58; }
-.loop-arrow { color: #90a5b8; }
 .section-intro { color: #61768b; }
 .workbench { border-color: #a9bfd5; background: #142f4d; box-shadow: 0 18px 48px rgb(25 53 82 / 16%); }
 .workbench-top { border-color: rgb(186 208 231 / 17%); background: #193a5d; }
@@ -91,7 +89,6 @@ h1 { color: #172d47; }
 .algorithm-note .question-label { color: #f0c58e; }
 .algorithm-note .observe-copy { color: #edf4fb; }
 .note-metric { border-color: rgb(132 189 235 / 28%); color: #c8e2f7; background: rgb(106 167 222 / 11%); }
-.metric-icon { color: #a2d0f6; }
 .algorithm-note .simulation-disclaimer { color: #a4b7ca; }
 .under-note { color: #62788d; }
 .under-note b { color: #315d84; }
@@ -107,7 +104,6 @@ h1 { color: #172d47; }
 .planner-card { border-color: #d9e3ed; background: linear-gradient(150deg, #fff, #f2f7fc); }
 .planner-card:hover { border-color: #8eb8df; background: linear-gradient(150deg, #fff, #eaf4fd); }
 .planner-family { color: #6e8297; }
-.planner-mark { border-color: #c4dced; color: #347ab9; background: #edf6fd; }
 .planner-card p { color: #5a6f84; }
 .planner-card-footer { border-color: #e1e8ef; }
 .planner-principle { color: #5d7892; }
@@ -122,7 +118,7 @@ h1 { color: #172d47; }
 .big-label { color: #36516d; }
 .big-label small, .inventory-head > p { color: #687d91; }
 .dataset-card { border-color: #d9e3ed; background: #fff; }
-.dataset-icon { color: #347ab9; background: #edf6fd; }
+.dataset-type { color: #597995; }
 .dataset-count { color: #60768c; }
 .dataset-card p { color: #5e7287; }
 .dataset-bar { background: #e5edf4; }
@@ -151,7 +147,6 @@ h1 { color: #172d47; }
 .art-report i:nth-child(3) { border-color: rgb(201 135 67 / 60%); }
 .method-step p, .metric-cards p { color: #63788c; }
 .metric-cards article { border-color: #d9e3ed; background: #fff; }
-.metric-symbol { border-color: #c5dcec; color: #347ab9; }
 .evaluation-footnote { border-color: rgb(201 135 67 / 55%); color: #5f7182; background: #f7f2e9; }
 .evaluation-footnote b { color: #304a63; }
 .closing-section { border-color: #cfdeec; background: radial-gradient(ellipse at 79% 49%, rgb(102 160 210 / 12%), transparent 35%), #eaf3fb; }

@@ -84,13 +84,14 @@
     <title>Motion Planning, Made Visible | 37 Robot Algorithms | Pathplanning</title>
     <link rel="stylesheet" href="styles.css" />
     <link rel="stylesheet" href="theme.css" />
+    <script>window.MathJax = {tex: {inlineMath: [["\\(", "\\)"], ["\\[", "\\]"]]}};</script>
+    <script async id="mathjax-script" src="https://cdn.jsdelivr.net/npm/mathjax@4/tex-chtml.js"></script>
     <script src="app.js" defer></script>
   </head>
   <body>
     <a class="skip-link" href="#main">Skip to content</a>
     <header class="topbar">
-      <a class="brand" href="#top" aria-label="Pathplanning Learning Lab — home">
-        <span class="brand-mark" aria-hidden="true">↗</span>
+      <a class="brand" href="#top" aria-label="Pathplanning Learning Lab home">
         <span>path<span class="brand-accent">planning</span></span>
       </a>
       <nav aria-label="Main navigation">
@@ -98,7 +99,7 @@
         <a href="#algorithms">Algorithms</a>
         <a href="#evaluation">Evaluation</a>
         <a href="mindmap/">Project map</a>
-        <a class="nav-github" href="https://github.com/damminhtien/pathplanning" target="_blank" rel="noreferrer">GitHub ↗</a>
+        <a class="nav-github" href="https://github.com/damminhtien/pathplanning" target="_blank" rel="noreferrer">GitHub</a>
       </nav>
     </header>
 
@@ -112,14 +113,14 @@
             turns a destination into safe motion.
           </p>
           <div class="hero-actions">
-            <a class="button button-primary" href="#playground">Start exploring <span aria-hidden="true">↓</span></a>
-            <a class="button button-quiet" href="https://github.com/damminhtien/pathplanning/blob/main/README.md" target="_blank" rel="noreferrer">Explore the code ↗</a>
+            <a class="button button-primary" href="#playground">Start exploring</a>
+            <a class="button button-quiet" href="https://github.com/damminhtien/pathplanning/blob/main/README.md" target="_blank" rel="noreferrer">Explore the code</a>
           </div>
-          <div class="hero-note"><span aria-hidden="true">✳</span> Pick a planner. Watch its idea unfold. See how it is evaluated.</div>
+          <div class="hero-note">Pick a planner. Watch its idea unfold. See how it is evaluated.</div>
         </div>
 
         <div class="hero-art" aria-hidden="true">
-          <div class="art-caption"><span>MISSION 008</span><span>PLAN · MOVE · REPLAN</span></div>
+          <div class="art-caption"><span>MISSION 008</span><span>PLAN, MOVE, REPLAN</span></div>
           <div class="art-grid">
             <i class="wall wall-a"></i><i class="wall wall-b"></i><i class="wall wall-c"></i>
             <i class="wall wall-d"></i><i class="wall wall-e"></i>
@@ -134,7 +135,7 @@
               </g>
             </svg>
           </div>
-          <div class="art-footer"><span>START <b>01</b></span><span>GOAL <b>∞</b></span></div>
+          <div class="art-footer"><span>START <b>01</b></span><span>GOAL</span></div>
           <span class="orbit orbit-one"></span><span class="orbit orbit-two"></span>
         </div>
 
@@ -150,11 +151,8 @@
         <div class="loop-inner">
           <span class="loop-kicker">THE AGENT LOOP</span>
           <div class="loop-step"><span>01</span><b>Observe</b><small>World as it is</small></div>
-          <span class="loop-arrow" aria-hidden="true">→</span>
           <div class="loop-step"><span>02</span><b>Plan</b><small>A feasible route</small></div>
-          <span class="loop-arrow" aria-hidden="true">→</span>
           <div class="loop-step"><span>03</span><b>Act</b><small>Move a little</small></div>
-          <span class="loop-arrow loop-return" aria-hidden="true">↺</span>
           <div class="loop-step"><span>04</span><b>Check again</b><small>Did the world change?</small></div>
         </div>
       </section>
@@ -175,7 +173,7 @@
               <select id="planner-select" aria-describedby="simulation-disclaimer"></select>
             </div>
             <div class="workbench-actions">
-              <button class="control-button control-primary" id="play-button" type="button"><span aria-hidden="true">▶</span> Run</button>
+              <button class="control-button control-primary" id="play-button" type="button">Run</button>
               <button class="control-button" id="step-button" type="button">Step</button>
               <button class="control-button" id="reset-button" type="button">Reset</button>
               <button class="control-button control-change" id="change-button" type="button" hidden>Change map</button>
@@ -186,7 +184,7 @@
             <div class="canvas-panel">
               <div class="canvas-toolbar">
                 <span class="canvas-live"><i></i><span id="simulation-status">Ready</span></span>
-                <span id="simulation-mode">GRID MAP · 2D</span>
+                <span id="simulation-mode">GRID MAP, 2D</span>
               </div>
               <canvas id="sim-canvas" width="900" height="500" aria-label="Concept animation for the selected motion-planning algorithm"></canvas>
               <div class="canvas-legend" id="canvas-legend">
@@ -200,7 +198,7 @@
               <div class="note-separator"></div>
               <p class="question-label">LOOK FOR</p>
               <p id="planner-observe" class="observe-copy"></p>
-              <div class="note-metric"><span class="metric-icon" aria-hidden="true">◎</span><span id="planner-tradeoff"></span></div>
+              <div class="note-metric"><span id="planner-tradeoff"></span></div>
               <p class="simulation-disclaimer" id="simulation-disclaimer">These are browser-based concept animations, not executions of the Python/C++ library or measured performance results.</p>
             </aside>
           </div>
@@ -224,7 +222,7 @@
             <button class="filter-chip" type="button" data-filter="temporal">Time-aware <span>3</span></button>
             <button class="filter-chip" type="button" data-filter="multi_agent">Multi-agent <span>2</span></button>
           </div>
-          <label class="search-box"><span aria-hidden="true">⌕</span><span class="sr-only">Search planners</span><input id="planner-search" type="search" placeholder="Find an algorithm or idea…" autocomplete="off" /></label>
+          <label class="search-box"><span class="sr-only">Search planners</span><input id="planner-search" type="search" placeholder="Find an algorithm or idea" autocomplete="off" /></label>
         </div>
         <p class="catalog-count" id="catalog-count" aria-live="polite">Showing 37 planners</p>
         <div class="planner-grid" id="planner-grid"></div>
@@ -242,15 +240,15 @@
           </div>
 
           <div class="inventory-head">
-            <div><span class="big-number">1,297</span><span class="big-label">catalogued data entries<br /><small>inventory snapshot · 08 Oct 2026</small></span></div>
+            <div><span class="big-number">1,297</span><span class="big-label">catalogued data entries<br /><small>inventory snapshot, 08 Oct 2026</small></span></div>
             <p>This is the number of entries discovered across five sources. Some entries are mirrors or configurations, so the total is not 1,297 independent worlds.</p>
           </div>
           <div class="dataset-grid" id="dataset-grid">
-            <article class="dataset-card" data-family="MovingAI"><div class="dataset-top"><span class="dataset-icon">▦</span><span class="dataset-count">853 entries</span></div><h3>MovingAI</h3><p>Game, street, maze, terrain, and 3D voxel maps.</p><div class="dataset-bar"><i style="--bar:66%"></i></div><small>809 current 2D maps · 44 3D maps</small></article>
-            <article class="dataset-card" data-family="BARN"><div class="dataset-top"><span class="dataset-icon">◉</span><span class="dataset-count">300 entries</span></div><h3>BARN</h3><p>Cylinder-obstacle scenes for mobile robot planning.</p><div class="dataset-bar"><i style="--bar:23%"></i></div><small>300 static worlds</small></article>
-            <article class="dataset-card" data-family="Monash"><div class="dataset-top"><span class="dataset-icon">◇</span><span class="dataset-count">90 entries</span></div><h3>Monash</h3><p>Voxel maps from game levels, sandstone, and plants.</p><div class="dataset-bar"><i style="--bar:7%"></i></div><small>46 new maps · 44 older Warframe mirrors</small></article>
-            <article class="dataset-card" data-family="OMPL"><div class="dataset-top"><span class="dataset-icon">⌘</span><span class="dataset-count">29 entries</span></div><h3>OMPL</h3><p>Robot configurations and geometric problem definitions.</p><div class="dataset-bar"><i style="--bar:3%"></i></div><small>25 configurations · 4 geometric demos</small></article>
-            <article class="dataset-card" data-family="DIMACS"><div class="dataset-top"><span class="dataset-icon">⌁</span><span class="dataset-count">25 entries</span></div><h3>DIMACS</h3><p>Directed road graphs with weights and parallel arcs.</p><div class="dataset-bar"><i style="--bar:2%"></i></div><small>12 networks × distance/time · Rome99</small></article>
+            <article class="dataset-card" data-family="MovingAI"><div class="dataset-top"><span class="dataset-type">GRID AND VOXEL MAPS</span><span class="dataset-count">853 entries</span></div><h3>MovingAI</h3><p>Game, street, maze, terrain, and 3D voxel maps.</p><div class="dataset-bar"><i style="--bar:66%"></i></div><small>809 current 2D maps, 44 3D maps</small></article>
+            <article class="dataset-card" data-family="BARN"><div class="dataset-top"><span class="dataset-type">ROBOT SIMULATION</span><span class="dataset-count">300 entries</span></div><h3>BARN</h3><p>Cylinder-obstacle scenes for mobile robot planning.</p><div class="dataset-bar"><i style="--bar:23%"></i></div><small>300 static worlds</small></article>
+            <article class="dataset-card" data-family="Monash"><div class="dataset-top"><span class="dataset-type">3D VOXEL MAPS</span><span class="dataset-count">90 entries</span></div><h3>Monash</h3><p>Voxel maps from game levels, sandstone, and plants.</p><div class="dataset-bar"><i style="--bar:7%"></i></div><small>46 new maps, 44 older Warframe mirrors</small></article>
+            <article class="dataset-card" data-family="OMPL"><div class="dataset-top"><span class="dataset-type">ROBOT MODELS</span><span class="dataset-count">29 entries</span></div><h3>OMPL</h3><p>Robot configurations and geometric problem definitions.</p><div class="dataset-bar"><i style="--bar:3%"></i></div><small>25 configurations, 4 geometric demos</small></article>
+            <article class="dataset-card" data-family="DIMACS"><div class="dataset-top"><span class="dataset-type">ROAD NETWORKS</span><span class="dataset-count">25 entries</span></div><h3>DIMACS</h3><p>Directed road graphs with weights and parallel arcs.</p><div class="dataset-bar"><i style="--bar:2%"></i></div><small>12 networks for distance and time, Rome99</small></article>
           </div>
           <p class="chart-caption">Bars show each source's share of the 1,297 catalog entries. They do not show difficulty or benchmark weight.</p>
 
@@ -258,18 +256,18 @@
             <div class="campaign-intro">
               <p class="eyebrow">RECORDED EVALUATION CAMPAIGNS</p>
               <strong>226,255</strong>
-              <span>observations · 12 separate cohorts</span>
+              <span>observations across 12 separate cohorts</span>
               <p>Snapshot dated 09 Oct 2026. Detailed raw results are generated under the benchmark folder, which is excluded from Git; this page summarizes the coverage documented in the project.</p>
-              <a class="text-link" href="https://github.com/damminhtien/pathplanning/blob/main/docs/benchmarks/dataset_characterization.md#completed-campaign-coverage-2026-10-09" target="_blank" rel="noreferrer">Read the coverage notes ↗</a>
+              <a class="text-link" href="https://github.com/damminhtien/pathplanning/blob/main/docs/benchmarks/dataset_characterization.md#completed-campaign-coverage-2026-10-09" target="_blank" rel="noreferrer">Read the coverage notes</a>
             </div>
             <div class="campaign-highlights">
-              <article><span class="cohort-tag">MOVINGAI · GRIDS</span><h3>3,363 queries</h3><p>Selected across 789 eligible land maps. Latency covers 788 map/query pairs × 12 variants × 7 measured runs.</p></article>
-              <article><span class="cohort-tag">BARN · GEOMETRY</span><h3>300 worlds</h3><p>14 compatible planners produced 2,673 source-geometry-valid paths and 1,527 no-solution outcomes.</p></article>
-              <article><span class="cohort-tag">DIMACS · ROADS</span><h3>13 of 25 graphs</h3><p>130 optimal and 39 valid suboptimal outcomes; 12 other graphs were recorded as resource-limited.</p></article>
-              <article><span class="cohort-tag">VOXELS · 3D</span><h3>2 distinct maps</h3><p>26 optimal and 6 valid suboptimal outcomes under a strict 26-neighbor oracle.</p></article>
+              <article><span class="cohort-tag">MOVINGAI GRIDS</span><h3>3,363 queries</h3><p>Selected across 789 eligible land maps. Latency covers 788 map and query pairs, 12 variants, and 7 measured runs.</p></article>
+              <article><span class="cohort-tag">BARN GEOMETRY</span><h3>300 worlds</h3><p>14 compatible planners produced 2,673 source-geometry-valid paths and 1,527 no-solution outcomes.</p></article>
+              <article><span class="cohort-tag">DIMACS ROADS</span><h3>13 of 25 graphs</h3><p>130 optimal and 39 valid suboptimal outcomes; 12 other graphs were recorded as resource-limited.</p></article>
+              <article><span class="cohort-tag">3D VOXELS</span><h3>2 distinct maps</h3><p>26 optimal and 6 valid suboptimal outcomes under a strict 26-neighbor oracle.</p></article>
             </div>
           </div>
-          <p class="not-leaderboard"><span aria-hidden="true">ⓘ</span><span><b>Do not combine these into one leaderboard.</b> Directed road graphs, 26-neighbor voxels, grid maps, and continuous robot spaces use different motion models, costs, and correctness oracles.</span></p>
+          <p class="not-leaderboard"><b>Do not combine these into one leaderboard.</b> Directed road graphs, 26-neighbor voxels, grid maps, and continuous robot spaces use different motion models, costs, and correctness oracles.</p>
         </div>
       </section>
 
@@ -290,14 +288,14 @@
         </div>
 
         <div class="metric-cards">
-          <article><span class="metric-symbol">✓</span><h3>Correctness</h3><p>Is the route feasible? Does it reach the exact goal? Does independent cost reconstruction agree?</p></article>
-          <article><span class="metric-symbol">◷</span><h3>Time</h3><p>Report medians and spread on matched workloads; separate setup cost when it matters.</p></article>
-          <article><span class="metric-symbol">⌁</span><h3>Work</h3><p>Expanded nodes, checked edges, and collision checks help explain how a runtime happened.</p></article>
-          <article><span class="metric-symbol">▤</span><h3>Memory</h3><p>Separate peak memory from retained structures, query state, and result output.</p></article>
+          <article><h3>Correctness</h3><p>Is the route feasible? Does it reach the exact goal? Does independent cost reconstruction agree?</p></article>
+          <article><h3>Time</h3><p>Report medians and spread on matched workloads; separate setup cost when it matters.</p></article>
+          <article><h3>Work</h3><p>Expanded nodes, checked edges, and collision checks help explain how a runtime happened.</p></article>
+          <article><h3>Memory</h3><p>Separate peak memory from retained structures, query state, and result output.</p></article>
         </div>
         <div class="evaluation-footnote">
           <b>Keep denominators visible.</b> Success coverage counts eligible workloads selected before planner runs. Conditional latency on commonly solved cases belongs beside full-cohort coverage; repeat runs are not independent queries.
-          <a href="https://github.com/damminhtien/pathplanning/blob/main/docs/shortest_path_benchmark_contract.md" target="_blank" rel="noreferrer">Shortest-path evaluation contract ↗</a>
+          <a href="https://github.com/damminhtien/pathplanning/blob/main/docs/shortest_path_benchmark_contract.md" target="_blank" rel="noreferrer">Shortest-path evaluation contract</a>
         </div>
       </section>
 
@@ -305,19 +303,19 @@
         <div class="section-wrap closing-inner">
           <div><p class="eyebrow">BRING YOUR OWN QUESTION</p><h2>The world changes.<br /><span class="gradient-text">Does the agent adapt?</span></h2><p>Read the API, check the supported planner matrix, or browse examples to keep learning.</p></div>
           <div class="closing-actions">
-            <a class="button button-outline" href="mindmap/">Explore the project map →</a>
-            <a class="button button-primary" href="https://github.com/damminhtien/pathplanning/blob/main/README.md" target="_blank" rel="noreferrer">Get started ↗</a>
-            <a class="button button-outline" href="https://github.com/damminhtien/pathplanning/blob/main/SUPPORTED_ALGORITHMS.md" target="_blank" rel="noreferrer">Supported planners ↗</a>
-            <a class="button button-outline" href="https://github.com/damminhtien/pathplanning/tree/main/examples" target="_blank" rel="noreferrer">Browse examples ↗</a>
+            <a class="button button-outline" href="mindmap/">Explore the project map</a>
+            <a class="button button-primary" href="https://github.com/damminhtien/pathplanning/blob/main/README.md" target="_blank" rel="noreferrer">Get started</a>
+            <a class="button button-outline" href="https://github.com/damminhtien/pathplanning/blob/main/SUPPORTED_ALGORITHMS.md" target="_blank" rel="noreferrer">Supported planners</a>
+            <a class="button button-outline" href="https://github.com/damminhtien/pathplanning/tree/main/examples" target="_blank" rel="noreferrer">Browse examples</a>
           </div>
         </div>
       </section>
     </main>
 
     <footer class="footer">
-      <a class="brand" href="#top"><span class="brand-mark" aria-hidden="true">↗</span><span>path<span class="brand-accent">planning</span></span></a>
-      <p>Learn how an agent finds a route — then ask whether that route is any good.</p>
-      <a href="https://github.com/damminhtien/pathplanning" target="_blank" rel="noreferrer">Open-source project ↗</a>
+      <a class="brand" href="#top"><span>path<span class="brand-accent">planning</span></span></a>
+      <p>Learn how an agent finds a route. Then ask whether that route is any good.</p>
+      <a href="https://github.com/damminhtien/pathplanning" target="_blank" rel="noreferrer">Open-source project</a>
       <a href="mindmap/">Project mind map</a>
       <small>Animations on this page illustrate algorithm concepts. See the source and documentation for each planner's exact contract.</small>
     </footer>

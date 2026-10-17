@@ -3,7 +3,7 @@
     "id": "bfs",
     "title": "Breadth-First Search",
     "kind": "discrete",
-    "principle": "queue · level by level",
+    "principle": "queue by level",
     "description": "Explores an unweighted graph one layer at a time. It returns the fewest-edge path when every move has the same cost.",
     "observe": "The frontier spreads evenly outward from the start, even when the goal lies in one direction.",
     "tradeoff": "Simple and complete on finite graphs, but it ignores goal direction and edge costs."
@@ -12,7 +12,7 @@
     "id": "dfs",
     "title": "Depth-First Search",
     "kind": "discrete",
-    "principle": "stack · follow a branch",
+    "principle": "stack to follow a branch",
     "description": "Follows one branch as far as it can before backing up. It is useful for reachability, but it does not generally find a shortest path.",
     "observe": "One narrow tendril dives through the maze before nearby alternatives are explored.",
     "tradeoff": "Uses a compact frontier; its route quality can vary sharply with neighbor order."
@@ -21,7 +21,7 @@
     "id": "greedy_best_first",
     "title": "Greedy Best-First",
     "kind": "discrete",
-    "principle": "prioritize h(n)",
+    "principle": "prioritize \\(h(n)\\)",
     "description": "Ranks frontier nodes by estimated distance to the goal. It is an eager goal seeker that may overlook the cost already paid.",
     "observe": "The search leans toward the goal and can get caught exploring the wrong side of an obstacle.",
     "tradeoff": "Often reaches a goal quickly, with no general shortest-path guarantee."
@@ -30,8 +30,8 @@
     "id": "astar",
     "title": "A*",
     "kind": "discrete",
-    "principle": "f(n) = g(n) + h(n)",
-    "description": "Balances the cost already traveled, g, with a lower-bound estimate to the goal, h. With a suitable admissible heuristic, it can find an optimal path.",
+    "principle": "\\(f(n) = g(n) + h(n)\\)",
+    "description": "Balances the route cost already paid with a lower-bound estimate of the remaining cost. With a suitable admissible heuristic, it can find an optimal path.",
     "observe": "The frontier follows a corridor between the start-cost wave and the goal estimate.",
     "tradeoff": "A useful heuristic can reduce search; memory use can grow with the explored frontier."
   },
@@ -57,7 +57,7 @@
     "id": "dijkstra",
     "title": "Dijkstra",
     "kind": "discrete",
-    "principle": "prioritize g(n)",
+    "principle": "prioritize \\(g(n)\\)",
     "description": "Expands the currently cheapest known route without a goal-directed heuristic. It finds shortest paths with non-negative edge costs.",
     "observe": "A cost wave expands in every direction, reaching nearby cheap cells first.",
     "tradeoff": "Reliable with non-negative costs, though it may explore far beyond the useful corridor."
@@ -66,7 +66,7 @@
     "id": "dstar_lite",
     "title": "D* Lite",
     "kind": "discrete",
-    "principle": "repair g / rhs values",
+    "principle": "repair \\(g / \\mathrm{rhs}\\) values",
     "description": "Reuses search information when edge costs change on a stable graph topology. The planner can move its start and update directed edges between queries.",
     "observe": "After an obstacle appears, the route is repaired around the changed region.",
     "tradeoff": "Useful for repeated replanning; topology changes require a new planner session."
@@ -75,7 +75,7 @@
     "id": "weighted_astar",
     "title": "Weighted A*",
     "kind": "discrete",
-    "principle": "f(n) = g(n) + w·h(n)",
+    "principle": "\\(f(n) = g(n) + w \\cdot h(n)\\)",
     "description": "Gives the goal estimate extra weight so the search can focus more aggressively. Path quality depends on the chosen weight and stopping condition.",
     "observe": "The frontier narrows toward the goal, sometimes accepting a longer detour around a wall.",
     "tradeoff": "Can reach a feasible route sooner, trading away ordinary A* optimality."
@@ -93,7 +93,7 @@
     "id": "anytime_astar",
     "title": "Anytime A*",
     "kind": "discrete",
-    "principle": "find first · improve",
+    "principle": "find a route, then improve it",
     "description": "Runs a sequence of weighted A* searches and keeps the best solution found. Each pass has its own expansion budget; the returned result reports the final incumbent.",
     "observe": "A usable path appears first, then later passes try to shorten it.",
     "tradeoff": "Can provide an early feasible path; total work spans multiple search passes."
@@ -129,7 +129,7 @@
     "id": "lazy_theta_star",
     "title": "Lazy Theta*",
     "kind": "discrete",
-    "principle": "assume · validate later",
+    "principle": "assume first, validate later",
     "description": "Considers candidate any-angle parent shortcuts optimistically, then checks visibility when a node is expanded and repairs blocked shortcuts.",
     "observe": "A promising shortcut appears first; blocked line segments are checked and replaced later.",
     "tradeoff": "Can defer visibility checks; candidate paths must still be validated."
@@ -138,7 +138,7 @@
     "id": "rrt",
     "title": "RRT",
     "kind": "continuous",
-    "principle": "sample · extend",
+    "principle": "sample, then extend",
     "description": "Grows a tree from the start by sampling free-space targets and extending toward them. It is designed to find a feasible route in continuous spaces.",
     "observe": "Branches grow toward scattered samples while obstacle-crossing motions are rejected.",
     "tradeoff": "Good at finding feasible paths in broad spaces; paths are not generally optimal."
@@ -147,7 +147,7 @@
     "id": "rrt_star",
     "title": "RRT*",
     "kind": "continuous",
-    "principle": "extend · rewire",
+    "principle": "extend, then rewire",
     "description": "Adds neighborhood rewiring to RRT so new states can improve nearby parent choices. Its asymptotic behavior depends on the sampling and neighborhood conditions.",
     "observe": "The tree changes its local connections after new samples arrive.",
     "tradeoff": "Extra neighbor checks can improve path quality over time but add computation."
@@ -165,7 +165,7 @@
     "id": "fmt_star",
     "title": "FMT*",
     "kind": "continuous",
-    "principle": "fixed samples · wavefront",
+    "principle": "fixed samples, wavefront search",
     "description": "Plans through a fixed random sample set using a lazy dynamic-programming wavefront. In this project, sample_count defines that fixed set.",
     "observe": "A connected wavefront moves across samples instead of adding a new sample at every step.",
     "tradeoff": "The fixed batch limits the candidate set for that planning call."
@@ -174,7 +174,7 @@
     "id": "prm_star",
     "title": "PRM*",
     "kind": "continuous",
-    "principle": "sample · build roadmap",
+    "principle": "sample, then build a roadmap",
     "description": "Builds a reusable random geometric roadmap, then connects exact query endpoints and searches the graph. Local motions are checked for validity.",
     "observe": "Free samples are joined into a roadmap, then a route is traced through it.",
     "tradeoff": "Roadmap construction can be reused across queries; sample count and connection radius matter."
@@ -183,7 +183,7 @@
     "id": "lazy_prm",
     "title": "Lazy PRM",
     "kind": "continuous",
-    "principle": "query · validate route",
+    "principle": "query first, validate the route",
     "description": "Builds a roadmap with unvalidated candidate edges. It checks only edges on a candidate route, removes blocked ones and searches again.",
     "observe": "Only the current best-looking route is collision-checked; a blocked edge triggers another route search.",
     "tradeoff": "Can avoid checking many unused edges; validation and cache state affect later queries."
@@ -192,7 +192,7 @@
     "id": "ait_star",
     "title": "AIT*",
     "kind": "continuous",
-    "principle": "reverse estimate · forward search",
+    "principle": "reverse estimate, forward search",
     "description": "Uses a reverse search over a finite sampled graph to estimate cost-to-go, then prioritizes forward edge checks. This implementation does not claim the paper's asymptotic-optimality guarantee.",
     "observe": "A goal-side estimate guides which start-side edge is checked next.",
     "tradeoff": "The current implementation uses a finite sample graph and recomputes reverse shortest paths after blocked edges."
@@ -219,7 +219,7 @@
     "id": "fcit_star",
     "title": "FCIT*",
     "kind": "continuous",
-    "principle": "informed edges · batched search",
+    "principle": "informed edges in batches",
     "description": "Orders useful outgoing edges from reached samples in a fully connected sampled graph and restarts over new informed batches while retaining the valid tree.",
     "observe": "An edge queue narrows toward connections that could improve the current path.",
     "tradeoff": "A fully connected batch can create many candidate edges."
@@ -228,7 +228,7 @@
     "id": "rit_star",
     "title": "RIT*",
     "kind": "continuous",
-    "principle": "Riemannian metric · informed batches",
+    "principle": "Riemannian metric with informed batches",
     "description": "Uses a positive-definite metric tensor to price motion and shape sampling or connection neighborhoods for additive Riemannian arc length.",
     "observe": "The search region stretches along directions that are cheaper under the local metric.",
     "tradeoff": "Metric bounds and tensor validity are part of the planning contract."
@@ -237,7 +237,7 @@
     "id": "jit_star",
     "title": "JIT*",
     "kind": "continuous",
-    "principle": "collision-guided · just-in-time",
+    "principle": "collision-guided, just-in-time",
     "description": "Uses collision feedback to focus later samples near failed edges, while retaining nonzero uniform sampling. Its objective can include manipulability.",
     "observe": "A failed motion seeds a focused sampling corridor; exploration still extends beyond it.",
     "tradeoff": "The manipulability objective requires a compatible robot Jacobian."
@@ -264,7 +264,7 @@
     "id": "bit_star",
     "title": "BIT*",
     "kind": "continuous",
-    "principle": "batch samples · ordered edges",
+    "principle": "sample in batches, order edges",
     "description": "Connects batches of samples through an ordered edge search and focuses later batches using the best known solution, under additive Euclidean path length.",
     "observe": "New sample batches appear, then the edge queue prioritizes the most promising connections.",
     "tradeoff": "The exact point-goal, metric and objective restrictions matter for its bounds."
@@ -282,7 +282,7 @@
     "id": "rrt_connect",
     "title": "RRT-Connect",
     "kind": "continuous",
-    "principle": "grow two trees · connect",
+    "principle": "grow two trees, then connect",
     "description": "Grows trees from both start and goal and repeatedly tries to connect them through free space.",
     "observe": "Two branches approach one another until they form a continuous route.",
     "tradeoff": "Often finds feasible paths quickly; it does not generally optimize path length."
@@ -300,10 +300,10 @@
     "id": "bounded_suboptimal_sipp",
     "title": "Bounded-Suboptimal SIPP",
     "kind": "temporal",
-    "principle": "FOCAL within w × best f",
+    "principle": "FOCAL within \\(w \\times f_{\\mathrm{best}}\\)",
     "description": "Keeps states within a weight-bounded band of the best lower-bound estimate and chooses among them by remaining graph distance.",
     "observe": "A slightly later but simpler safe schedule may be selected from the focal band.",
-    "tradeoff": "The w bound is guaranteed only when the search finishes successfully."
+    "tradeoff": "The suboptimality bound holds only when the search finishes successfully."
   },
   {
     "id": "kinodynamic_sipp",

@@ -50,6 +50,6 @@
       <text x="477" y="472">EVALUATION METHODS</text>
     </g>
     <path d="M80 499H560" stroke="#6688a9" stroke-opacity=".25"/>
-    <text x="80" y="539" fill="#6c8197" font-size="15">Search · sampling · time · multi-agent coordination</text>
+    <text x="80" y="539" fill="#6c8197" font-size="15">Search, sampling, time, and multi-agent coordination</text>
   </g>
 </svg>

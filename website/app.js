@@ -32,7 +32,6 @@
     temporal: "TIME-AWARE",
     multi_agent: "MULTI-AGENT",
   };
-  const kindSymbols = { discrete: "▦", continuous: "⤴", temporal: "◷", multi_agent: "⧉" };
   const plannerById = new Map(planners.map((planner) => [planner.id, planner]));
   const gridResults = new Map();
   const canvas = document.querySelector("#sim-canvas");
@@ -44,6 +43,7 @@
   const changeButton = document.querySelector("#change-button");
   const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   const state = { planner: initialPlanner, progress: isDemoMode ? 0 : 0.4, playing: !prefersReducedMotion, changed: false, seed: 7, lastFrame: 0, width: 900, height: 500 };
+  let mathJaxReady;
 
   function fillSelector() {
     const kinds = ["discrete", "continuous", "temporal", "multi_agent"];
@@ -64,7 +64,7 @@
     document.querySelector("#planner-description").textContent = planner.description;
     document.querySelector("#planner-observe").textContent = planner.observe;
     document.querySelector("#planner-tradeoff").textContent = planner.tradeoff;
-    const modes = { discrete: "GRID MAP · 2D", continuous: "CONFIGURATION SPACE", temporal: "SAFE INTERVALS · TIME", multi_agent: "MULTI-AGENT · SPACE/TIME" };
+    const modes = { discrete: "GRID MAP, 2D", continuous: "CONFIGURATION SPACE", temporal: "SAFE INTERVALS, TIME", multi_agent: "MULTI-AGENT, SPACE/TIME" };
     document.querySelector("#simulation-mode").textContent = modes[planner.kind];
     document.querySelector("#canvas-legend").innerHTML = legendFor(planner.kind);
     changeButton.hidden = planner.id !== "dstar_lite";
@@ -99,11 +99,7 @@
       const family = document.createElement("span");
       family.className = "planner-family";
       family.textContent = kindLabels[planner.kind];
-      const mark = document.createElement("span");
-      mark.className = "planner-mark";
-      mark.setAttribute("aria-hidden", "true");
-      mark.textContent = kindSymbols[planner.kind];
-      top.append(family, mark);
+      top.append(family);
 
       const heading = document.createElement("h3");
       const lessonLink = document.createElement("a");
@@ -124,7 +120,7 @@
       const readLink = document.createElement("a");
       readLink.className = "card-lesson";
       readLink.href = lessonLink.href;
-      readLink.textContent = "Read lesson ↗";
+      readLink.textContent = "Read lesson";
       const demoButton = document.createElement("button");
       demoButton.className = "card-demo";
       demoButton.type = "button";
@@ -137,6 +133,7 @@
       grid.append(card);
     }
     document.querySelector("#catalog-count").textContent = `Showing ${visible.length} of ${planners.length} planners`;
+    typesetMath(grid);
   }
 
   function setPlanner(plannerId, shouldScroll = false) {
@@ -154,12 +151,35 @@
   }
 
   function updatePlayButton() {
-    playButton.innerHTML = state.playing ? '<span aria-hidden="true">Ⅱ</span> Pause' : '<span aria-hidden="true">▶</span> Run';
+    playButton.textContent = state.playing ? "Pause" : "Run";
+  }
+
+  function typesetMath(element) {
+    if (!mathJaxReady) {
+      mathJaxReady = new Promise((resolve) => {
+        const startup = window.MathJax?.startup?.promise;
+        if (startup) {
+          startup.then(resolve);
+          return;
+        }
+        document.querySelector("#mathjax-script")?.addEventListener("load", () => {
+          window.MathJax.startup.promise.then(resolve);
+        }, { once: true });
+      });
+    }
+    mathJaxReady.then(async () => {
+      try {
+        window.MathJax.typesetClear([element]);
+        await window.MathJax.typesetPromise([element]);
+      } catch (error) {
+        console.error("Could not typeset planner formulas", error);
+      }
+    });
   }
 
   function updateSimulationStatus() {
     const status = document.querySelector("#simulation-status");
-    if (state.changed && state.planner.id === "dstar_lite") status.textContent = state.playing ? "World changed · repairing route" : "World changed · route repaired";
+    if (state.changed && state.planner.id === "dstar_lite") status.textContent = state.playing ? "World changed, repairing route" : "World changed, route repaired";
     else if (state.progress >= 1) status.textContent = "Illustration complete";
     else if (state.playing) {
       const labels = { discrete: "Exploring the search frontier", continuous: "Sampling and connecting", temporal: "Checking safe time windows", multi_agent: "Resolving path conflicts" };
@@ -400,9 +420,9 @@
     }
     drawGridMarker(originX + (startCell.x + .5) * cell, originY + (startCell.y + .5) * cell, cell, "#83f0cd", "S");
     drawGridMarker(originX + (goalCell.x + .5) * cell, originY + (goalCell.y + .5) * cell, cell, "#ffb875", "G");
-    if (state.planner.id === "dstar_lite" && !state.changed) drawTinyLabel("Press ‘Change map’ to block a route", 15, height - 12, "#c4d0df");
-    if (state.planner.id === "anytime_astar" && state.progress > .68) drawTinyLabel("incumbent → shorter incumbent", width - 194, 17, "#a4edd7");
-    if (state.planner.id.startsWith("bidirectional_")) drawTinyLabel("forward wave   ·   backward wave", width - 196, 17, "#c9bbff");
+    if (state.planner.id === "dstar_lite" && !state.changed) drawTinyLabel('Press "Change map" to block a route', 15, height - 12, "#c4d0df");
+    if (state.planner.id === "anytime_astar" && state.progress > .68) drawTinyLabel("incumbent improves", width - 194, 17, "#a4edd7");
+    if (state.planner.id.startsWith("bidirectional_")) drawTinyLabel("forward and backward waves", width - 196, 17, "#c9bbff");
   }
 
   function drawGridMarker(x, y, cell, color, label) {
@@ -541,8 +561,8 @@
       context.strokeStyle = "rgba(255, 184, 117, .4)"; context.setLineDash([3, 5]); context.stroke(); context.setLineDash([]);
       drawTinyLabel("collision-guided samples", width * .42, height * .23, "#ffc78e");
     }
-    if (planner.id === "abit_star" || planner.id === "bit_star" || planner.id === "fcit_star") drawTinyLabel("BATCH · EDGE QUEUE · INCUMBENT", 15, 19, "#9bb9d8");
-    if (planner.id === "eirm_star") drawTinyLabel("ROADMAP CACHE · reusable valid / blocked edges", 15, 19, "#9bb9d8");
+    if (planner.id === "abit_star" || planner.id === "bit_star" || planner.id === "fcit_star") drawTinyLabel("BATCH, EDGE QUEUE, INCUMBENT", 15, 19, "#9bb9d8");
+    if (planner.id === "eirm_star") drawTinyLabel("ROADMAP CACHE, reusable valid or blocked edges", 15, 19, "#9bb9d8");
     if (planner.id === "rit_star") drawTinyLabel("metric-shaped neighborhood", width * .48, height * .9, "#c2afff");
     drawCandidatePath(start, goal, obstacles, width, height, state.progress);
     drawPoint(start.x, start.y, "#83f0cd", "START");
@@ -623,11 +643,11 @@
     context.beginPath(); context.arc(dot.x, dot.y, 7, 0, Math.PI * 2); context.fillStyle = "#83f0cd"; context.fill();
     context.beginPath(); context.arc(dot.x, dot.y, 13, 0, Math.PI * 2); context.strokeStyle = "rgba(131, 240, 205, .3)"; context.stroke();
     context.fillStyle = "#8697ad"; context.font = "9px ui-monospace, monospace"; context.textAlign = "left";
-    context.fillText("TIME →", left, height - 25);
+    context.fillText("TIME", left, height - 25);
     context.textAlign = "right"; context.fillText("Half-open blocked intervals [start, end)", right, height - 25);
-    if (state.planner.id === "kinodynamic_sipp") drawTinyLabel("wait only at zero speed · v(t) changes along each edge", width * .4, 22, "#c3b1ff");
+    if (state.planner.id === "kinodynamic_sipp") drawTinyLabel("wait only at zero speed; velocity changes along each edge", width * .4, 22, "#c3b1ff");
     else if (state.planner.id === "bounded_suboptimal_sipp") drawTinyLabel("FOCAL: choose within the w-bounded band", width * .48, 22, "#c3b1ff");
-    else drawTinyLabel("wait safely · enter when the next interval opens", width * .47, 22, "#a5efd9");
+    else drawTinyLabel("wait safely; enter when the next interval opens", width * .47, 22, "#a5efd9");
   }
 
   function pathAtProgress(points, progress) {
@@ -665,7 +685,7 @@
       context.font = "700 8px ui-monospace, monospace"; context.textAlign = "center"; context.textBaseline = "middle"; context.fillStyle = "#10202a"; context.fillText(agent.label, position.x, position.y + .4);
     });
     context.textAlign = "left"; context.textBaseline = "alphabetic"; context.fillStyle = "#9aa9bd"; context.font = "9px ui-monospace, monospace";
-    context.fillText(state.planner.id === "eecbs" ? "CONFLICT? → ADD A CONSTRAINT → REPLAN" : "ASSIGN JOINT MOVE → REJECT CONFLICT → CONTINUE", 16, height - 17);
+    context.fillText(state.planner.id === "eecbs" ? "CONFLICT? ADD A CONSTRAINT, THEN REPLAN" : "ASSIGN A JOINT MOVE, CHECK CONFLICTS, CONTINUE", 16, height - 17);
   }
 
   function drawNetworkEdge(a, b) {

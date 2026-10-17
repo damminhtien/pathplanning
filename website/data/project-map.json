@@ -44,7 +44,7 @@
           "summary": "A space can sample free states, check motions, measure distance, and steer between states.",
           "path": "pathplanning/core/contracts.py",
           "children": [
-            {"id": "continuous-2d-3d-nd", "label": "2D · 3D · N-D", "type": "module", "summary": "Spaces represent configurations in two dimensions, three dimensions, or a general state vector.", "path": "pathplanning/spaces/continuous_nd.py"},
+            {"id": "continuous-2d-3d-nd", "label": "2D, 3D, and N-D", "type": "module", "summary": "Spaces represent configurations in two dimensions, three dimensions, or a general state vector.", "path": "pathplanning/spaces/continuous_nd.py"},
             {"id": "obstacles", "label": "Obstacles & motion checks", "type": "concept", "summary": "A state may be valid while the motion between two valid states still collides with an obstacle."},
             {"id": "goals", "label": "Goal regions", "type": "concept", "summary": "A goal can be an exact state or a region that contains many acceptable states.", "path": "pathplanning/core/contracts.py"}
           ]
@@ -79,7 +79,7 @@
     },
     {
       "id": "planner-atlas",
-      "label": "Planner atlas · 37 algorithms",
+      "label": "Planner atlas, 37 algorithms",
       "type": "planner-collection",
       "summary": "The registry is the supported planner surface. Use the atlas to compare each planner's idea, limits, and project-specific contract.",
       "path": "SUPPORTED_ALGORITHMS.md",
@@ -101,7 +101,7 @@
     },
     {
       "id": "engines",
-      "label": "Python ↔ native engines",
+      "label": "Python and native engines",
       "type": "architecture",
       "summary": "Python owns the API contracts and adapters. Native engines own the hot search and sampling loops behind a documented ABI.",
       "path": "docs/native_core.md",
@@ -148,7 +148,7 @@
       "summary": "Learn by watching a route, try the API in examples, and use focused tests to check contracts and regressions.",
       "path": "pathplanning/viz",
       "children": [
-        {"id": "viz", "label": "Render · replay · inspect", "type": "module", "summary": "Visualization stays optional and is loaded through explicit rendering or replay calls.", "path": "pathplanning/viz"},
+        {"id": "viz", "label": "Render, replay, inspect", "type": "module", "summary": "Visualization stays optional and is loaded through explicit rendering or replay calls.", "path": "pathplanning/viz"},
         {"id": "examples", "label": "Runnable examples", "type": "learning", "summary": "Small examples show custom worlds, planner calls, and rendered routes.", "path": "examples"},
         {"id": "tests", "label": "Contract & regression tests", "type": "learning", "summary": "Focused tests cover public contracts, search behavior, native ABI, benchmarks, and visualization.", "path": "tests"},
         {"id": "docs", "label": "Project guides", "type": "learning", "summary": "Architecture, planner support, native boundaries, and benchmark rules live in versioned documentation.", "path": "docs"}

@@ -30,6 +30,33 @@ EXPECTED_FAMILY_COUNTS = {
     "temporal": 3,
     "multi_agent": 2,
 }
+INLINE_TEX = re.compile(r"\\\((?P<inline>.+?)\\\)|\\\[(?P<display>.+?)\\\]", re.DOTALL)
+FORMULA_PATTERNS = (
+    re.compile(r"(?<![A-Za-z])f\s*\(\s*n\s*\)\s*=\s*g\s*\(\s*n\s*\)\s*\+\s*(?:w\s*[·*]\s*)?h\s*\(\s*n\s*\)"),
+    re.compile(r"(?<![A-Za-z])f\s*=\s*g\s*\+\s*h\b"),
+    re.compile(r"(?<![A-Za-z])g\s*\+\s*w\s*[·*]\s*h\b"),
+    re.compile(r"(?<![A-Za-z])g\s*\+\s*h\b"),
+    re.compile(r"(?<![A-Za-z])g\s*/\s*rhs\b"),
+    re.compile(r"(?<![A-Za-z])[fgh]\s*=\s*0\b"),
+    re.compile(r"(?<![A-Za-z])[fgh]\s*=\s*\d+(?:\.\d+)?\b"),
+    re.compile(r"(?<![A-Za-z])w\s*(?:>=|≤|<=|≥)\s*1\b"),
+    re.compile(r"(?<![A-Za-z])w\s*[×*]\s*best\s*f\b"),
+    re.compile(r"(?<![A-Za-z])n\s*\(\s*n\s*[−-]\s*1\s*\)\s*/\s*2\b"),
+    re.compile(r"(?<![A-Za-z])V\s*=\s*W\s*[×*]\s*H\b"),
+    re.compile(r"(?<![A-Za-z])E\s*≈\s*8V\b"),
+    re.compile(r"(?<![A-Za-z])\|V\|\s*\^\s*A\b"),
+    re.compile(r"(?<![A-Za-z])(?:A²T|n²)\b"),
+    re.compile(r"(?<![A-Za-z])wᵢ\b"),
+    re.compile(r"(?<![A-Za-z])[fgh]\s*\(\s*n\s*\)"),
+    re.compile(
+        r"(?<![A-Za-z])[fghw](?=\s+(?:value|values|is|does|estimate|estimates|"
+        r"cost|costs|changes|from|for|and|already|keeps|records|decide|decides|"
+        r"should|must|can|will|may|remains|remain|bound)\b)",
+        re.IGNORECASE,
+    ),
+    re.compile(r"\b(?:estimate|track|multiply|heuristic)\s+(?P<math>[fgh])\b", re.IGNORECASE),
+    re.compile(r"(?<![A-Za-z])rhs\b"),
+)
 FAMILY_LABELS = {
     "discrete": "Grid & graph",
     "continuous": "Continuous space",
@@ -170,6 +197,74 @@ def source_url(path: str) -> str:
     return f"https://github.com/damminhtien/pathplanning/{endpoint}/main/{path}"
 
 
+def _big_o_spans(text: str) -> list[tuple[int, int, str]]:
+    spans = []
+    for match in re.finditer(r"\bO\s*\(", text):
+        opening = text.find("(", match.start())
+        depth = 0
+        for index in range(opening, len(text)):
+            if text[index] == "(":
+                depth += 1
+            elif text[index] == ")":
+                depth -= 1
+                if depth == 0:
+                    spans.append((match.start(), index + 1, text[match.start() : index + 1]))
+                    break
+    return spans
+
+
+def _latex_expression(expression: str) -> str:
+    expression = re.sub(r"\|([A-Za-z])\|\s*\^\s*([A-Za-z0-9]+)", r"\\lvert \1\\rvert^{\2}", expression)
+    expression = re.sub(r"\bbest\s+f\b", lambda _: r"f_{\mathrm{best}}", expression)
+    expression = re.sub(r"\brhs\b", lambda _: r"\mathrm{rhs}", expression)
+    return (
+        expression.replace("·", r"\cdot ")
+        .replace("×", r"\times ")
+        .replace("−", "-")
+        .replace("²", "^2")
+        .replace("ᵢ", "_{i}")
+        .replace("≥", r"\geq ")
+        .replace(">=", r"\geq ")
+        .replace("≤", r"\leq ")
+        .replace("<=", r"\leq ")
+        .replace("≈", r"\approx ")
+    )
+
+
+def render_math_text(value: str) -> str:
+    """Escape plain copy and typeset recognized math as inline LaTeX."""
+    spans: list[tuple[int, int, str, bool]] = []
+    for match in INLINE_TEX.finditer(value):
+        formula = match.group("inline") or match.group("display")
+        spans.append((match.start(), match.end(), formula, match.group("display") is not None))
+
+    protected = [(start, end) for start, end, _, _ in spans]
+    candidates = _big_o_spans(value)
+    for pattern in FORMULA_PATTERNS:
+        for match in pattern.finditer(value):
+            if "math" in match.groupdict():
+                candidates.append((*match.span("math"), match.group("math")))
+            else:
+                candidates.append((match.start(), match.end(), match.group()))
+    for start, end, formula in sorted(candidates, key=lambda item: (item[0], -(item[1] - item[0]))):
+        if any(start < protected_end and end > protected_start for protected_start, protected_end in protected):
+            continue
+        if any(start < existing_end and end > existing_start for existing_start, existing_end, _, _ in spans):
+            continue
+        spans.append((start, end, _latex_expression(formula), False))
+
+    spans.sort(key=lambda item: item[0])
+    rendered = []
+    cursor = 0
+    for start, end, formula, display in spans:
+        rendered.append(html.escape(value[cursor:start]))
+        delimiter = (r"\[" + html.escape(formula) + r"\]") if display else (r"\(" + html.escape(formula) + r"\)")
+        rendered.append(f'<span class="math-expression">{delimiter}</span>')
+        cursor = end
+    rendered.append(html.escape(value[cursor:]))
+    return "".join(rendered)
+
+
 def render_static_catalog(planners: list[dict[str, Any]]) -> str:
     cards = []
     for planner in planners:
@@ -177,14 +272,14 @@ def render_static_catalog(planners: list[dict[str, Any]]) -> str:
         title = html.escape(planner["title"])
         description = html.escape(planner["description"])
         kind = html.escape(FAMILY_LABELS[planner["kind"]])
-        principle = html.escape(planner["principle"])
+        principle = render_math_text(planner["principle"])
         cards.append(
             f'<article class="planner-card"><div class="planner-card-top">'
             f'<span class="planner-family">{kind}</span></div>'
             f'<h3><a class="planner-card-title" href="algorithms/{planner_id}/">{title}</a></h3>'
             f'<p>{description}</p><div class="planner-card-footer">'
             f'<span class="planner-principle">{principle}</span>'
-            f'<a class="card-lesson" href="algorithms/{planner_id}/">Read lesson ↗</a>'
+            f'<a class="card-lesson" href="algorithms/{planner_id}/">Read lesson</a>'
             f'</div></article>'
         )
     return '\n'.join(cards)
@@ -223,21 +318,21 @@ def lesson_page(
             f'<a class="related-card" href="../{html.escape(related_id)}/">'
             f'<span>{html.escape(FAMILY_LABELS[related_planner["kind"]])}</span>'
             f'<strong>{html.escape(related_planner["title"])}</strong>'
-            f'<small>{html.escape(related_planner["principle"])}</small></a>'
+            f'<small>{render_math_text(related_planner["principle"])}</small></a>'
         )
 
     steps = "\n".join(
         f'<li><span class="lesson-step-number">0{index}</span>'
-        f'<p>{html.escape(step)}</p></li>'
+        f'<p>{render_math_text(step)}</p></li>'
         for index, step in enumerate(lesson["steps"], start=1)
     )
     example_steps = "\n".join(
         f'<li><span class="lesson-step-number">0{index}</span>'
-        f'<p>{html.escape(step)}</p></li>'
+        f'<p>{render_math_text(step)}</p></li>'
         for index, step in enumerate(lesson["example"]["steps"], start=1)
     )
     metric_tags = "\n".join(
-        f'<li>{html.escape(metric)}</li>' for metric in lesson["metrics"]
+        f'<li>{render_math_text(metric)}</li>' for metric in lesson["metrics"]
     )
     schema = json_ld(
         {
@@ -302,6 +397,8 @@ def lesson_page(
     <link rel="stylesheet" href="{asset_root}styles.css" />
     <link rel="stylesheet" href="{asset_root}theme.css" />
     <link rel="stylesheet" href="{asset_root}learning.css" />
+    <script>window.MathJax = {{tex: {{inlineMath: [["\\\\(", "\\\\)"], ["\\\\[", "\\\\]"]]}}}};</script>
+    <script async id="mathjax-script" src="https://cdn.jsdelivr.net/npm/mathjax@4/tex-chtml.js"></script>
     <meta property="og:type" content="article" />
     <meta property="article:section" content="{html.escape(FAMILY_LABELS[kind], quote=True)}" />
     <meta property="og:site_name" content="Pathplanning Learning Lab" />
@@ -323,13 +420,12 @@ def lesson_page(
     <a class="skip-link" href="#lesson-main">Skip to lesson</a>
     <header class="learning-topbar">
       <a class="brand" href="{asset_root}" aria-label="Pathplanning Learning Lab home">
-        <span class="brand-mark" aria-hidden="true">↗</span>
         <span>path<span class="brand-accent">planning</span></span>
       </a>
       <nav aria-label="Learning navigation">
         <a href="{asset_root}#algorithms">Algorithm atlas</a>
         <a href="{asset_root}mindmap/">Project mind map</a>
-        <a href="https://github.com/damminhtien/pathplanning" target="_blank" rel="noreferrer">Source ↗</a>
+        <a href="https://github.com/damminhtien/pathplanning" target="_blank" rel="noreferrer">Source</a>
       </nav>
     </header>
     <main id="lesson-main" class="lesson-shell">
@@ -339,11 +435,11 @@ def lesson_page(
         <span aria-current="page">{html.escape(title)}</span>
       </nav>
       <header class="lesson-hero">
-        <div class="lesson-kicker"><span class="family-dot"></span>{html.escape(FAMILY_LABELS[kind])} · LESSON {planner_positions[planner_id]:02d} / 37</div>
+        <div class="lesson-kicker"><span class="family-dot"></span>{html.escape(FAMILY_LABELS[kind])} / LESSON {planner_positions[planner_id]:02d} OF 37</div>
         <h1>{html.escape(title)}</h1>
         <p class="lesson-tagline">{html.escape(lesson["tagline"])}</p>
         <p class="lesson-summary">{html.escape(planner["description"])}</p>
-        <a class="lesson-principle" href="#mechanism"><span>The little rule</span><code>{html.escape(planner["principle"])}</code></a>
+        <a class="lesson-principle" href="#mechanism"><span>The little rule</span><span class="lesson-principle-rule">{render_math_text(planner["principle"])}</span></a>
       </header>
 
       <div class="lesson-layout">
@@ -360,13 +456,13 @@ def lesson_page(
         </aside>
         <article class="lesson-content">
           <section id="big-picture" class="lesson-section">
-            <p class="lesson-section-label">01 · THE BIG PICTURE</p>
+            <p class="lesson-section-label">01. THE BIG PICTURE</p>
             <h2>A route is a chain of choices.</h2>
-            <p>{html.escape(lesson["story"])}</p>
+            <p>{render_math_text(lesson["story"])}</p>
           </section>
 
           <section id="watch" class="lesson-section lesson-watch">
-            <div class="lesson-section-label">02 · WATCH IT THINK</div>
+            <div class="lesson-section-label">02. WATCH IT THINK</div>
             <h2>Follow the idea, one frame at a time.</h2>
             <p>Run the illustration, pause on a decision, or reset it and look again. The colors tell a small story about this planner's search.</p>
             <div class="lesson-demo-frame">
@@ -380,92 +476,92 @@ def lesson_page(
           </section>
 
           <section id="mechanism" class="lesson-section">
-            <p class="lesson-section-label">03 · THE DECISION RULE</p>
+            <p class="lesson-section-label">03. THE DECISION RULE</p>
             <h2>How does it decide what to do next?</h2>
-            <p>{html.escape(lesson["mechanism"])}</p>
+            <p>{render_math_text(lesson["mechanism"])}</p>
             <h3 class="lesson-subheading">The search, in three moves</h3>
             <ol class="lesson-steps">{steps}</ol>
           </section>
 
           <section id="example" class="lesson-section lesson-example">
-            <p class="lesson-section-label">04 · WORK THROUGH AN EXAMPLE</p>
+            <p class="lesson-section-label">04. WORK THROUGH AN EXAMPLE</p>
             <h2>Work through a small case.</h2>
-            <p class="lesson-example-setup">{html.escape(lesson["example"]["setup"])}</p>
+            <p class="lesson-example-setup">{render_math_text(lesson["example"]["setup"])}</p>
             <ol class="lesson-steps lesson-example-steps">{example_steps}</ol>
           </section>
 
           <section id="analysis" class="lesson-section lesson-analysis">
-            <p class="lesson-section-label">05 · ALGORITHM ANALYSIS</p>
+            <p class="lesson-section-label">05. ALGORITHM ANALYSIS</p>
             <h2>What drives time, memory, and guarantees?</h2>
             <p class="analysis-intro">These bounds describe the planner's search work under its stated input model. Graph preparation, collision-check cost, and callback work can add time beyond the search-loop estimate.</p>
             <div class="analysis-complexity" aria-label="Complexity summary">
               <article class="analysis-complexity-card">
                 <span>Runtime pattern</span>
-                <code>{html.escape(analysis["time_order"])}</code>
+                <span class="math-summary">{render_math_text(analysis["time_order"])}</span>
               </article>
               <article class="analysis-complexity-card">
                 <span>Memory pattern</span>
-                <code>{html.escape(analysis["space_order"])}</code>
+                <span class="math-summary">{render_math_text(analysis["space_order"])}</span>
               </article>
             </div>
             <dl class="analysis-details">
               <div>
                 <dt>Search state and ordering</dt>
-                <dd>{html.escape(analysis["model"])}</dd>
+                <dd>{render_math_text(analysis["model"])}</dd>
               </div>
               <div>
                 <dt>Time complexity</dt>
-                <dd>{html.escape(analysis["time"])}</dd>
+                <dd>{render_math_text(analysis["time"])}</dd>
               </div>
               <div>
                 <dt>Memory complexity</dt>
-                <dd>{html.escape(analysis["space"])}</dd>
+                <dd>{render_math_text(analysis["space"])}</dd>
               </div>
               <div>
                 <dt>Guarantees and assumptions</dt>
-                <dd>{html.escape(analysis["guarantee"])}</dd>
+                <dd>{render_math_text(analysis["guarantee"])}</dd>
               </div>
               <div>
                 <dt>What changes as the problem grows</dt>
-                <dd>{html.escape(analysis["scaling"])}</dd>
+                <dd>{render_math_text(analysis["scaling"])}</dd>
               </div>
             </dl>
-            <p class="analysis-source-note">Project-specific behavior: <a href="https://github.com/damminhtien/pathplanning/blob/main/SUPPORTED_ALGORITHMS.md" target="_blank" rel="noreferrer">supported planner contracts</a> · <a href="https://github.com/damminhtien/pathplanning/blob/main/docs/benchmark_contract.md" target="_blank" rel="noreferrer">benchmark and measurement method</a>.</p>
+            <p class="analysis-source-note">Project-specific behavior: <a href="https://github.com/damminhtien/pathplanning/blob/main/SUPPORTED_ALGORITHMS.md" target="_blank" rel="noreferrer">supported planner contracts</a> and <a href="https://github.com/damminhtien/pathplanning/blob/main/docs/benchmark_contract.md" target="_blank" rel="noreferrer">benchmark and measurement method</a>.</p>
           </section>
 
           <section id="tradeoff" class="lesson-section lesson-tradeoff">
-            <p class="lesson-section-label">06 · WHEN IT FITS</p>
+            <p class="lesson-section-label">06. WHEN IT FITS</p>
             <h2>Choose it for the problem it solves.</h2>
             <div class="lesson-fit-grid">
               <article class="lesson-fit-card">
                 <h3>A good fit</h3>
-                <p>{html.escape(lesson["best_for"])}</p>
+                <p>{render_math_text(lesson["best_for"])}</p>
               </article>
               <article class="lesson-fit-card lesson-fit-caution">
                 <h3>Watch out</h3>
-                <p>{html.escape(lesson["watch_out"])}</p>
+                <p>{render_math_text(lesson["watch_out"])}</p>
               </article>
             </div>
-            <p class="lesson-project-tradeoff">In this project: {html.escape(planner["tradeoff"])}</p>
-            <div class="contract-note"><span aria-hidden="true">↗</span><p>Algorithm guarantees depend on the graph, goal, costs, parameters, and stop reason. The project documents those exact conditions in its supported planner matrix.</p></div>
-            <a href="https://github.com/damminhtien/pathplanning/blob/main/SUPPORTED_ALGORITHMS.md" target="_blank" rel="noreferrer">Read the supported contract ↗</a>
+            <p class="lesson-project-tradeoff">In this project: {render_math_text(planner["tradeoff"])}</p>
+            <div class="contract-note"><p>Algorithm guarantees depend on the graph, goal, costs, parameters, and stop reason. The project documents those exact conditions in its supported planner matrix.</p></div>
+            <a href="https://github.com/damminhtien/pathplanning/blob/main/SUPPORTED_ALGORITHMS.md" target="_blank" rel="noreferrer">Read the supported contract</a>
           </section>
 
           <section id="evaluation" class="lesson-section lesson-evaluation">
-            <p class="lesson-section-label">07 · EVALUATE IT FAIRLY</p>
+            <p class="lesson-section-label">07. EVALUATE IT FAIRLY</p>
             <h2>What would make this a fair comparison?</h2>
-            <p>{html.escape(lesson["evaluation"])}</p>
+            <p>{render_math_text(lesson["evaluation"])}</p>
             <h3 class="lesson-subheading">Useful measures for this planner</h3>
             <ul class="lesson-metrics">{metric_tags}</ul>
-            <a class="lesson-method-link" href="{asset_root}#method">Explore this project's evaluation method ↗</a>
+            <a class="lesson-method-link" href="{asset_root}#method">Explore this project's evaluation method</a>
           </section>
 
           <section id="try-it" class="lesson-section lesson-try">
-            <p class="lesson-section-label">08 · YOUR TURN</p>
+            <p class="lesson-section-label">08. YOUR TURN</p>
             <h2>{html.escape(lesson["experiment"])}</h2>
             <details class="lesson-question">
-              <summary>{html.escape(lesson["question"])}</summary>
-              <p>{html.escape(lesson["answer"])}</p>
+              <summary>{render_math_text(lesson["question"])}</summary>
+              <p>{render_math_text(lesson["answer"])}</p>
             </details>
           </section>
 
@@ -476,7 +572,7 @@ def lesson_page(
               <div><dt>Module</dt><dd><code>{html.escape(github_module)}</code></dd></div>
               <div><dt>Callable</dt><dd><code>{html.escape(registry_row["callable"])}</code></dd></div>
             </dl>
-            <a class="button button-primary" href="{module_url}" target="_blank" rel="noreferrer">Read the implementation ↗</a>
+            <a class="button button-primary" href="{module_url}" target="_blank" rel="noreferrer">Read the implementation</a>
           </section>
 
           <section class="related-lessons">
@@ -488,8 +584,8 @@ def lesson_page(
       </div>
     </main>
     <footer class="learning-footer">
-      <a href="{asset_root}">← Back to the learning lab</a>
-      <a href="{asset_root}mindmap/">Explore the whole project map →</a>
+      <a href="{asset_root}">Back to the learning lab</a>
+      <a href="{asset_root}mindmap/">Explore the whole project map</a>
     </footer>
   </body>
 </html>
@@ -540,7 +636,7 @@ def render_map_nodes(nodes: list[dict[str, Any]], depth: int = 0) -> str:
     items: list[str] = []
     for node in nodes:
         label = html.escape(node["label"])
-        summary = html.escape(node["summary"])
+        summary = render_math_text(node["summary"])
         search_text = html.escape(
             f"{node['label']} {node['summary']} {node.get('path', '')}".lower(), quote=True
         )
@@ -553,14 +649,14 @@ def render_map_nodes(nodes: list[dict[str, Any]], depth: int = 0) -> str:
             path_text = html.escape(path)
             details += (
                 f'<a class="mindmap-source" href="{source}" target="_blank" rel="noreferrer">'
-                f'<code>{path_text}</code><span>Open source ↗</span></a>'
+                f'<code>{path_text}</code><span>Open source</span></a>'
             )
         if page:
             lesson_href = html.escape(f"{BASE_URL}{page}", quote=True)
-            principle = html.escape(node.get("principle", ""))
+            principle = render_math_text(node.get("principle", ""))
             details += (
                 f'<a class="mindmap-lesson" href="{lesson_href}">'
-                f'<span>Read the lesson</span><code>{principle}</code></a>'
+                f'<span>Read the lesson</span><span class="mindmap-principle">{principle}</span></a>'
             )
         children = render_map_nodes(node.get("children", []), depth + 1)
         children_markup = (
@@ -629,6 +725,8 @@ def map_page(map_data: dict[str, Any]) -> str:
     <link rel="stylesheet" href="../theme.css" />
     <link rel="stylesheet" href="../learning.css" />
     <link rel="stylesheet" href="../mindmap.css" />
+    <script>window.MathJax = {{tex: {{inlineMath: [["\\\\(", "\\\\)"], ["\\\\[", "\\\\]"]]}}}};</script>
+    <script async id="mathjax-script" src="https://cdn.jsdelivr.net/npm/mathjax@4/tex-chtml.js"></script>
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="Pathplanning Learning Lab" />
     <meta property="og:title" content="The Pathplanning Project Mind Map" />
@@ -648,13 +746,12 @@ def map_page(map_data: dict[str, Any]) -> str:
     <a class="skip-link" href="#project-map">Skip to project map</a>
     <header class="learning-topbar">
       <a class="brand" href="../" aria-label="Pathplanning Learning Lab home">
-        <span class="brand-mark" aria-hidden="true">↗</span>
         <span>path<span class="brand-accent">planning</span></span>
       </a>
       <nav aria-label="Learning navigation">
         <a href="../#algorithms">Algorithm atlas</a>
         <a href="../#evaluation">Evaluation</a>
-        <a href="https://github.com/damminhtien/pathplanning" target="_blank" rel="noreferrer">Source ↗</a>
+        <a href="https://github.com/damminhtien/pathplanning" target="_blank" rel="noreferrer">Source</a>
       </nav>
     </header>
     <main class="map-shell">
@@ -664,8 +761,8 @@ def map_page(map_data: dict[str, Any]) -> str:
         <p>{html.escape(map_data["summary"])}</p>
       </header>
       <section class="map-controls" aria-label="Mind map controls">
-        <label class="map-search"><span aria-hidden="true">⌕</span><span class="sr-only">Search the project map</span>
-          <input id="map-search" type="search" placeholder="Find an algorithm, module, or idea…" autocomplete="off" />
+        <label class="map-search"><span class="sr-only">Search the project map</span>
+          <input id="map-search" type="search" placeholder="Find an algorithm, module, or idea" autocomplete="off" />
         </label>
         <div class="map-actions">
           <button type="button" id="expand-map">Open all branches</button>
@@ -674,7 +771,7 @@ def map_page(map_data: dict[str, Any]) -> str:
       </section>
       <div class="map-layout">
         <section class="mindmap-stage" id="project-map" aria-label="Interactive pathplanning project map">
-          <div class="map-root"><span class="map-root-orbit" aria-hidden="true"></span><strong>pathplanning</strong><small>observe · model · plan · check · move</small></div>
+          <div class="map-root"><span class="map-root-orbit" aria-hidden="true"></span><strong>pathplanning</strong><small>observe, model, plan, check, move</small></div>
           <ul class="mindmap-branches">{tree}</ul>
           <p class="map-empty" id="map-empty" hidden>No matching ideas. Try a planner name, family, file, or concept.</p>
         </section>
@@ -683,16 +780,16 @@ def map_page(map_data: dict[str, Any]) -> str:
           <h2 id="inspector-title">{html.escape(map_data["label"])}</h2>
           <p id="inspector-summary">{html.escape(map_data["summary"])}</p>
           <a id="inspector-source" class="mindmap-source" href="https://github.com/damminhtien/pathplanning" target="_blank" rel="noreferrer" hidden>
-            <code id="inspector-path"></code><span>Open source ↗</span>
+            <code id="inspector-path"></code><span>Open source</span>
           </a>
-          <a id="inspector-lesson" class="button button-primary" href="../" hidden>Read the lesson ↗</a>
+          <a id="inspector-lesson" class="button button-primary" href="../" hidden>Read the lesson</a>
           <p class="inspector-hint">Open a branch to see what it contains. Select any node to focus this panel.</p>
         </aside>
       </div>
       <section class="map-reading">
         <p class="lesson-section-label">HOW TO READ THIS MAP</p>
         <p>The branches connect the agent's problem, the planner family, the API and native engine, and the evidence used to check a route. A planner only makes sense inside those connections.</p>
-        <a href="../">Return to the interactive learning lab →</a>
+        <a href="../">Return to the interactive learning lab</a>
       </section>
     </main>
   </body>
