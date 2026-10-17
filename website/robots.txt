@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://damminhtien.github.io/pathplanning/sitemap.xml

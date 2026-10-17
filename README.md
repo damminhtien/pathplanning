@@ -4,6 +4,9 @@ PathPlanning is a typed Python toolkit for discrete, continuous, temporal, and
 multi-agent planning. It provides 37 registered planners, reference spaces,
 native C/C++ search engines, and optional visualization.
 
+Explore the [interactive motion-planning learning site](https://damminhtien.github.io/pathplanning/)
+for concept animations, algorithm guides, benchmark coverage, and evaluation methods.
+
 ## At a glance
 
 - Package: `pathplanning` 0.2.0; Python `>=3.10`; NumPy is the only required
