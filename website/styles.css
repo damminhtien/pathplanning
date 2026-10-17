@@ -89,7 +89,7 @@ h1 { max-width: 700px; margin-bottom: 22px; font-size: clamp(43px, 6.4vw, 76px);
 .wall-e { left: 75%; top: 47%; width: 4%; height: 37%; }
 .art-path-shadow { fill: none; stroke: rgba(131, 240, 205, .18); stroke-width: 11; stroke-linecap: round; filter: blur(8px); }
 .art-path { fill: none; stroke: url(#unused); stroke: #83f0cd; stroke-width: 2; stroke-dasharray: 7 8; stroke-linecap: round; animation: path-dash 1.8s linear infinite; }
-.art-pulse { fill: rgba(131, 240, 205, .12); stroke: var(--mint); stroke-width: 1.5; animation: pulse 2.1s ease-out infinite; }
+.art-pulse { fill: rgba(131, 240, 205, .12); stroke: var(--mint); stroke-width: 1.5; transform-box: fill-box; transform-origin: center; animation: pulse 2.1s ease-out infinite; }
 .art-goal { fill: rgba(255, 184, 117, .2); stroke: var(--orange); stroke-width: 2; transform-box: fill-box; transform-origin: center; animation: goal-pulse 2.4s ease-in-out infinite; }
 .art-robot-static { display: none; }
 .art-robot rect, .art-robot-static rect { fill: var(--mint); stroke: #e6fff6; stroke-width: 1; filter: drop-shadow(0 0 9px rgba(131, 240, 205, .8)); }
