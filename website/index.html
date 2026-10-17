@@ -7,7 +7,7 @@
     <meta name="robots" content="index, follow, max-image-preview:large" />
     <meta
       name="description"
-      content="Learn autonomous robotics and motion planning through interactive algorithm animations, {{PLANNER_COUNT}} planner guides, benchmark datasets, and evaluation methods."
+      content="Explore {{PLANNER_COUNT}} path and motion planning algorithms through interactive tutorials, game and road-network datasets, multi-agent examples, and evidence-based evaluation."
     />
     <link rel="canonical" href="https://damminhtien.github.io/pathplanning/" />
     <link rel="icon" href="favicon.svg" type="image/svg+xml" />
@@ -15,22 +15,22 @@
     <meta property="og:type" content="website" />
     <meta property="og:locale" content="en_US" />
     <meta property="og:site_name" content="Pathplanning Learning Lab" />
-    <meta property="og:title" content="Motion Planning, Made Visible | Pathplanning" />
+    <meta property="og:title" content="Path Planning Algorithms, Made Visible | Pathplanning" />
     <meta
       property="og:description"
-      content="Explore {{PLANNER_COUNT}} robot motion-planning algorithms with interactive visual guides, real benchmark coverage, and evaluation methods."
+      content="Explore path planning for game worlds, road networks, vehicle maneuvers, and coordinated agents with interactive algorithm guides and benchmark evidence."
     />
     <meta property="og:url" content="https://damminhtien.github.io/pathplanning/" />
     <meta property="og:image" content="https://damminhtien.github.io/pathplanning/og-image.png" />
     <meta property="og:image:width" content="1200" />
     <meta property="og:image:height" content="630" />
-    <meta property="og:image:alt" content="Pathplanning Learning Lab: an autonomous robot finds a route through a maze."
+    <meta property="og:image:alt" content="Pathplanning Learning Lab: an autonomous agent finds a route through a map."
     />
     <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:title" content="Motion Planning, Made Visible | Pathplanning" />
+    <meta name="twitter:title" content="Path Planning Algorithms, Made Visible | Pathplanning" />
     <meta
       name="twitter:description"
-      content="Learn autonomous robotics and motion planning through interactive algorithm animations and evaluation data."
+      content="Learn path and motion planning for games, road networks, vehicle maneuvers, and multiple agents through interactive algorithm animations."
     />
     <meta name="twitter:image" content="https://damminhtien.github.io/pathplanning/og-image.png" />
     <script type="application/ld+json">
@@ -41,7 +41,7 @@
             "@type": "WebSite",
             "name": "Pathplanning Learning Lab",
             "url": "https://damminhtien.github.io/pathplanning/",
-            "description": "An interactive guide to autonomous agents, robot motion planning, planner algorithms, and evidence-based evaluation.",
+            "description": "An interactive guide to path and motion planning for game maps, road networks, vehicle maneuvers, and coordinated agents, with evidence-based evaluation.",
             "inLanguage": "en",
             "publisher": {
               "@type": "Organization",
@@ -61,6 +61,9 @@
               { "@type": "Thing", "name": "Autonomous agents" },
               { "@type": "Thing", "name": "Robot motion planning" },
               { "@type": "Thing", "name": "Path planning algorithms" },
+              { "@type": "Thing", "name": "Game AI navigation" },
+              { "@type": "Thing", "name": "Road network routing" },
+              { "@type": "Thing", "name": "Multi-agent pathfinding" },
               { "@type": "Thing", "name": "Robotics benchmark evaluation" }
             ],
             "provider": {
@@ -81,7 +84,7 @@
         ]
       }
     </script>
-    <title>Motion Planning, Made Visible | {{PLANNER_COUNT}} Robot Algorithms | Pathplanning</title>
+    <title>Path Planning Algorithms, Made Visible | {{PLANNER_COUNT}} Guides | Pathplanning</title>
     <link rel="stylesheet" href="styles.css" />
     <link rel="stylesheet" href="theme.css" />
     <script>window.MathJax = {tex: {inlineMath: [["\\(", "\\)"], ["\\[", "\\]"]]}};</script>
@@ -96,6 +99,7 @@
       </a>
       <nav aria-label="Main navigation">
         <a href="#playground">Simulator</a>
+        <a href="#applications">Applications</a>
         <a href="#algorithms">Algorithms</a>
         <a href="#evaluation">Evaluation</a>
         <a href="datasets/">Datasets</a>
@@ -107,11 +111,12 @@
     <main id="main">
       <section class="hero section-wrap" id="top">
         <div class="hero-copy">
-          <p class="eyebrow"><span class="eyebrow-dot"></span> A LEARNING LAB FOR AUTONOMOUS ROBOTS</p>
-          <h1>Robots sense the world.<br />Agents <span class="gradient-text">find a way through.</span></h1>
+          <p class="eyebrow"><span class="eyebrow-dot"></span> A LEARNING LAB FOR AUTONOMOUS AGENTS</p>
+          <h1>From maps to motion.<br />Agents <span class="gradient-text">find a way through.</span></h1>
           <p class="hero-lede">
-            From a square maze to a car-like robot, explore how an autonomous agent
-            turns a destination into safe motion.
+            Follow a game character across a level, route a trip through a road network,
+            coordinate a fleet, or plan a car-like maneuver. One core idea connects them:
+            choose actions that reach a goal while respecting the world.
           </p>
           <div class="hero-actions">
             <a class="button button-primary" href="#playground">Start exploring</a>
@@ -165,10 +170,22 @@
         </div>
       </section>
 
+      <section class="section-wrap section-space applications-section" id="applications">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">01 / WHERE PLANNING SHOWS UP</p>
+            <h2>One planning idea.<br /><span class="gradient-text">Many kinds of worlds.</span></h2>
+          </div>
+          <p class="section-intro">The same search questions appear in game AI, transport, fleet coordination, manufacturing, and network routing. The right model changes with each domain.</p>
+        </div>
+        <div class="application-grid"><!-- generated:application-cards --></div>
+        <p class="application-scope-note">These examples show how planning models transfer. Project evidence is narrower: use the linked dataset and planner pages for the exact inputs, assumptions, and evaluation coverage. Browser animations illustrate ideas; they do not certify a deployed system.</p>
+      </section>
+
       <section class="section-wrap section-space" id="playground">
         <div class="section-heading">
           <div>
-            <p class="eyebrow">01 / TRY IT</p>
+            <p class="eyebrow">02 / TRY IT</p>
             <h2>Every planner has its own <span class="gradient-text">way of thinking.</span></h2>
           </div>
           <p class="section-intro">Choose an algorithm to watch it explore a grid, connect samples, or wait for a safe time window.</p>
@@ -217,10 +234,10 @@
       <section class="section-wrap section-space" id="algorithms">
         <div class="section-heading">
           <div>
-            <p class="eyebrow">02 / ALGORITHM ATLAS</p>
+              <p class="eyebrow">03 / ALGORITHM ATLAS</p>
             <h2>{{PLANNER_COUNT}} ways to solve <span class="gradient-text">“get from here to there.”</span></h2>
           </div>
-          <p class="section-intro">Find an idea that fits the map, the robot's motion, and the goal.</p>
+          <p class="section-intro">Find an idea that fits the graph, geometry, timing rules, and coordination problem.</p>
         </div>
         <div class="catalog-controls">
           <div class="filter-row" role="group" aria-label="Filter by problem family">
@@ -238,7 +255,7 @@
         <div class="section-wrap section-space">
           <div class="section-heading">
             <div>
-              <p class="eyebrow">03 / FROM MAPS TO EVIDENCE</p>
+              <p class="eyebrow">04 / FROM MAPS TO EVIDENCE</p>
               <h2>Good evaluation starts with <span class="gradient-text">the right question.</span></h2>
             </div>
             <p class="section-intro">Maps and routes are not all the same kind. Preserve each workload's semantics, lineage, and measurement limits.</p>
@@ -280,7 +297,7 @@
       <section class="section-wrap section-space" id="method">
         <div class="section-heading">
           <div>
-            <p class="eyebrow">04 / HOW TO READ A MEASUREMENT</p>
+            <p class="eyebrow">05 / HOW TO READ A MEASUREMENT</p>
             <h2>Don't stop at “how much <span class="gradient-text">faster?”</span></h2>
           </div>
           <p class="section-intro">A useful benchmark says what was measured, on which task, against what checks, and what remains unknown.</p>

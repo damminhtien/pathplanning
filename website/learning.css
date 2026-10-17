@@ -146,6 +146,12 @@ body.learning-body {
 .lesson-metrics li { padding: 9px 12px; border: 1px solid #c8dced; border-radius: 999px; color: #264f74; background: #f1f7fc; font-size: 14px; font-weight: 620; }
 .lesson-method-link { display: inline-block; padding-bottom: 3px; color: var(--accent); font-weight: 680; }
 .lesson-method-link:hover { text-decoration: underline; text-underline-offset: 4px; }
+.lesson-application-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 13px; margin-top: 20px; }
+.lesson-application-card { min-width: 0; padding: 18px; border: 1px solid #d2dfeb; border-radius: 12px; background: linear-gradient(145deg, #fff, #f1f7fc); }
+.lesson-application-card h3 { margin: 0 0 9px; color: #245f94; font-family: var(--reading-font); font-size: 21px; font-weight: 500; line-height: 1.25; }
+.lesson-application-card > p { margin-bottom: 10px; color: #405a73; font-family: var(--reading-font); font-size: 15px; line-height: 1.7; }
+.lesson-application-card > .application-connection { margin: 12px 0 0; padding-top: 10px; border-top: 1px solid #dce6f0; font-size: 14px; }
+.lesson-application-card .application-connection strong { color: #274867; }
 .lesson-question summary { color: #eef6fd; font-size: 16px; }
 .lesson-question p { color: #deebf7; font-size: 16px; }
 .lesson-source dl div { font-size: 13px; }
@@ -195,6 +201,7 @@ body.learning-body {
   .lesson-watch > p:not(.lesson-section-label) { font-size: 15px; }
   .lesson-steps p { font-size: 16px; }
   .lesson-fit-grid { grid-template-columns: 1fr; }
+  .lesson-application-grid { grid-template-columns: 1fr; }
   .lesson-analysis { padding: 20px 17px; }
   .analysis-complexity { grid-template-columns: 1fr; }
   .analysis-details > div { grid-template-columns: 1fr; gap: 4px; padding: 14px 0; }

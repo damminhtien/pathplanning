@@ -25,6 +25,7 @@ class SiteContent:
     references: dict[str, dict[str, Any]]
     registry_rows: dict[str, dict[str, str]]
     project_map: dict[str, Any]
+    applications: dict[str, Any]
     datasets: list[dict[str, Any]]
     dataset_snapshot: dict[str, Any]
 
@@ -42,6 +43,7 @@ def load_site_content() -> SiteContent:
     analyses = read_json(WEBSITE_ROOT / "data" / "algorithm_analysis.json")
     references = read_json(WEBSITE_ROOT / "data" / "references.json")
     project_map = read_json(WEBSITE_ROOT / "data" / "project-map.json")
+    applications = read_json(WEBSITE_ROOT / "data" / "applications.json")
     dataset_catalog = read_json(WEBSITE_ROOT / "data" / "datasets.json")
     if (
         not isinstance(planners, list)
@@ -49,6 +51,7 @@ def load_site_content() -> SiteContent:
         or not isinstance(analyses, dict)
         or not isinstance(references, dict)
         or not isinstance(project_map, dict)
+        or not isinstance(applications, dict)
         or not isinstance(dataset_catalog, dict)
         or not isinstance(dataset_catalog.get("datasets"), list)
         or not isinstance(dataset_catalog.get("snapshot"), dict)
@@ -174,6 +177,52 @@ def load_site_content() -> SiteContent:
     if len(dataset_ids) != len(set(dataset_ids)):
         raise SystemExit("The dataset catalog must contain unique string IDs.")
     dataset_id_set = set(dataset_ids)
+
+    application_overview = applications.get("overview")
+    application_families = applications.get("families")
+    if (
+        not isinstance(application_overview, list)
+        or len(application_overview) < 6
+        or not isinstance(application_families, dict)
+        or set(application_families) != set(FAMILY_LABELS)
+    ):
+        raise SystemExit("Application coverage must include an overview and every planner family.")
+
+    planner_id_set = set(ids)
+
+    def validate_application_link(link: Any) -> None:
+        match = (
+            re.fullmatch(r"(datasets|algorithms)/([a-z0-9]+(?:[_-][a-z0-9]+)*)/", link)
+            if isinstance(link, str)
+            else None
+        )
+        if not match:
+            raise SystemExit(f"Invalid application link: {link!r}")
+        route_type, route_id = match.groups()
+        known_ids = dataset_id_set if route_type == "datasets" else planner_id_set
+        if route_id not in known_ids:
+            raise SystemExit(f"Application link points to an unknown {route_type} page: {link}")
+
+    for application in application_overview:
+        required_fields = ("category", "title", "description", "project_note", "link_label")
+        if not isinstance(application, dict) or not all(
+            isinstance(application.get(field), str) and application[field].strip()
+            for field in required_fields
+        ):
+            raise SystemExit("Application overview entries are incomplete.")
+        validate_application_link(application.get("link"))
+
+    for kind, family_applications in application_families.items():
+        if not isinstance(family_applications, list) or len(family_applications) < 3:
+            raise SystemExit(f"At least three application contexts are required for {kind}.")
+        for application in family_applications:
+            required_fields = ("title", "scenario", "connection")
+            if not isinstance(application, dict) or not all(
+                isinstance(application.get(field), str) and application[field].strip()
+                for field in required_fields
+            ):
+                raise SystemExit(f"An application context is incomplete for {kind}.")
+
     for dataset in datasets:
         dataset_id = dataset["id"]
         required_dataset_fields = (
@@ -342,6 +391,7 @@ def load_site_content() -> SiteContent:
         references=references,
         registry_rows=rows,
         project_map=project_map,
+        applications=applications,
         datasets=datasets,
         dataset_snapshot=snapshot,
     )

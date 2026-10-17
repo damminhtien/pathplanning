@@ -1,0 +1,130 @@
+{
+  "overview": [
+    {
+      "category": "Games and virtual worlds",
+      "title": "Help game characters navigate a level",
+      "description": "An NPC can search a maze, a tactical grid, or a voxel level for a legal route. The map and movement rules determine whether the character can move diagonally, cross terrain, or pass through a cell.",
+      "project_note": "MovingAI and Monash profiles include game-derived maps. They are map collections, not evaluations inside a game engine.",
+      "link": "datasets/movingai-grids/",
+      "link_label": "Explore game-map data"
+    },
+    {
+      "category": "Cities and transport",
+      "title": "Route across a road network",
+      "description": "A route can minimize distance or travel time across directed streets. Edge direction, turn rules, and cost units change what the shortest route means.",
+      "project_note": "DIMACS road graphs form a separate benchmark cohort with explicit distance and time weights.",
+      "link": "datasets/dimacs-roads/",
+      "link_label": "Read the road-network profile"
+    },
+    {
+      "category": "Warehouse and delivery fleets",
+      "title": "Coordinate many vehicles in shared aisles",
+      "description": "Several carts may need to move at once without occupying the same place or swapping across the same narrow aisle. This is a multi-agent pathfinding problem, not just many independent shortest paths.",
+      "project_note": "EECBS and LaCAM* cover graph-based conflict resolution. The project does not claim a production warehouse integration.",
+      "link": "algorithms/eecbs/",
+      "link_label": "Explore multi-agent planning"
+    },
+    {
+      "category": "Autonomous vehicles",
+      "title": "Plan a maneuver a car can actually drive",
+      "description": "A car-like agent needs to account for heading, turning radius, and body clearance. A geometrically short line may be impossible for the vehicle to follow.",
+      "project_note": "Hybrid A* and State Lattice demonstrate curvature-bounded vehicle motions in a modeled space; they are not a validated driving stack.",
+      "link": "algorithms/hybrid_astar/",
+      "link_label": "Explore car-like planning"
+    },
+    {
+      "category": "Robotic arms and manufacturing",
+      "title": "Move through a crowded workcell",
+      "description": "An arm's route is a sequence of joint configurations. Collision checking must account for the shape swept by the arm, not only the path of its endpoint.",
+      "project_note": "The site catalogs OMPL problem resources and configurations; no OMPL planner runs are included in the recorded campaigns.",
+      "link": "datasets/ompl-problems/",
+      "link_label": "Read the OMPL resource profile"
+    },
+    {
+      "category": "Pedestrian and evacuation models",
+      "title": "Study routes through shared bottlenecks",
+      "description": "A time-aware graph can represent blocked passages, waiting, and shared bottlenecks. A crowd model also needs human behavior, capacity, and domain-specific safety assumptions.",
+      "project_note": "This project illustrates graph and time-window planning; it does not simulate people or validate evacuation plans.",
+      "link": "algorithms/sipp/",
+      "link_label": "Explore safe time windows"
+    },
+    {
+      "category": "Computer and communication networks",
+      "title": "Find a low-cost route through connected systems",
+      "description": "The same graph-search questions apply to weighted links between routers, services, or infrastructure sites: which states are reachable, what does each link cost, and how should the route respond to change?",
+      "project_note": "Network routing is a model analogy here; no computer-network dataset is part of the current benchmark collection.",
+      "link": "algorithms/dijkstra/",
+      "link_label": "Explore weighted graph search"
+    }
+  ],
+  "families": {
+    "discrete": [
+      {
+        "title": "Game maps and NPC navigation",
+        "scenario": "A character needs a legal route through a maze, tactical grid, or terrain map.",
+        "connection": "Grid and graph search make the movement rules explicit. MovingAI and Monash profiles provide map examples, while the exact game behavior remains outside this project."
+      },
+      {
+        "title": "Road and transit routing",
+        "scenario": "A traveler needs the least-distance or least-time route across a directed network.",
+        "connection": "Dijkstra and A* reason over edge costs and direction. DIMACS road graphs are evaluated as a distinct cohort because distance and time are different objectives."
+      },
+      {
+        "title": "Service and communication networks",
+        "scenario": "A request needs a low-cost route through connected services or links.",
+        "connection": "The graph abstraction transfers directly, but real network congestion, reliability, and changing capacity need additional models and data."
+      }
+    ],
+    "continuous": [
+      {
+        "title": "Car-like vehicle maneuvers",
+        "scenario": "A vehicle must turn through a tight space without exceeding its steering limits.",
+        "connection": "Hybrid A* and State Lattice model poses and curvature-bounded local motions in SE(2); collision checks also account for a footprint."
+      },
+      {
+        "title": "Robot arms in workcells",
+        "scenario": "A manipulator must move between joint configurations while avoiding surrounding equipment.",
+        "connection": "Sampling-based planners search a configuration space, but the result depends on a correct robot model and collision-validity checks."
+      },
+      {
+        "title": "Geometric inspection routes",
+        "scenario": "An inspection platform needs a collision-free route through a modeled free space.",
+        "connection": "Sampling, roadmaps, and informed search provide reusable ideas. Platform dynamics, sensing, and operating constraints must be modeled separately."
+      }
+    ],
+    "temporal": [
+      {
+        "title": "Routes around time-dependent blockages",
+        "scenario": "A passage is unavailable for part of the schedule, so an agent may need to wait before crossing.",
+        "connection": "SIPP searches safe time intervals instead of treating every moment as a separate graph node."
+      },
+      {
+        "title": "Timed crossings and shared corridors",
+        "scenario": "A vehicle or automated cart must pass a crossing only when the shared space is free.",
+        "connection": "Time windows and traversal duration matter alongside distance. Coordinating many agents requires an additional multi-agent model."
+      },
+      {
+        "title": "Schedule-aware mobility",
+        "scenario": "A route must respect opening times, temporary closures, or a required arrival window.",
+        "connection": "Temporal planners can represent availability constraints when they are supplied as safe intervals; timetable quality and service policy remain external inputs."
+      }
+    ],
+    "multi_agent": [
+      {
+        "title": "Warehouse fleet coordination",
+        "scenario": "Several carts share narrow aisles and must avoid occupying the same node or swapping across the same edge.",
+        "connection": "EECBS and LaCAM* search for conflict-free paths on a shared graph under explicit movement and goal rules."
+      },
+      {
+        "title": "Groups of game units",
+        "scenario": "Multiple units need routes through one level without blocking each other at doors or bridges.",
+        "connection": "Joint-state and conflict-based methods expose interactions that independent single-agent routes miss."
+      },
+      {
+        "title": "Pedestrian flow abstractions",
+        "scenario": "A graph model can explore how routes interact at shared passages or bottlenecks.",
+        "connection": "This abstraction does not capture human behavior, density, accessibility, or emergency safety; those need validated domain models."
+      }
+    ]
+  }
+}

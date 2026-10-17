@@ -220,6 +220,15 @@ body { font-size: 18px; line-height: 1.7; }
 .closing-inner > div:first-child > p:last-child { color: #d0dceb; font-size: 16px; line-height: 1.7; }
 .hero-actions .button, .closing-actions .button, .footer > a:last-of-type { font-size: 14px; }
 .footer p, .footer small { color: #526980; font-size: 12px; }
+.application-card { border-color: #d6e2ee; background: linear-gradient(150deg, #fff, #f1f7fc); box-shadow: 0 8px 24px rgb(44 82 120 / 4%); }
+.application-category { color: #2f70a9; }
+.application-card h3 { color: #1f3853; }
+.application-description { color: #455f78; }
+.application-connection { border-color: #dce6f0; }
+.application-connection strong { color: #274867; }
+.application-connection p { color: #536b83; }
+.application-card > a { color: #286da7; }
+.application-scope-note { color: #536b83; }
 
 @media (max-width: 720px) {
   .topbar nav { font-size: 13px; }

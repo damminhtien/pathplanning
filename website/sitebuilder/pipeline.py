@@ -12,6 +12,7 @@ import xml.etree.ElementTree as ET
 
 from .config import BASE_URL, BUILD_MARKER, FAMILY_LABELS, PROJECT_ROOT, WEBSITE_ROOT
 from .content import SiteContent, expand_project_map, load_site_content
+from .renderers.applications import render_home_applications
 from .renderers.catalog import render_static_catalog
 from .renderers.datasets import dataset_detail_page, dataset_index_page
 from .renderers.lesson import lesson_page
@@ -81,6 +82,10 @@ def render_home(content: SiteContent) -> str:
     home = home.replace("{{PLANNER_COUNT}}", str(len(content.planners)))
     home = home.replace("{{FAMILY_COUNT}}", str(len(FAMILY_LABELS)))
     home = home.replace(catalog_marker, render_static_catalog(content.planners))
+    applications_marker = "<!-- generated:application-cards -->"
+    if home.count(applications_marker) != 1:
+        raise SystemExit("The home page must contain exactly one application-card marker.")
+    home = home.replace(applications_marker, render_home_applications(content.applications["overview"]))
     filters_marker = "<!-- generated:planner-family-filters -->"
     if home.count(filters_marker) != 1:
         raise SystemExit("The home page must contain exactly one planner-family filter marker.")
@@ -122,6 +127,7 @@ def build(output: Path) -> int:
                 content.analyses[planner["id"]],
                 content.references[planner["id"]],
                 content.registry_rows[planner["id"]],
+                content.applications["families"][planner["kind"]],
                 planner_by_id,
                 planner_positions,
                 len(content.planners),

@@ -189,6 +189,18 @@ h2 { margin-bottom: 0; font-size: clamp(30px, 4vw, 45px); line-height: 1.13; let
 .card-demo:hover { background: rgba(131, 240, 205, .1); }
 .empty-state { grid-column: 1 / -1; padding: 38px; border: 1px dashed var(--line); border-radius: 14px; color: var(--muted); text-align: center; }
 
+.application-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+.application-card { display: flex; min-width: 0; flex-direction: column; padding: 22px; border: 1px solid var(--line); border-radius: 16px; background: linear-gradient(150deg, rgba(20, 29, 48, .84), rgba(14, 21, 35, .75)); }
+.application-category { margin-bottom: 12px; color: var(--blue); font-size: 11px; font-weight: 720; letter-spacing: .08em; text-transform: uppercase; }
+.application-card h3 { margin: 0 0 10px; font-family: var(--reading-font); font-size: 22px; font-weight: 520; line-height: 1.22; letter-spacing: -.025em; }
+.application-description { margin: 0 0 15px; color: #afbdd0; font-family: var(--reading-font); font-size: 15px; line-height: 1.72; }
+.application-connection { margin-top: auto; padding-top: 13px; border-top: 1px solid var(--line); }
+.application-connection strong { display: block; margin-bottom: 4px; color: var(--text); font-size: 12px; }
+.application-connection p { margin: 0; color: #9eacc0; font-size: 13px; line-height: 1.65; }
+.application-card > a { display: inline-flex; align-items: center; gap: 7px; align-self: flex-start; margin-top: 15px; color: var(--blue); font-size: 13px; font-weight: 700; }
+.application-card > a:hover { text-decoration: underline; text-underline-offset: 4px; }
+.application-scope-note { max-width: 900px; margin: 18px 0 0; color: #8091a6; font-size: 13px; line-height: 1.7; }
+
 .evaluation-section { border-top: 1px solid rgba(184, 204, 230, .09); border-bottom: 1px solid rgba(184, 204, 230, .09); background: linear-gradient(180deg, rgba(17, 27, 46, .72), rgba(12, 20, 35, .76)); }
 .inventory-head { display: flex; align-items: center; justify-content: space-between; gap: 30px; margin-bottom: 19px; padding: 19px 21px; border: 1px solid rgba(131, 240, 205, .14); border-radius: 16px; background: linear-gradient(110deg, rgba(50, 129, 112, .1), rgba(131, 240, 205, .025)); }
 .inventory-head > div { display: flex; align-items: center; gap: 15px; min-width: 275px; }
@@ -283,6 +295,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
   .algorithm-note { padding: 22px 18px; }
   .planner-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .dataset-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .application-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .dataset-card { min-height: 245px; }
   .method-step { padding-inline: 12px; }
   .metric-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -331,6 +344,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
   .inventory-head { align-items: flex-start; flex-direction: column; gap: 13px; padding: 17px; }
   .inventory-head > div { min-width: 0; }
   .dataset-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .application-grid { grid-template-columns: 1fr; }
   .dataset-card { min-height: 225px; padding: 13px; }
   .dataset-card p { min-height: 58px; }
   .campaign-panel { grid-template-columns: 1fr; }

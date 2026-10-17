@@ -9,6 +9,7 @@ from typing import Any
 from ..config import BASE_URL, FAMILY_LABELS
 from ..content import source_url
 from ..math_text import render_math_text
+from .applications import render_lesson_applications
 from .catalog import json_ld
 
 
@@ -18,6 +19,7 @@ def lesson_page(
     analysis: dict[str, str],
     reference: dict[str, Any],
     registry_row: dict[str, str],
+    applications: list[dict[str, Any]],
     planner_by_id: dict[str, dict[str, Any]],
     planner_positions: dict[str, int],
     total_planners: int,
@@ -29,8 +31,8 @@ def lesson_page(
     kind = planner["kind"]
     page_url = f"{BASE_URL}/algorithms/{planner_id}/"
     description = (
-        f"{title}: robot motion-planning lesson covering search mechanics, complexity, "
-        "guarantees, trade-offs, and its research source."
+        f"{title}: {FAMILY_LABELS[kind].lower()} path-planning lesson covering search mechanics, "
+        "complexity, guarantees, application examples, trade-offs, and its research source."
     )
     depth = len(output_file.parent.relative_to(output_root).parts)
     asset_root = "../" * depth
@@ -84,12 +86,15 @@ def lesson_page(
             "isAccessibleForFree": True,
             "about": [
                 {"@type": "Thing", "name": title},
-                {"@type": "Thing", "name": "Robot motion planning"},
                 {"@type": "Thing", "name": "Autonomous agents"},
+                {"@type": "Thing", "name": "Path planning algorithms"},
+                {"@type": "Thing", "name": FAMILY_LABELS[kind]},
+                {"@type": "Thing", "name": "Game AI and route planning"},
+                {"@type": "Thing", "name": "Transportation and multi-agent planning"},
             ],
             "teaches": [
-                "Robot motion planning",
-                "Autonomous agent path planning",
+                "Path planning for autonomous agents",
+                "Route planning across maps, graphs, and motion models",
                 "Algorithm time and space complexity",
                 planner["principle"],
             ],
@@ -97,8 +102,10 @@ def lesson_page(
             "audience": {"@type": "EducationalAudience", "educationalRole": "student"},
             "keywords": [
                 title,
-                "robot motion planning",
                 "path planning algorithm",
+                "game AI navigation",
+                "road network routing",
+                "multi-agent pathfinding",
                 "autonomous agents",
                 "time complexity",
                 "space complexity",
@@ -148,12 +155,12 @@ def lesson_page(
     <meta property="og:description" content="{html.escape(description, quote=True)}" />
     <meta property="og:url" content="{page_url}" />
     <meta property="og:image" content="{BASE_URL}/og-image.png" />
-    <meta property="og:image:alt" content="A robot finding a route around obstacles" />
+    <meta property="og:image:alt" content="An autonomous agent finding a route through obstacles" />
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content="{html.escape(title)} Algorithm Analysis | Pathplanning" />
     <meta name="twitter:description" content="{html.escape(description, quote=True)}" />
     <meta name="twitter:image" content="{BASE_URL}/og-image.png" />
-    <meta name="twitter:image:alt" content="A robot finding a route around obstacles" />
+    <meta name="twitter:image:alt" content="An autonomous agent finding a route through obstacles" />
     <script type="application/ld+json">{schema}</script>
     <script type="application/ld+json">{breadcrumb_schema}</script>
     <title>{html.escape(title)} Algorithm Analysis &amp; Tutorial | Pathplanning</title>
@@ -196,6 +203,7 @@ def lesson_page(
           <a href="#paper">Research paper</a>
           <a href="#tradeoff">Fit & trade-off</a>
           <a href="#evaluation">Evaluate fairly</a>
+          <a href="#applications">Applications</a>
           <a href="#try-it">Your turn</a>
         </aside>
         <article class="lesson-content">
@@ -317,8 +325,15 @@ def lesson_page(
             <a class="lesson-method-link" href="{asset_root}#method">Explore this project's evaluation method</a>
           </section>
 
+          <section id="applications" class="lesson-section lesson-applications">
+            <p class="lesson-section-label">09. WHERE THE MODEL APPLIES</p>
+            <h2>Where else does this planning model show up?</h2>
+            <p>These examples share the same problem structure as this planner family. They are ways to transfer the idea, not claims that this project has deployed or benchmarked the application.</p>
+            <div class="lesson-application-grid">{render_lesson_applications(applications)}</div>
+          </section>
+
           <section id="try-it" class="lesson-section lesson-try">
-            <p class="lesson-section-label">09. YOUR TURN</p>
+            <p class="lesson-section-label">10. YOUR TURN</p>
             <h2>{html.escape(lesson["experiment"])}</h2>
             <details class="lesson-question">
               <summary>{render_math_text(lesson["question"])}</summary>
