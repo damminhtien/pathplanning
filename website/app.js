@@ -2,6 +2,7 @@
 
 import { createCatalog } from "./scripts/catalog.js";
 import { startApplicationScenes } from "./scripts/applications.js";
+import { startLandingMotion } from "./scripts/landing-motion.js";
 import { createSimulator } from "./scripts/simulator.js";
 
 async function loadPlanners() {
@@ -38,3 +39,4 @@ async function startLearningLab() {
 
 startLearningLab();
 startApplicationScenes();
+startLandingMotion();

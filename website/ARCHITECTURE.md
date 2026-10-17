@@ -17,6 +17,7 @@ flowchart LR
   PageRenderers[sitebuilder.renderers\nindex, lesson, datasets, mind map]
   Dist[website/dist\nstatic pages and assets]
   Browser[app.js\npage bootstrap]
+  LandingMotion[scripts/landing-motion.js\nscroll reveals and reading progress]
   Catalog[scripts/catalog.js\nsearch and filters]
   Simulator[scripts/simulator.js\ncontrols and animation loop]
   Scenes[scripts/scenes/*\nfamily-specific drawing]
@@ -34,6 +35,7 @@ flowchart LR
   PageRenderers --> Build
   Build --> Dist
   Browser --> Catalog
+  Browser --> LandingMotion
   Browser --> ApplicationScenes[applications.js\nSVG application scenes]
   Browser --> Simulator
   Simulator --> Scenes
@@ -50,6 +52,7 @@ flowchart LR
 - `data/applications.json` is the shared application catalog. The home page introduces domains across the project, while each generated algorithm lesson selects application contexts for its planner family.
 - `sitebuilder/pipeline.py` owns output safety, static asset copying, generated family filters, lesson routes, and the sitemap. It writes generated files only to the selected output directory.
 - `app.js` starts the browser application. `scripts/catalog.js` owns catalog interactions, while `scripts/simulator.js` owns simulator state and controls. Canvas drawing is split into the grid, continuous, temporal, and multi-agent scene modules.
+- `scripts/landing-motion.js` owns front-page scroll reveals and the reading-progress indicator. It uses `IntersectionObserver`, leaves content visible when scripting or motion support is unavailable, and honors reduced-motion preferences.
 - `build_site.py` stays as the stable command-line entry point used by GitHub Actions and local builds.
 
 ## Adding a planner

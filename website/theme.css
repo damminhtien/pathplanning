@@ -169,7 +169,7 @@ h1 { color: #172d47; }
 .skip-link { color: #fff; background: #286da8; }
 button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible { outline-color: #327bb8; }
 @media (prefers-reduced-motion: reduce) {
-  .art-path, .art-pulse, .art-goal { animation: none; }
+  .art-path, .art-pulse, .art-waypoint, .art-goal { animation: none; }
   .art-robot { display: none; }
   .art-robot-static { display: inline; }
 }
