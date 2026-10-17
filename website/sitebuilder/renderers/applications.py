@@ -20,7 +20,7 @@ def render_home_applications(applications: list[dict[str, Any]]) -> str:
             f"<h3>{html.escape(application['title'])}</h3>"
             f'<p class="application-description">{html.escape(application["description"])}</p>'
             '<div class="application-connection">'
-            "<strong>Connection to this project</strong>"
+            "<strong>In this project</strong>"
             f"<p>{html.escape(application['project_note'])}</p>"
             "</div>"
             f'<a href="{link}">{html.escape(application["link_label"])} <span aria-hidden="true">→</span></a>'

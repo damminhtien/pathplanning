@@ -117,15 +117,13 @@
           <p class="eyebrow"><span class="eyebrow-dot"></span> A LEARNING LAB FOR AUTONOMOUS AGENTS</p>
           <h1>From maps to motion.<br />Agents <span class="gradient-text">find a way through.</span></h1>
           <p class="hero-lede">
-            Follow a game character across a level, route a trip through a road network,
-            coordinate a fleet, or plan a car-like maneuver. One core idea connects them:
-            choose actions that reach a goal while respecting the world.
+            Path planning turns a world and a goal into a sequence of actions, from game levels and road networks to vehicle maneuvers and coordinated fleets.
           </p>
           <div class="hero-actions">
             <a class="button button-primary" href="#playground">Start exploring</a>
             <a class="button button-quiet" href="https://github.com/damminhtien/pathplanning/blob/main/README.md" target="_blank" rel="noreferrer">Explore the code</a>
           </div>
-          <div class="hero-note">Pick a planner. Watch its idea unfold. See how it is evaluated.</div>
+          <div class="hero-note">Explore a planner. Watch it work. Compare results.</div>
         </div>
 
         <div class="hero-art" aria-hidden="true">
@@ -170,7 +168,7 @@
           <div class="loop-copy">
             <p class="loop-kicker">The autonomous agent loop</p>
             <h2 id="agent-loop-title">Sense. Decide. Move. Repeat.</h2>
-            <p>An autonomous agent reads its surroundings, plans a route, takes a step, then checks what changed. New information starts the next decision.</p>
+            <p>An agent observes the world, plans a move, acts, then updates its plan.</p>
             <div class="loop-cycle-note"><span aria-hidden="true"></span>Continuous feedback, one step at a time</div>
           </div>
 
@@ -228,10 +226,9 @@
             <p class="eyebrow">01 / WHERE PLANNING SHOWS UP</p>
             <h2>One planning idea.<br /><span class="gradient-text">Many kinds of worlds.</span></h2>
           </div>
-          <p class="section-intro">The same search questions appear in game AI, transport, fleet coordination, manufacturing, and network routing. The right model changes with each domain.</p>
+          <p class="section-intro">From game AI and transport to fleets, factories, and networks.</p>
         </div>
         <div class="application-grid"><!-- generated:application-cards --></div>
-        <p class="application-scope-note">These examples show how planning models transfer. Project evidence is narrower: use the linked dataset and planner pages for the exact inputs, assumptions, and evaluation coverage. Browser animations illustrate ideas; they do not certify a deployed system.</p>
       </section>
 
       <section class="section-wrap section-space" id="playground">
@@ -240,7 +237,7 @@
             <p class="eyebrow">02 / TRY IT</p>
             <h2>Every planner has its own <span class="gradient-text">way of thinking.</span></h2>
           </div>
-          <p class="section-intro">Choose an algorithm to watch it explore a grid, connect samples, or wait for a safe time window.</p>
+          <p class="section-intro">Watch planners search grids, connect samples, and plan around time constraints.</p>
         </div>
 
         <div class="workbench">
@@ -276,7 +273,7 @@
               <p class="question-label">LOOK FOR</p>
               <p id="planner-observe" class="observe-copy"></p>
               <div class="note-metric"><span id="planner-tradeoff"></span></div>
-              <p class="simulation-disclaimer" id="simulation-disclaimer">These are browser-based concept animations, not executions of the Python/C++ library or measured performance results.</p>
+              <p class="simulation-disclaimer" id="simulation-disclaimer">Concept animation. See case studies for measured results.</p>
             </aside>
           </div>
         </div>
@@ -289,7 +286,7 @@
               <p class="eyebrow">03 / ALGORITHM ATLAS</p>
             <h2>{{PLANNER_COUNT}} ways to solve <span class="gradient-text">“get from here to there.”</span></h2>
           </div>
-          <p class="section-intro">Find an idea that fits the graph, geometry, timing rules, and coordination problem.</p>
+          <p class="section-intro">Browse by graph, geometry, timing, or coordination problem.</p>
         </div>
         <div class="catalog-controls">
           <div class="filter-row" role="group" aria-label="Filter by problem family">
@@ -310,12 +307,12 @@
               <p class="eyebrow">04 / FROM MAPS TO EVIDENCE</p>
               <h2>Good evaluation starts with <span class="gradient-text">the right question.</span></h2>
             </div>
-            <p class="section-intro">Maps and routes are not all the same kind. Preserve each workload's semantics, lineage, and measurement limits.</p>
+            <p class="section-intro">Five datasets. Distinct movement rules, costs, and collision models.</p>
           </div>
 
           <div class="inventory-head">
             <div><span class="big-number">1,297</span><span class="big-label">catalogued data entries<br /><small>inventory snapshot, 08 Oct 2026</small></span></div>
-            <p>This is the number of entries discovered across five sources. Some entries are mirrors or configurations, so the total is not 1,297 independent worlds.</p>
+            <p>Catalog entries across five sources, including map mirrors and configurations.</p>
           </div>
           <div class="dataset-grid" id="dataset-grid">
             <article class="dataset-card" data-family="MovingAI"><div class="dataset-top"><span class="dataset-type">GRID AND VOXEL MAPS</span><span class="dataset-count">853 entries</span></div><h3>MovingAI</h3><p>Game, street, maze, terrain, and 3D voxel maps.</p><div class="dataset-bar"><i style="--bar:66%"></i></div><small>809 current 2D maps, 44 3D maps</small><div class="dataset-card-links"><a href="datasets/movingai-grids/">2D grids</a><a href="datasets/movingai-voxels/">3D voxels</a></div></article>
@@ -324,25 +321,25 @@
             <article class="dataset-card" data-family="OMPL"><div class="dataset-top"><span class="dataset-type">ROBOT MODELS</span><span class="dataset-count">29 entries</span></div><h3>OMPL</h3><p>Robot configurations and geometric problem definitions.</p><div class="dataset-bar"><i style="--bar:3%"></i></div><small>25 configurations, 4 geometric demos</small><div class="dataset-card-links"><a href="datasets/ompl-problems/">Read the profile</a></div></article>
             <article class="dataset-card" data-family="DIMACS"><div class="dataset-top"><span class="dataset-type">ROAD NETWORKS</span><span class="dataset-count">25 entries</span></div><h3>DIMACS</h3><p>Directed road graphs with weights and parallel arcs.</p><div class="dataset-bar"><i style="--bar:2%"></i></div><small>12 networks for distance and time, Rome99</small><div class="dataset-card-links"><a href="datasets/dimacs-roads/">Read the profile</a></div></article>
           </div>
-          <p class="chart-caption">Bars show each source's share of the 1,297 catalog entries. They do not show difficulty or benchmark weight.</p>
+          <p class="chart-caption">Catalog entries by source.</p>
           <a class="dataset-guide-link" href="datasets/">Explore the detailed dataset guide <span aria-hidden="true">→</span></a>
 
           <div class="campaign-panel">
             <div class="campaign-intro">
               <p class="eyebrow">RECORDED EVALUATION CAMPAIGNS</p>
               <strong>226,255</strong>
-              <span>observations across 12 separate cohorts</span>
-              <p>Snapshot dated 09 Oct 2026. Detailed raw results are generated under the benchmark folder, which is excluded from Git; this page summarizes the coverage documented in the project.</p>
-              <a class="text-link" href="https://github.com/damminhtien/pathplanning/blob/main/docs/benchmarks/dataset_characterization.md#completed-campaign-coverage-2026-10-09" target="_blank" rel="noreferrer">Read the coverage notes</a>
+              <span>observations across 12 cohorts</span>
+              <p>Campaign snapshot: 09 Oct 2026.</p>
+              <a class="text-link" href="https://github.com/damminhtien/pathplanning/blob/main/docs/benchmarks/dataset_characterization.md#completed-campaign-coverage-2026-10-09" target="_blank" rel="noreferrer">Read coverage notes</a>
             </div>
             <div class="campaign-highlights">
-              <article><span class="cohort-tag">MOVINGAI GRIDS</span><h3>3,363 queries</h3><p>Selected across 789 eligible land maps. Latency covers 788 map and query pairs, 12 variants, and 7 measured runs.</p></article>
-              <article><span class="cohort-tag">BARN GEOMETRY</span><h3>300 worlds</h3><p>14 compatible planners produced 2,673 source-geometry-valid paths and 1,527 no-solution outcomes.</p></article>
-              <article><span class="cohort-tag">DIMACS ROADS</span><h3>13 of 25 graphs</h3><p>130 optimal and 39 valid suboptimal outcomes; 12 other graphs were recorded as resource-limited.</p></article>
-              <article><span class="cohort-tag">3D VOXELS</span><h3>2 distinct maps</h3><p>26 optimal and 6 valid suboptimal outcomes under a strict 26-neighbor oracle.</p></article>
+              <article><span class="cohort-tag">MOVINGAI GRIDS</span><h3>3,363 queries</h3><p>789 maps; latency covers 788 map/query pairs, 12 variants, and 7 measured runs.</p></article>
+              <article><span class="cohort-tag">BARN GEOMETRY</span><h3>300 worlds</h3><p>14 planners: 2,673 valid paths and 1,527 no-solution outcomes.</p></article>
+              <article><span class="cohort-tag">DIMACS ROADS</span><h3>13 of 25 graphs</h3><p>130 optimal and 39 valid suboptimal outcomes; 12 graphs resource-limited.</p></article>
+              <article><span class="cohort-tag">3D VOXELS</span><h3>2 maps</h3><p>26 optimal and 6 valid suboptimal paths; 26-neighbor validation.</p></article>
             </div>
           </div>
-          <p class="not-leaderboard"><b>Do not combine these into one leaderboard.</b> Directed road graphs, 26-neighbor voxels, grid maps, and continuous robot spaces use different motion models, costs, and correctness oracles.</p>
+          <p class="not-leaderboard">Each cohort uses its own motion model, costs, and validation rules.</p>
         </div>
       </section>
 
@@ -350,26 +347,26 @@
         <div class="section-heading">
           <div>
             <p class="eyebrow">05 / HOW TO READ A MEASUREMENT</p>
-            <h2>Don't stop at “how much <span class="gradient-text">faster?”</span></h2>
+            <h2>Measure more than <span class="gradient-text">speed.</span></h2>
           </div>
-          <p class="section-intro">A useful benchmark says what was measured, on which task, against what checks, and what remains unknown.</p>
+          <p class="section-intro">Define the task, validate each route, then report the results.</p>
         </div>
         <div class="method-track" aria-label="Planner evaluation process">
-          <article class="method-step"><span class="step-number">01</span><div class="step-art art-source"><i></i><i></i><i></i><i></i></div><h3>Match the problem</h3><p>Keep map type, motion rules, cost units, robot shape, and goal policy aligned.</p></article>
-          <article class="method-step"><span class="step-number">02</span><div class="step-art art-freeze"><i></i><i></i><i></i></div><h3>Freeze the inputs</h3><p>Record source, version, hashes, seed, and workload before planner runs.</p></article>
-          <article class="method-step"><span class="step-number">03</span><div class="step-art art-pair"><i></i><i></i></div><h3>Run a paired comparison</h3><p>Keep start/goal pairs and protocol fixed; separate warmups, repeats, and run order.</p></article>
-          <article class="method-step"><span class="step-number">04</span><div class="step-art art-check"><i></i><i></i><i></i></div><h3>Check independently</h3><p>Validate endpoints, collisions, legal moves, and a separately reconstructed path cost.</p></article>
-          <article class="method-step"><span class="step-number">05</span><div class="step-art art-report"><i></i><i></i><i></i></div><h3>Report what is missing</h3><p>Show latency with solved coverage, quality, memory, timeouts, and unmeasured inputs.</p></article>
+          <article class="method-step"><span class="step-number">01</span><div class="step-art art-source"><i></i><i></i><i></i><i></i></div><h3>Match the problem</h3><p>Match map, motion rules, costs, robot shape, and goal policy.</p></article>
+          <article class="method-step"><span class="step-number">02</span><div class="step-art art-freeze"><i></i><i></i><i></i></div><h3>Freeze the inputs</h3><p>Record source, version, hashes, seed, and workload.</p></article>
+          <article class="method-step"><span class="step-number">03</span><div class="step-art art-pair"><i></i><i></i></div><h3>Run a paired comparison</h3><p>Fix start/goal pairs, protocol, warmups, repeats, and run order.</p></article>
+          <article class="method-step"><span class="step-number">04</span><div class="step-art art-check"><i></i><i></i><i></i></div><h3>Check independently</h3><p>Check endpoints, collisions, legal moves, and path cost.</p></article>
+          <article class="method-step"><span class="step-number">05</span><div class="step-art art-report"><i></i><i></i><i></i></div><h3>Report the results</h3><p>Show coverage, quality, runtime, memory, and timeouts.</p></article>
         </div>
 
         <div class="metric-cards">
-          <article><h3>Correctness</h3><p>Is the route feasible? Does it reach the exact goal? Does independent cost reconstruction agree?</p></article>
-          <article><h3>Time</h3><p>Report medians and spread on matched workloads; separate setup cost when it matters.</p></article>
-          <article><h3>Work</h3><p>Expanded nodes, checked edges, and collision checks help explain how a runtime happened.</p></article>
-          <article><h3>Memory</h3><p>Separate peak memory from retained structures, query state, and result output.</p></article>
+          <article><h3>Correctness</h3><p>Feasible route, exact goal, and independently checked cost.</p></article>
+          <article><h3>Time</h3><p>Median and spread; separate setup when relevant.</p></article>
+          <article><h3>Work</h3><p>Expanded nodes, checked edges, and collision tests.</p></article>
+          <article><h3>Memory</h3><p>Peak use and retained planner state.</p></article>
         </div>
         <div class="evaluation-footnote">
-          <b>Keep denominators visible.</b> Success coverage counts eligible workloads selected before planner runs. Conditional latency on commonly solved cases belongs beside full-cohort coverage; repeat runs are not independent queries.
+          Report cohort size and success coverage alongside latency and quality.
           <a href="https://github.com/damminhtien/pathplanning/blob/main/docs/shortest_path_benchmark_contract.md" target="_blank" rel="noreferrer">Shortest-path evaluation contract</a>
         </div>
       </section>
@@ -378,20 +375,20 @@
         <div class="section-heading case-studies-heading">
           <div>
             <p class="eyebrow">06 / CASE STUDIES</p>
-            <h2>See what each benchmark <span class="gradient-text">can actually tell us.</span></h2>
+            <h2>What each benchmark <span class="gradient-text">reveals.</span></h2>
           </div>
-          <p class="section-intro">Follow the question, workload, evaluation rules, result, and limits across game maps, road networks, continuous geometry, and 3D worlds.</p>
+          <p class="section-intro">Results across grid maps, road networks, continuous geometry, and 3D worlds.</p>
         </div>
         <div class="case-study-card-grid"><!-- generated:case-study-cards --></div>
         <div class="case-studies-footer-note">
-          <p>Each result keeps its original denominator and task model. These benchmark studies describe planner behavior; they are not reports of deployed autonomous systems.</p>
+          <p>Explore the workload, evaluation rules, and results.</p>
           <a class="dataset-guide-link" href="case-studies/">Explore all case studies</a>
         </div>
       </section>
 
       <section class="closing-section">
         <div class="section-wrap closing-inner">
-          <div><p class="eyebrow">BRING YOUR OWN QUESTION</p><h2>The world changes.<br /><span class="gradient-text">Does the agent adapt?</span></h2><p>Read the API, check the supported planner matrix, or browse examples to keep learning.</p></div>
+          <div><p class="eyebrow">BRING YOUR OWN QUESTION</p><h2>The world changes.<br /><span class="gradient-text">Does the agent adapt?</span></h2><p>Explore the API, planner matrix, and examples.</p></div>
           <div class="closing-actions">
             <a class="button button-outline" href="mindmap/">Explore the project map</a>
             <a class="button button-outline" href="datasets/">Read the dataset guide</a>
@@ -405,12 +402,11 @@
 
     <footer class="footer">
       <a class="brand" href="#top"><span>path<span class="brand-accent">planning</span></span></a>
-      <p>Learn how an agent finds a route. Then ask whether that route is any good.</p>
+      <p>See how agents plan and move.</p>
       <a href="https://github.com/damminhtien/pathplanning" target="_blank" rel="noreferrer">Open-source project</a>
       <a href="mindmap/">Project mind map</a>
       <a href="datasets/">Dataset guide</a>
       <a href="case-studies/">Case studies</a>
-      <small>Animations on this page illustrate algorithm concepts. See the source and documentation for each planner's exact contract.</small>
     </footer>
   </body>
 </html>
