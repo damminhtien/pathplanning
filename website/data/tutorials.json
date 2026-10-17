@@ -2,334 +2,1315 @@
   "bfs": {
     "tagline": "Let a wave of small steps find the way.",
     "story": "Imagine dropping a pebble into still water. The first ring reaches every place one move away; the next ring reaches every place two moves away. Breadth-First Search follows those rings until one touches the goal.",
-    "steps": ["Put the start in a first-in, first-out queue.", "Visit the oldest place and add each new neighbor behind it.", "Stop when the goal leaves the queue, then follow the saved breadcrumbs back."],
+    "steps": [
+      "Put the start in a first-in, first-out queue.",
+      "Visit the oldest place and add each new neighbor behind it.",
+      "Stop when the goal leaves the queue, then follow the saved breadcrumbs back."
+    ],
     "experiment": "Move the goal close, then far away. The wave still grows in rings because the queue cares about distance in steps, not direction.",
     "question": "When does the first path found have the fewest moves?",
     "answer": "When every edge has the same cost. If moves have different costs, use a cost-aware search such as Dijkstra.",
-    "related": ["dijkstra", "dfs"]
+    "related": [
+      "dijkstra",
+      "dfs"
+    ],
+    "mechanism": "Breadth-First Search stores the frontier in a first-in, first-out queue. Because every move adds exactly one edge, the queue leaves in the same order that the search discovers distance layers: first one move from the start, then two, then three. A parent pointer is recorded the first time each node is reached, so the route can be rebuilt when the goal is found.",
+    "example": {
+      "setup": "Imagine a small four-way grid with every open move costing one. One corridor reaches the goal in four moves; a winding corridor reaches it in seven.",
+      "steps": [
+        "The queue starts with only the start. Its neighbors are added and marked before they can be added again, preventing loops.",
+        "All one-move states leave the queue before any two-move state. Their children form the next layer, even if they point away from the goal.",
+        "When the goal is reached, follow its saved parent links backward. The layer order proves no route with fewer edges was skipped."
+      ]
+    },
+    "best_for": "Use BFS when every transition has equal cost and the number of moves is the quantity you want to minimize. It is a clear baseline for small and medium unweighted graphs.",
+    "watch_out": "Do not use its first route as a cheapest-route answer when terrain or actions have different costs. The full frontier can also consume substantial memory in a wide graph.",
+    "evaluation": "Check that a route exists when expected, then compare edge count and expanded nodes. Keep the grid, neighbor order, start, goal, and corner rules fixed so the result measures the search rather than a changed problem.",
+    "metrics": [
+      "Success rate",
+      "Path length in edges",
+      "Expanded nodes",
+      "Peak memory"
+    ]
   },
   "dfs": {
     "tagline": "Follow one promising passage, then backtrack.",
     "story": "Picture exploring a cave with a notebook. At each fork, choose a passage and keep going. When it ends, return to the last fork with an unexplored path. Depth-First Search remembers the unfinished forks in a stack.",
-    "steps": ["Put the start on top of a last-in, first-out stack.", "Take the newest place and follow one unvisited neighbor deeply.", "When a branch runs out, pop back to the last fork and try another."],
+    "steps": [
+      "Put the start on top of a last-in, first-out stack.",
+      "Take the newest place and follow one unvisited neighbor deeply.",
+      "When a branch runs out, pop back to the last fork and try another."
+    ],
     "experiment": "Watch the search draw a thin, winding tendril. Change neighbor order and notice that the route can change even though the maze did not.",
     "question": "Does the first route DFS finds have to be the shortest?",
     "answer": "No. The route depends on which branch is tried first; DFS is useful for reachability, but it does not generally minimize path length.",
-    "related": ["bfs", "greedy_best_first"]
+    "related": [
+      "bfs",
+      "greedy_best_first"
+    ],
+    "mechanism": "Depth-First Search uses a last-in, first-out stack. It follows one newly discovered neighbor as far as it can, leaving other branches on the stack for later. A visited set prevents cycling through the same states, while parent pointers preserve the particular branch that led to each discovery.",
+    "example": {
+      "setup": "Picture a maze where the first branch turns away from the destination and ends at a wall. A second branch near the entrance leads directly to the goal.",
+      "steps": [
+        "The start is pushed onto the stack. When it is removed, one neighbor is chosen and pushed above the other waiting choices.",
+        "The newest choice is explored repeatedly, so the search can reach a dead end before visiting a nearby useful corridor.",
+        "At a dead end, the stack exposes the most recent unfinished fork. DFS backs up and tries another branch until it reaches the goal or exhausts the graph."
+      ]
+    },
+    "best_for": "Use DFS for reachability, connected-component exploration, or tasks where a deep valid route is enough and a compact frontier matters.",
+    "watch_out": "The first route depends on neighbor order and can be much longer than necessary. On an unbounded graph, depth-first exploration can keep following one branch indefinitely without a depth limit or other completeness condition.",
+    "evaluation": "Report success separately from route quality. Compare visited states, path length, and memory over the same graph, and repeat with reversed neighbor order to reveal how strongly the result depends on ordering.",
+    "metrics": [
+      "Success rate",
+      "Visited nodes",
+      "Path length",
+      "Peak frontier size"
+    ]
   },
   "greedy_best_first": {
     "tagline": "Chase the goal's direction. See what it costs.",
     "story": "A hiker sees the summit beyond a ridge and heads straight toward it. That guess can be helpful, but the hiker has forgotten how far they already walked. Greedy Best-First Search orders the frontier by its estimate to the goal alone.",
-    "steps": ["Give each frontier node a goal-distance estimate h.", "Visit the node with the smallest h, even if reaching it was expensive.", "Keep the parent breadcrumbs so a route can be reconstructed."],
+    "steps": [
+      "Give each frontier node a goal-distance estimate h.",
+      "Visit the node with the smallest h, even if reaching it was expensive.",
+      "Keep the parent breadcrumbs so a route can be reconstructed."
+    ],
     "experiment": "Move the goal behind the long wall. Follow the eager frontier and compare it with A*: a direct guess can explore a tempting dead end.",
     "question": "Why can the nearest-looking node lead to a longer route?",
     "answer": "The estimate only looks forward. It does not count the cost already spent getting to that node.",
-    "related": ["astar", "dijkstra"]
+    "related": [
+      "astar",
+      "dijkstra"
+    ],
+    "mechanism": "Greedy Best-First Search ranks open states only by h(n), the estimate of remaining distance to the goal. It deliberately ignores the cost already paid to reach a state. A parent map still records the route, but the priority rule is eager: make the next choice that looks closest to the destination.",
+    "example": {
+      "setup": "Place a long wall between the robot and the goal. A state on the wrong side of the wall can have a small straight-line estimate even though reaching it sends the robot into a dead end.",
+      "steps": [
+        "The start adds its reachable neighbors and assigns each an estimate to the goal.",
+        "The queue selects the neighbor with the smallest estimate, even when that state is far from the start in accumulated travel cost.",
+        "If the estimate points into the wall, the search may spend time along the wall before it discovers the opening. The returned route can be valid but unnecessarily long."
+      ]
+    },
+    "best_for": "Use it when quickly finding a feasible route matters more than proving that route is short, and when the heuristic reliably points through open space.",
+    "watch_out": "A heuristic alone is not a lower-bound proof of route quality. Greedy search may be misled by obstacles, terrain costs, or a goal estimate that does not reflect the real route.",
+    "evaluation": "Measure time to first feasible route and its cost separately. Compare against A* on identical problems; do not call fewer expansions a win if the route is much longer or invalid.",
+    "metrics": [
+      "Success rate",
+      "Time to first route",
+      "Path cost",
+      "Expanded nodes"
+    ]
   },
   "astar": {
     "tagline": "Balance the ground already covered with the road ahead.",
     "story": "Imagine two guides choosing the next signpost. One remembers the miles already walked; the other estimates the miles left. A* listens to both: f = g + h. With a suitable lower-bound heuristic, that balance can find an optimal route.",
-    "steps": ["Track g: the best known cost from the start.", "Estimate h: a lower bound on the remaining cost.", "Expand the node with the smallest g + h, updating better routes as they appear."],
+    "steps": [
+      "Track g: the best known cost from the start.",
+      "Estimate h: a lower bound on the remaining cost.",
+      "Expand the node with the smallest g + h, updating better routes as they appear."
+    ],
     "experiment": "Try an obstacle-free map, then add a wall. A useful heuristic points the search toward the goal while g keeps it honest about detours.",
     "question": "What must be true of h for the usual optimality guarantee?",
     "answer": "It must not overestimate the true remaining cost; the project's exact contract also depends on the graph and search settings.",
-    "related": ["dijkstra", "greedy_best_first"]
+    "related": [
+      "dijkstra",
+      "greedy_best_first"
+    ],
+    "mechanism": "A* assigns each open state a score f(n)=g(n)+h(n). The g value is the best known cost from the start; h estimates the remaining cost. The queue expands the smallest combined estimate. When a cheaper route to a state appears, A* updates its cost and parent so the later route can replace an earlier one.",
+    "example": {
+      "setup": "Compare two frontier states. Route A has cost-so-far 3 and estimated remaining cost 5; route B has cost-so-far 6 and estimate 2. Both have a combined score of 8.",
+      "steps": [
+        "The heuristic h should be a lower bound on the remaining cost if the usual optimality argument is to apply.",
+        "A* weighs distance already traveled against estimated distance left. A tempting state near the goal can lose priority if reaching it was expensive.",
+        "After finding a goal route, the search continues until its stopping condition proves no remaining candidate can improve that route."
+      ]
+    },
+    "best_for": "Use A* when you have a useful admissible heuristic and want a shortest or least-cost route under the stated graph and cost model.",
+    "watch_out": "A heuristic that overestimates can invalidate the usual optimality guarantee. Memory use can grow with the number of states held in the open and closed structures.",
+    "evaluation": "Compare success and path cost first, then expansions, runtime, and peak memory. Use the same heuristic and tie-breaking rule for every run; a speed comparison is not meaningful when the candidate algorithms solve different cost models.",
+    "metrics": [
+      "Success rate",
+      "Path cost",
+      "Expanded nodes",
+      "Runtime and memory"
+    ]
   },
   "bidirectional_dijkstra": {
     "tagline": "Let two cost waves meet in the middle.",
     "story": "Instead of sending one explorer across the whole map, send one from each end. Each wave still respects edge costs. When the explored regions meet, their two partial routes can join into a complete one.",
-    "steps": ["Start a Dijkstra frontier at the start and another at the exact goal.", "Grow the cheaper unsettled side while recording forward and reverse costs.", "Join compatible settled regions and reconstruct the route through the meeting point."],
+    "steps": [
+      "Start a Dijkstra frontier at the start and another at the exact goal.",
+      "Grow the cheaper unsettled side while recording forward and reverse costs.",
+      "Join compatible settled regions and reconstruct the route through the meeting point."
+    ],
     "experiment": "Move the endpoints farther apart. Watch two frontiers approach each other; they are two searches that must agree on a connecting route.",
     "question": "Why does this planner need an exact goal node?",
     "answer": "The reverse search begins at that one node. A goal predicate that may match many nodes needs a different way to initialize the backward search.",
-    "related": ["dijkstra", "bidirectional_astar"]
+    "related": [
+      "dijkstra",
+      "bidirectional_astar"
+    ],
+    "mechanism": "This planner maintains two cost-ordered searches: one moves forward from the start and one searches backward from the exact goal. Each side stores its own distances and parent links. A meeting state connects a start-side route and a goal-side route; the algorithm must account for edge directions and costs on both sides.",
+    "example": {
+      "setup": "Consider a large road graph whose start and destination are far apart but connected by a narrow set of corridors.",
+      "steps": [
+        "The forward queue grows by total cost from the start; the backward queue grows by the cost to reach the goal through incoming edges.",
+        "When both searches have reached a common state, their recorded partial paths form a complete candidate route.",
+        "The search compares candidate joins while the frontiers continue to advance, then reconstructs the best supported connection."
+      ]
+    },
+    "best_for": "Use it for a single source and a single exact destination on a graph where incoming and outgoing edge costs are available.",
+    "watch_out": "It cannot start its reverse frontier from a vague goal predicate that represents many possible goal states. Directed graphs also require correct reverse-edge costs.",
+    "evaluation": "Keep exact endpoints and edge weights fixed. Compare path cost to Dijkstra, and report expansions from both directions as well as total runtime; count the two frontiers consistently.",
+    "metrics": [
+      "Success rate",
+      "Path cost",
+      "Forward and backward expansions",
+      "Runtime"
+    ]
   },
   "bidirectional_astar": {
     "tagline": "Guide both ends toward a shared meeting point.",
     "story": "Two travelers move toward each other, each using a map-based hint. The hints must fit together safely: this planner uses a consistent heuristic to reweight edges before running its two-sided search.",
-    "steps": ["Prepare the graph and check heuristic consistency on its edges.", "Use the heuristic as a potential to form non-negative reduced costs.", "Grow two Dijkstra-style frontiers and join them when their costs establish a route."],
+    "steps": [
+      "Prepare the graph and check heuristic consistency on its edges.",
+      "Use the heuristic as a potential to form non-negative reduced costs.",
+      "Grow two Dijkstra-style frontiers and join them when their costs establish a route."
+    ],
     "experiment": "Compare the paired waves with Bidirectional Dijkstra. The map's heuristic can guide where they meet, but an invalid hint breaks the planner's contract.",
     "question": "What is the role of heuristic consistency here?",
     "answer": "It makes the potential-reweighted edges non-negative, which is required by the underlying bidirectional Dijkstra search.",
-    "related": ["bidirectional_dijkstra", "astar"]
+    "related": [
+      "bidirectional_dijkstra",
+      "astar"
+    ],
+    "mechanism": "Bidirectional A* combines two-ended search with a potential derived from a heuristic. The potential reweights edges so each frontier can use a Dijkstra-style cost order. For that reweighting to preserve non-negative edge costs, the project's contract requires a consistent heuristic and an exact goal node.",
+    "example": {
+      "setup": "Imagine two explorers moving through a graph with a distance estimate that is consistent across every edge.",
+      "steps": [
+        "The heuristic is converted into a potential on graph states, producing reduced costs for the search.",
+        "The start and goal frontiers grow under those reduced costs while each side records its own route information.",
+        "When the explored regions can be joined under the reweighted cost accounting, the original route cost is recovered for comparison."
+      ]
+    },
+    "best_for": "Use it when a consistent heuristic can guide both ends of a single exact start-to-goal query and reverse traversal is supported.",
+    "watch_out": "Admissibility alone is not the implementation contract here: an inconsistent heuristic can create negative reduced edges and break the underlying Dijkstra-style ordering.",
+    "evaluation": "Compare with bidirectional Dijkstra on the same graph and endpoints. Record the original path cost, expansions on both sides, and heuristic evaluation overhead; verify the consistency condition before interpreting a speed result.",
+    "metrics": [
+      "Success rate",
+      "Original path cost",
+      "Bidirectional expansions",
+      "Heuristic overhead"
+    ]
   },
   "dijkstra": {
     "tagline": "Let the cheapest known route speak first.",
     "story": "Imagine a map where grass, hills, and water each have a different travel cost. Dijkstra's wave reaches every location in order of total cost from the start, not in order of the number of steps.",
-    "steps": ["Set the start's known cost to zero.", "Expand the frontier node with the smallest cost so far, g.", "Relax each edge: if a route is cheaper, save the new cost and parent."],
+    "steps": [
+      "Set the start's known cost to zero.",
+      "Expand the frontier node with the smallest cost so far, g.",
+      "Relax each edge: if a route is cheaper, save the new cost and parent."
+    ],
     "experiment": "Turn a few cells into costly ground. The cheapest route may take more steps if those steps avoid enough expensive terrain.",
     "question": "What kind of edge costs does Dijkstra require?",
     "answer": "Non-negative costs. Negative edges can invalidate the order in which a settled cost is trusted.",
-    "related": ["bfs", "astar"]
+    "related": [
+      "bfs",
+      "astar"
+    ],
+    "mechanism": "Dijkstra keeps the cheapest known cost g(n) from the start and always settles the unsettled state with the smallest g. Relaxing an edge means checking whether reaching its neighbor through this state is cheaper than the neighbor's current best route. Once settled, a state's shortest cost is final when all edge costs are non-negative.",
+    "example": {
+      "setup": "A direct two-edge route crosses expensive terrain for total cost 12. A four-edge detour crosses cheap terrain for total cost 7.",
+      "steps": [
+        "The start receives cost zero; every other state begins without a known route.",
+        "The cheapest frontier state is expanded. Its outgoing edges propose new costs, and lower proposals replace the old parent and distance.",
+        "The goal is settled only after every cheaper alternative still in the queue has been considered, so the detour can beat the shorter route."
+      ]
+    },
+    "best_for": "Use Dijkstra for non-negative weighted graphs when no trustworthy goal heuristic is available or when distances to many destinations are useful.",
+    "watch_out": "Negative edge costs violate the settled-state reasoning. With a good admissible heuristic, A* can often avoid exploring as much of the graph.",
+    "evaluation": "Check route cost against a known shortest-path reference on small cases, then compare expansions and runtime on larger ones. Hold edge costs, graph direction, and termination rules constant.",
+    "metrics": [
+      "Success rate",
+      "Total edge cost",
+      "Settled nodes",
+      "Runtime and memory"
+    ]
   },
   "dstar_lite": {
     "tagline": "When the map changes, repair the route you already know.",
     "story": "A delivery robot has already explored most of its building when a door closes. Starting from nothing wastes that knowledge. D* Lite keeps two cost estimates and repairs the parts made inconsistent by changed edges.",
-    "steps": ["Plan once on a stable directed graph with an exact goal.", "Move the start or update edge costs as new information arrives.", "Revisit inconsistent states until the route from the new start is repaired."],
+    "steps": [
+      "Plan once on a stable directed graph with an exact goal.",
+      "Move the start or update edge costs as new information arrives.",
+      "Revisit inconsistent states until the route from the new start is repaired."
+    ],
     "experiment": "Use Change map to block a corridor. Notice that the illustration responds to a changed world; the real planner also needs the graph topology to remain stable.",
     "question": "What kind of change can this planner repair between queries?",
     "answer": "Changed costs on known directed edges and a moved start. A topology change needs a new planner session.",
-    "related": ["astar", "anytime_astar"]
+    "related": [
+      "astar",
+      "anytime_astar"
+    ],
+    "mechanism": "D* Lite reuses a prior search when edge costs change on a stable directed graph. It maintains g values and rhs one-step lookahead values; a state is consistent when they agree. A priority queue revisits only states whose values became inconsistent after an edge update or after the start moved.",
+    "example": {
+      "setup": "A robot has a route through a hallway, then receives a new observation that one directed connection has become expensive or blocked.",
+      "steps": [
+        "The goal-side cost information is prepared once for the stable graph topology.",
+        "The changed edge makes nearby states inconsistent, so they are inserted or reprioritized in the repair queue.",
+        "The planner processes affected states until the new start has a consistent best route, reusing unaffected cost information."
+      ]
+    },
+    "best_for": "Use it when the robot repeatedly replans on the same directed graph and updates edge costs or moves its start between queries.",
+    "watch_out": "This implementation requires an exact goal, non-negative costs, and an admissible consistent heuristic. A topology change needs a new planner session rather than a cost repair.",
+    "evaluation": "Compare incremental repair with a fresh A* run after each change. Use the same sequence of edge updates and measure cumulative expansions and time, while verifying every returned route against the updated graph.",
+    "metrics": [
+      "Route validity after each update",
+      "Repair expansions",
+      "Cumulative runtime",
+      "Cost vs fresh search"
+    ]
   },
   "weighted_astar": {
     "tagline": "Turn up the goal hint and trade certainty for focus.",
     "story": "A guide who strongly trusts the distance-to-go estimate walks more directly toward the destination. Weighted A* changes the score to g + w·h, so the goal can pull harder than it does in ordinary A*.",
-    "steps": ["Measure the cost already paid as g.", "Multiply the goal estimate h by a weight greater than one.", "Expand by g + w·h and check what path quality the chosen stop rule returns."],
+    "steps": [
+      "Measure the cost already paid as g.",
+      "Multiply the goal estimate h by a weight greater than one.",
+      "Expand by g + w·h and check what path quality the chosen stop rule returns."
+    ],
     "experiment": "Increase the heuristic weight. The frontier should lean harder toward the goal; compare the first feasible route with ordinary A*.",
     "question": "Does weighting h preserve ordinary A* optimality?",
     "answer": "Not in general. The weight changes the search ordering, so path quality depends on the weight and stopping condition.",
-    "related": ["astar", "anytime_astar"]
+    "related": [
+      "astar",
+      "anytime_astar"
+    ],
+    "mechanism": "Weighted A* changes the priority score from g+h to g+w·h, usually with w greater than one. The larger heuristic weight gives the goal estimate more influence over the next expansion. The search still records the actual path cost g; the weight changes ordering, not the cost of traversing an edge.",
+    "example": {
+      "setup": "At a fork, one state has g=2 and h=8 while another has g=7 and h=3. With a high weight, the first state's low cost-so-far can be outweighed by its large remaining estimate.",
+      "steps": [
+        "Ordinary A* balances cost already paid and lower-bound cost remaining.",
+        "Increasing w makes states that look closer to the goal more attractive, which can narrow the search toward one corridor.",
+        "The first feasible solution may arrive sooner, but it can be more expensive; stop conditions determine what the planner returns."
+      ]
+    },
+    "best_for": "Use it when a quick feasible answer matters and you can accept a controlled change in search ordering to focus toward the goal.",
+    "watch_out": "Do not assume a generic suboptimality bound from the word weighted. The supported guarantee depends on the implementation's exact heuristic and stopping rule; this project's ordinary Weighted A* does not promise ordinary A* optimality.",
+    "evaluation": "Sweep several declared weights on the same problems. Plot time to first route against route cost and expansions, and report each weight so a faster but worse route remains visible.",
+    "metrics": [
+      "Success rate",
+      "Time to first route",
+      "Path cost",
+      "Expanded nodes by weight"
+    ]
   },
   "reexp_astar": {
     "tagline": "A closed door can reopen when a better route arrives.",
     "story": "Some searches meet a place first by a costly road and later discover a cheaper way in. Re-expansion A* can reopen a settled node when the improvement passes its configured threshold.",
-    "steps": ["Order candidates with a weighted A* score.", "When a cheaper route reaches a closed node, measure the improvement.", "Reopen the node only when the selected threshold rule says the new route is worth exploring."],
+    "steps": [
+      "Order candidates with a weighted A* score.",
+      "When a cheaper route reaches a closed node, measure the improvement.",
+      "Reopen the node only when the selected threshold rule says the new route is worth exploring."
+    ],
     "experiment": "Follow a node that was already expanded. The key event is not visiting it twice at random; a better route has earned another look.",
     "question": "Which setting decides how a reopening threshold is measured?",
     "answer": "The project's r_mode: absolute improvement, relative to the new edge, or relative to the current g value.",
-    "related": ["weighted_astar", "anytime_astar"]
+    "related": [
+      "weighted_astar",
+      "anytime_astar"
+    ],
+    "mechanism": "Re-expansion A* starts with a weighted A* ordering but can reopen a closed state after discovering a sufficiently better route to it. The configured r threshold decides how large that improvement must be. The r_mode can measure an absolute change, a change relative to the new edge, or a change relative to the current g value.",
+    "example": {
+      "setup": "A state has already been expanded using a costly parent. Later, another branch reaches that same state for a lower cost.",
+      "steps": [
+        "The state is closed after its current weighted-search expansion, but its stored g value remains available for comparison.",
+        "The new route proposes a lower g. The planner computes the improvement using the selected r_mode.",
+        "If the improvement passes the threshold, the state is reopened so its descendants can benefit from the better route."
+      ]
+    },
+    "best_for": "Use it when weighted ordering is useful but you also want a configured way to recover from improved paths to previously closed states.",
+    "watch_out": "Changing r_mode or r changes which states reopen and can alter both work and route quality. Re-expansion is not a blanket proof of optimality.",
+    "evaluation": "Compare against Weighted A* using identical weights and tie-breaking. Record reopened states as well as total expansions, path cost, and runtime; otherwise extra repair work is easy to miss.",
+    "metrics": [
+      "Success rate",
+      "Reopened states",
+      "Path cost",
+      "Total expansions and runtime"
+    ]
   },
   "anytime_astar": {
     "tagline": "Find a usable route first. Spend more time improving it.",
     "story": "A robot facing a deadline may need a safe first answer before it can afford a perfect one. Anytime A* runs weighted searches in passes, keeping the best complete route found so far.",
-    "steps": ["Run an early, more goal-focused search to get a feasible route.", "Keep that route as the incumbent while the next pass searches again.", "Use later passes to seek a shorter route within each pass's expansion budget."],
+    "steps": [
+      "Run an early, more goal-focused search to get a feasible route.",
+      "Keep that route as the incumbent while the next pass searches again.",
+      "Use later passes to seek a shorter route within each pass's expansion budget."
+    ],
     "experiment": "Pause after the first route appears, then continue. Ask whether the extra search is improving the path enough to justify its cost.",
     "question": "What does the returned incumbent represent?",
     "answer": "The best complete solution found by the final pass; it is not a promise that every possible improvement was exhausted.",
-    "related": ["weighted_astar", "reexp_astar"]
+    "related": [
+      "weighted_astar",
+      "reexp_astar"
+    ],
+    "mechanism": "Anytime A* runs a sequence of weighted A* passes and keeps an incumbent: the best complete route found so far. Each pass has its own expansion budget. A new pass can search more carefully, but a previous feasible route remains available if time runs out before improvement.",
+    "example": {
+      "setup": "A robot must produce a safe route before a deadline, while a longer planning window may improve the route afterward.",
+      "steps": [
+        "An early pass uses an aggressive ordering to try to reach a feasible goal quickly.",
+        "Once a complete route exists, its cost becomes the incumbent and is not replaced by a worse route.",
+        "Later passes use their own budgets to search for a lower-cost route; the returned incumbent is the best one actually found."
+      ]
+    },
+    "best_for": "Use it when a usable route has value before the full compute budget expires and route quality can improve with additional search.",
+    "watch_out": "The final incumbent is not automatically an optimal route. Check the per-pass budgets and stop reason to understand how much improvement opportunity remained.",
+    "evaluation": "Measure incumbent cost over elapsed time, not just final runtime. Use the same total budget and per-pass schedule across planners and include runs that never find a route.",
+    "metrics": [
+      "Time to first route",
+      "Incumbent cost over time",
+      "Pass expansions",
+      "Success rate"
+    ]
   },
   "jps": {
     "tagline": "Skip the grid's repetitive straight-line choices.",
     "story": "On a regular grid, many nearby routes are mirror images of one another. Jump Point Search skips symmetric intermediate expansions and keeps the turning points where a route choice really matters.",
-    "steps": ["Move through uniform-cost eight-connected grid cells.", "Continue along forced directions instead of expanding every symmetric neighbor.", "Stop at a jump point, a forced neighbor, or the goal."],
+    "steps": [
+      "Move through uniform-cost eight-connected grid cells.",
+      "Continue along forced directions instead of expanding every symmetric neighbor.",
+      "Stop at a jump point, a forced neighbor, or the goal."
+    ],
     "experiment": "Watch long straight corridors. The search should leap between meaningful turns while the returned path still contains every traversed cell.",
     "question": "Can standard JPS be used unchanged on arbitrary weighted terrain?",
     "answer": "No. This implementation requires a uniform Grid2DSearchSpace and the standard corner rule.",
-    "related": ["jpsw", "astar"]
+    "related": [
+      "jpsw",
+      "astar"
+    ],
+    "mechanism": "Jump Point Search prunes symmetric alternatives on a uniform-cost, eight-connected grid. If many sequences of straight and diagonal moves lead to the same cost, it can skip intermediate expansions and continue along a direction until a jump point, forced neighbor, or goal matters. The final path still expands to the traversed grid cells.",
+    "example": {
+      "setup": "An open rectangular room contains many equal-cost ways to reach the same corner, followed by one obstacle that forces a turn.",
+      "steps": [
+        "From the start, JPS identifies neighbors that are symmetric copies of a route already represented by another direction.",
+        "It jumps over those intermediate cells rather than placing every one on the open list.",
+        "Near the obstacle, a forced neighbor makes a turn relevant; the search resumes there and eventually reconstructs all path cells."
+      ]
+    },
+    "best_for": "Use standard JPS on the project's uniform-cost Grid2DSearchSpace when the standard eight-connected movement and corner rule match the task.",
+    "watch_out": "Its pruning proof relies on those grid assumptions. It is not a drop-in replacement for weighted terrain, arbitrary graphs, or different diagonal corner rules.",
+    "evaluation": "Compare returned path cost with A* on identical uniform grids and verify every step is legal. Report expansions and runtime separately, especially across open rooms and obstacle-dense maps.",
+    "metrics": [
+      "Route validity",
+      "Path cost vs A*",
+      "Expanded jump points",
+      "Runtime"
+    ],
+    "reference": {
+      "title": "Online Graph Pruning for Pathfinding on Grid Maps",
+      "url": "https://pathfinding.ai/pdf/harabor-grastien-aaai11.pdf"
+    }
   },
   "jpsw": {
     "tagline": "Jump over symmetry, but pay attention to the ground.",
     "story": "A shortcut through a grid is only useful if the terrain under it is still cheap. Weighted Jump Point Search combines jump-point reasoning with the positive movement costs of a terrain grid.",
-    "steps": ["Read positive traversal costs from the terrain map.", "Skip symmetric grid expansions while tracking the cost of every move.", "Reject diagonals that cut a blocked corner and keep the cheapest route found."],
+    "steps": [
+      "Read positive traversal costs from the terrain map.",
+      "Skip symmetric grid expansions while tracking the cost of every move.",
+      "Reject diagonals that cut a blocked corner and keep the cheapest route found."
+    ],
     "experiment": "Make the direct corridor orange and costly. A good route can be longer in cells yet cheaper in total terrain cost.",
     "question": "What keeps JPSW distinct from uniform-cost JPS?",
     "answer": "JPSW accounts for positive terrain costs and has a terrain-grid contract; standard JPS assumes uniform costs.",
-    "related": ["jps", "dijkstra"]
+    "related": [
+      "jps",
+      "dijkstra"
+    ],
+    "mechanism": "Weighted Jump Point Search combines jump-point reasoning with positive traversal costs. It must account for the terrain crossed by a move, not just the number of cells skipped. Diagonal transitions are checked against the project's no-corner-cutting rule, so a geometrically short jump cannot pass through a blocked corner.",
+    "example": {
+      "setup": "A straight corridor is open but expensive, while a slightly longer side route crosses lower-cost cells.",
+      "steps": [
+        "The search reads the positive finite cost attached to each terrain cell or move.",
+        "Jump-point pruning skips symmetric choices only when the weighted-grid rules preserve that equivalence.",
+        "A route is selected by accumulated terrain cost, and any diagonal that cuts a blocked corner is rejected."
+      ]
+    },
+    "best_for": "Use it with TerrainCostGrid2D when costs are positive and finite and the standard eight-connected movement model applies.",
+    "watch_out": "Do not interpret the route as minimizing cell count. Terrain values, exact cell goals, and corner restrictions are part of the planner contract.",
+    "evaluation": "Compare total terrain cost against a cost-aware reference on the same maps. Include path validity, expansions, and runtime, and report both path length and accumulated cost so the objective stays clear.",
+    "metrics": [
+      "Route validity",
+      "Terrain cost",
+      "Path length in cells",
+      "Expanded nodes"
+    ]
   },
   "theta_star": {
     "tagline": "Let visible landmarks replace extra grid corners.",
     "story": "A grid gives the robot many small stepping stones, but a visible straight line may skip several of them. Theta* uses line of sight to connect a node to a farther parent and make an any-angle route.",
-    "steps": ["Search over the supported eight-connected grid.", "When a parent can see a neighbor directly, consider that longer shortcut.", "Check each segment against obstacles and corner cutting before accepting it."],
+    "steps": [
+      "Search over the supported eight-connected grid.",
+      "When a parent can see a neighbor directly, consider that longer shortcut.",
+      "Check each segment against obstacles and corner cutting before accepting it."
+    ],
     "experiment": "Compare the route with ordinary grid A*. Look for fewer zigzags; remember that the path space is different from grid-step optimality.",
     "question": "What does any-angle mean here?",
     "answer": "The returned waypoints are connected by visible straight segments instead of only by grid edges.",
-    "related": ["lazy_theta_star", "astar"]
+    "related": [
+      "lazy_theta_star",
+      "astar"
+    ],
+    "mechanism": "Theta* searches grid vertices but can connect a neighbor to the current node's parent when there is clear line of sight. That parent shortcut lets the route travel along straight segments instead of being restricted to grid edges. The search still uses grid adjacency to explore; visibility changes the parent and path geometry.",
+    "example": {
+      "setup": "The start and a later grid cell can see one another diagonally across open cells, even though an edge-by-edge grid route would zigzag.",
+      "steps": [
+        "The current grid node considers its ordinary neighbors and the cost of reaching them through the current node.",
+        "If the current node's parent can see a neighbor, Theta* also evaluates a direct segment from that parent.",
+        "A clear shortcut can replace several grid turns; blocked cells and corner cutting still reject invalid segments."
+      ]
+    },
+    "best_for": "Use it when smoother any-angle paths are useful on the supported eight-connected grid or terrain-cost grid.",
+    "watch_out": "The objective is not the same as shortest grid-edge distance, and the method does not promise the globally shortest continuous path. Line-of-sight rules must match the map's collision model.",
+    "evaluation": "Measure continuous segment length and collision validity, and compare with grid A* only after acknowledging their different path spaces. Also count visibility checks, since they add work that node expansions alone hide.",
+    "metrics": [
+      "Segment validity",
+      "Path length",
+      "Visibility checks",
+      "Runtime"
+    ],
+    "reference": {
+      "title": "Theta*: Any-Angle Path Planning on Grids",
+      "url": "https://aaai.org/Papers/AAAI/2007/AAAI07-187.pdf"
+    }
   },
   "lazy_theta_star": {
     "tagline": "Try a shortcut now; prove it clear when it matters.",
     "story": "Visibility checks can be expensive. Lazy Theta* temporarily assumes a promising parent shortcut is clear, then checks it when the node is expanded and repairs the choice if an obstacle blocks it.",
-    "steps": ["Use a promising visible-parent shortcut as a temporary guess.", "Delay the line-of-sight test until that node reaches the frontier's top.", "If the segment is blocked, repair the parent before the path is returned."],
+    "steps": [
+      "Use a promising visible-parent shortcut as a temporary guess.",
+      "Delay the line-of-sight test until that node reaches the frontier's top.",
+      "If the segment is blocked, repair the parent before the path is returned."
+    ],
     "experiment": "Watch the route form before every shortcut is verified. The useful question is when the check happens, not whether the final segment is safe.",
     "question": "Does lazy validation mean the returned route may cross a wall?",
     "answer": "No. Candidate shortcuts are checked and repaired before they become the returned path.",
-    "related": ["theta_star", "astar"]
+    "related": [
+      "theta_star",
+      "astar"
+    ],
+    "mechanism": "Lazy Theta* delays line-of-sight validation for a promising parent shortcut. During search it may temporarily assume a shortcut is clear, then check it when the node reaches the top of the queue. If the segment is blocked, the parent is repaired before that node can contribute to a returned path.",
+    "example": {
+      "setup": "Several candidate shortcuts look promising, but testing every line segment immediately would be costly.",
+      "steps": [
+        "The planner sets an optimistic parent using the current best cost estimate without checking visibility yet.",
+        "When the candidate is important enough to expand, the planner tests whether the parent segment is actually clear.",
+        "A blocked shortcut triggers parent repair and another search decision; only validated segments remain in the returned route."
+      ]
+    },
+    "best_for": "Use it when visibility checks are expensive and delaying checks can avoid validating shortcuts that never matter to the final route.",
+    "watch_out": "Lazy means delayed validation, not skipped validation. A candidate line may cross an obstacle during search, but it must be checked and repaired before the final path is accepted.",
+    "evaluation": "Compare with Theta* on the same maps and collision settings. Record line-of-sight checks and repairs alongside route length and runtime; fewer checks are useful only if the final route remains valid.",
+    "metrics": [
+      "Final route validity",
+      "Visibility checks",
+      "Parent repairs",
+      "Path length"
+    ]
   },
   "rrt": {
     "tagline": "Scatter targets through free space and grow toward them.",
     "story": "In a large open room, drawing every possible state on a grid would be wasteful. RRT grows a tree from the start: it samples a target, finds a nearby tree state, then takes a short valid step toward the target.",
-    "steps": ["Sample a target in free space.", "Find the nearest existing tree state and steer toward the sample.", "Add the new state only when the connecting motion is valid."],
+    "steps": [
+      "Sample a target in free space.",
+      "Find the nearest existing tree state and steer toward the sample.",
+      "Add the new state only when the connecting motion is valid."
+    ],
     "experiment": "Run the tree again with a different seed. The branches can change while the basic question stays the same: can one collision-free branch reach the goal?",
     "question": "Does ordinary RRT keep improving path length after it finds a route?",
     "answer": "It is designed to find a feasible route; it does not generally optimize path length.",
-    "related": ["rrt_star", "rrt_connect"]
+    "related": [
+      "rrt_star",
+      "rrt_connect"
+    ],
+    "mechanism": "RRT grows a tree through continuous free space. Each iteration samples a target state, finds a nearby tree vertex, and steers a limited distance toward the sample. The new motion is added only if the local segment passes validity checks. Repeated growth tends to reach unexplored regions without discretizing the whole space.",
+    "example": {
+      "setup": "A narrow passage separates the start from the goal in a continuous configuration space.",
+      "steps": [
+        "A random sample lands in an unexplored region; it is a direction for exploration, not automatically a new tree node.",
+        "The nearest existing tree state is selected, and the planner steers toward the sample by at most its step size.",
+        "Collision checking decides whether the new edge can be kept. A later tree branch may reach the goal, but its length is not generally optimal."
+      ]
+    },
+    "best_for": "Use RRT to seek a feasible path in a continuous space where a useful discrete grid is difficult to define.",
+    "watch_out": "Random samples make results seed-dependent, and a feasible route can contain many bends. A narrow passage may be missed under a small sample or time budget.",
+    "evaluation": "Repeat over declared random seeds and report the fraction of valid solutions plus time-to-first-solution distributions. Compare path cost and collision checks under identical step sizes, goal bias, and budgets.",
+    "metrics": [
+      "Success rate across seeds",
+      "Time to first solution",
+      "Path cost",
+      "Collision checks"
+    ]
   },
   "rrt_star": {
     "tagline": "Grow a tree, then tidy the neighborhood around it.",
     "story": "The first parent a new sample finds may not be the cheapest one. RRT* checks nearby states and rewires connections when the new point offers a lower-cost way through the local neighborhood.",
-    "steps": ["Sample and steer to a new collision-free state.", "Choose a valid nearby parent with a low total route cost.", "Rewire neighbors when the new state gives them a cheaper parent."],
+    "steps": [
+      "Sample and steer to a new collision-free state.",
+      "Choose a valid nearby parent with a low total route cost.",
+      "Rewire neighbors when the new state gives them a cheaper parent."
+    ],
     "experiment": "Let more samples arrive after the first solution. Watch local edges change; rewiring is the extra work that gives this family its improvement behavior.",
     "question": "Why can RRT* do more work than RRT?",
     "answer": "It checks nearby connections and may rewire the tree instead of accepting the first valid parent.",
-    "related": ["rrt", "informed_rrt_star"]
+    "related": [
+      "rrt",
+      "informed_rrt_star"
+    ],
+    "mechanism": "RRT* adds local cost improvement to RRT. When a new state is accepted, nearby tree vertices are considered as possible parents; after choosing a lower-cost parent, nearby vertices may be rewired through the new state when that improves their cost. The tree can therefore improve a route after its first feasible connection.",
+    "example": {
+      "setup": "A new sample connects to the tree near a junction where an older branch took a long detour.",
+      "steps": [
+        "The planner steers to the sample and checks its incoming motion for validity.",
+        "Nearby existing vertices are compared as parents using start-to-state cost plus local connection cost.",
+        "If the new state offers a cheaper route to a neighbor, that neighbor is rewired, potentially improving every descendant's route cost."
+      ]
+    },
+    "best_for": "Use it when a continuous feasible route is needed and there is time to improve its cost after the first solution.",
+    "watch_out": "Neighborhood searches and rewiring add work. Optimality results depend on sampling, connection rules, objective, and continued computation; a short run is not an optimality guarantee.",
+    "evaluation": "Plot best valid path cost against time and samples across multiple seeds. Include time to first route, collision checks, and runtime so improvement work is visible beside solution quality.",
+    "metrics": [
+      "Success rate",
+      "Cost vs time",
+      "Cost vs samples",
+      "Collision checks"
+    ]
   },
   "informed_rrt_star": {
     "tagline": "After the first path, search where improvement is still possible.",
     "story": "Once a route exists, many random samples cannot possibly beat it. Informed RRT* focuses later samples inside an informed region that could contain a better Euclidean path.",
-    "steps": ["Use RRT* to find an initial feasible route.", "Turn the current path cost into a smaller informed sampling region.", "Keep sampling and rewiring only where a shorter route could still fit."],
+    "steps": [
+      "Use RRT* to find an initial feasible route.",
+      "Turn the current path cost into a smaller informed sampling region.",
+      "Keep sampling and rewiring only where a shorter route could still fit."
+    ],
     "experiment": "Watch the cloud of samples tighten after a route appears. The supported bound relies on an exact point goal, Euclidean distance, and additive path length.",
     "question": "Why does the informed region shrink after a solution?",
     "answer": "A better route must stay within the length budget set by the current solution, so regions outside that bound cannot improve it.",
-    "related": ["rrt_star", "bit_star"]
+    "related": [
+      "rrt_star",
+      "bit_star"
+    ],
+    "mechanism": "After finding a route of cost c_best, Informed RRT* restricts useful new samples to states that could still improve it. For Euclidean path length with an exact point goal, the lower bound from start to a sample plus sample to goal defines a prolate hyperspheroid. As the incumbent improves, this informed region contracts.",
+    "example": {
+      "setup": "The first route detours around a wall. A sample far outside the region whose two straight-line distances already exceed that route cannot improve its length.",
+      "steps": [
+        "Before any solution exists, the planner must explore broadly enough to find one.",
+        "Once c_best is known, it samples states whose start-to-state plus state-to-goal lower bound is below c_best.",
+        "RRT* parent selection and rewiring continue inside the informed set, refining the best route as new useful states arrive."
+      ]
+    },
+    "best_for": "Use it for an exact point goal and additive Euclidean path length when improving an existing solution is important.",
+    "watch_out": "The informed-set bound relies on the project's exact-goal, Euclidean-distance, additive-length contract. A different objective cannot be substituted without a new valid lower bound.",
+    "evaluation": "Use identical bounds and seeds for Informed RRT* and RRT*. Compare solution-cost curves over time and seeds; verify that every sample and path uses the same objective and collision checker.",
+    "metrics": [
+      "Success rate",
+      "Cost vs time",
+      "Cost vs seed",
+      "Samples and collision checks"
+    ],
+    "reference": {
+      "title": "Informed RRT*: Direct Sampling of an Admissible Ellipsoidal Heuristic",
+      "url": "https://arxiv.org/abs/1404.2334"
+    }
   },
   "fmt_star": {
     "tagline": "Plan through a fixed cloud of samples, one cost layer at a time.",
     "story": "Imagine placing all your stepping stones before starting the hike. FMT* searches through a fixed sample set and builds a low-cost tree outward from the start, lazily checking candidate connections.",
-    "steps": ["Draw a fixed batch of free-space samples.", "Process promising unvisited samples in increasing cost-to-come order.", "Connect each through a useful nearby visited state when the motion is valid."],
+    "steps": [
+      "Draw a fixed batch of free-space samples.",
+      "Process promising unvisited samples in increasing cost-to-come order.",
+      "Connect each through a useful nearby visited state when the motion is valid."
+    ],
     "experiment": "Change the sample count before running. More candidate stones can change what connections are possible, while each run still uses its chosen fixed set.",
     "question": "What does sample_count control for FMT* in this project?",
     "answer": "The size of its fixed sample set.",
-    "related": ["prm_star", "bit_star"]
+    "related": [
+      "prm_star",
+      "bit_star"
+    ],
+    "mechanism": "FMT* begins with a fixed batch of random samples and grows a cost-ordered wavefront through their implicit neighborhood graph. For each unconnected sample near the wavefront, it looks for a low-cost parent among already reached samples and checks the candidate motion when needed. In this project, sample_count sets the batch size for that planning call.",
+    "example": {
+      "setup": "Imagine placing a finite set of stepping stones across free space before starting to plan.",
+      "steps": [
+        "The sample set is drawn first; unlike RRT, the planner does not add a fresh random state after every expansion.",
+        "The reached set forms a wavefront ordered by cost from the start.",
+        "A candidate sample joins through a suitable nearby reached state if the local motion is valid; the fixed set limits the resolution available in this call."
+      ]
+    },
+    "best_for": "Use it when a batch of samples can be chosen in advance and a wavefront over that fixed approximation fits the planning budget.",
+    "watch_out": "A small sample_count can miss useful passages; a large one increases neighborhood and collision-check work. The fixed sample batch is not the same as an anytime stream of new samples.",
+    "evaluation": "Sweep sample_count over the same seeded problems. Report success rate and path cost as functions of sample count, plus collision checks and runtime; include the sampling cost in the total.",
+    "metrics": [
+      "Success rate by sample count",
+      "Path cost",
+      "Collision checks",
+      "Total runtime"
+    ]
   },
   "prm_star": {
     "tagline": "Build a reusable road map, then search its streets.",
     "story": "A city map can serve many trips. PRM* samples free configurations, connects nearby states with valid motions, then searches the resulting roadmap from the start to the goal.",
-    "steps": ["Sample collision-free configurations across the space.", "Connect nearby samples when their local motion is valid.", "Add the exact start and goal and search the roadmap for a route."],
+    "steps": [
+      "Sample collision-free configurations across the space.",
+      "Connect nearby samples when their local motion is valid.",
+      "Add the exact start and goal and search the roadmap for a route."
+    ],
     "experiment": "Move the start and goal while keeping the roadmap. The graph-building phase can be reused conceptually; query endpoints still need valid connections.",
     "question": "What makes a roadmap edge usable?",
     "answer": "The local motion between its endpoints must be valid under the space's collision and motion rules.",
-    "related": ["lazy_prm", "rrt_star"]
+    "related": [
+      "lazy_prm",
+      "rrt_star"
+    ],
+    "mechanism": "PRM* builds a graph approximation of continuous free space. It samples valid configurations, connects nearby pairs under a neighborhood rule, and keeps an edge only when the local motion is collision-free. Exact start and goal states are then connected into the roadmap and graph search finds a route through the sampled states.",
+    "example": {
+      "setup": "A robot needs to answer one query through a cluttered room using a sampled network of possible configurations.",
+      "steps": [
+        "Random free configurations become roadmap vertices; each vertex is a possible robot pose, not a point the robot must visit.",
+        "Nearby vertices are proposed as neighbors, and local motion checking decides which graph edges are usable.",
+        "The exact query endpoints attach to the graph, and a shortest-path search chooses among the valid sampled connections."
+      ]
+    },
+    "best_for": "Use PRM* when a graph approximation is useful for a continuous planning query and the Euclidean additive path-length contract applies.",
+    "watch_out": "Roadmap quality depends on sample density and connectivity. A standard PRM is naturally reusable, but reuse across calls in this project requires the explicit stateful roadmap API rather than assuming every call shares its samples.",
+    "evaluation": "Report success and route cost over multiple seeds while sweeping sample count and connection settings. Separate roadmap construction from query time, and state whether the roadmap was reused.",
+    "metrics": [
+      "Success rate across seeds",
+      "Path cost",
+      "Build and query time",
+      "Collision checks"
+    ]
   },
   "lazy_prm": {
     "tagline": "Draw the road map first. Check roads when a trip needs them.",
     "story": "A map can contain roads you have not driven yet. Lazy PRM keeps candidate roadmap edges unverified until the current route search asks to use them, then caches whether each road is clear.",
-    "steps": ["Build a roadmap from sampled configurations and candidate edges.", "Search for a route while treating unchecked edges as possible.", "Validate the chosen route's edges and repair the search when an edge is blocked."],
+    "steps": [
+      "Build a roadmap from sampled configurations and candidate edges.",
+      "Search for a route while treating unchecked edges as possible.",
+      "Validate the chosen route's edges and repair the search when an edge is blocked."
+    ],
     "experiment": "Look for dashed or newly checked connections in the illustration. A promising route is a hypothesis until its motions pass collision checks.",
     "question": "What is saved after an edge is checked?",
     "answer": "Its valid or blocked outcome is cached for later roadmap queries.",
-    "related": ["prm_star", "eirm_star"]
+    "related": [
+      "prm_star",
+      "eirm_star"
+    ],
+    "mechanism": "Lazy PRM first searches a roadmap whose candidate edges are not all collision-checked. It validates only edges on the current best candidate route. If one is blocked, that edge is removed and the graph is searched again. The validity result is cached, so later searches do not need to repeat the same check.",
+    "example": {
+      "setup": "A sampled roadmap contains many possible corridors, but only a few edges on the lowest-cost candidate route need to be checked first.",
+      "steps": [
+        "Build candidate connections and mark their validity as unknown rather than spending effort on every edge.",
+        "Graph search proposes the current cheapest route, which is a hypothesis until all of its edges are validated.",
+        "A blocked edge is cached as unusable; search proposes another route and validates only its unknown edges."
+      ]
+    },
+    "best_for": "Use it when collision checks are expensive and most roadmap edges are unlikely to appear on the query's candidate routes.",
+    "watch_out": "Unchecked does not mean valid. The route must pass all local motion checks before return, and cached results must not survive a world change unless the roadmap's versioning contract is respected.",
+    "evaluation": "Compare with eager PRM* using the same roadmap samples. Count collision checks, route-search retries, build time, and final path cost; invalidate or rebuild cached edges consistently when the world changes.",
+    "metrics": [
+      "Final route validity",
+      "Collision checks",
+      "Search retries",
+      "Build and query time"
+    ]
   },
   "ait_star": {
     "tagline": "Use discoveries about collisions to improve the search in reverse.",
     "story": "A path is shaped by obstacles as much as by distance. AIT* learns from collision checks and repairs a reverse graph heuristic so new searches have a better estimate of how the world connects to the goal.",
-    "steps": ["Sample states and build candidate connections.", "Search with a reverse estimate of cost-to-go.", "When a motion is blocked, update the learned graph and repair that estimate."],
+    "steps": [
+      "Sample states and build candidate connections.",
+      "Search with a reverse estimate of cost-to-go.",
+      "When a motion is blocked, update the learned graph and repair that estimate."
+    ],
     "experiment": "Notice the arrows pointing back from the goal. They are estimates across the sampled graph, and collision discoveries can change them.",
     "question": "What information can a collision discovery add?",
     "answer": "It can rule out a candidate connection, changing the graph used by the reverse heuristic.",
-    "related": ["eit_star", "bit_star"]
+    "related": [
+      "eit_star",
+      "bit_star"
+    ],
+    "mechanism": "AIT* uses an asymmetric bidirectional search over a sampled graph. A reverse search from the goal combines simple estimates across the graph into a more problem-specific cost-to-go heuristic; a forward search uses that estimate to prioritize motions from the start. When collision checking disproves an edge in the learned reverse picture, the estimate is repaired. This project's finite-sample implementation does not claim the paper's asymptotic-optimality guarantee.",
+    "example": {
+      "setup": "A straight-line estimate points through an obstacle, while a sampled route around the obstacle reveals a better cost-to-go for nearby states.",
+      "steps": [
+        "Samples and candidate connections form a finite graph for this planning call.",
+        "The reverse search computes goal-side costs through the currently known graph, giving the forward search more context than distance alone.",
+        "If a forward collision check invalidates a candidate edge, the reverse estimates are recomputed so later choices reflect that discovery."
+      ]
+    },
+    "best_for": "Use it when sampled-graph estimates can guide a single exact-goal query and collision information can correct an initially simple heuristic.",
+    "watch_out": "The paper's asymptotic guarantee must not be transferred to this finite-sample implementation. Its reverse shortest-path recomputation can also be significant when many edges are rejected.",
+    "evaluation": "Compare against other planners with the same exact goal, samples, objective, and collision budget. Report route cost, checked edges, reverse-search work, and wall time; label the result as finite-sample evidence.",
+    "metrics": [
+      "Success rate",
+      "Path cost",
+      "Collision checks",
+      "Reverse-search work and time"
+    ],
+    "reference": {
+      "title": "AIT* and EIT*: Asymmetric Bidirectional Sampling-Based Path Planning",
+      "url": "https://arxiv.org/abs/2111.01877"
+    }
   },
   "eit_star": {
     "tagline": "Let collision-check effort help order the next connection.",
     "story": "Two paths can have similar distance estimates but very different verification costs. EIT* uses the effort spent on collision checks to help decide which candidate connection to examine next.",
-    "steps": ["Prepare sampled states and candidate edges.", "Compare cost estimates while tracking collision-check effort.", "Use that effort to break ties between otherwise similar candidates."],
+    "steps": [
+      "Prepare sampled states and candidate edges.",
+      "Compare cost estimates while tracking collision-check effort.",
+      "Use that effort to break ties between otherwise similar candidates."
+    ],
     "experiment": "Focus on the tiny equal-looking candidates. Their geometry may be close in cost, but one may be much harder to verify.",
     "question": "What does collision_step influence in this project?",
     "answer": "It contributes to collision-check effort, which EIT* uses to break ties between cost estimates.",
-    "related": ["ait_star", "eirm_star"]
+    "related": [
+      "ait_star",
+      "eirm_star"
+    ],
+    "mechanism": "EIT* uses an asymmetric forward and reverse search like AIT*, but also estimates the computational effort needed to validate candidate routes. Cost-to-go estimates answer how promising a route may be; effort estimates answer how much work may be needed to establish it. In this project, collision-check effort influences ordering and collision_step affects that estimate; this finite sampled-graph implementation makes no paper-level asymptotic claim.",
+    "example": {
+      "setup": "Two candidate edges have similar estimated path cost, but one crosses a long region that will require many collision checks.",
+      "steps": [
+        "A reverse search estimates both remaining path cost and effort from sampled states to the goal.",
+        "The forward search uses cost and effort information to choose which candidate to validate next.",
+        "Validation can reject an edge and change later estimates; effort is a planning signal, not a guarantee that the work prediction is exact."
+      ]
+    },
+    "best_for": "Use it when local motion validation is a major part of planning time and effort-aware ordering can help choose among promising sampled routes.",
+    "watch_out": "The effort estimate depends on the collision model and collision_step. Do not compare runs with different validation resolution or present predicted effort as measured runtime.",
+    "evaluation": "Record actual collision checks and wall time separately from estimated effort. Hold collision_step, samples, goal, and objective constant, then compare cost-versus-time across seeds.",
+    "metrics": [
+      "Path cost",
+      "Actual collision checks",
+      "Predicted effort",
+      "Runtime across seeds"
+    ],
+    "reference": {
+      "title": "AIT* and EIT*: Asymmetric Bidirectional Sampling-Based Path Planning",
+      "url": "https://arxiv.org/abs/2111.01877"
+    }
   },
   "eirm_star": {
     "tagline": "Keep useful road knowledge for the next exact-goal query.",
     "story": "If the same robot space serves many destinations, rebuilding every edge check is wasteful. EIRM* reuses a Euclidean roadmap and remembers which edges were valid, blocked, and costly to inspect.",
-    "steps": ["Create or reuse the sampled roadmap.", "Validate candidate edges while searching for the exact goal.", "Carry edge outcomes and collision-effort estimates into later queries."],
+    "steps": [
+      "Create or reuse the sampled roadmap.",
+      "Validate candidate edges while searching for the exact goal.",
+      "Carry edge outcomes and collision-effort estimates into later queries."
+    ],
     "experiment": "Imagine asking for a second destination in the same space. Cached road knowledge can help, but the new route must still connect to its exact goal.",
     "question": "Which parts of the roadmap's history can be reused?",
     "answer": "Cached edge-validation outcomes and collision-effort estimates, alongside the reusable Euclidean roadmap.",
-    "related": ["lazy_prm", "eit_star"]
+    "related": [
+      "lazy_prm",
+      "eit_star"
+    ],
+    "mechanism": "EIRM* targets repeated queries in the same planning world. It retains a Euclidean sampled roadmap and remembers which edges were valid or blocked, along with collision-effort information. An asymmetric search can then look for routes that reuse useful known connections before paying to validate new ones. In this project, the world-version contract determines whether cached facts still apply.",
+    "example": {
+      "setup": "A robot receives a second start-to-goal request in a world whose collision geometry has not changed.",
+      "steps": [
+        "The first query builds roadmap states and spends effort validating some connections.",
+        "The next query begins with the same roadmap; known valid edges can support a route without repeating their checks.",
+        "The search orders candidate connections using both route promise and reusable validation work, while unknown edges still require checking."
+      ]
+    },
+    "best_for": "Use it for multiple exact-goal queries in a stable Euclidean world where roadmap and validation reuse can offset setup cost.",
+    "watch_out": "A changed world makes old collision answers unsafe. Advance the caller-managed world version or reset the roadmap, and compare against a fresh roadmap when reuse is not available.",
+    "evaluation": "Run a declared sequence of start-goal queries on one unchanged world. Report first-query and later-query times separately, reused checks, new checks, route cost, and the cost of maintaining the roadmap.",
+    "metrics": [
+      "First vs later query time",
+      "Reused validations",
+      "New collision checks",
+      "Path cost"
+    ],
+    "reference": {
+      "title": "Effort Informed Roadmaps (EIRM*)",
+      "url": "https://arxiv.org/abs/2205.08480"
+    }
   },
   "fcit_star": {
     "tagline": "Search a dense informed graph without checking every edge at once.",
     "story": "A cloud of samples implies a huge number of possible links. FCIT* searches a fully connected informed graph but organizes per-source queues and validates edges in batches to manage that work.",
-    "steps": ["Focus samples inside the current informed region.", "Keep an ordered local edge queue for each source sample.", "Validate promising edges in batches and update the best route."],
+    "steps": [
+      "Focus samples inside the current informed region.",
+      "Keep an ordered local edge queue for each source sample.",
+      "Validate promising edges in batches and update the best route."
+    ],
     "experiment": "Look at a batch of candidate links. The challenge is not drawing every edge; it is choosing which useful connections to validate next.",
     "question": "Why batch edge validation?",
     "answer": "It lets the search organize and check promising connections together rather than validating every possible edge eagerly.",
-    "related": ["bit_star", "abit_star"]
+    "related": [
+      "bit_star",
+      "abit_star"
+    ],
+    "mechanism": "FCIT* organizes a sampled, fully connected informed graph rather than relying on a nearest-neighbor data structure to generate a sparse candidate set. It orders useful outgoing edges from reached samples, checks them in batches, and retains a valid tree while the informed region changes. The fully connected candidate graph can create many edges, so efficient edge evaluation is central to the design.",
+    "example": {
+      "setup": "A batch contains several samples that could connect to one another, and collision checking is cheap enough to evaluate groups of candidate edges.",
+      "steps": [
+        "The current best solution defines which samples and edges could still improve the route.",
+        "Per-source edge queues prioritize promising outgoing connections rather than asking a nearest-neighbor index for a small neighborhood.",
+        "Batched validation accepts clear edges or rejects blocked ones; the tree and informed batches continue to refine the route."
+      ]
+    },
+    "best_for": "Use it when the project's exact-goal Euclidean path-length assumptions hold and efficient batched edge checking can make broad connectivity practical.",
+    "watch_out": "Fully connected candidate sets can grow quickly with sample count. A fast collision checker is part of the method's practical case; report memory and edge volume as well as route time.",
+    "evaluation": "Sweep batch and sample settings under a fixed collision-check implementation. Compare initial and final path cost, edges considered, edges validated, memory, and runtime over repeated seeds.",
+    "metrics": [
+      "Initial and final path cost",
+      "Edges considered and checked",
+      "Memory",
+      "Runtime across seeds"
+    ],
+    "reference": {
+      "title": "Nearest-Neighbourless Asymptotically Optimal Motion Planning with FCIT*",
+      "url": "https://arxiv.org/abs/2411.17902"
+    }
   },
   "rit_star": {
     "tagline": "Let the local cost of motion bend the sampling neighborhood.",
     "story": "A short move is not always an easy move. RIT* uses a Riemannian metric to shape distance and neighborhoods around the problem's local motion cost; its optional CARM mode adapts that metric from collision samples.",
-    "steps": ["Measure states with a supported positive-definite metric.", "Use that geometry to choose nearby samples and promising motions.", "Feed collision information into CARM when that option is enabled."],
+    "steps": [
+      "Measure states with a supported positive-definite metric.",
+      "Use that geometry to choose nearby samples and promising motions.",
+      "Feed collision information into CARM when that option is enabled."
+    ],
     "experiment": "Compare the metric-shaped neighborhood with a round Euclidean one. The allowed metric needs symmetric positive-definite tensors and global eigenvalue bounds.",
     "question": "What does CARM use to rescale the metric?",
     "answer": "Collision samples. CARM is an option; it is not the same as changing the obstacle geometry.",
-    "related": ["jit_star", "eirm_star"]
+    "related": [
+      "jit_star",
+      "eirm_star"
+    ],
+    "mechanism": "RIT* replaces one-size-fits-all Euclidean geometry with a positive-definite metric tensor that can make motion direction or location affect cost. That metric shapes distances, sampling regions, and edge-cost estimates during informed search. The project also supports collision-adaptive metric refinement, which can rescale the metric using collision samples; the tensor must satisfy the documented symmetry and eigenvalue bounds.",
+    "example": {
+      "setup": "A robot can move through one direction cheaply but pays more for motion across a costly or difficult region.",
+      "steps": [
+        "The metric assigns local cost to a small displacement; equal geometric distances can have different planning costs.",
+        "The informed search orders samples and connections using metric-aware estimates rather than Euclidean distance alone.",
+        "Collision feedback can refine the metric field, after which the planner must still evaluate candidate motions under the valid bounded tensor."
+      ]
+    },
+    "best_for": "Use it when the motion objective is genuinely anisotropic or spatially varying and a valid Riemannian metric describes that cost.",
+    "watch_out": "A tensor that is not symmetric positive definite, or lacks the required global eigenvalue bounds, violates the planner contract. A Euclidean path-length comparison may not measure the same objective.",
+    "evaluation": "Evaluate every route using the same metric tensor and normalization used by the planner. Report Riemannian cost, collision checks, runtime, and results with collision-adaptive refinement enabled or disabled.",
+    "metrics": [
+      "Route validity",
+      "Riemannian path cost",
+      "Collision checks",
+      "Runtime and refinement setting"
+    ],
+    "reference": {
+      "title": "RIT*: Riemannian Informed Trees for Cost-Adaptive Optimal Motion Planning",
+      "url": "https://arxiv.org/abs/2608.00822"
+    }
   },
   "jit_star": {
     "tagline": "Use robot sensitivity to notice valuable directions.",
     "story": "For a robot arm, moving the same distance in joint space can create very different motion at the tool. JIT* can use a Jacobian-weighted cost to value changes in robot motion and manipulability.",
-    "steps": ["Represent robot states in the supported configuration space.", "Use Euclidean or Jacobian-weighted path cost to compare connections.", "Apply native edge and sample refinements, with explicit opt-in for Python scoring callbacks."],
+    "steps": [
+      "Represent robot states in the supported configuration space.",
+      "Use Euclidean or Jacobian-weighted path cost to compare connections.",
+      "Apply native edge and sample refinements, with explicit opt-in for Python scoring callbacks."
+    ],
     "experiment": "Imagine two joint changes that move the gripper by different amounts. Ask whether plain Euclidean distance captures the motion your task cares about.",
     "question": "When can manipulability scoring be used?",
     "answer": "When a finite robot Jacobian is available and Python callback use has been explicitly enabled.",
-    "related": ["rit_star", "hybrid_astar"]
+    "related": [
+      "rit_star",
+      "hybrid_astar"
+    ],
+    "mechanism": "JIT* combines informed tree search with just-in-time edge and sample refinement. Collision feedback helps focus later sampling near failed motions, while nonzero uniform sampling preserves broader exploration. The project can also score manipulability in the path objective, but that requires a finite robot Jacobian callback and explicit Python-callback opt-in; it is not silently enabled for every space.",
+    "example": {
+      "setup": "Several samples near an obstacle produce blocked edges, while another corridor remains unexplored and the robot may also need to avoid poor manipulator poses.",
+      "steps": [
+        "The informed tree orders candidate motions that could improve the current solution.",
+        "A failed edge provides feedback for later sampling and refinement around that difficult region, without eliminating uniform exploration.",
+        "If manipulability scoring is requested, the Jacobian contributes to the stated objective; compare against a run with the same objective and callback policy."
+      ]
+    },
+    "best_for": "Use it when collision feedback can make later samples more useful, or when a robot's manipulability is intentionally part of the planning objective.",
+    "watch_out": "A manipulability term changes what counts as a good path. It requires a valid finite Jacobian and explicit callback opt-in, so it must not be compared directly with pure path-length runs as if the objective were unchanged.",
+    "evaluation": "Report the exact objective and weights, then compare valid solution cost, collision checks, samples, and runtime over seeds. Separate callback cost from native search when manipulability scoring is enabled.",
+    "metrics": [
+      "Success rate",
+      "Declared objective cost",
+      "Collision checks and samples",
+      "Runtime incl. callbacks"
+    ],
+    "reference": {
+      "title": "Just-in-Time Informed Trees: Manipulability-Aware Motion Planning",
+      "url": "https://arxiv.org/abs/2601.19972"
+    }
   },
   "hybrid_astar": {
     "tagline": "Search like a car: position, heading, and steering matter.",
     "story": "A car cannot turn sideways like a point on a grid. Hybrid A* searches continuous vehicle poses while using discrete bins to organize the search, then checks motions that obey the vehicle's steering rules.",
-    "steps": ["Track a pose with position and heading in an SE(2) vehicle space.", "Expand forward or reverse bicycle-model motion primitives.", "Check the full vehicle footprint and try a collision-checked analytic connection near the goal."],
+    "steps": [
+      "Track a pose with position and heading in an SE(2) vehicle space.",
+      "Expand forward or reverse bicycle-model motion primitives.",
+      "Check the full vehicle footprint and try a collision-checked analytic connection near the goal."
+    ],
     "experiment": "Compare the vehicle's curved trail with a point robot's route. A path is useful only if the whole car, not just its center, can follow it.",
     "question": "Why does Hybrid A* check the vehicle footprint?",
     "answer": "The robot has a nonzero size. A centerline that misses an obstacle can still make the body collide with it.",
-    "related": ["state_lattice", "jit_star"]
+    "related": [
+      "state_lattice",
+      "jit_star"
+    ],
+    "mechanism": "Hybrid A* searches continuous vehicle poses while grouping them into discrete position-and-heading bins for duplicate detection. Its successors are not arbitrary neighboring cells: they are forward or reverse bicycle-model motion primitives. The full vehicle footprint is collision-checked, and analytic Dubins or Reeds-Shepp connections can try to complete a promising route to the exact goal.",
+    "example": {
+      "setup": "A car-like robot must leave a parking aisle, turn around an obstacle, and arrive with a feasible heading.",
+      "steps": [
+        "Each search state carries x, y, and heading; two poses at the same position can lead to different futures.",
+        "The planner integrates a steering and direction primitive, then checks the vehicle's full footprint along the motion.",
+        "Near the goal it may try a collision-checked analytic connection; a successful connection must still satisfy the vehicle model and goal tolerance."
+      ]
+    },
+    "best_for": "Use it for an SE(2) vehicle problem with explicit dimensions, steering limits, and forward/reverse bicycle-model motions.",
+    "watch_out": "A point-robot grid path is not a valid substitute for vehicle kinematics or footprint checks. Heading resolution, primitive length, and analytic connection settings affect both feasibility and quality.",
+    "evaluation": "Check swept-footprint validity and goal-pose tolerance first. Compare path length, reverse distance or turns when part of the objective, expansions, and runtime with identical vehicle dimensions and steering limits.",
+    "metrics": [
+      "Footprint-valid success rate",
+      "Path length and turns",
+      "Expansions",
+      "Runtime"
+    ]
   },
   "state_lattice": {
     "tagline": "Choose from motion primitives the robot can really execute.",
     "story": "Instead of connecting arbitrary nearby points, a state lattice offers a library of short motions. Each primitive already describes a feasible local move for the robot model.",
-    "steps": ["Start from a pose in a StateLatticeSpace.", "Expand the finite set of sampled local-frame SE(2) primitives.", "Check each primitive along its configured steps before adding the new state."],
+    "steps": [
+      "Start from a pose in a StateLatticeSpace.",
+      "Expand the finite set of sampled local-frame SE(2) primitives.",
+      "Check each primitive along its configured steps before adding the new state."
+    ],
     "experiment": "Change the available primitives. The search can only build routes from the moves the lattice provides.",
     "question": "What defines the motions State Lattice may expand?",
     "answer": "A finite-cost set of sampled local-frame SE(2) motion primitives in the configured space.",
-    "related": ["hybrid_astar", "astar"]
+    "related": [
+      "hybrid_astar",
+      "astar"
+    ],
+    "mechanism": "A state lattice represents vehicle motion with a finite set of local-frame primitives. Each primitive begins at a lattice state and ends at another compatible state, preserving position and heading connectivity. Search chooses among these physically meaningful transitions; this project collision-checks each primitive along its swept path at the configured step.",
+    "example": {
+      "setup": "A car reaches a junction where only a left-turn primitive fits between two obstacles; a grid neighbor in the same direction would not describe the steering arc.",
+      "steps": [
+        "The current lattice state identifies the vehicle pose and the primitives that can start there.",
+        "Each candidate primitive generates a feasible motion arc with its own cost and endpoint state.",
+        "The planner checks the full arc through occupied cells before adding that transition to the search graph."
+      ]
+    },
+    "best_for": "Use it when the vehicle's motion can be described by a finite, sampled set of local-frame SE(2) primitives.",
+    "watch_out": "The primitive set defines which maneuvers are possible. Coarse primitives may miss a tight route; the collision step and vehicle footprint determine whether an arc is safely represented.",
+    "evaluation": "Keep the primitive set, footprint, and collision-check resolution fixed. Compare success, path cost, expansions, and minimum clearance, and include the cost of checking the full primitive motions.",
+    "metrics": [
+      "Feasible success rate",
+      "Path cost",
+      "Primitive expansions",
+      "Collision checks"
+    ]
   },
   "bit_star": {
     "tagline": "Treat sampled space like a graph whose best edges arrive first.",
     "story": "A new batch of samples creates many possible edges, but only a few look promising. BIT* orders that implicit graph by estimated route cost and spends effort on the best-looking connections first.",
-    "steps": ["Add a batch of random samples to the implicit graph.", "Order candidate edges by their promise of improving the current solution.", "Check the leading motions and use the next batch to refine the incumbent."],
+    "steps": [
+      "Add a batch of random samples to the implicit graph.",
+      "Order candidate edges by their promise of improving the current solution.",
+      "Check the leading motions and use the next batch to refine the incumbent."
+    ],
     "experiment": "Watch the batch arrive, then notice that not every line is checked. The edge queue decides which connection gets the next look.",
     "question": "What do sample_count and batch_size mean here?",
     "answer": "sample_count is the number of samples available across batches; batch_size controls how many are added per batch.",
-    "related": ["abit_star", "informed_rrt_star"]
+    "related": [
+      "abit_star",
+      "informed_rrt_star"
+    ],
+    "mechanism": "BIT* treats each batch of samples as an implicit random geometric graph and searches its possible edges in increasing order of potential solution cost, much like an A*-ordered graph search. When the current batch cannot improve the incumbent, it adds samples and reuses prior search information. In this project, the contract uses an exact point goal, Euclidean distance, and additive path length.",
+    "example": {
+      "setup": "A first route exists, but many sampled connections remain. Some can be ruled out by a lower bound before an expensive collision check is needed.",
+      "steps": [
+        "The current incumbent and admissible distance estimates assign promising bounds to candidate edges.",
+        "An edge queue expands the connection with the best possible total route cost and validates it when it can improve the tree.",
+        "Once the batch is exhausted, another sample batch refines the graph approximation and the search resumes with retained information."
+      ]
+    },
+    "best_for": "Use it when ordered anytime search over improving sample batches fits an exact-goal Euclidean path-length problem.",
+    "watch_out": "Sample_count, batch_size, and connection rules define the graph approximation. The project rejects custom objectives that would invalidate its path-length bounds.",
+    "evaluation": "Compare incumbent cost over time across the same seeds, batch sizes, and total sample budget. Report when each batch is added and distinguish time spent sampling, searching, and collision-checking.",
+    "metrics": [
+      "Success rate",
+      "Incumbent cost over time",
+      "Samples per batch",
+      "Search and collision time"
+    ],
+    "reference": {
+      "title": "Batch Informed Trees (BIT*): Informed Asymptotically Optimal Anytime Search",
+      "url": "https://arxiv.org/abs/1707.01888"
+    }
   },
   "abit_star": {
     "tagline": "Search in batches, then gradually trust the heuristic more precisely.",
     "story": "Early in a search, a strong goal hint can find an answer quickly. ABIT* lowers that heuristic inflation across batches and truncates work that cannot improve the current solution.",
-    "steps": ["Begin with a goal-focused weighted search over a sample batch.", "Use an incumbent to limit edges and states that cannot improve it.", "Add later batches while decreasing the heuristic inflation."],
+    "steps": [
+      "Begin with a goal-focused weighted search over a sample batch.",
+      "Use an incumbent to limit edges and states that cannot improve it.",
+      "Add later batches while decreasing the heuristic inflation."
+    ],
     "experiment": "Compare early and late batches. Early work seeks a usable route; later work spends more effort refining the best one.",
     "question": "What changes from one ABIT* batch to the next?",
     "answer": "The sample set grows, heuristic inflation decreases, and truncation uses the current incumbent.",
-    "related": ["bit_star", "anytime_astar"]
+    "related": [
+      "bit_star",
+      "anytime_astar"
+    ],
+    "mechanism": "ABIT* extends batch-informed search with advanced graph-search policies over the sampled approximation. Rather than treating every edge as equally urgent, it can use an aggressive truncated search to find an early route, then tighten its search policy to improve the incumbent. It keeps the same exact-goal, Euclidean, additive-path-length contract as BIT* in this project.",
+    "example": {
+      "setup": "The planner has a large batch of candidate edges and a strict first-solution deadline, but can continue refining the route afterward.",
+      "steps": [
+        "An inflated, truncated search focuses on a subset of promising graph work to try to produce an early feasible path.",
+        "Once a route is found, the planner uses a less aggressive search policy to investigate additional edges that could lower its cost.",
+        "New batches improve the sampled approximation while the incumbent remains available as a valid upper bound."
+      ]
+    },
+    "best_for": "Use it when you want BIT*-style batches with an anytime search strategy that emphasizes early solutions and continued refinement.",
+    "watch_out": "Inflation and truncation settings change how much work is explored in each phase. A route found under a small budget is an incumbent, not proof that the sampled graph or continuous problem is solved optimally.",
+    "evaluation": "Compare ABIT* with BIT* using identical samples, batches, seeds, and total time. Plot first-solution time and incumbent cost over time; include the parameter schedule and route validity.",
+    "metrics": [
+      "Success rate",
+      "Time to first route",
+      "Incumbent cost over time",
+      "Edges and batches processed"
+    ],
+    "reference": {
+      "title": "Advanced BIT* (ABIT*): Sampling-Based Planning with Advanced Graph-Search Techniques",
+      "url": "https://arxiv.org/abs/2002.06589"
+    }
   },
   "rrt_connect": {
     "tagline": "Grow from both ends and try to join the branches.",
     "story": "When the space between two poses is hard to explore from one side, grow a tree from the start and another from the goal. RRT-Connect alternates between them and tries to connect greedily.",
-    "steps": ["Grow one tree toward a random sample.", "Take the other tree and repeatedly extend it toward the new branch.", "Switch which tree grows next and stop when a valid connection joins them."],
+    "steps": [
+      "Grow one tree toward a random sample.",
+      "Take the other tree and repeatedly extend it toward the new branch.",
+      "Switch which tree grows next and stop when a valid connection joins them."
+    ],
     "experiment": "Watch two colors approach. A connection is accepted only when every local motion between the trees is valid.",
     "question": "What is the advantage of growing two trees?",
     "answer": "Each tree can explore from one endpoint, and greedy connection attempts can bridge the space between their frontiers.",
-    "related": ["rrt", "prm_star"]
+    "related": [
+      "rrt",
+      "prm_star"
+    ],
+    "mechanism": "RRT-Connect grows one tree from the start and another from the goal. After extending the active tree toward a random sample, it greedily tries to advance the other tree toward the new state until it connects or hits an invalid motion. This bidirectional growth is designed to find a feasible connection quickly rather than optimize its cost.",
+    "example": {
+      "setup": "A broad open region lies between two poses, so tree growth from each endpoint can cover the gap from both sides.",
+      "steps": [
+        "The active tree selects a random target and adds a collision-free step toward it.",
+        "The second tree repeatedly steers toward the new state, checking each extension as it tries to connect.",
+        "A valid bridge joins the two parent chains into a route; if the attempt collides, the search resumes from another sample."
+      ]
+    },
+    "best_for": "Use it when quickly finding any feasible continuous-space path matters more than minimizing its length.",
+    "watch_out": "The greedy connection can make many failed collision checks near obstacles, and the first route can be jagged or long. RRT-Connect does not perform RRT* rewiring.",
+    "evaluation": "Across multiple seeds, report success probability and time to first route. Also measure route cost and collision checks; use the same step size, goal tolerance, and collision resolution for all comparisons.",
+    "metrics": [
+      "Success rate across seeds",
+      "Time to first route",
+      "Path cost",
+      "Collision checks"
+    ]
   },
   "sipp": {
     "tagline": "Wait for a safe time window, then cross.",
     "story": "A hallway can be safe now and blocked a moment later. SIPP groups safe arrival times into intervals, so a planner can reason about when to reach a location and when it is safe to wait.",
-    "steps": ["For each location, identify its safe time intervals.", "Track arrival time inside an interval instead of every time tick.", "Wait safely or traverse an edge when its duration fits an open window."],
+    "steps": [
+      "For each location, identify its safe time intervals.",
+      "Track arrival time inside an interval instead of every time tick.",
+      "Wait safely or traverse an edge when its duration fits an open window."
+    ],
     "experiment": "Watch the agent wait at the dock while the hall is blocked. Safety depends on both where the agent is and when it arrives.",
     "question": "What timing contract does SIPP use in this project?",
     "answer": "Positive finite edge durations and half-open blocked intervals, with an exact goal; waiting is allowed.",
-    "related": ["bounded_suboptimal_sipp", "kinodynamic_sipp"]
+    "related": [
+      "bounded_suboptimal_sipp",
+      "kinodynamic_sipp"
+    ],
+    "mechanism": "SIPP compresses a time-expanded search by grouping safe timesteps at each graph vertex into safe intervals. A search state is a vertex paired with one of its safe intervals, and its label records the earliest arrival in that interval. The planner may wait for a departure time that lets the next edge and destination interval remain collision-free.",
+    "example": {
+      "setup": "A moving obstacle temporarily blocks the next corridor. Waiting at the current vertex may be safer than taking a longer spatial detour.",
+      "steps": [
+        "The planner finds the current vertex's safe interval and the arrival time at which the robot reaches it.",
+        "For each outgoing edge, it checks when travel of that edge's duration can start without overlapping a blocked edge or destination interval.",
+        "The earliest feasible arrival in a destination safe interval becomes the next search state; the route records both moves and waits."
+      ]
+    },
+    "best_for": "Use it when moving obstacles can be represented as blocked time intervals on graph vertices and edges, and waiting is allowed.",
+    "watch_out": "The project requires positive finite edge durations, half-open blocked intervals, and an exact goal. A spatial route without its timing schedule is not a valid temporal solution.",
+    "evaluation": "Validate every vertex occupancy and edge traversal against the same interval set. Report arrival time and waiting separately, and compare planners with identical durations, horizon, and collision conventions.",
+    "metrics": [
+      "Temporal success rate",
+      "Arrival time and wait",
+      "Expanded interval states",
+      "Schedule validity"
+    ],
+    "reference": {
+      "title": "SIPP: Safe Interval Path Planning for Dynamic Environments",
+      "url": "https://publications.ri.cmu.edu/sipp-safe-interval-path-planning-for-dynamic-environments"
+    }
   },
   "bounded_suboptimal_sipp": {
     "tagline": "Find a safe timed path with room to trade quality for speed.",
     "story": "The fastest possible answer is not always needed. Bounded-Suboptimal SIPP keeps SIPP's safe-interval view but uses a focal choice to find a route within a configured quality bound when the search succeeds.",
-    "steps": ["Build safe time intervals for the temporal graph.", "Keep candidate states whose cost remains within the weight-bounded band.", "Choose from that focal set and continue until a safe goal route is found."],
+    "steps": [
+      "Build safe time intervals for the temporal graph.",
+      "Keep candidate states whose cost remains within the weight-bounded band.",
+      "Choose from that focal set and continue until a safe goal route is found."
+    ],
     "experiment": "Compare the focal band with the best-known cost. Increase the weight and notice how the allowed search choices widen.",
     "question": "When does the configured w bound apply?",
     "answer": "Under this project's contract, the bound applies when stop_reason is success, and w must be finite and at least one.",
-    "related": ["sipp", "anytime_astar"]
+    "related": [
+      "sipp",
+      "anytime_astar"
+    ],
+    "mechanism": "Bounded-Suboptimal SIPP keeps SIPP's safe-interval state representation but uses a focal-search policy to trade the ordinary earliest-cost ordering for more focused exploration. Its finite weight w must be at least one. Under the project's exact temporal contract, the w-bound applies when the result ends with success; a different stop reason must be reported as such.",
+    "example": {
+      "setup": "Two safe-interval routes reach the destination with different arrival times, and the planner is allowed a stated factor of slack to search more aggressively.",
+      "steps": [
+        "Safe intervals still encode when each vertex can be occupied, so every candidate must respect the dynamic obstacles.",
+        "The focal policy chooses from eligible states using its configured weight rather than simply taking the globally earliest key every time.",
+        "On a successful termination, the planner returns a valid schedule with the documented bound; always inspect the result's stop reason."
+      ]
+    },
+    "best_for": "Use it when a faster temporal search is worth a declared, bounded trade-off in arrival cost.",
+    "watch_out": "The bound is conditional on a successful stop and w>=1. Never infer it from a partial, timed-out, or otherwise unsuccessful result.",
+    "evaluation": "Compare against optimal SIPP on the same temporal instances. Report success, measured arrival-cost ratio, runtime, and the configured w; verify all schedules and stop reasons before checking the bound.",
+    "metrics": [
+      "Success and stop reason",
+      "Arrival-cost ratio",
+      "Runtime by weight",
+      "Schedule validity"
+    ]
   },
   "kinodynamic_sipp": {
     "tagline": "A safe arrival time must also respect speed and acceleration.",
     "story": "A fast robot cannot stop at every safe waypoint to wait. Kinodynamic SIPP tracks velocity-labeled configurations and motion primitives with acceleration, so the timing plan follows what the vehicle can physically do.",
-    "steps": ["Represent each node with a configuration and a velocity label.", "Expand constant-acceleration motion primitives across integer time ticks.", "Wait only at zero-speed nodes whose safe intervals remain open."],
+    "steps": [
+      "Represent each node with a configuration and a velocity label.",
+      "Expand constant-acceleration motion primitives across integer time ticks.",
+      "Wait only at zero-speed nodes whose safe intervals remain open."
+    ],
     "experiment": "Watch how the same gap can be reachable at one speed but not another. Time and motion state are tied together.",
     "question": "When may this planner wait?",
     "answer": "Only at zero-speed nodes, under the project's integer-tick and constant-acceleration contract.",
-    "related": ["sipp", "hybrid_astar"]
+    "related": [
+      "sipp",
+      "hybrid_astar"
+    ],
+    "mechanism": "Kinodynamic SIPP adds motion feasibility to safe-interval planning. A state includes a graph configuration and velocity, and transitions use constant-acceleration motion primitives with discrete integer time ticks. The planner must find both a collision-free time window and a dynamically reachable speed profile; waiting is allowed only at zero-speed states.",
+    "example": {
+      "setup": "A robot approaches a crossing that is free later, but it cannot instantaneously stop or accelerate to any requested speed.",
+      "steps": [
+        "The current state records where the robot is, its velocity, and the safe time interval.",
+        "Candidate acceleration primitives determine reachable next velocities, travel durations, and arrival times.",
+        "A transition is accepted only if its motion fits the speed and acceleration limits and avoids blocked intervals; a wait requires zero speed."
+      ]
+    },
+    "best_for": "Use it when schedules must respect velocity and acceleration, not only when a graph vertex is occupied.",
+    "watch_out": "Integer ticks, finite motion limits, and the supplied primitive model define the reachable states. Waiting while moving is not allowed by this contract.",
+    "evaluation": "Validate both temporal collision freedom and every velocity/acceleration transition. Compare arrival, waiting, and dynamic feasibility using identical tick size and limits; spatial path length alone is insufficient.",
+    "metrics": [
+      "Dynamic success rate",
+      "Arrival and wait time",
+      "Primitive expansions",
+      "Schedule and motion validity"
+    ]
   },
   "eecbs": {
     "tagline": "Resolve one collision, then send the agents again.",
     "story": "Two individually good routes may ask different agents to occupy the same cell at the same time. EECBS searches over conflict constraints, asking the low-level planners to find new routes around each discovered collision.",
-    "steps": ["Plan a route for each agent on the shared graph.", "Detect a vertex conflict or an edge-swap conflict.", "Branch on constraints that forbid the collision and replan the affected agent."],
+    "steps": [
+      "Plan a route for each agent on the shared graph.",
+      "Detect a vertex conflict or an edge-swap conflict.",
+      "Branch on constraints that forbid the collision and replan the affected agent."
+    ],
     "experiment": "Watch the paths cross. The meeting is not a goal; it is a conflict that creates a new planning choice.",
     "question": "Which movement conflicts are in this project's EECBS contract?",
     "answer": "Vertex conflicts and edge swaps on an undirected unit-weight graph, with unique starts and goals.",
-    "related": ["lacam_star", "sipp"]
+    "related": [
+      "lacam_star",
+      "sipp"
+    ],
+    "mechanism": "EECBS is a two-level multi-agent search. At the high level it maintains candidate joint plans and resolves detected conflicts with constraints; at the low level it replans an individual agent under those constraints. Explicit Estimation Search helps order high-level conflict-tree nodes, while focal search guides low-level paths. The configured weight is part of the bounded-suboptimal contract.",
+    "example": {
+      "setup": "Two agents plan through a narrow corridor and choose the same vertex at the same timestep.",
+      "steps": [
+        "The low level finds an individual route for each agent under the current constraints.",
+        "The high level detects a vertex conflict or an edge swap and branches by forbidding one agent's conflicting action in each child.",
+        "Only the affected agent is replanned in each child; search continues until a conflict-free joint plan is found or the run stops."
+      ]
+    },
+    "best_for": "Use it for undirected unit-weight MAPF graphs with unique starts and goals, vertex and edge-swap conflicts, and the stay-at-goal convention.",
+    "watch_out": "The project's w>=1 bound is meaningful only for a successful result under the supported conflict and cost model. Different MAPF objectives or conflict rules are different problems.",
+    "evaluation": "Report conflict-free success, sum of costs and makespan separately, runtime, and high-level expansions. Compare with identical maps, agent sets, conflict rules, stay-at-goal convention, and weight.",
+    "metrics": [
+      "Conflict-free success",
+      "Sum of costs",
+      "Makespan",
+      "High-level nodes and runtime"
+    ],
+    "reference": {
+      "title": "EECBS: A Bounded-Suboptimal Search for Multi-Agent Path Finding",
+      "url": "https://ojs.aaai.org/index.php/AAAI/article/view/17466"
+    }
   },
   "lacam_star": {
     "tagline": "Choose a joint move only when the team can make it together.",
     "story": "A group of robots does not move through separate worlds. LaCAM* builds a joint configuration for the whole team, rejects conflicting combinations, and grows the search until all agents can reach their goals.",
-    "steps": ["Represent the team's positions together as one joint state.", "Choose candidate moves and reject vertex or edge-swap conflicts.", "Continue its seeded anytime search while agents respect reached goal locations."],
+    "steps": [
+      "Represent the team's positions together as one joint state.",
+      "Choose candidate moves and reject vertex or edge-swap conflicts.",
+      "Continue its seeded anytime search while agents respect reached goal locations."
+    ],
     "experiment": "Pause at a crowded crossing. A move can be legal for one robot and impossible for the group when all plans are considered together.",
     "question": "What happens after an agent reaches its goal in this project?",
     "answer": "It stays at that goal while the other agents continue, so the goal remains part of the joint collision constraints.",
-    "related": ["eecbs", "bfs"]
+    "related": [
+      "eecbs",
+      "bfs"
+    ],
+    "mechanism": "LaCAM* searches whole-agent configurations at a high level, where one state contains every agent's location. A low-level constraint search lazily constructs the next joint configuration instead of enumerating every combination up front. The seeded anytime search keeps improving solutions; in this project, optimality is returned only when the open set is exhausted under the documented transition-cost objective.",
+    "example": {
+      "setup": "Two agents approach a one-cell doorway from opposite sides; moving either agent alone may create a conflict with the other's next step.",
+      "steps": [
+        "A high-level node represents the locations of all agents at one time, along with the information needed to continue the search.",
+        "Low-level constraints generate a joint next move while avoiding occupied vertices and edge swaps.",
+        "A feasible joint configuration extends the plan; later search can improve its cost, and exhaustion of the open set is the condition for the project's optimal result."
+      ]
+    },
+    "best_for": "Use it for undirected unit-weight MAPF with unique starts and goals, vertex and edge-swap conflicts, and agents staying at reached goals.",
+    "watch_out": "The search's optimality condition depends on exhausting the open set and on cumulative transition costs matching the supported objective. A time-limited incumbent is not the same as an exhausted proof.",
+    "evaluation": "Report conflict-free success, sum of transition costs, makespan, and time-to-first versus final solution. Use the same seeded instances and stop budgets, and distinguish exhausted runs from anytime incumbents.",
+    "metrics": [
+      "Conflict-free success",
+      "Sum of costs",
+      "Makespan",
+      "Time to first and final solution"
+    ],
+    "reference": {
+      "title": "Improving LaCAM for Scalable Eventually Optimal Multi-Agent Pathfinding",
+      "url": "https://www.ijcai.org/proceedings/2023/0028.pdf"
+    }
   }
 }

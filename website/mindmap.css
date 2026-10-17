@@ -69,3 +69,31 @@
   .mindmap-children { margin-left: 8px; padding-left: 10px; }
   .mindmap-type { display: none; }
 }
+
+/* Make labels and planner summaries legible at normal zoom. */
+.map-hero > p:last-child { color: #405a73; font-size: 17px; line-height: 1.8; }
+.map-search input { font-size: 15px; }
+.map-search input::placeholder { color: #5d748a; }
+.map-actions button { min-height: 44px; font-size: 14px; }
+.map-root strong { font-size: 18px; }
+.map-root small { color: #e1effb; font-size: 12px; }
+.mindmap-node > summary { min-height: 47px; }
+.mindmap-node > summary::before { color: #526c84; }
+.mindmap-label { font-size: 14px; line-height: 1.45; }
+.mindmap-type { color: #536b83; font-size: 10px; }
+.mindmap-content > p { color: #405a73; font-size: 14px; line-height: 1.7; }
+.mindmap-source, .mindmap-lesson { color: #405a73; font-size: 13px; }
+.mindmap-source code, .mindmap-lesson code { color: #2f4d68; font-size: 12px; }
+.mindmap-focus { font-size: 13px; }
+.map-empty { color: #405a73; font-size: 14px; }
+.map-inspector > p:not(.lesson-section-label) { color: #405a73; font-size: 15px; line-height: 1.75; }
+.map-inspector .button { font-size: 13px; }
+.map-inspector .inspector-hint { color: #536b83; font-size: 12px; line-height: 1.65; }
+.map-reading > p:not(.lesson-section-label) { font-size: 16px; }
+
+@media (max-width: 600px) {
+  .map-hero > p:last-child { font-size: 16px; }
+  .mindmap-label { font-size: 13px; }
+  .mindmap-content > p { font-size: 14px; }
+  .mindmap-source, .mindmap-lesson { font-size: 12px; }
+}

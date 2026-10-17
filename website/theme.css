@@ -62,7 +62,7 @@ h1 { color: #172d47; }
 .hero-stats strong { color: #1e3c5b; }
 .hero-stats span { color: #61778d; }
 .loop-strip { border-color: var(--line); background: rgb(238 245 252 / 86%); }
-.loop-kicker, .loop-step small { color: #708298; }
+.loop-kicker, .loop-step small { color: #536b83; }
 .loop-step span, .loop-return { color: #3378b4; }
 .loop-step b { color: #253e58; }
 .loop-arrow { color: #90a5b8; }
@@ -163,4 +163,79 @@ h1 { color: #172d47; }
 button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible { outline-color: #327bb8; }
 @media (prefers-reduced-motion: reduce) {
   .art-path, .art-pulse { animation: none; }
+}
+
+/* Readable type scale for the project overview and evaluation guide. */
+:root { --muted: #455f78; --quiet: #536b83; }
+body { font-size: 18px; line-height: 1.7; }
+.topbar nav { font-size: 14px; }
+.hero-lede { font-size: 20px; line-height: 1.7; }
+.hero-note { font-size: 14px; line-height: 1.6; }
+.eyebrow { font-size: 12px; }
+.hero-stats span { font-size: 14px; }
+.loop-kicker { font-size: 12px; }
+.loop-step span { font-size: 12px; }
+.loop-step b { font-size: 15px; }
+.loop-step small { font-size: 13px; }
+.section-intro { font-size: 17px; line-height: 1.7; }
+.select-wrap label { font-size: 13px; }
+.control-button { font-size: 14px; }
+.canvas-toolbar { font-size: 12px; }
+.canvas-live { font-size: 13px; }
+.canvas-legend { font-size: 13px; }
+.kind-tag, .cohort-tag { font-size: 11px; }
+.algorithm-note > p { font-size: 16px; line-height: 1.7; }
+.algorithm-note .question-label { font-size: 12px; }
+.algorithm-note .observe-copy { font-size: 16px; }
+.note-metric { font-size: 14px; line-height: 1.6; }
+.algorithm-note .simulation-disclaimer { color: #c4d1df; font-size: 13px; line-height: 1.6; }
+.under-note { color: #536b83; font-size: 13px; line-height: 1.6; }
+.filter-chip { font-size: 13px; }
+.filter-chip span { font-size: 12px; }
+.search-box input { font-size: 14px; }
+.catalog-count { color: #536b83; font-size: 14px; }
+.planner-family { color: #536b83; font-size: 11px; }
+.planner-card h3 { font-size: 18px; }
+.planner-card p { color: #455f78; font-size: 15px; line-height: 1.65; }
+.planner-principle { color: #455f78; font-size: 12px; }
+.card-lesson, .card-demo { font-size: 13px; }
+.big-label { font-size: 15px; }
+.big-label small, .inventory-head > p { color: #455f78; font-size: 14px; }
+.dataset-count { font-size: 13px; }
+.dataset-card h3 { font-size: 17px; }
+.dataset-card p { color: #455f78; font-size: 14px; line-height: 1.65; }
+.dataset-card small, .chart-caption { color: #536b83; font-size: 12px; }
+.campaign-intro .eyebrow { font-size: 11px; }
+.campaign-intro > span { font-size: 14px; }
+.campaign-intro > p:not(.eyebrow), .campaign-highlights p { color: #455f78; font-size: 14px; line-height: 1.65; }
+.text-link { font-size: 13px; }
+.campaign-highlights h3 { font-size: 18px; }
+.not-leaderboard { color: #455f78; font-size: 14px; }
+.not-leaderboard b { color: #203d5b; }
+.step-number { color: #536b83; font-size: 12px; }
+.method-step h3, .metric-cards h3 { font-size: 16px; }
+.method-step p, .metric-cards p { color: #455f78; font-size: 14px; line-height: 1.65; }
+.evaluation-footnote { color: #455f78; font-size: 13px; line-height: 1.7; }
+.evaluation-footnote b { color: #203d5b; }
+.evaluation-footnote a { color: #245f94; }
+.closing-inner > div:first-child > p:last-child { color: #d0dceb; font-size: 16px; line-height: 1.7; }
+.hero-actions .button, .closing-actions .button, .footer > a:last-of-type { font-size: 14px; }
+.footer p, .footer small { color: #526980; font-size: 12px; }
+
+@media (max-width: 720px) {
+  .topbar nav { font-size: 13px; }
+  .hero-actions .button, .closing-actions .button { font-size: 13px; }
+  .hero-lede { font-size: 17px; }
+  .hero-note { font-size: 13px; }
+  .hero-stats span { font-size: 13px; }
+  .loop-kicker { flex-basis: 100px; font-size: 11px; }
+  .loop-step span { font-size: 11px; }
+  .loop-step b { font-size: 14px; }
+  .loop-step small { max-width: 125px; font-size: 12px; }
+  .section-intro { font-size: 16px; }
+  .algorithm-note > p, .algorithm-note .observe-copy { font-size: 15px; }
+  .planner-card p { font-size: 15px; }
+  .dataset-card p, .campaign-intro > p:not(.eyebrow), .campaign-highlights p { font-size: 14px; }
+  .method-step p, .metric-cards p { font-size: 14px; }
+  .closing-inner > div:first-child > p:last-child { font-size: 15px; }
 }

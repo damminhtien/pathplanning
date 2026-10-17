@@ -93,6 +93,26 @@ def load_catalog() -> tuple[list[dict[str, Any]], dict[str, dict[str, str]], dic
             raise SystemExit(f"Tutorial content is incomplete for {planner_id}.")
         if len(lesson.get("steps", [])) != 3:
             raise SystemExit(f"{planner_id} must have exactly three teaching steps.")
+        example = lesson.get("example", {})
+        required_lesson_fields = ("mechanism", "best_for", "watch_out", "evaluation")
+        if not all(lesson.get(field) for field in required_lesson_fields):
+            raise SystemExit(f"Expanded lesson content is incomplete for {planner_id}.")
+        if not example.get("setup") or len(example.get("steps", [])) != 3:
+            raise SystemExit(f"{planner_id} must have a setup and three worked-example steps.")
+        if len(lesson.get("metrics", [])) < 3:
+            raise SystemExit(f"{planner_id} must name at least three evaluation metrics.")
+        expanded_copy = " ".join(
+            [
+                lesson["mechanism"],
+                lesson["best_for"],
+                lesson["watch_out"],
+                lesson["evaluation"],
+                example["setup"],
+                *example["steps"],
+            ]
+        )
+        if len(re.findall(r"\b[\w*'-]+\b", expanded_copy)) < 150:
+            raise SystemExit(f"Expanded tutorial content is too short for {planner_id}.")
         if not set(lesson.get("related", [])).issubset(set(ids)):
             raise SystemExit(f"Tutorial for {planner_id} references an unknown planner.")
         module = rows[planner_id]["module"].replace(".", "/") + ".py"
@@ -175,6 +195,14 @@ def lesson_page(
         f'<li><span class="lesson-step-number">0{index}</span>'
         f'<p>{html.escape(step)}</p></li>'
         for index, step in enumerate(lesson["steps"], start=1)
+    )
+    example_steps = "\n".join(
+        f'<li><span class="lesson-step-number">0{index}</span>'
+        f'<p>{html.escape(step)}</p></li>'
+        for index, step in enumerate(lesson["example"]["steps"], start=1)
+    )
+    metric_tags = "\n".join(
+        f'<li>{html.escape(metric)}</li>' for metric in lesson["metrics"]
     )
     schema = json_ld(
         {
@@ -272,7 +300,7 @@ def lesson_page(
         <h1>{html.escape(title)}</h1>
         <p class="lesson-tagline">{html.escape(lesson["tagline"])}</p>
         <p class="lesson-summary">{html.escape(planner["description"])}</p>
-        <a class="lesson-principle" href="#how-it-works"><span>The little rule</span><code>{html.escape(planner["principle"])}</code></a>
+        <a class="lesson-principle" href="#mechanism"><span>The little rule</span><code>{html.escape(planner["principle"])}</code></a>
       </header>
 
       <div class="lesson-layout">
@@ -280,8 +308,10 @@ def lesson_page(
           <p>ON THIS PAGE</p>
           <a href="#big-picture">The big picture</a>
           <a href="#watch">Watch it think</a>
-          <a href="#how-it-works">Three small moves</a>
-          <a href="#tradeoff">Promise & trade-off</a>
+          <a href="#mechanism">How it decides</a>
+          <a href="#example">Worked example</a>
+          <a href="#tradeoff">Fit & trade-off</a>
+          <a href="#evaluation">Evaluate fairly</a>
           <a href="#try-it">Your turn</a>
         </aside>
         <article class="lesson-content">
@@ -305,22 +335,50 @@ def lesson_page(
             <p class="lesson-caption">A browser-based concept animation, not an execution of the Python/C++ planner or a benchmark result.</p>
           </section>
 
-          <section id="how-it-works" class="lesson-section">
-            <p class="lesson-section-label">03 · THREE SMALL MOVES</p>
-            <h2>Watch for this rhythm.</h2>
+          <section id="mechanism" class="lesson-section">
+            <p class="lesson-section-label">03 · THE DECISION RULE</p>
+            <h2>How does it decide what to do next?</h2>
+            <p>{html.escape(lesson["mechanism"])}</p>
+            <h3 class="lesson-subheading">The search, in three moves</h3>
             <ol class="lesson-steps">{steps}</ol>
           </section>
 
+          <section id="example" class="lesson-section lesson-example">
+            <p class="lesson-section-label">04 · WORK THROUGH AN EXAMPLE</p>
+            <h2>Work through a small case.</h2>
+            <p class="lesson-example-setup">{html.escape(lesson["example"]["setup"])}</p>
+            <ol class="lesson-steps lesson-example-steps">{example_steps}</ol>
+          </section>
+
           <section id="tradeoff" class="lesson-section lesson-tradeoff">
-            <p class="lesson-section-label">04 · PROMISE & TRADE-OFF</p>
-            <h2>Every useful idea has edges.</h2>
-            <p>{html.escape(planner["tradeoff"])}</p>
+            <p class="lesson-section-label">05 · WHEN IT FITS</p>
+            <h2>Choose it for the problem it solves.</h2>
+            <div class="lesson-fit-grid">
+              <article class="lesson-fit-card">
+                <h3>A good fit</h3>
+                <p>{html.escape(lesson["best_for"])}</p>
+              </article>
+              <article class="lesson-fit-card lesson-fit-caution">
+                <h3>Watch out</h3>
+                <p>{html.escape(lesson["watch_out"])}</p>
+              </article>
+            </div>
+            <p class="lesson-project-tradeoff">In this project: {html.escape(planner["tradeoff"])}</p>
             <div class="contract-note"><span aria-hidden="true">↗</span><p>Algorithm guarantees depend on the graph, goal, costs, parameters, and stop reason. The project documents those exact conditions in its supported planner matrix.</p></div>
             <a href="https://github.com/damminhtien/pathplanning/blob/main/SUPPORTED_ALGORITHMS.md" target="_blank" rel="noreferrer">Read the supported contract ↗</a>
           </section>
 
+          <section id="evaluation" class="lesson-section lesson-evaluation">
+            <p class="lesson-section-label">06 · EVALUATE IT FAIRLY</p>
+            <h2>What would make this a fair comparison?</h2>
+            <p>{html.escape(lesson["evaluation"])}</p>
+            <h3 class="lesson-subheading">Useful measures for this planner</h3>
+            <ul class="lesson-metrics">{metric_tags}</ul>
+            <a class="lesson-method-link" href="{asset_root}#method">Explore this project's evaluation method ↗</a>
+          </section>
+
           <section id="try-it" class="lesson-section lesson-try">
-            <p class="lesson-section-label">05 · YOUR TURN</p>
+            <p class="lesson-section-label">07 · YOUR TURN</p>
             <h2>{html.escape(lesson["experiment"])}</h2>
             <details class="lesson-question">
               <summary>{html.escape(lesson["question"])}</summary>
