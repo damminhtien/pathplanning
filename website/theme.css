@@ -53,8 +53,8 @@ h1 { color: #172d47; }
 .art-path { stroke: #3578b5; }
 .art-pulse { fill: rgb(69 137 196 / 12%); stroke: #3578b5; }
 .art-goal { fill: rgb(201 135 67 / 18%); stroke: var(--orange); }
-.art-robot rect { fill: #3c81bd; stroke: #f5fbff; filter: drop-shadow(0 0 8px rgb(48 113 169 / 45%)); }
-.art-robot path { stroke: #f5fbff; }
+.art-robot rect, .art-robot-static rect { fill: #3c81bd; stroke: #f5fbff; filter: drop-shadow(0 0 8px rgb(48 113 169 / 45%)); }
+.art-robot path, .art-robot-static path { stroke: #f5fbff; }
 .orbit { border-color: rgb(81 126 170 / 16%); }
 .hero-stats { border-color: var(--line); }
 .hero-stats > div { border-color: var(--line); }
@@ -82,10 +82,12 @@ h1 { color: #172d47; }
 .canvas-live i { background: #88c5f4; box-shadow: 0 0 8px rgb(136 197 244 / 65%); }
 #sim-canvas { border-color: rgb(188 212 238 / 18%); background: #101b2b; }
 .canvas-legend { color: #c3d1df; }
-.legend-start, .legend-path { background: #83b9e8; }
+.legend-start, .legend-path { background: #83f0cd; }
+.legend-goal { background: #ffb875; }
 .legend-open { background: rgb(142 191 238 / 78%); }
 .kind-tag, .cohort-tag { color: #9acbf4; }
 .algorithm-note > p { color: #cfdae6; }
+.algorithm-note h3 { color: #f3f7fb; }
 .algorithm-note .question-label { color: #f0c58e; }
 .algorithm-note .observe-copy { color: #edf4fb; }
 .note-metric { border-color: rgb(132 189 235 / 28%); color: #c8e2f7; background: rgb(106 167 222 / 11%); }
@@ -157,7 +159,9 @@ h1 { color: #172d47; }
 .skip-link { color: #fff; background: #286da8; }
 button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible { outline-color: #327bb8; }
 @media (prefers-reduced-motion: reduce) {
-  .art-path, .art-pulse { animation: none; }
+  .art-path, .art-pulse, .art-goal { animation: none; }
+  .art-robot { display: none; }
+  .art-robot-static { display: inline; }
 }
 
 /* Readable type scale for the project overview and evaluation guide. */

@@ -127,10 +127,17 @@
             <i class="wall wall-d"></i><i class="wall wall-e"></i>
             <svg viewBox="0 0 500 300" role="presentation">
               <path class="art-path-shadow" d="M48 250 C110 250 98 194 168 194 S222 254 280 168 S344 92 446 54" />
-              <path class="art-path" d="M48 250 C110 250 98 194 168 194 S222 254 280 168 S344 92 446 54" />
+              <path id="mission-route" class="art-path" d="M48 250 C110 250 98 194 168 194 S222 254 280 168 S344 92 446 54" />
               <circle class="art-pulse" cx="48" cy="250" r="12" />
               <circle class="art-goal" cx="446" cy="54" r="10" />
-              <g class="art-robot" transform="translate(280 168) rotate(-31)">
+              <g class="art-robot">
+                <animateMotion dur="9s" repeatCount="indefinite" rotate="auto">
+                  <mpath href="#mission-route" />
+                </animateMotion>
+                <rect x="-12" y="-9" width="24" height="18" rx="5" />
+                <path d="M0 -9 L8 -19 L8 -9" />
+              </g>
+              <g class="art-robot-static" transform="translate(280 168) rotate(-31)">
                 <rect x="-12" y="-9" width="24" height="18" rx="5" />
                 <path d="M0 -9 L8 -19 L8 -9" />
               </g>

@@ -1,4 +1,10 @@
-import { drawTinyLabel as drawCanvasLabel, roundedRect as drawRoundedRect } from "./shared.js";
+import {
+  drawMotionMarker,
+  drawPathTrace,
+  drawTinyLabel as drawCanvasLabel,
+  pathAtProgress,
+  roundedRect as drawRoundedRect,
+} from "./shared.js";
 
 
 export function createGridScene({ context, state }) {
@@ -165,14 +171,20 @@ export function createGridScene({ context, state }) {
         let fill = "#142237";
         if (isWall) fill = "#516176";
         else if (exploredAt !== undefined) {
-          fill = state.planner.id.startsWith("bidirectional_") && exploredAt > split ? "rgba(180, 161, 255, .39)" : "rgba(116, 171, 231, .37)";
+          const age = visibleCount - exploredAt - 1;
+          const glow = Math.max(0, 1 - age / 14);
+          const alpha = .24 + glow * .32;
+          const tint = state.planner.id.startsWith("bidirectional_") && exploredAt > split
+            ? "180, 161, 255"
+            : "116, 171, 231";
+          fill = `rgba(${tint}, ${alpha})`;
         }
         if (state.planner.id === "jpsw" && !isWall && !isStart && !isGoal && terrainCost(x, y) > 1) fill = exploredAt !== undefined ? "rgba(255, 184, 117, .32)" : "rgba(255, 184, 117, .12)";
         context.fillStyle = fill;
-        roundedRect(context, px + gap / 2, py + gap / 2, cell - gap, cell - gap, Math.max(2, cell * .14));
+        roundedRect(px + gap / 2, py + gap / 2, cell - gap, cell - gap, Math.max(2, cell * .14));
         if (isWall) {
           context.fillStyle = "rgba(204, 221, 238, .07)";
-          roundedRect(context, px + cell * .16, py + cell * .18, cell * .68, cell * .64, Math.max(2, cell * .1));
+          roundedRect(px + cell * .16, py + cell * .18, cell * .68, cell * .64, Math.max(2, cell * .1));
         }
       }
     }
@@ -180,25 +192,33 @@ export function createGridScene({ context, state }) {
     if (["theta_star", "lazy_theta_star"].includes(state.planner.id)) path = simplifyPath(path, result.blocked);
     const revealStart = Math.max(.35, Math.min(.78, result.expanded.length ? result.expanded.indexOf(columns * goalCell.y + goalCell.x) / result.expanded.length : .6));
     const pathProgress = Math.max(0, Math.min(1, (state.progress - revealStart) / (1 - revealStart)));
-    if (path.length > 1 && pathProgress > 0) {
-      const pointCount = Math.max(2, Math.ceil(path.length * pathProgress));
+    if (visibleCount) {
+      const frontier = result.expanded[Math.min(visibleCount - 1, result.expanded.length - 1)];
+      const frontierX = originX + ((frontier % columns) + .5) * cell;
+      const frontierY = originY + (Math.floor(frontier / columns) + .5) * cell;
+      const pulse = .32 + ((Math.sin(state.elapsed * 7) + 1) / 2) * .22;
       context.beginPath();
-      path.slice(0, pointCount).forEach((node, index) => {
-        const px = originX + (node.x + .5) * cell;
-        const py = originY + (node.y + .5) * cell;
-        if (index === 0) context.moveTo(px, py); else context.lineTo(px, py);
-      });
+      context.arc(frontierX, frontierY, cell * pulse, 0, Math.PI * 2);
+      context.strokeStyle = "rgba(193, 224, 255, .92)";
+      context.lineWidth = Math.max(1.5, cell * .09);
+      context.stroke();
+    }
+    if (path.length > 1 && pathProgress > 0) {
+      const canvasPath = path.map((node) => ({
+        x: originX + (node.x + .5) * cell,
+        y: originY + (node.y + .5) * cell,
+      }));
+      context.save();
       context.strokeStyle = "rgba(131, 240, 205, .96)";
       context.lineWidth = Math.max(2, cell * .16);
       context.lineCap = "round";
       context.lineJoin = "round";
-      context.stroke();
-      context.fillStyle = "#baffea";
-      for (const node of path.filter((_, index) => index % 4 === 0)) {
-        context.beginPath();
-        context.arc(originX + (node.x + .5) * cell, originY + (node.y + .5) * cell, Math.max(2, cell * .1), 0, Math.PI * 2);
-        context.fill();
-      }
+      context.setLineDash([7, 6]);
+      context.lineDashOffset = -state.elapsed * 18;
+      drawPathTrace(context, canvasPath, pathProgress);
+      context.restore();
+      const robot = pathAtProgress(canvasPath, pathProgress);
+      drawMotionMarker(context, robot, "#a4f5df", state.elapsed, "R", Math.max(5, cell * .2));
     }
     drawGridMarker(originX + (startCell.x + .5) * cell, originY + (startCell.y + .5) * cell, cell, "#83f0cd", "S");
     drawGridMarker(originX + (goalCell.x + .5) * cell, originY + (goalCell.y + .5) * cell, cell, "#ffb875", "G");

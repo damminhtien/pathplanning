@@ -16,7 +16,7 @@ export function createSimulator(planners, initialPlanner, isDemoMode) {
   const resetButton = document.querySelector("#reset-button");
   const changeButton = document.querySelector("#change-button");
   const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-  const state = { planner: initialPlanner, progress: isDemoMode ? 0 : 0.4, playing: !prefersReducedMotion, changed: false, seed: 7, lastFrame: 0, width: 900, height: 500 };
+  const state = { planner: initialPlanner, progress: isDemoMode ? 0 : 0.4, elapsed: 0, playing: !prefersReducedMotion, changed: false, seed: 7, lastFrame: 0, width: 900, height: 500 };
 
   const drawGrid = createGridScene({ context, state });
   const drawContinuous = createContinuousScene({ context, state, planners });
@@ -59,7 +59,14 @@ export function createSimulator(planners, initialPlanner, isDemoMode) {
   function legendFor(kind) {
     if (kind === "continuous") return "<span><i class=\"legend-start\"></i>Start</span><span><i class=\"legend-goal\"></i>Goal</span><span><i class=\"legend-open\"></i>Samples / connections</span><span><i class=\"legend-path\"></i>Candidate path</span>";
     if (kind === "temporal") return "<span><i class=\"legend-start\"></i>Agent</span><span><i class=\"legend-goal\"></i>Goal</span><span><i class=\"legend-open\"></i>Safe interval</span><span><i class=\"legend-path\"></i>Time-aware route</span>";
-    if (kind === "multi_agent") return "<span><i class=\"legend-start\"></i>Agent A</span><span><i class=\"legend-goal\"></i>Agent B</span><span><i class=\"legend-open\"></i>Agent C</span><span><i class=\"legend-path\"></i>Conflict-free paths</span>";
+    if (kind === "multi_agent") {
+      return [
+        '<span><i class="legend-agent-a"></i>Agent A</span>',
+        '<span><i class="legend-agent-b"></i>Agent B</span>',
+        '<span><i class="legend-agent-c"></i>Agent C</span>',
+        '<span><i class="legend-path"></i>Conflict-free paths</span>',
+      ].join("");
+    }
     return "<span><i class=\"legend-start\"></i>Start</span><span><i class=\"legend-goal\"></i>Goal</span><span><i class=\"legend-open\"></i>Explored frontier</span><span><i class=\"legend-path\"></i>Path</span>";
   }
 
@@ -68,6 +75,7 @@ export function createSimulator(planners, initialPlanner, isDemoMode) {
     if (!next) return;
     state.planner = next;
     state.progress = prefersReducedMotion ? 0.76 : 0;
+    state.elapsed = 0;
     state.playing = !prefersReducedMotion;
     state.changed = false;
     selector.value = plannerId;
@@ -120,6 +128,7 @@ export function createSimulator(planners, initialPlanner, isDemoMode) {
     if (state.lastFrame && state.playing) {
       const delta = Math.min(48, timestamp - state.lastFrame);
       state.progress = Math.min(1, state.progress + delta / 13500);
+      state.elapsed += delta / 1000;
       if (state.progress >= 1) state.playing = false;
       updatePlayButton();
       updateSimulationStatus();
@@ -131,7 +140,10 @@ export function createSimulator(planners, initialPlanner, isDemoMode) {
 
   selector.addEventListener("change", (event) => setPlanner(event.target.value));
   playButton.addEventListener("click", () => {
-    if (state.progress >= 1) state.progress = 0;
+    if (state.progress >= 1) {
+      state.progress = 0;
+      state.elapsed = 0;
+    }
     state.playing = !state.playing;
     updatePlayButton();
     updateSimulationStatus();
@@ -139,12 +151,14 @@ export function createSimulator(planners, initialPlanner, isDemoMode) {
   stepButton.addEventListener("click", () => {
     state.playing = false;
     state.progress = Math.min(1, state.progress + .08);
+    state.elapsed += 1.08;
     updatePlayButton();
     updateSimulationStatus();
     drawScene();
   });
   resetButton.addEventListener("click", () => {
     state.progress = 0;
+    state.elapsed = 0;
     state.playing = false;
     state.changed = false;
     updatePlayButton();
@@ -154,6 +168,7 @@ export function createSimulator(planners, initialPlanner, isDemoMode) {
   changeButton.addEventListener("click", () => {
     state.changed = !state.changed;
     state.progress = 0;
+    state.elapsed = 0;
     state.playing = true;
     updateSimulationStatus();
     updatePlayButton();

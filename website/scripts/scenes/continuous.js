@@ -1,4 +1,11 @@
-import { distance, drawTinyLabel as drawCanvasLabel, roundedRect as drawRoundedRect } from "./shared.js";
+import {
+  distance,
+  drawMotionMarker,
+  drawPathTrace,
+  drawTinyLabel as drawCanvasLabel,
+  pathAtProgress,
+  roundedRect as drawRoundedRect,
+} from "./shared.js";
 
 
 export function createContinuousScene({ context, state, planners }) {
@@ -38,7 +45,7 @@ export function createContinuousScene({ context, state, planners }) {
     const samples = Array.from({ length: 82 }, () => ({ x: width * .07 + random() * width * .86, y: height * .13 + random() * height * .74 }));
     for (const rect of obstacles) {
       context.fillStyle = "rgba(113, 139, 161, .23)";
-      roundedRect(context, rect.x, rect.y, rect.w, rect.h, 8);
+      roundedRect(rect.x, rect.y, rect.w, rect.h, 8);
       context.strokeStyle = "rgba(166, 196, 219, .13)";
       context.lineWidth = 1;
       context.stroke();
@@ -110,6 +117,12 @@ export function createContinuousScene({ context, state, planners }) {
       context.fillStyle = blocked ? "rgba(255, 125, 141, .62)" : i % 6 === 0 ? "#ffb875" : "rgba(139, 188, 255, .8)";
       context.fill();
     }
+    if (count && state.progress < .55) {
+      const sample = samples[count - 1];
+      const blocked = obstacles.some((rect) => sample.x > rect.x && sample.x < rect.x + rect.w && sample.y > rect.y && sample.y < rect.y + rect.h);
+      drawMotionMarker(context, sample, blocked ? "#ff8494" : "#a6d2ff", state.elapsed, "", 5);
+      drawTinyLabel(blocked ? "REJECT COLLISION" : "NEW SAMPLE", sample.x + 12, sample.y - 9, blocked ? "#ff9cab" : "#c5e3ff");
+    }
     if (planner.id === "ait_star" || planner.id === "eit_star") drawReverseArrows(samples, count, goal);
     if (planner.id === "jit_star" && state.progress > .46) {
       context.beginPath(); context.ellipse(width * .55, height * .42, width * .16, height * .12, -.48, 0, Math.PI * 2);
@@ -120,9 +133,13 @@ export function createContinuousScene({ context, state, planners }) {
     if (planner.id === "abit_star" || planner.id === "bit_star" || planner.id === "fcit_star") drawTinyLabel("BATCH, EDGE QUEUE, INCUMBENT", 15, 19, "#9bb9d8");
     if (planner.id === "eirm_star") drawTinyLabel("ROADMAP CACHE, reusable valid or blocked edges", 15, 19, "#9bb9d8");
     if (planner.id === "rit_star") drawTinyLabel("metric-shaped neighborhood", width * .48, height * .9, "#c2afff");
-    drawCandidatePath(start, goal, obstacles, width, height, state.progress);
-    drawPoint(start.x, start.y, "#83f0cd", "START");
-    drawPoint(goal.x, goal.y, "#ffb875", "GOAL");
+    const candidatePath = drawCandidatePath(start, goal, obstacles, width, height, state.progress, state.elapsed);
+    if (candidatePath.length > 1 && state.progress > .48) {
+      const routeProgress = Math.max(0, Math.min(1, (state.progress - .48) / .52));
+      drawMotionMarker(context, pathAtProgress(candidatePath, routeProgress), "#a4f5df", state.elapsed, "R", 8);
+    }
+    drawPoint(start.x, start.y, "#83f0cd", "START", state.elapsed);
+    drawPoint(goal.x, goal.y, "#ffb875", "GOAL", state.elapsed + 1);
     if (planner.id === "hybrid_astar" || planner.id === "state_lattice") drawVehicle(width * (.12 + .7 * state.progress), height * (.73 - .42 * state.progress), -0.52);
     if (twoTrees && state.progress > .72) drawTinyLabel("TREES CONNECT", width * .43, height * .84, "#bff9e7");
   }
@@ -143,29 +160,39 @@ export function createContinuousScene({ context, state, planners }) {
     drawTinyLabel("reverse cost-to-go estimate", goal.x - 158, goal.y - 18, "#ffca97");
   }
 
-  function drawCandidatePath(start, goal, obstacles, width, height, progress) {
-    if (progress < .3) return;
+  function drawCandidatePath(start, goal, obstacles, width, height, progress, elapsed) {
     const points = [start, { x: width * .25, y: height * .79 }, { x: width * .31, y: height * .83 }, { x: width * .55, y: height * .83 }, { x: width * .58, y: height * .28 }, { x: width * .87, y: height * .27 }, goal];
-    context.beginPath();
-    points.forEach((point, index) => { if (!index) context.moveTo(point.x, point.y); else context.lineTo(point.x, point.y); });
-    context.lineWidth = 2.4; context.lineCap = "round"; context.lineJoin = "round";
-    context.strokeStyle = "rgba(131, 240, 205, .86)"; context.setLineDash([7, 6]); context.stroke(); context.setLineDash([]);
+    if (progress < .28) return [];
+    const reveal = Math.max(0, Math.min(1, (progress - .28) / .2));
+    context.save();
+    context.lineWidth = 2.8; context.lineCap = "round"; context.lineJoin = "round";
+    context.strokeStyle = "rgba(131, 240, 205, .96)";
+    context.setLineDash([8, 6]);
+    context.lineDashOffset = -elapsed * 20;
+    drawPathTrace(context, points, reveal);
+    context.restore();
     if (progress > .66 && ["rrt_star", "informed_rrt_star", "bit_star", "abit_star", "rit_star"].includes(state.planner.id)) {
       context.beginPath(); context.moveTo(start.x, start.y); context.bezierCurveTo(width * .34, height * .7, width * .5, height * .2, goal.x, goal.y);
       context.strokeStyle = "rgba(255, 184, 117, .67)"; context.lineWidth = 1.6; context.setLineDash([4, 5]); context.stroke(); context.setLineDash([]);
       drawTinyLabel("improved incumbent", width * .48, height * .18, "#ffca97");
     }
+    return points;
   }
 
-  function drawPoint(x, y, color, label) {
+  function drawPoint(x, y, color, label, phase) {
+    const pulse = (Math.sin(phase * 4) + 1) / 2;
+    context.save();
+    context.beginPath(); context.arc(x, y, 12 + pulse * 3, 0, Math.PI * 2); context.strokeStyle = `${color}66`; context.lineWidth = 1.4; context.stroke();
+    context.shadowColor = color; context.shadowBlur = 9 + pulse * 8;
     context.beginPath(); context.arc(x, y, 7, 0, Math.PI * 2); context.fillStyle = color; context.fill();
-    context.beginPath(); context.arc(x, y, 12, 0, Math.PI * 2); context.strokeStyle = `${color}66`; context.stroke();
+    context.shadowBlur = 0;
     context.font = "9px ui-monospace, monospace"; context.fillStyle = "#d6e0ef"; context.textAlign = "center"; context.fillText(label, x, y + 24);
+    context.restore();
   }
 
   function drawVehicle(x, y, angle) {
     context.save(); context.translate(x, y); context.rotate(angle);
-    context.fillStyle = "#83f0cd"; roundedRect(context, -11, -7, 22, 14, 4);
+    context.fillStyle = "#83f0cd"; roundedRect(-11, -7, 22, 14, 4);
     context.fillStyle = "#122326"; context.fillRect(1, -5, 7, 10);
     context.fillStyle = "#baffea"; context.beginPath(); context.moveTo(0, -8); context.lineTo(8, -13); context.lineTo(8, -8); context.fill();
     context.restore();
