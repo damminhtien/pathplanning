@@ -12,9 +12,10 @@ flowchart LR
   Registry[SUPPORTED_ALGORITHMS.md]
   MapData[project-map.json]
   DatasetData[datasets.json]
+  CaseStudies[case_studies.json]
   Content[sitebuilder.content\nload and validate]
   Build[sitebuilder.pipeline\nassemble output]
-  PageRenderers[sitebuilder.renderers\nindex, lesson, datasets, mind map]
+  PageRenderers[sitebuilder.renderers\nindex, lesson, datasets, case studies, mind map]
   Dist[website/dist\nstatic pages and assets]
   Browser[app.js\npage bootstrap]
   LandingMotion[scripts/landing-motion.js\nscroll reveals and reading progress]
@@ -30,6 +31,7 @@ flowchart LR
   Registry --> Content
   MapData --> Content
   DatasetData --> Content
+  CaseStudies --> Content
   Content --> Build
   Content --> PageRenderers
   PageRenderers --> Build
@@ -45,12 +47,13 @@ flowchart LR
 ## Responsibilities
 
 - The dataset guide and source-specific profiles are generated from website/data/datasets.json. The builder validates their sections, citations, repository paths, and related-profile links before writing indexable pages and sitemap entries.
-- `data/` holds planner descriptions, lessons, algorithm analyses, research references, application examples, datasets, and the project map. The six home-page application cards select named SVG scenes from `sitebuilder/renderers/application_visuals.py`; `scripts/applications.js` follows each scene's own SVG geometry, pauses off-screen, and honors reduced-motion preferences. Application examples are shared across the home page and family-specific lesson pages; project-evidence notes keep model analogies distinct from measured coverage.
+- Benchmark case studies are written once in `data/case_studies.json`. Content validation checks the dataset cross-references, evidence summaries, source URLs, and supported diagram types; the renderer uses the same records for home-page cards and the indexable `/case-studies/` route.
+- `data/` holds planner descriptions, lessons, algorithm analyses, research references, application examples, datasets, case studies, and the project map. The six home-page application cards select named SVG scenes from `sitebuilder/renderers/application_visuals.py`; `scripts/applications.js` follows each scene's own SVG geometry, pauses off-screen, and honors reduced-motion preferences. Application examples are shared across the home page and family-specific lesson pages; project-evidence notes keep model analogies distinct from measured coverage.
 - `sitebuilder/content.py` loads the content once, checks it against `SUPPORTED_ALGORITHMS.md`, and validates lesson, analysis, reference, application, source-path, and cross-reference coverage.
 - `sitebuilder/math_text.py` handles safe HTML escaping and inline LaTeX conversion.
-- `sitebuilder/renderers/` owns static markup for the catalog, algorithm lessons, and project map. Each generated lesson remains directly indexable without JavaScript and includes its source-paper citation.
+- `sitebuilder/renderers/` owns static markup for the catalog, algorithm lessons, dataset profiles, case studies, and project map. Generated learning pages remain directly indexable without JavaScript and include their source references.
 - `data/applications.json` is the shared application catalog. The home page introduces domains across the project, while each generated algorithm lesson selects application contexts for its planner family.
-- `sitebuilder/pipeline.py` owns output safety, static asset copying, generated family filters, lesson routes, and the sitemap. It writes generated files only to the selected output directory.
+- `sitebuilder/pipeline.py` owns output safety, static asset copying, generated family filters, lesson and case-study routes, and the sitemap. It writes generated files only to the selected output directory.
 - `app.js` starts the browser application. `scripts/catalog.js` owns catalog interactions, while `scripts/simulator.js` owns simulator state and controls. Canvas drawing is split into the grid, continuous, temporal, and multi-agent scene modules.
 - `scripts/landing-motion.js` owns front-page scroll reveals and the reading-progress indicator. It uses `IntersectionObserver`, leaves content visible when scripting or motion support is unavailable, and honors reduced-motion preferences.
 - `build_site.py` stays as the stable command-line entry point used by GitHub Actions and local builds.

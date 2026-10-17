@@ -132,8 +132,9 @@ def map_page(map_data: dict[str, Any], planner_count: int) -> str:
       <nav aria-label="Learning navigation">
         <a href="../#algorithms">Algorithm atlas</a>
         <a href="../datasets/">Datasets</a>
-        <a href="../#evaluation">Evaluation</a>
-        <a href="https://github.com/damminhtien/pathplanning" target="_blank" rel="noreferrer">Source</a>
+        <a href="../case-studies/">Case studies</a>
+        <a class="nav-evaluation" href="../#evaluation">Evaluation</a>
+        <a class="nav-source" href="https://github.com/damminhtien/pathplanning" target="_blank" rel="noreferrer">Source</a>
       </nav>
     </header>
     <main class="map-shell">

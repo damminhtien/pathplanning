@@ -10,6 +10,7 @@ const REVEAL_GROUPS = [
   [".workbench, .under-note, .catalog-controls, .catalog-count", false],
   [".inventory-head", false],
   [".dataset-card", true],
+  [".case-study-card", true],
   [".dataset-guide-link, .campaign-panel, .not-leaderboard", false],
   [".method-step", true],
   [".metric-cards article", true],

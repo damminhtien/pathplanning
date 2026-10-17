@@ -7,7 +7,7 @@
     <meta name="robots" content="index, follow, max-image-preview:large" />
     <meta
       name="description"
-      content="Explore {{PLANNER_COUNT}} path and motion planning algorithms through interactive tutorials, game and road-network datasets, multi-agent examples, and evidence-based evaluation."
+      content="Explore {{PLANNER_COUNT}} path and motion planning algorithms through interactive tutorials, benchmark case studies, game and road-network datasets, and evidence-based evaluation."
     />
     <link rel="canonical" href="https://damminhtien.github.io/pathplanning/" />
     <link rel="icon" href="favicon.svg" type="image/svg+xml" />
@@ -18,7 +18,7 @@
     <meta property="og:title" content="Path Planning Algorithms, Made Visible | Pathplanning" />
     <meta
       property="og:description"
-      content="Explore path planning for game worlds, road networks, vehicle maneuvers, and coordinated agents with interactive algorithm guides and benchmark evidence."
+      content="Explore path planning for game worlds, road networks, vehicle maneuvers, and coordinated agents with interactive algorithm guides and benchmark case studies."
     />
     <meta property="og:url" content="https://damminhtien.github.io/pathplanning/" />
     <meta property="og:image" content="https://damminhtien.github.io/pathplanning/og-image.png" />
@@ -30,7 +30,7 @@
     <meta name="twitter:title" content="Path Planning Algorithms, Made Visible | Pathplanning" />
     <meta
       name="twitter:description"
-      content="Learn path and motion planning for games, road networks, vehicle maneuvers, and multiple agents through interactive algorithm animations."
+      content="Learn path and motion planning for games, road networks, vehicle maneuvers, and multiple agents through interactive algorithm animations and benchmark case studies."
     />
     <meta name="twitter:image" content="https://damminhtien.github.io/pathplanning/og-image.png" />
     <script type="application/ld+json">
@@ -41,7 +41,7 @@
             "@type": "WebSite",
             "name": "Pathplanning Learning Lab",
             "url": "https://damminhtien.github.io/pathplanning/",
-            "description": "An interactive guide to path and motion planning for game maps, road networks, vehicle maneuvers, and coordinated agents, with evidence-based evaluation.",
+            "description": "An interactive guide to path and motion planning for game maps, road networks, vehicle maneuvers, and coordinated agents, with benchmark case studies and evidence-based evaluation.",
             "inLanguage": "en",
             "publisher": {
               "@type": "Organization",
@@ -64,6 +64,7 @@
               { "@type": "Thing", "name": "Game AI navigation" },
               { "@type": "Thing", "name": "Road network routing" },
               { "@type": "Thing", "name": "Multi-agent pathfinding" },
+              { "@type": "Thing", "name": "Motion planning benchmark case studies" },
               { "@type": "Thing", "name": "Robotics benchmark evaluation" }
             ],
             "provider": {
@@ -87,6 +88,7 @@
     <title>Path Planning Algorithms, Made Visible | {{PLANNER_COUNT}} Guides | Pathplanning</title>
     <link rel="stylesheet" href="styles.css" />
     <link rel="stylesheet" href="theme.css" />
+    <link rel="stylesheet" href="case-studies.css" />
     <script>window.MathJax = {tex: {inlineMath: [["\\(", "\\)"], ["\\[", "\\]"]]}};</script>
     <script async id="mathjax-script" src="https://cdn.jsdelivr.net/npm/mathjax@4/tex-chtml.js"></script>
     <script type="module" src="app.js"></script>
@@ -102,8 +104,9 @@
         <a href="#applications">Applications</a>
         <a href="#algorithms">Algorithms</a>
         <a href="#evaluation">Evaluation</a>
+        <a href="case-studies/">Case studies</a>
         <a href="datasets/">Datasets</a>
-        <a href="mindmap/">Project map</a>
+        <a class="nav-project-map" href="mindmap/">Project map</a>
         <a class="nav-github" href="https://github.com/damminhtien/pathplanning" target="_blank" rel="noreferrer">GitHub</a>
       </nav>
     </header>
@@ -371,6 +374,21 @@
         </div>
       </section>
 
+      <section class="section-wrap section-space front-case-studies" id="case-studies">
+        <div class="section-heading case-studies-heading">
+          <div>
+            <p class="eyebrow">06 / CASE STUDIES</p>
+            <h2>See what each benchmark <span class="gradient-text">can actually tell us.</span></h2>
+          </div>
+          <p class="section-intro">Follow the question, workload, evaluation rules, result, and limits across game maps, road networks, continuous geometry, and 3D worlds.</p>
+        </div>
+        <div class="case-study-card-grid"><!-- generated:case-study-cards --></div>
+        <div class="case-studies-footer-note">
+          <p>Each result keeps its original denominator and task model. These benchmark studies describe planner behavior; they are not reports of deployed autonomous systems.</p>
+          <a class="dataset-guide-link" href="case-studies/">Explore all case studies</a>
+        </div>
+      </section>
+
       <section class="closing-section">
         <div class="section-wrap closing-inner">
           <div><p class="eyebrow">BRING YOUR OWN QUESTION</p><h2>The world changes.<br /><span class="gradient-text">Does the agent adapt?</span></h2><p>Read the API, check the supported planner matrix, or browse examples to keep learning.</p></div>
@@ -391,6 +409,7 @@
       <a href="https://github.com/damminhtien/pathplanning" target="_blank" rel="noreferrer">Open-source project</a>
       <a href="mindmap/">Project mind map</a>
       <a href="datasets/">Dataset guide</a>
+      <a href="case-studies/">Case studies</a>
       <small>Animations on this page illustrate algorithm concepts. See the source and documentation for each planner's exact contract.</small>
     </footer>
   </body>

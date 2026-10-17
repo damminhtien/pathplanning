@@ -1,0 +1,170 @@
+[
+  {
+    "id": "movingai-grid-search",
+    "title": "When is a shorter search worth a longer path?",
+    "eyebrow": "GAME AI / GRID SEARCH",
+    "application": "Game character navigation",
+    "summary": "A MovingAI campaign shows how weighted heuristics can reduce search time while giving up some shortest-path guarantees.",
+    "question": "How much search effort can a planner trade for path quality on varied game maps, and how do we know whether a returned route is actually shortest?",
+    "protocol": "The work cohort contains 3,363 reachable start-and-goal queries from 789 MovingAI land maps. Twelve planner variants ran on every query under the repository's octile grid movement model. The evaluator checked every returned path and compared its cost with an independent shortest-path oracle. Latency was measured in a separate cohort of 788 query identities, after two warm-ups and across five measured calls per variant.",
+    "diagram": "grid",
+    "dataset_id": "movingai-grids",
+    "stats": [
+      { "value": "40,356", "label": "valid work-pass results" },
+      { "value": "3,363 / 3,363", "label": "A* oracle-optimal paths" },
+      { "value": "1.374 ms", "label": "A* median in the latency cohort" },
+      { "value": "0.731 ms", "label": "Weighted A* (weight 2) median" }
+    ],
+    "findings": [
+      {
+        "title": "The exact baseline stayed exact.",
+        "text": "A* returned a valid route on all 3,363 work queries and matched the oracle on every one, with a mean path-cost ratio of 1.000."
+      },
+      {
+        "title": "Weighting changed the trade-off.",
+        "text": "Weighted A* with weight 2 also returned valid routes throughout the cohort. It was oracle-optimal on 883 queries, with a mean cost ratio of 1.042. Its median API time was 0.731 ms in the smaller latency cohort."
+      },
+      {
+        "title": "The timing denominators differ.",
+        "text": "The 40,356 work results describe 3,363 queries across 12 variants. The median and P95 latency figures summarize repeated calls on 788 query identities, so they should not be read as timing for all 3,363 queries."
+      }
+    ],
+    "interpretation": "A faster median can be useful for a frame-budgeted game agent, but it comes with a measurable path-cost trade-off. The right choice depends on whether the application values exact route cost, responsiveness, or a balance between them.",
+    "limitation": "These are deterministic planner measurements on selected MovingAI land scenarios using one grid cost model. They do not measure a complete game engine, changing opponents, animation quality, or a deployed game agent. The latency values are specific to the documented M2 Max runner and measurement protocol.",
+    "sources": [
+      {
+        "label": "MovingAI grid benchmark collection",
+        "url": "https://movingai.com/benchmarks/grids.html"
+      },
+      {
+        "label": "Project benchmark results and reproduction record",
+        "url": "https://github.com/damminhtien/pathplanning/blob/main/README.md#latest-benchmark-results"
+      }
+    ]
+  },
+  {
+    "id": "dimacs-road-routing",
+    "title": "What does “best route” mean on a road network?",
+    "eyebrow": "ROAD ROUTING / DIRECTED GRAPHS",
+    "application": "Distance and travel-time routing",
+    "summary": "The DIMACS case keeps distance, travel time, and source weights in separate directed-graph cohorts instead of blending them into one score.",
+    "question": "Can a planner preserve optimality when edges are one-way, carry different costs, and may have parallel road arcs?",
+    "protocol": "Thirteen of the 25 available directed graphs were within the configured resource limits: six distance graphs, six travel-time graphs, and Rome99 with source weights. Thirteen planner variants ran one seeded query on each selected graph. Parallel arcs were represented by the minimum cost for each ordered node pair. The search used a zero heuristic because geographic coordinates were not assumed to be expressed in the same units as edge costs. An oracle evaluated route cost within each graph's own cost model.",
+    "diagram": "road",
+    "dataset_id": "dimacs-roads",
+    "stats": [
+      { "value": "13 of 25", "label": "graphs measured" },
+      { "value": "130", "label": "oracle-optimal outcomes" },
+      { "value": "39", "label": "valid, non-optimal outcomes" },
+      { "value": "12", "label": "graphs over resource limits" }
+    ],
+    "findings": [
+      {
+        "title": "Cost units changed the planning question.",
+        "text": "Distance and travel-time graphs were evaluated separately. A path minimizing one cost is not automatically the preferred path under another."
+      },
+      {
+        "title": "Valid did not always mean optimal.",
+        "text": "Across 169 graph-and-variant runs, 130 results were oracle-optimal and 39 were valid but suboptimal. Unweighted search can reach a destination without minimizing a weighted road cost."
+      },
+      {
+        "title": "The selected graphs define the scope.",
+        "text": "Twelve of the 25 source graphs exceeded configured resource limits. Their absence from measured results remains part of the evidence, rather than an implicit success or failure."
+      }
+    ],
+    "interpretation": "For road routing, the graph representation and cost definition are part of the product requirement. A sound comparison has to preserve one-way direction, edge costs, and route validity, then compare optimality only within a matched cost cohort.",
+    "limitation": "This is a bounded correctness and workload study, not a production navigation system. Each selected graph has one seeded query per planner; these runs do not establish traffic-aware behavior, repeated-query performance, or broad coverage of the 25-graph source collection.",
+    "sources": [
+      {
+        "label": "Project benchmark results and reproduction record",
+        "url": "https://github.com/damminhtien/pathplanning/blob/main/README.md#latest-benchmark-results"
+      },
+      {
+        "label": "Shortest-path benchmark reproduction guide",
+        "url": "https://github.com/damminhtien/pathplanning/blob/main/docs/shortest_path_benchmark_reproduction.md"
+      }
+    ]
+  },
+  {
+    "id": "barn-continuous-navigation",
+    "title": "Does a continuous path clear the actual obstacles?",
+    "eyebrow": "CONTINUOUS SPACE / GEOMETRY CHECKS",
+    "application": "Mobile-robot navigation models",
+    "summary": "The BARN cohort checks whether continuous planners return collision-free paths through circle-obstacle scenes under a clearly stated point-robot model.",
+    "question": "When samples and connections live in continuous XY space, can each returned path be checked against the geometry that defined the world?",
+    "protocol": "The campaign derived 300 static point-robot XY worlds from BARN scenes and ran 14 compatible planners once in each world, for 4,200 planner-world attempts. Every returned path was checked against the source circle geometry. A run without a returned path was recorded as no_solution_found; this was kept distinct from an invalid path or a planner error. The supplied .npy trajectories provide provenance only and were not treated as paths in the derived XY worlds.",
+    "diagram": "continuous",
+    "dataset_id": "barn-navigation",
+    "stats": [
+      { "value": "300", "label": "static geometry worlds" },
+      { "value": "14", "label": "compatible planners" },
+      { "value": "2,673", "label": "returned paths validated" },
+      { "value": "0", "label": "invalid paths or planner errors" }
+    ],
+    "findings": [
+      {
+        "title": "Every returned route passed source-geometry checks.",
+        "text": "All 2,673 returned paths cleared the exact source-circle validation, with no invalid paths and no runner errors."
+      },
+      {
+        "title": "No-path outcomes remained visible.",
+        "text": "The other 1,527 planner-world attempts ended with no_solution_found. Reporting them separately keeps completion coverage from being hidden by statistics over successful paths."
+      },
+      {
+        "title": "Success depends on the planner and workload.",
+        "text": "For example, RRT-Connect and Informed RRT* returned valid paths in all 300 worlds. This states completion coverage for this cohort; it does not establish a universal speed or quality ranking."
+      }
+    ],
+    "interpretation": "A path that looks clear in a sketch is only useful if the collision checker agrees with the world's geometry. This case makes validity and no-path reporting central to the evaluation, which is useful for mobile robot and game-agent motion models alike.",
+    "limitation": "The cohort models a point robot in derived, static XY geometry. It does not evaluate robot footprint, kinodynamic constraints, dynamic obstacles, a real simulator, or physical deployment. There is no independent continuous optimality oracle, and the campaign uses one call per world.",
+    "sources": [
+      {
+        "label": "Project benchmark results and reproduction record",
+        "url": "https://github.com/damminhtien/pathplanning/blob/main/README.md#latest-benchmark-results"
+      }
+    ]
+  },
+  {
+    "id": "voxel-movement-rules",
+    "title": "How much does 3D movement change the route?",
+    "eyebrow": "3D NAVIGATION / VOXEL MAPS",
+    "application": "Game levels and 3D environment navigation",
+    "summary": "A small voxel cohort isolates the effect of a strict 26-neighbor movement rule and keeps its narrow map coverage visible.",
+    "question": "If an agent can move to face-, edge-, and corner-adjacent voxels, which planner results still match the shortest-path oracle?",
+    "protocol": "The evaluation used two distinct voxel maps: Simple.3dmap from a Warframe collection and plant01.3dmap from an Industrial Plants collection. Thirteen planner variants ran on each map. Path costs were checked against an oracle with strict 26-neighbor Euclidean movement; a diagonal move was allowed only when every proper side cell was free.",
+    "diagram": "voxel",
+    "dataset_id": "movingai-voxels",
+    "stats": [
+      { "value": "2", "label": "distinct maps" },
+      { "value": "13", "label": "planner variants" },
+      { "value": "20 of 26", "label": "oracle-optimal results" },
+      { "value": "6 of 26", "label": "valid, suboptimal results" }
+    ],
+    "findings": [
+      {
+        "title": "Movement rules are part of correctness.",
+        "text": "A diagonal shortcut is only a legal route if the edge and collision semantics permit it. The strict 26-neighbor oracle makes that rule explicit when checking cost."
+      },
+      {
+        "title": "All 26 outcomes were interpretable.",
+        "text": "Twenty planner-map results matched the oracle; six returned valid paths with greater cost. The distinction separates reachability from shortest-path optimality."
+      },
+      {
+        "title": "The cohort is intentionally small.",
+        "text": "Two maps are enough to illustrate an evaluation contract, but they cannot represent the full range of voxel sizes, densities, or topologies in the source collections."
+      }
+    ],
+    "interpretation": "For 3D game navigation, path quality depends on the allowed transitions and corner-cutting policy as much as on the search algorithm. Comparing results under one explicit neighborhood rule makes the claim understandable and reproducible.",
+    "limitation": "This is a two-map correctness case, not a broad 3D performance campaign. Forty-three other MovingAI voxel maps and 45 distinct Monash maps are resource-limited in the current recorded inventory; mirrored maps are not counted as new environments.",
+    "sources": [
+      {
+        "label": "Project benchmark results and reproduction record",
+        "url": "https://github.com/damminhtien/pathplanning/blob/main/README.md#latest-benchmark-results"
+      },
+      {
+        "label": "MovingAI benchmark collection",
+        "url": "https://movingai.com/benchmarks/grids.html"
+      }
+    ]
+  }
+]

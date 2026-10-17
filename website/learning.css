@@ -17,6 +17,7 @@ body.learning-body {
 .learning-topbar .brand { color: var(--ink); }
 .learning-topbar .brand-accent { color: #687b90; }
 .learning-topbar nav { display: flex; align-items: center; gap: clamp(16px, 2.5vw, 30px); color: var(--ink-soft); font-size: 12px; }
+.learning-topbar nav a { white-space: nowrap; }
 .learning-topbar nav a:hover, .learning-footer a:hover { color: var(--accent); text-decoration: underline; text-underline-offset: 4px; }
 .lesson-shell, .map-shell { width: min(1160px, calc(100% - 48px)); margin: 0 auto; }
 .breadcrumbs { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 30px 0 19px; color: var(--quiet-ink); font-size: 11px; }
@@ -88,7 +89,7 @@ body.learning-body {
 @media (max-width: 760px) {
   .learning-topbar { width: calc(100% - 30px); height: 62px; }
   .learning-topbar nav { gap: 13px; font-size: 10px; }
-  .learning-topbar nav a:nth-child(3) { display: none; }
+  .learning-topbar nav a.nav-evaluation, .learning-topbar nav a.nav-project-map { display: none; }
   .lesson-shell, .map-shell { width: calc(100% - 34px); }
   .breadcrumbs { padding-top: 23px; }
   .lesson-hero { padding: 27px 0 50px; }
@@ -190,7 +191,7 @@ body.learning-body {
 .paper-citation { margin: 13px 0 0 !important; color: #536b83 !important; font-size: 13px !important; line-height: 1.65 !important; overflow-wrap: anywhere; }
 
 @media (max-width: 760px) {
-  .learning-topbar nav { gap: 12px; font-size: 12px; }
+  .learning-topbar nav { flex-wrap: nowrap; gap: 9px; font-size: 10px; }
   .breadcrumbs { gap: 8px; font-size: 12px; }
   .lesson-kicker, .lesson-section-label { font-size: 11px; }
   .lesson-summary { font-size: 17px; }

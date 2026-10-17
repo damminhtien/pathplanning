@@ -29,7 +29,12 @@ def _page_head(
     social_type: str,
     schema: str,
     breadcrumb_schema: str,
+    extra_stylesheets: tuple[str, ...] = ("datasets.css",),
 ) -> str:
+    stylesheet_links = "\n".join(
+        f'    <link rel="stylesheet" href="{asset_root}{_e(name)}" />'
+        for name in extra_stylesheets
+    )
     return f"""<!doctype html>
 <html lang="en">
   <head>
@@ -43,7 +48,7 @@ def _page_head(
     <link rel="stylesheet" href="{asset_root}styles.css" />
     <link rel="stylesheet" href="{asset_root}theme.css" />
     <link rel="stylesheet" href="{asset_root}learning.css" />
-    <link rel="stylesheet" href="{asset_root}datasets.css" />
+{stylesheet_links}
     <meta property="og:type" content="{_e(social_type)}" />
     <meta property="og:site_name" content="Pathplanning Learning Lab" />
     <meta property="og:title" content="{_e(title)}" />
@@ -70,9 +75,10 @@ def _learning_nav(asset_root: str) -> str:
       <nav aria-label="Learning navigation">
         <a href="{asset_root}#algorithms">Algorithm atlas</a>
         <a href="{asset_root}datasets/">Datasets</a>
-        <a href="{asset_root}#evaluation">Evaluation</a>
-        <a href="{asset_root}mindmap/">Project map</a>
-        <a href="https://github.com/damminhtien/pathplanning" target="_blank" rel="noreferrer">Source</a>
+        <a href="{asset_root}case-studies/">Case studies</a>
+        <a class="nav-evaluation" href="{asset_root}#evaluation">Evaluation</a>
+        <a class="nav-project-map" href="{asset_root}mindmap/">Project map</a>
+        <a class="nav-source" href="https://github.com/damminhtien/pathplanning" target="_blank" rel="noreferrer">Source</a>
       </nav>
     </header>"""
 

@@ -13,6 +13,7 @@ import xml.etree.ElementTree as ET
 from .config import BASE_URL, BUILD_MARKER, FAMILY_LABELS, PROJECT_ROOT, WEBSITE_ROOT
 from .content import SiteContent, expand_project_map, load_site_content
 from .renderers.applications import render_home_applications
+from .renderers.case_studies import case_studies_page, render_home_case_studies
 from .renderers.catalog import render_static_catalog
 from .renderers.datasets import dataset_detail_page, dataset_index_page
 from .renderers.lesson import lesson_page
@@ -29,6 +30,7 @@ def build_sitemap(
     urls.extend(f"{BASE_URL}/algorithms/{planner['id']}/" for planner in planners)
     urls.append(f"{BASE_URL}/datasets/")
     urls.extend(f"{BASE_URL}/datasets/{dataset['id']}/" for dataset in datasets)
+    urls.append(f"{BASE_URL}/case-studies/")
     for url in urls:
         entry = ET.SubElement(root, f"{{{namespace}}}url")
         ET.SubElement(entry, f"{{{namespace}}}loc").text = url
@@ -65,7 +67,7 @@ def copy_static_files(output: Path) -> None:
         shutil.copy2(WEBSITE_ROOT / name, output / name)
     shutil.copytree(WEBSITE_ROOT / "data", output / "data")
     shutil.copytree(WEBSITE_ROOT / "scripts", output / "scripts")
-    for name in ("learning.css", "mindmap.css", "mindmap.js", "datasets.css"):
+    for name in ("learning.css", "mindmap.css", "mindmap.js", "datasets.css", "case-studies.css"):
         shutil.copy2(WEBSITE_ROOT / name, output / name)
 
 
@@ -86,6 +88,10 @@ def render_home(content: SiteContent) -> str:
     if home.count(applications_marker) != 1:
         raise SystemExit("The home page must contain exactly one application-card marker.")
     home = home.replace(applications_marker, render_home_applications(content.applications["overview"]))
+    case_studies_marker = "<!-- generated:case-study-cards -->"
+    if home.count(case_studies_marker) != 1:
+        raise SystemExit("The home page must contain exactly one case-study-card marker.")
+    home = home.replace(case_studies_marker, render_home_case_studies(content.case_studies))
     filters_marker = "<!-- generated:planner-family-filters -->"
     if home.count(filters_marker) != 1:
         raise SystemExit("The home page must contain exactly one planner-family filter marker.")
@@ -165,6 +171,14 @@ def build(output: Path) -> int:
             encoding="utf-8",
         )
 
+    case_studies_dir = output / "case-studies"
+    case_studies_dir.mkdir()
+    case_studies_file = case_studies_dir / "index.html"
+    case_studies_file.write_text(
+        case_studies_page(content.case_studies, output, case_studies_file),
+        encoding="utf-8",
+    )
+
     expanded_map = expand_project_map(content.project_map, content.planners, content.registry_rows)
     map_dir = output / "mindmap"
     map_dir.mkdir()
@@ -173,6 +187,7 @@ def build(output: Path) -> int:
     )
     print(
         f"Built the home page, project mind map, and {len(content.planners)} "
-        f"planner lessons and {len(content.datasets)} dataset profiles in {output}"
+        f"planner lessons, {len(content.datasets)} dataset profiles, and "
+        f"{len(content.case_studies)} case studies in {output}"
     )
     return len(content.planners)

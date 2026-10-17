@@ -28,6 +28,7 @@ class SiteContent:
     project_map: dict[str, Any]
     applications: dict[str, Any]
     datasets: list[dict[str, Any]]
+    case_studies: list[dict[str, Any]]
     dataset_snapshot: dict[str, Any]
 
 
@@ -46,6 +47,7 @@ def load_site_content() -> SiteContent:
     project_map = read_json(WEBSITE_ROOT / "data" / "project-map.json")
     applications = read_json(WEBSITE_ROOT / "data" / "applications.json")
     dataset_catalog = read_json(WEBSITE_ROOT / "data" / "datasets.json")
+    case_studies = read_json(WEBSITE_ROOT / "data" / "case_studies.json")
     if (
         not isinstance(planners, list)
         or not isinstance(lessons, dict)
@@ -56,6 +58,7 @@ def load_site_content() -> SiteContent:
         or not isinstance(dataset_catalog, dict)
         or not isinstance(dataset_catalog.get("datasets"), list)
         or not isinstance(dataset_catalog.get("snapshot"), dict)
+        or not isinstance(case_studies, list)
     ):
         raise SystemExit("Planner, learning, project-map, or dataset content has invalid types.")
 
@@ -178,6 +181,71 @@ def load_site_content() -> SiteContent:
     if len(dataset_ids) != len(set(dataset_ids)):
         raise SystemExit("The dataset catalog must contain unique string IDs.")
     dataset_id_set = set(dataset_ids)
+
+    case_study_ids = [study.get("id") for study in case_studies if isinstance(study, dict)]
+    if (
+        len(case_study_ids) != len(case_studies)
+        or not case_study_ids
+        or any(not isinstance(study_id, str) for study_id in case_study_ids)
+        or len(case_study_ids) != len(set(case_study_ids))
+    ):
+        raise SystemExit("Case studies must contain unique objects with string IDs.")
+    for study in case_studies:
+        study_id = study.get("id")
+        if not isinstance(study_id, str) or not re.fullmatch(r"[a-z0-9]+(?:-[a-z0-9]+)*", study_id):
+            raise SystemExit(f"Invalid case-study ID: {study_id!r}")
+        required_fields = (
+            "title",
+            "eyebrow",
+            "application",
+            "summary",
+            "question",
+            "protocol",
+            "interpretation",
+            "limitation",
+        )
+        if not all(
+            isinstance(study.get(field), str) and study[field].strip()
+            for field in required_fields
+        ):
+            raise SystemExit(f"Case-study content is incomplete for {study_id}.")
+        if study.get("dataset_id") not in dataset_id_set:
+            raise SystemExit(f"Case study {study_id} references an unknown dataset.")
+        if study.get("diagram") not in {"grid", "road", "continuous", "voxel"}:
+            raise SystemExit(f"Case study {study_id} has an unknown diagram.")
+        for field, minimum in (("stats", 2), ("findings", 3), ("sources", 1)):
+            records = study.get(field)
+            if not isinstance(records, list) or len(records) < minimum:
+                raise SystemExit(f"Case study {study_id} needs at least {minimum} {field}.")
+            required_record_fields = {
+                "stats": ("value", "label"),
+                "findings": ("title", "text"),
+                "sources": ("label", "url"),
+            }[field]
+            for record in records:
+                if not isinstance(record, dict) or not all(
+                    isinstance(record.get(key), str) and record[key].strip()
+                    for key in required_record_fields
+                ):
+                    raise SystemExit(f"Case-study {field} are incomplete for {study_id}.")
+                if field == "sources" and not record["url"].startswith("https://"):
+                    raise SystemExit(f"Case-study source URL must use HTTPS for {study_id}.")
+    case_study_words = len(
+        re.findall(
+            r"\b[\w'-]+\b",
+            " ".join(
+                text
+                for study in case_studies
+                for text in [
+                    study["title"], study["summary"], study["question"], study["protocol"],
+                    study["interpretation"], study["limitation"],
+                    *(finding[key] for finding in study["findings"] for key in ("title", "text")),
+                ]
+            ),
+        )
+    )
+    if case_study_words < 600:
+        raise SystemExit("The case-study collection needs more detailed analysis.")
 
     application_overview = applications.get("overview")
     application_families = applications.get("families")
@@ -403,6 +471,7 @@ def load_site_content() -> SiteContent:
         project_map=project_map,
         applications=applications,
         datasets=datasets,
+        case_studies=case_studies,
         dataset_snapshot=snapshot,
     )
 
