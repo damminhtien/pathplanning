@@ -7,6 +7,95 @@ import {
   roundedRect as drawRoundedRect,
 } from "./shared.js";
 
+const REFINEMENT_PLANNERS = new Set([
+  "rrt_star",
+  "informed_rrt_star",
+  "bit_star",
+  "abit_star",
+  "rit_star",
+]);
+
+function segmentHitsRect(a, b, rect) {
+  const dx = b.x - a.x;
+  const dy = b.y - a.y;
+  let entry = 0;
+  let exit = 1;
+
+  for (const [direction, offset] of [
+    [-dx, a.x - rect.x],
+    [dx, rect.x + rect.w - a.x],
+    [-dy, a.y - rect.y],
+    [dy, rect.y + rect.h - a.y],
+  ]) {
+    if (direction === 0) {
+      if (offset < 0) return false;
+      continue;
+    }
+
+    const intersection = offset / direction;
+    if (direction < 0) entry = Math.max(entry, intersection);
+    else exit = Math.min(exit, intersection);
+    if (entry > exit) return false;
+  }
+
+  return true;
+}
+
+function findCollisionFreePath(start, goal, obstacles, clearance) {
+  const safetyObstacles = obstacles.map((rect) => ({
+    x: rect.x - clearance + 1,
+    y: rect.y - clearance + 1,
+    w: rect.w + clearance * 2 - 2,
+    h: rect.h + clearance * 2 - 2,
+  }));
+  const nodes = [start, goal];
+
+  for (const rect of obstacles) {
+    const left = rect.x - clearance;
+    const right = rect.x + rect.w + clearance;
+    const top = rect.y - clearance;
+    const bottom = rect.y + rect.h + clearance;
+    nodes.push(
+      { x: left, y: top },
+      { x: right, y: top },
+      { x: right, y: bottom },
+      { x: left, y: bottom },
+    );
+  }
+
+  const costs = Array(nodes.length).fill(Infinity);
+  const parents = Array(nodes.length).fill(-1);
+  const visited = new Set();
+  costs[0] = 0;
+
+  while (visited.size < nodes.length) {
+    let current = -1;
+    for (let index = 0; index < nodes.length; index += 1) {
+      if (!visited.has(index) && (current < 0 || costs[index] < costs[current])) current = index;
+    }
+    if (current < 0 || !Number.isFinite(costs[current])) break;
+    if (current === 1) break;
+    visited.add(current);
+
+    for (let next = 0; next < nodes.length; next += 1) {
+      if (visited.has(next) || current === next) continue;
+      if (safetyObstacles.some((rect) => segmentHitsRect(nodes[current], nodes[next], rect))) continue;
+      const cost = costs[current] + distance(nodes[current], nodes[next]);
+      if (cost < costs[next]) {
+        costs[next] = cost;
+        parents[next] = current;
+      }
+    }
+  }
+
+  if (!Number.isFinite(costs[1])) return [];
+  const path = [];
+  for (let index = 1; index >= 0; index = parents[index]) {
+    path.push(nodes[index]);
+    if (index === 0) break;
+  }
+  return path.reverse();
+}
 
 export function createContinuousScene({ context, state, planners }) {
   const roundedRect = (x, y, width, height, radius) => drawRoundedRect(context, x, y, width, height, radius);
@@ -28,28 +117,11 @@ export function createContinuousScene({ context, state, planners }) {
     ];
   }
 
-  function segmentHitsRect(a, b, rect) {
-    const steps = 14;
-    for (let i = 0; i <= steps; i += 1) {
-      const x = a.x + (b.x - a.x) * i / steps;
-      const y = a.y + (b.y - a.y) * i / steps;
-      if (x >= rect.x && x <= rect.x + rect.w && y >= rect.y && y <= rect.y + rect.h) return true;
-    }
-    return false;
-  }
-
   function drawContinuous(width, height) {
     const planner = state.planner;
     const obstacles = rectsForWorld(width, height);
     const random = seededRandom(state.seed + planners.indexOf(planner) * 17);
     const samples = Array.from({ length: 82 }, () => ({ x: width * .07 + random() * width * .86, y: height * .13 + random() * height * .74 }));
-    for (const rect of obstacles) {
-      context.fillStyle = "rgba(113, 139, 161, .23)";
-      roundedRect(rect.x, rect.y, rect.w, rect.h, 8);
-      context.strokeStyle = "rgba(166, 196, 219, .13)";
-      context.lineWidth = 1;
-      context.stroke();
-    }
     for (let x = 24; x < width; x += 30) {
       context.beginPath(); context.moveTo(x, 0); context.lineTo(x, height); context.strokeStyle = "rgba(170, 194, 223, .035)"; context.stroke();
     }
@@ -58,6 +130,11 @@ export function createContinuousScene({ context, state, planners }) {
     }
     const start = { x: width * .07, y: height * .76 };
     const goal = { x: width * .92, y: height * .22 };
+    const clearance = Math.max(14, Math.min(width, height) * .035);
+    const route = findCollisionFreePath(start, goal, obstacles, clearance);
+    const roomyRoute = REFINEMENT_PLANNERS.has(planner.id)
+      ? findCollisionFreePath(start, goal, obstacles, clearance * 1.8)
+      : route;
     const informed = ["informed_rrt_star", "bit_star", "abit_star", "fcit_star", "rit_star"].includes(planner.id) && state.progress > .43;
     if (informed) {
       context.save();
@@ -110,6 +187,13 @@ export function createContinuousScene({ context, state, planners }) {
       }
     }
     context.restore();
+    for (const rect of obstacles) {
+      context.fillStyle = "#263546";
+      roundedRect(rect.x, rect.y, rect.w, rect.h, 8);
+      context.strokeStyle = "rgba(195, 217, 237, .38)";
+      context.lineWidth = 1;
+      context.stroke();
+    }
     for (let i = 0; i < count; i += 1) {
       const point = samples[i];
       const blocked = obstacles.some((rect) => point.x > rect.x && point.x < rect.x + rect.w && point.y > rect.y && point.y < rect.y + rect.h);
@@ -123,7 +207,7 @@ export function createContinuousScene({ context, state, planners }) {
       drawMotionMarker(context, sample, blocked ? "#ff8494" : "#a6d2ff", state.elapsed, "", 5);
       drawTinyLabel(blocked ? "REJECT COLLISION" : "NEW SAMPLE", sample.x + 12, sample.y - 9, blocked ? "#ff9cab" : "#c5e3ff");
     }
-    if (planner.id === "ait_star" || planner.id === "eit_star") drawReverseArrows(samples, count, goal);
+    if (planner.id === "ait_star" || planner.id === "eit_star") drawReverseArrows(samples, count, goal, obstacles);
     if (planner.id === "jit_star" && state.progress > .46) {
       context.beginPath(); context.ellipse(width * .55, height * .42, width * .16, height * .12, -.48, 0, Math.PI * 2);
       context.fillStyle = "rgba(255, 184, 117, .055)"; context.fill();
@@ -133,14 +217,26 @@ export function createContinuousScene({ context, state, planners }) {
     if (planner.id === "abit_star" || planner.id === "bit_star" || planner.id === "fcit_star") drawTinyLabel("BATCH, EDGE QUEUE, INCUMBENT", 15, 19, "#9bb9d8");
     if (planner.id === "eirm_star") drawTinyLabel("ROADMAP CACHE, reusable valid or blocked edges", 15, 19, "#9bb9d8");
     if (planner.id === "rit_star") drawTinyLabel("metric-shaped neighborhood", width * .48, height * .9, "#c2afff");
-    const candidatePath = drawCandidatePath(start, goal, obstacles, width, height, state.progress, state.elapsed);
-    if (candidatePath.length > 1 && state.progress > .48) {
-      const routeProgress = Math.max(0, Math.min(1, (state.progress - .48) / .52));
-      drawMotionMarker(context, pathAtProgress(candidatePath, routeProgress), "#a4f5df", state.elapsed, "R", 8);
+    const routeProgress = Math.max(0, Math.min(1, (state.progress - .48) / .52));
+    if (route.length > 1) {
+      drawCandidatePath(route, state.progress, state.elapsed, "rgba(131, 240, 205, .96)");
+    }
+    if (roomyRoute.length > 1 && state.progress > .66 && REFINEMENT_PLANNERS.has(planner.id)) {
+      drawCandidatePath(roomyRoute, state.progress, state.elapsed, "rgba(131, 240, 205, .28)");
+      drawCandidatePath(route, state.progress, state.elapsed, "rgba(255, 184, 117, .94)", .66);
+      drawTinyLabel("collision-free route refinement", width * .39, height * .18, "#ffca97");
+    }
+    if (route.length > 1 && state.progress > .48) {
+      drawMotionMarker(context, pathAtProgress(route, routeProgress), "#a4f5df", state.elapsed, "R", 8);
     }
     drawPoint(start.x, start.y, "#83f0cd", "START", state.elapsed);
     drawPoint(goal.x, goal.y, "#ffb875", "GOAL", state.elapsed + 1);
-    if (planner.id === "hybrid_astar" || planner.id === "state_lattice") drawVehicle(width * (.12 + .7 * state.progress), height * (.73 - .42 * state.progress), -0.52);
+    if ((planner.id === "hybrid_astar" || planner.id === "state_lattice") && route.length > 1) {
+      const vehiclePoint = pathAtProgress(route, state.progress);
+      const before = pathAtProgress(route, Math.max(0, state.progress - .01));
+      const after = pathAtProgress(route, Math.min(1, state.progress + .01));
+      drawVehicle(vehiclePoint.x, vehiclePoint.y, Math.atan2(after.y - before.y, after.x - before.x));
+    }
     if (twoTrees && state.progress > .72) drawTinyLabel("TREES CONNECT", width * .43, height * .84, "#bff9e7");
   }
 
@@ -150,33 +246,28 @@ export function createContinuousScene({ context, state, planners }) {
     context.strokeStyle = color; context.lineWidth = .8; context.stroke();
   }
 
-  function drawReverseArrows(samples, count, goal) {
+  function drawReverseArrows(samples, count, goal, obstacles) {
     for (let i = 1; i < count; i += 9) {
       const point = samples[i];
       const dx = goal.x - point.x; const dy = goal.y - point.y; const length = Math.hypot(dx, dy) || 1;
-      context.beginPath(); context.moveTo(point.x, point.y); context.lineTo(point.x + dx / length * 15, point.y + dy / length * 15);
+      const arrow = { x: point.x + dx / length * 15, y: point.y + dy / length * 15 };
+      if (obstacles.some((rect) => segmentHitsRect(point, arrow, rect))) continue;
+      context.beginPath(); context.moveTo(point.x, point.y); context.lineTo(arrow.x, arrow.y);
       context.strokeStyle = "rgba(255, 184, 117, .57)"; context.lineWidth = 1; context.stroke();
     }
     drawTinyLabel("reverse cost-to-go estimate", goal.x - 158, goal.y - 18, "#ffca97");
   }
 
-  function drawCandidatePath(start, goal, obstacles, width, height, progress, elapsed) {
-    const points = [start, { x: width * .25, y: height * .79 }, { x: width * .31, y: height * .83 }, { x: width * .55, y: height * .83 }, { x: width * .58, y: height * .28 }, { x: width * .87, y: height * .27 }, goal];
-    if (progress < .28) return [];
-    const reveal = Math.max(0, Math.min(1, (progress - .28) / .2));
+  function drawCandidatePath(points, progress, elapsed, color, startProgress = .28) {
+    if (progress < startProgress) return;
+    const reveal = Math.max(0, Math.min(1, (progress - startProgress) / .2));
     context.save();
     context.lineWidth = 2.8; context.lineCap = "round"; context.lineJoin = "round";
-    context.strokeStyle = "rgba(131, 240, 205, .96)";
+    context.strokeStyle = color;
     context.setLineDash([8, 6]);
     context.lineDashOffset = -elapsed * 20;
     drawPathTrace(context, points, reveal);
     context.restore();
-    if (progress > .66 && ["rrt_star", "informed_rrt_star", "bit_star", "abit_star", "rit_star"].includes(state.planner.id)) {
-      context.beginPath(); context.moveTo(start.x, start.y); context.bezierCurveTo(width * .34, height * .7, width * .5, height * .2, goal.x, goal.y);
-      context.strokeStyle = "rgba(255, 184, 117, .67)"; context.lineWidth = 1.6; context.setLineDash([4, 5]); context.stroke(); context.setLineDash([]);
-      drawTinyLabel("improved incumbent", width * .48, height * .18, "#ffca97");
-    }
-    return points;
   }
 
   function drawPoint(x, y, color, label, phase) {
