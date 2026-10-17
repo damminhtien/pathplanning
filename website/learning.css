@@ -170,6 +170,19 @@ body.learning-body {
 .analysis-source-note a { color: #286da7; font-weight: 680; text-decoration: underline; text-underline-offset: 3px; }
 .analysis-source-note a:hover { color: #174d7b; }
 
+.lesson-paper { padding: 8px 0 60px; }
+.paper-intro { margin-bottom: 22px; }
+.paper-card { padding: 23px; border: 1px solid #cddded; border-radius: 14px; background: #f2f7fc; }
+.paper-card-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 9px 15px; color: #536b83; font-size: 13px; line-height: 1.5; }
+.paper-source-label { padding: 5px 9px; border: 1px solid #b7d0e7; border-radius: 999px; color: #1e5d91; background: #fff; font-size: 11px; font-weight: 750; letter-spacing: .04em; }
+.paper-card h3 { margin: 17px 0 9px; color: var(--ink); font-family: var(--reading-font); font-size: clamp(22px, 3.3vw, 31px); font-weight: 500; line-height: 1.28; letter-spacing: -.025em; }
+.paper-venue { margin: 0; color: #536b83; font-size: 14px; line-height: 1.7; }
+.paper-note { margin: 15px 0 0; padding: 12px 14px; border-left: 3px solid #84add2; color: #405a73; background: #e8f1f9; font-size: 14px; line-height: 1.7; }
+.paper-link { display: inline-flex; align-items: center; gap: 8px; margin-top: 19px; padding: 10px 14px; border: 1px solid #23679f; border-radius: 8px; color: #fff; background: #286da7; font-size: 14px; font-weight: 700; }
+.paper-link:hover { border-color: #174d7b; color: #fff; background: #174d7b; text-decoration: none; }
+.paper-link span { font-size: 17px; line-height: 1; }
+.paper-citation { margin: 13px 0 0 !important; color: #536b83 !important; font-size: 13px !important; line-height: 1.65 !important; overflow-wrap: anywhere; }
+
 @media (max-width: 760px) {
   .learning-topbar nav { gap: 12px; font-size: 12px; }
   .breadcrumbs { gap: 8px; font-size: 12px; }
@@ -187,6 +200,10 @@ body.learning-body {
   .analysis-details > div { grid-template-columns: 1fr; gap: 4px; padding: 14px 0; }
   .analysis-details dd { font-size: 16px; }
   .analysis-source-note { font-size: 14px !important; }
+  .paper-card { padding: 18px 16px; }
+  .paper-card-meta { font-size: 13px; }
+  .paper-note { font-size: 14px; }
+  .paper-citation { font-size: 13px !important; }
   .lesson-fit-card p, .contract-note p { font-size: 15px; }
   .lesson-source dl div { font-size: 12px; }
   .learning-footer { font-size: 13px; }

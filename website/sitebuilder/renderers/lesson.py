@@ -16,6 +16,7 @@ def lesson_page(
     planner: dict[str, Any],
     lesson: dict[str, Any],
     analysis: dict[str, str],
+    reference: dict[str, Any],
     registry_row: dict[str, str],
     planner_by_id: dict[str, dict[str, Any]],
     planner_positions: dict[str, int],
@@ -28,13 +29,22 @@ def lesson_page(
     kind = planner["kind"]
     page_url = f"{BASE_URL}/algorithms/{planner_id}/"
     description = (
-        f"{title} algorithm analysis: time and space complexity, search strategy, "
-        "guarantees, and an interactive robot motion planning lesson."
-    )[:158].rsplit(" ", 1)[0]
+        f"{title}: robot motion-planning lesson covering search mechanics, complexity, "
+        "guarantees, trade-offs, and its research source."
+    )
     depth = len(output_file.parent.relative_to(output_root).parts)
     asset_root = "../" * depth
     github_module = registry_row["module"].replace(".", "/") + ".py"
     module_url = source_url(github_module)
+    reference_url = html.escape(reference["url"], quote=True)
+    reference_note = (
+        f'<p class="paper-note">{html.escape(reference["note"])}</p>'
+        if reference.get("note")
+        else ""
+    )
+    citation_text = (
+        f"{reference['authors']} ({reference['year']}). {reference['title']}. {reference['venue']}."
+    )
     related: list[str] = []
     for related_id in lesson["related"]:
         related_planner = planner_by_id[related_id]
@@ -62,6 +72,13 @@ def lesson_page(
             "headline": title,
             "description": description,
             "url": page_url,
+            "citation": {
+                "@type": "CreativeWork",
+                "name": reference["title"],
+                "author": reference["authors"],
+                "datePublished": str(reference["year"]),
+                "url": reference["url"],
+            },
             "inLanguage": "en",
             "learningResourceType": "Interactive tutorial",
             "isAccessibleForFree": True,
@@ -175,6 +192,7 @@ def lesson_page(
           <a href="#mechanism">How it decides</a>
           <a href="#example">Worked example</a>
           <a href="#analysis">Algorithm analysis</a>
+          <a href="#paper">Research paper</a>
           <a href="#tradeoff">Fit & trade-off</a>
           <a href="#evaluation">Evaluate fairly</a>
           <a href="#try-it">Your turn</a>
@@ -254,8 +272,25 @@ def lesson_page(
             <p class="analysis-source-note">Project-specific behavior: <a href="https://github.com/damminhtien/pathplanning/blob/main/SUPPORTED_ALGORITHMS.md" target="_blank" rel="noreferrer">supported planner contracts</a> and <a href="https://github.com/damminhtien/pathplanning/blob/main/docs/benchmark_contract.md" target="_blank" rel="noreferrer">benchmark and measurement method</a>.</p>
           </section>
 
+          <section id="paper" class="lesson-section lesson-paper">
+            <p class="lesson-section-label">06. THE RESEARCH SOURCE</p>
+            <h2>Read the paper behind the idea.</h2>
+            <p class="paper-intro">Start with the primary source for this planner. For older methods without one agreed origin paper, the reference is labeled as an early or foundational source.</p>
+            <article class="paper-card">
+              <div class="paper-card-meta">
+                <span class="paper-source-label">{html.escape(reference["label"])}</span>
+                <span>{html.escape(reference["authors"])} · {reference["year"]}</span>
+              </div>
+              <h3>{html.escape(reference["title"])}</h3>
+              <p class="paper-venue">{html.escape(reference["venue"])}</p>
+              {reference_note}
+              <a class="paper-link" href="{reference_url}" target="_blank" rel="noopener noreferrer" aria-label="Read {html.escape(reference["title"], quote=True)}">Read the paper <span aria-hidden="true">↗</span></a>
+            </article>
+            <p class="paper-citation">{html.escape(citation_text)}</p>
+          </section>
+
           <section id="tradeoff" class="lesson-section lesson-tradeoff">
-            <p class="lesson-section-label">06. WHEN IT FITS</p>
+            <p class="lesson-section-label">07. WHEN IT FITS</p>
             <h2>Choose it for the problem it solves.</h2>
             <div class="lesson-fit-grid">
               <article class="lesson-fit-card">
@@ -273,7 +308,7 @@ def lesson_page(
           </section>
 
           <section id="evaluation" class="lesson-section lesson-evaluation">
-            <p class="lesson-section-label">07. EVALUATE IT FAIRLY</p>
+            <p class="lesson-section-label">08. EVALUATE IT FAIRLY</p>
             <h2>What would make this a fair comparison?</h2>
             <p>{render_math_text(lesson["evaluation"])}</p>
             <h3 class="lesson-subheading">Useful measures for this planner</h3>
@@ -282,7 +317,7 @@ def lesson_page(
           </section>
 
           <section id="try-it" class="lesson-section lesson-try">
-            <p class="lesson-section-label">08. YOUR TURN</p>
+            <p class="lesson-section-label">09. YOUR TURN</p>
             <h2>{html.escape(lesson["experiment"])}</h2>
             <details class="lesson-question">
               <summary>{render_math_text(lesson["question"])}</summary>

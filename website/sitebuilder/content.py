@@ -22,6 +22,7 @@ class SiteContent:
     planners: list[dict[str, Any]]
     lessons: dict[str, dict[str, Any]]
     analyses: dict[str, dict[str, str]]
+    references: dict[str, dict[str, Any]]
     registry_rows: dict[str, dict[str, str]]
     project_map: dict[str, Any]
 
@@ -37,14 +38,18 @@ def load_site_content() -> SiteContent:
     planners = read_json(WEBSITE_ROOT / "data" / "planners.json")
     lessons = read_json(WEBSITE_ROOT / "data" / "tutorials.json")
     analyses = read_json(WEBSITE_ROOT / "data" / "algorithm_analysis.json")
+    references = read_json(WEBSITE_ROOT / "data" / "references.json")
     project_map = read_json(WEBSITE_ROOT / "data" / "project-map.json")
     if (
         not isinstance(planners, list)
         or not isinstance(lessons, dict)
         or not isinstance(analyses, dict)
+        or not isinstance(references, dict)
         or not isinstance(project_map, dict)
     ):
-        raise SystemExit("Planner, lesson, and algorithm-analysis data have invalid types.")
+        raise SystemExit(
+            "Planner lesson, analysis, reference, or project-map data has invalid types."
+        )
 
     matrix = (PROJECT_ROOT / "SUPPORTED_ALGORITHMS.md").read_text(encoding="utf-8")
     rows = {match["id"]: match.groupdict() for match in PLANNER_ROWS.finditer(matrix)}
@@ -72,6 +77,13 @@ def load_site_content() -> SiteContent:
             f"Algorithm-analysis coverage differs from the planner catalogue: "
             f"missing={missing}, extra={extra}"
         )
+    if set(ids) != set(references):
+        missing = sorted(set(ids) - set(references))
+        extra = sorted(set(references) - set(ids))
+        raise SystemExit(
+            f"Paper-reference coverage differs from the planner catalogue: "
+            f"missing={missing}, extra={extra}"
+        )
 
     unknown_kinds = sorted({planner.get("kind") for planner in planners} - set(FAMILY_LABELS))
     if unknown_kinds:
@@ -81,6 +93,17 @@ def load_site_content() -> SiteContent:
         planner_id = planner["id"]
         lesson = lessons[planner_id]
         analysis = analyses[planner_id]
+        reference = references[planner_id]
+        required_reference_fields = ("authors", "title", "venue", "label", "url")
+        if not isinstance(reference, dict) or not all(
+            isinstance(reference.get(field), str) and reference[field].strip()
+            for field in required_reference_fields
+        ):
+            raise SystemExit(f"Paper reference is incomplete for {planner_id}.")
+        if type(reference.get("year")) is not int or not 1900 <= reference["year"] <= 2100:
+            raise SystemExit(f"Paper reference has an invalid year for {planner_id}.")
+        if not reference["url"].startswith("https://"):
+            raise SystemExit(f"Paper reference URL must use HTTPS for {planner_id}.")
         if not all(
             lesson.get(field) for field in ("tagline", "story", "experiment", "question", "answer")
         ):
@@ -142,6 +165,7 @@ def load_site_content() -> SiteContent:
         planners=planners,
         lessons=lessons,
         analyses=analyses,
+        references=references,
         registry_rows=rows,
         project_map=project_map,
     )

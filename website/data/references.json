@@ -1,0 +1,308 @@
+{
+  "bfs": {
+    "authors": "E. F. Moore",
+    "title": "The Shortest Path Through a Maze",
+    "year": 1959,
+    "venue": "Proceedings of the International Symposium on the Theory of Switching, Part II, pp. 285–292",
+    "label": "Early primary source",
+    "url": "https://books.google.com/books/about/The_Shortest_Path_Through_a_Maze.html?id=IVZBHAAACAAJ",
+    "note": "An early published shortest-path account associated with breadth-first search; the traversal itself has no universally agreed single origin paper."
+  },
+  "dfs": {
+    "authors": "Robert Tarjan",
+    "title": "Depth-First Search and Linear Graph Algorithms",
+    "year": 1972,
+    "venue": "SIAM Journal on Computing, 1(2), 146–160",
+    "label": "Foundational paper",
+    "url": "https://doi.org/10.1137/0201010",
+    "note": "A foundational algorithmic treatment of depth-first search and its use in linear graph algorithms."
+  },
+  "greedy_best_first": {
+    "authors": "Ira Pohl",
+    "title": "Heuristic Search Viewed as Path Finding in a Graph",
+    "year": 1970,
+    "venue": "Artificial Intelligence, 1(3–4), 193–204",
+    "label": "Foundational paper",
+    "url": "https://doi.org/10.1016/0004-3702(70)90007-X",
+    "note": "A foundational account of heuristic graph search; there is no universally agreed standalone paper introducing Greedy Best-First Search."
+  },
+  "astar": {
+    "authors": "Peter E. Hart, Nils J. Nilsson, and Bertram Raphael",
+    "title": "A Formal Basis for the Heuristic Determination of Minimum Cost Paths",
+    "year": 1968,
+    "venue": "IEEE Transactions on Systems Science and Cybernetics, 4(2), 100–107",
+    "label": "Original paper",
+    "url": "https://doi.org/10.1109/TSSC.1968.300136"
+  },
+  "bidirectional_dijkstra": {
+    "authors": "Ira Pohl",
+    "title": "Bi-Directional and Heuristic Search in Path Problems",
+    "year": 1969,
+    "venue": "Stanford Linear Accelerator Center report SLAC-104",
+    "label": "Early research report",
+    "url": "https://digital.library.unt.edu/ark:/67531/metadc1053968/",
+    "note": "An early systematic treatment of bidirectional shortest-path search; this is a technical report, not a journal article."
+  },
+  "bidirectional_astar": {
+    "authors": "Ira Pohl",
+    "title": "Bi-Directional and Heuristic Search in Path Problems",
+    "year": 1969,
+    "venue": "Stanford Linear Accelerator Center report SLAC-104",
+    "label": "Early research report",
+    "url": "https://digital.library.unt.edu/ark:/67531/metadc1053968/",
+    "note": "An early study of combining bidirectional and heuristic search; later bidirectional A* variants use different meeting and termination rules."
+  },
+  "dijkstra": {
+    "authors": "Edsger W. Dijkstra",
+    "title": "A Note on Two Problems in Connexion with Graphs",
+    "year": 1959,
+    "venue": "Numerische Mathematik, 1, 269–271",
+    "label": "Original paper",
+    "url": "https://doi.org/10.1007/BF01386390"
+  },
+  "dstar_lite": {
+    "authors": "Sven Koenig and Maxim Likhachev",
+    "title": "D* Lite",
+    "year": 2002,
+    "venue": "Proceedings of the AAAI Conference on Artificial Intelligence",
+    "label": "Original paper",
+    "url": "https://www.aaai.org/Papers/AAAI/2002/AAAI02-072.pdf"
+  },
+  "weighted_astar": {
+    "authors": "Ira Pohl",
+    "title": "Heuristic Search Viewed as Path Finding in a Graph",
+    "year": 1970,
+    "venue": "Artificial Intelligence, 1(3–4), 193–204",
+    "label": "Foundational paper",
+    "url": "https://doi.org/10.1016/0004-3702(70)90007-X",
+    "note": "Discusses heuristic weighting in graph search; Weighted A* implementations can differ in tie-breaking and guarantees."
+  },
+  "reexp_astar": {
+    "authors": "Tien Minh Dam et al.",
+    "title": "A*_r: A Bounded Suboptimal Search Algorithm Using Conditional Node Re-expansion Policy",
+    "year": 2023,
+    "venue": "2023 14th International Conference on Information and Communication Technology Convergence (ICTC)",
+    "label": "Original paper",
+    "url": "https://doi.org/10.1109/ICTC58733.2023.10393240",
+    "note": "Introduces conditional re-expansion controlled by a threshold r; this repository adds selectable threshold modes and tie-breaking options."
+  },
+  "anytime_astar": {
+    "authors": "Maxim Likhachev, Geoffrey J. Gordon, and Sebastian Thrun",
+    "title": "ARA*: Anytime A* with Provable Bounds on Sub-Optimality",
+    "year": 2003,
+    "venue": "Advances in Neural Information Processing Systems 16, pp. 767–774",
+    "label": "Related anytime-search paper",
+    "url": "https://papers.nips.cc/paper_files/paper/2003/hash/ee8fe9093fbbb687bef15a38facc44d2-Abstract.html",
+    "note": "This paper introduces ARA*. The repository's Anytime A* instead runs Weighted A* over a configurable sequence of heuristic weights and does not implement ARA*'s incremental repair."
+  },
+  "jps": {
+    "authors": "Daniel Harabor and Alban Grastien",
+    "title": "Improving Jump Point Search",
+    "year": 2014,
+    "venue": "Proceedings of the International Conference on Automated Planning and Scheduling (ICAPS)",
+    "label": "Original paper",
+    "url": "https://users.cecs.anu.edu.au/~dharabor/data/papers/harabor-grastien-icaps14.pdf"
+  },
+  "jpsw": {
+    "authors": "Mark Carlson, Sajjad K. Moghadam, Daniel D. Harabor, Peter J. Stuckey, and Morteza Ebrahimi",
+    "title": "Optimal Pathfinding on Weighted Grid Maps",
+    "year": 2023,
+    "venue": "Proceedings of the AAAI Conference on Artificial Intelligence (AAAI-23)",
+    "label": "Original paper",
+    "url": "https://pathfinding.ai/pdf/cmhse-aaai23-jpsw.pdf"
+  },
+  "theta_star": {
+    "authors": "Alex Nash, Kenny Daniel, Sven Koenig, and Ariel Felner",
+    "title": "Theta*: Any-Angle Path Planning on Grids",
+    "year": 2007,
+    "venue": "Proceedings of the AAAI Conference on Artificial Intelligence",
+    "label": "Original paper",
+    "url": "https://aaai.org/Papers/AAAI/2007/aaai07-187.pdf"
+  },
+  "lazy_theta_star": {
+    "authors": "Alex Nash, Sven Koenig, and Craig Tovey",
+    "title": "Lazy Theta*: Any-Angle Path Planning and Path Length Analysis in 3D",
+    "year": 2010,
+    "venue": "Proceedings of the AAAI Conference on Artificial Intelligence",
+    "label": "Original paper",
+    "url": "https://ojs.aaai.org/index.php/AAAI/article/view/7566"
+  },
+  "rrt": {
+    "authors": "Steven M. LaValle",
+    "title": "Rapidly-Exploring Random Trees: A New Tool for Path Planning",
+    "year": 1998,
+    "venue": "Technical Report 98-11, Department of Computer Science, Iowa State University",
+    "label": "Original technical report",
+    "url": "https://msl.cs.illinois.edu/~lavalle/papers/Lav98c.pdf"
+  },
+  "rrt_star": {
+    "authors": "Sertac Karaman and Emilio Frazzoli",
+    "title": "Sampling-Based Algorithms for Optimal Motion Planning",
+    "year": 2011,
+    "venue": "The International Journal of Robotics Research, 30(7), 846–894",
+    "label": "Original paper",
+    "url": "https://doi.org/10.1177/0278364911406761"
+  },
+  "informed_rrt_star": {
+    "authors": "Jonathan D. Gammell, Siddhartha S. Srinivasa, and Timothy D. Barfoot",
+    "title": "Informed RRT*: Optimal Sampling-Based Path Planning Focused via Direct Sampling of an Admissible Ellipsoidal Heuristic",
+    "year": 2014,
+    "venue": "IEEE/RSJ International Conference on Intelligent Robots and Systems (IROS), pp. 2997–3004",
+    "label": "Original paper",
+    "url": "https://doi.org/10.1109/IROS.2014.6942976"
+  },
+  "fmt_star": {
+    "authors": "Lucas Janson, Edward Schmerling, Ashley Clark, and Marco Pavone",
+    "title": "Fast Marching Tree: A Fast Marching Sampling-Based Method for Optimal Motion Planning in Many Dimensions",
+    "year": 2015,
+    "venue": "The International Journal of Robotics Research, 34(7), 883–921",
+    "label": "Original paper",
+    "url": "https://doi.org/10.1177/0278364915577958"
+  },
+  "prm_star": {
+    "authors": "Sertac Karaman and Emilio Frazzoli",
+    "title": "Sampling-Based Algorithms for Optimal Motion Planning",
+    "year": 2011,
+    "venue": "The International Journal of Robotics Research, 30(7), 846–894",
+    "label": "Original paper",
+    "url": "https://doi.org/10.1177/0278364911406761"
+  },
+  "lazy_prm": {
+    "authors": "Robert Bohlin and Lydia E. Kavraki",
+    "title": "Path Planning Using Lazy PRM",
+    "year": 2000,
+    "venue": "Proceedings of the IEEE International Conference on Robotics and Automation (ICRA)",
+    "label": "Original paper",
+    "url": "https://doi.org/10.1109/ROBOT.2000.844107"
+  },
+  "ait_star": {
+    "authors": "Marlin P. Strub and Jonathan D. Gammell",
+    "title": "Adaptively Informed Trees (AIT*) and Effort Informed Trees (EIT*): Asymmetric Bidirectional Sampling-Based Path Planning",
+    "year": 2022,
+    "venue": "The International Journal of Robotics Research, 41(4), 390–417",
+    "label": "Original paper",
+    "url": "https://doi.org/10.1177/02783649211069572"
+  },
+  "eit_star": {
+    "authors": "Marlin P. Strub and Jonathan D. Gammell",
+    "title": "Adaptively Informed Trees (AIT*) and Effort Informed Trees (EIT*): Asymmetric Bidirectional Sampling-Based Path Planning",
+    "year": 2022,
+    "venue": "The International Journal of Robotics Research, 41(4), 390–417",
+    "label": "Original paper",
+    "url": "https://doi.org/10.1177/02783649211069572"
+  },
+  "eirm_star": {
+    "authors": "Valentin N. Hartmann, Marlin P. Strub, Marc Toussaint, and Jonathan D. Gammell",
+    "title": "Effort Informed Roadmaps (EIRM*): Efficient Asymptotically Optimal Multiquery Planning by Actively Reusing Validation Effort",
+    "year": 2022,
+    "venue": "International Symposium on Robotics Research (ISRR); arXiv preprint",
+    "label": "Original paper",
+    "url": "https://arxiv.org/abs/2205.08480"
+  },
+  "fcit_star": {
+    "authors": "Tyler S. Wilson, Wil Thomason, Zachary Kingston, Lydia E. Kavraki, and Jonathan D. Gammell",
+    "title": "Nearest-Neighbourless Asymptotically Optimal Motion Planning with Fully Connected Informed Trees",
+    "year": 2025,
+    "venue": "IEEE International Conference on Robotics and Automation (ICRA)",
+    "label": "Original paper",
+    "url": "https://doi.org/10.1109/ICRA55743.2025.11127785"
+  },
+  "rit_star": {
+    "authors": "Muhayy Ud Din, Ahmed Nadar, Jan Rosell, and Irfan Hussain",
+    "title": "RIT*: Riemannian Informed Trees for Cost-Adaptive Optimal Motion Planning",
+    "year": 2026,
+    "venue": "Robotics and Autonomous Systems, 200, article 105404",
+    "label": "Original paper",
+    "url": "https://doi.org/10.1016/j.robot.2026.105404"
+  },
+  "jit_star": {
+    "authors": "Kuanqi Cai, Liding Zhang, Xinwen Su, Kejia Chen, Chaoqun Wang, Sami Haddadin, Alois Knoll, Arash Ajoudani, and Luis Figueredo",
+    "title": "Just in Time Informed Trees: Manipulability-Aware Asymptotically Optimized Motion Planning",
+    "year": 2026,
+    "venue": "arXiv preprint",
+    "label": "Research preprint",
+    "url": "https://arxiv.org/abs/2601.19972"
+  },
+  "hybrid_astar": {
+    "authors": "Dmitri Dolgov, Sebastian Thrun, Michael Montemerlo, and James Diebel",
+    "title": "Practical Search Techniques in Path Planning for Autonomous Driving",
+    "year": 2008,
+    "venue": "Proceedings of the First International Symposium on Search Techniques in Artificial Intelligence and Robotics (STAIR-08)",
+    "label": "Foundational paper",
+    "url": "https://ai.stanford.edu/~ddolgov/papers/dolgov_gpp_stair08.pdf",
+    "note": "A foundational autonomous-driving planner using a kinematic search and analytic expansions; commonly associated with Hybrid A*."
+  },
+  "state_lattice": {
+    "authors": "Mikhail Pivtoraiko and Alonzo Kelly",
+    "title": "Efficient Constrained Path Planning via Search in State Lattices",
+    "year": 2005,
+    "venue": "Proceedings of the 8th International Symposium on Artificial Intelligence, Robotics and Automation in Space (i-SAIRAS)",
+    "label": "Foundational paper",
+    "url": "https://www.cs.cmu.edu/~alonzo/pubs/papers/isairas05Planning.pdf"
+  },
+  "bit_star": {
+    "authors": "Jonathan D. Gammell, Siddhartha S. Srinivasa, and Timothy D. Barfoot",
+    "title": "Batch Informed Trees (BIT*): Sampling-Based Optimal Planning via the Heuristically Guided Search of Implicit Random Geometric Graphs",
+    "year": 2015,
+    "venue": "IEEE International Conference on Robotics and Automation (ICRA), pp. 3067–3074",
+    "label": "Original paper",
+    "url": "https://doi.org/10.1109/ICRA.2015.7139620"
+  },
+  "abit_star": {
+    "authors": "Marlin P. Strub and Jonathan D. Gammell",
+    "title": "Advanced BIT* (ABIT*): Sampling-Based Planning with Advanced Graph-Search Techniques",
+    "year": 2020,
+    "venue": "IEEE International Conference on Robotics and Automation (ICRA); arXiv preprint",
+    "label": "Original paper",
+    "url": "https://arxiv.org/abs/2002.06589"
+  },
+  "rrt_connect": {
+    "authors": "James J. Kuffner Jr. and Steven M. LaValle",
+    "title": "RRT-Connect: An Efficient Approach to Single-Query Path Planning",
+    "year": 2000,
+    "venue": "Proceedings of the IEEE International Conference on Robotics and Automation (ICRA), pp. 995–1001",
+    "label": "Original paper",
+    "url": "https://doi.org/10.1109/ROBOT.2000.844730"
+  },
+  "sipp": {
+    "authors": "Mike Phillips and Maxim Likhachev",
+    "title": "SIPP: Safe Interval Path Planning for Dynamic Environments",
+    "year": 2011,
+    "venue": "IEEE International Conference on Robotics and Automation (ICRA)",
+    "label": "Original paper",
+    "url": "https://www.cs.cmu.edu/~maxim/files/sipp_icra11.pdf"
+  },
+  "bounded_suboptimal_sipp": {
+    "authors": "Konstantin Yakovlev, Anton Andreychuk, and Roni Stern",
+    "title": "Revisiting Bounded-Suboptimal Safe Interval Path Planning",
+    "year": 2020,
+    "venue": "Proceedings of the International Conference on Automated Planning and Scheduling (ICAPS)",
+    "label": "Original paper",
+    "url": "https://ojs.aaai.org/index.php/ICAPS/article/download/6674/6528/9903"
+  },
+  "kinodynamic_sipp": {
+    "authors": "Zain Alabedeen Ali and Konstantin Yakovlev",
+    "title": "Safe Interval Path Planning with Kinodynamic Constraints",
+    "year": 2023,
+    "venue": "Proceedings of the AAAI Conference on Artificial Intelligence",
+    "label": "Original paper",
+    "url": "https://ojs.aaai.org/index.php/AAAI/article/download/26453/26225"
+  },
+  "eecbs": {
+    "authors": "Jiaoyang Li, Wheeler Ruml, and Sven Koenig",
+    "title": "EECBS: A Bounded-Suboptimal Search for Multi-Agent Path Finding",
+    "year": 2021,
+    "venue": "Proceedings of the AAAI Conference on Artificial Intelligence, 35(14), 12353–12362",
+    "label": "Original paper",
+    "url": "https://doi.org/10.1609/aaai.v35i14.17466"
+  },
+  "lacam_star": {
+    "authors": "Keisuke Okumura",
+    "title": "Improving LaCAM for Scalable Eventually Optimal Multi-Agent Pathfinding",
+    "year": 2023,
+    "venue": "Proceedings of the Thirty-Second International Joint Conference on Artificial Intelligence (IJCAI), pp. 243–251",
+    "label": "Original paper",
+    "url": "https://doi.org/10.24963/ijcai.2023/28",
+    "note": "Introduces LaCAM*, the anytime eventually optimal extension of LaCAM."
+  }
+}

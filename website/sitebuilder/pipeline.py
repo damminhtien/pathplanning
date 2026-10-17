@@ -113,6 +113,7 @@ def build(output: Path) -> int:
                 planner,
                 content.lessons[planner["id"]],
                 content.analyses[planner["id"]],
+                content.references[planner["id"]],
                 content.registry_rows[planner["id"]],
                 planner_by_id,
                 planner_positions,
