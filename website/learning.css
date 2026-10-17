@@ -153,6 +153,21 @@ body.learning-body {
 .related-card small { color: #536b83; font-size: 13px; }
 .learning-footer { color: #405a73; font-size: 14px; }
 
+.lesson-analysis { padding: 28px; border: 1px solid #cddded; border-radius: 16px; background: #f2f7fc; }
+.lesson-analysis h2 { max-width: 650px; }
+.analysis-intro { margin-bottom: 22px; }
+.analysis-complexity { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin: 22px 0 26px; }
+.analysis-complexity-card { display: grid; gap: 8px; min-width: 0; padding: 17px 18px; border: 1px solid #cadced; border-radius: 11px; background: #fff; }
+.analysis-complexity-card span { color: #536b83; font-size: 13px; font-weight: 650; }
+.analysis-complexity-card code { color: #1d4e78; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 16px; font-weight: 700; line-height: 1.5; overflow-wrap: anywhere; }
+.analysis-details { display: grid; gap: 0; margin: 0; border-top: 1px solid #d5e2ee; }
+.analysis-details > div { display: grid; grid-template-columns: minmax(155px, 0.31fr) minmax(0, 1fr); gap: 18px; padding: 17px 0; border-bottom: 1px solid #d5e2ee; }
+.analysis-details dt { color: #245f94; font-size: 15px; font-weight: 700; line-height: 1.6; }
+.analysis-details dd { margin: 0; color: #405a73; font-family: var(--reading-font); font-size: 16px; line-height: 1.8; }
+.analysis-source-note { margin: 22px 0 0 !important; color: #536b83 !important; font-size: 14px !important; line-height: 1.7 !important; }
+.analysis-source-note a { color: #286da7; font-weight: 680; text-decoration: underline; text-underline-offset: 3px; }
+.analysis-source-note a:hover { color: #174d7b; }
+
 @media (max-width: 760px) {
   .learning-topbar nav { gap: 12px; font-size: 12px; }
   .breadcrumbs { gap: 8px; font-size: 12px; }
@@ -165,6 +180,11 @@ body.learning-body {
   .lesson-watch > p:not(.lesson-section-label) { font-size: 15px; }
   .lesson-steps p { font-size: 16px; }
   .lesson-fit-grid { grid-template-columns: 1fr; }
+  .lesson-analysis { padding: 20px 17px; }
+  .analysis-complexity { grid-template-columns: 1fr; }
+  .analysis-details > div { grid-template-columns: 1fr; gap: 4px; padding: 14px 0; }
+  .analysis-details dd { font-size: 16px; }
+  .analysis-source-note { font-size: 14px !important; }
   .lesson-fit-card p, .contract-note p { font-size: 15px; }
   .lesson-source dl div { font-size: 12px; }
   .learning-footer { font-size: 13px; }

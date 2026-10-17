@@ -1,0 +1,335 @@
+{
+  "bfs": {
+    "time_order": "O(V + E)",
+    "space_order": "O(V) search state",
+    "model": "The frontier is a FIFO queue. A vertex is marked when first discovered, so every accepted state has one parent and is processed in increasing number of edges from the start.",
+    "time": "For an explicit graph, V is the vertex count and E is the edge count. Every reachable vertex is enqueued once and each outgoing edge is inspected at most once, giving O(V + E) graph-search work. Converting a Python graph into the native CSR representation adds setup work outside this bound.",
+    "space": "The query stores visited/cost state and one parent per vertex, plus a queue whose worst-case size is O(V). The graph itself uses O(V + E) CSR storage; the result path adds O(L) for L returned vertices.",
+    "guarantee": "BFS returns a route with the fewest edges in a finite unweighted graph. It minimizes accumulated cost only when all traversable edges have equal cost; with unequal costs, first discovery can choose a more expensive route.",
+    "scaling": "Wide maps can create a large queue even when the route is short. Obstacles and goal placement affect how much of the reachable graph is visited, while Python-graph materialization affects total call time."
+  },
+  "dfs": {
+    "time_order": "O(V + E)",
+    "space_order": "O(V) search state",
+    "model": "DFS uses a LIFO frontier and descends along one branch before backtracking. A visited marker prevents the finite graph implementation from repeatedly following cycles.",
+    "time": "With V vertices and E edges in an explicit graph, each reachable vertex is discovered once and each outgoing edge is scanned at most once, so graph-search work is O(V + E). Graph conversion, if needed, is an additional cost before the native loop.",
+    "space": "Visited/cost state and parent links require O(V); the stack can also grow to O(V). The already prepared graph occupies O(V + E), and reconstructing an L-vertex route needs O(L) output space.",
+    "guarantee": "DFS finds a route if one is reached in this finite graph search, but its first route is not generally shortest by hop count or travel cost. Neighbor order can change which branch reaches the goal first.",
+    "scaling": "A deep branch can consume the expansion budget before a nearby solution is explored. Runtime depends strongly on neighbor order and goal placement, so DFS is useful for reachability or exploration, not dependable route quality."
+  },
+  "greedy_best_first": {
+    "time_order": "O((V + E) log V)",
+    "space_order": "O(V) search state",
+    "model": "The priority queue ranks discovered vertices by h(n), the estimated remaining cost. The implementation records parents and accumulated g values for the returned route, but g does not decide which frontier vertex is expanded next.",
+    "time": "For V explicit vertices and E edges, a binary heap orders frontier entries while the search inspects outgoing edges, giving O((V + E) log V) as a simple graph bound. The actual number expanded can range from a small goal-directed region to nearly the whole reachable graph.",
+    "space": "Cost, parent, and closed-state arrays use O(V); the frontier can contain O(V) useful entries in this implementation. Prepared graph storage is O(V + E), with additional O(L) space for the final route.",
+    "guarantee": "Greedy best-first can return a feasible route on a finite graph, but ordering by h alone does not prove minimum path cost, even when h is admissible. It is a satisficing choice whose route should be checked against a cost-aware reference.",
+    "scaling": "A misleading heuristic can send the search into a dead end or across an expensive detour. Runtime changes with heuristic quality and obstacle geometry; a fast first route is not evidence of a low-cost route."
+  },
+  "astar": {
+    "time_order": "O((V + E) log V)",
+    "space_order": "O(V + E) in worst case",
+    "model": "Each vertex stores its best known cost g and parent. A min-priority queue expands the smallest f = g + h estimate; the native search closes a vertex once, so it does not later reopen a closed state.",
+    "time": "For V explicit vertices and E edges, heap ordering plus edge relaxation is O((V + E) log V) under the usual simple-graph model. A* may visit only a small portion of the graph with a useful heuristic, but its worst case can still approach Dijkstra's full reachable search.",
+    "space": "Per-vertex cost, parent, and closed arrays require O(V). Improved routes may add stale entries to the heap before a vertex is closed; graph storage is O(V + E), and the returned path uses O(L) additional space.",
+    "guarantee": "Shortest-path optimality requires non-negative edge costs and a suitable heuristic. Because this implementation closes states without reopening them, use a consistent heuristic for the standard graph-search guarantee; admissibility alone is not enough to justify it here.",
+    "scaling": "Heuristic accuracy controls how many states are expanded. Weak estimates make A* resemble Dijkstra; expensive heuristic evaluation, large frontiers, and high-dimensional implicit state spaces can dominate the apparent advantage."
+  },
+  "bidirectional_dijkstra": {
+    "time_order": "O((V + E) log V)",
+    "space_order": "O(V + E) with reverse graph",
+    "model": "Two Dijkstra searches grow at once: one from the start over forward edges and one from the exact goal over reversed edges. A shared best meeting cost and lower-bound stopping rule prevent stopping at the first accidental intersection.",
+    "time": "For V vertices and E directed edges, the two heap searches have O((V + E) log V) worst-case graph work. This implementation also constructs reverse adjacency for the backward search, an O(V + E) pass that may be cached on a reusable native graph.",
+    "space": "Forward and backward costs, parents, closed flags, and heaps each scale with explored vertices, or O(V) per direction. A directed graph's reverse CSR can add another O(V + E) graph allocation; the final route needs O(L).",
+    "guarantee": "With non-negative edge costs, the meeting bound returns an exact shortest route between the specified start and goal. The planner requires an exact goal node and does not use a heuristic.",
+    "scaling": "The search can save work when the two wavefronts meet near the middle, but narrow passages or an asymmetric graph may keep one side expanding much farther. Reverse-graph construction matters for one-shot calls."
+  },
+  "bidirectional_astar": {
+    "time_order": "O(E + (V + E) log V)",
+    "space_order": "O(V + E) with reverse graph",
+    "model": "Forward and backward Dijkstra frontiers search edges reweighted by a heuristic potential. The potential makes both directions compatible with one meeting-cost stopping test rather than using two unrelated A* scores.",
+    "time": "For V vertices and E edges, this implementation first checks consistency across every finite-cost edge, costing O(E), then runs two heap searches with O((V + E) log V) worst-case graph work. A strong potential can reduce expansions but cannot remove the validation scan.",
+    "space": "Each direction keeps O(V) search state and frontier entries. Reverse adjacency may add O(V + E) storage for a directed graph; supplied heuristic arrays, graph data, and the returned route are additional allocations.",
+    "guarantee": "The exact shortest route is preserved when the supplied heuristic is consistent. The native implementation validates that condition and rejects an inconsistent heuristic instead of silently applying an invalid stopping bound.",
+    "scaling": "Useful potentials shrink the searched region, while weak potentials approach bidirectional Dijkstra. Full-edge consistency validation and reverse adjacency can dominate when the graph is reused only once."
+  },
+  "dijkstra": {
+    "time_order": "O((V + E) log V)",
+    "space_order": "O(V + E) including heap",
+    "model": "Dijkstra is A* with h = 0. It maintains the best known cost g for each vertex and expands the unsettled vertex with the smallest accumulated cost from the start.",
+    "time": "For V vertices and E edges in an explicit graph, edge relaxation plus binary-heap ordering is O((V + E) log V) under the simple-graph bound. Every reachable edge may be examined before the goal's cost is proven final.",
+    "space": "Cost, parent, and closed arrays need O(V); heap entries can include stale improvements. The prepared adjacency graph takes O(V + E), and the output route requires O(L) for L vertices.",
+    "guarantee": "With non-negative edge costs and an exact goal, the first settled goal has minimum total cost. Dijkstra needs no heuristic and remains the reference choice when a trustworthy lower-bound heuristic is unavailable.",
+    "scaling": "Many vertices with costs below the goal cost must be settled. Sparse graphs usually reduce edge scans; dense graphs increase relaxation and heap traffic, while graph preparation is a separate cost for Python inputs."
+  },
+  "dstar_lite": {
+    "time_order": "O((V + E) log V) worst case",
+    "space_order": "O(V) state + graph",
+    "model": "D* Lite stores g and one-step lookahead rhs values, then queues only states whose two values disagree. After the start moves or edge costs change, it repairs local inconsistencies instead of discarding all prior search state.",
+    "time": "Let V and E describe the current graph. A repair can update only a small affected region, but a large or widespread change may propagate through most vertices and edges; the worst-case work is comparable to a heap-based full shortest-path search, O((V + E) log V).",
+    "space": "The retained g/rhs values and queue bookkeeping use O(V), in addition to O(V + E) graph storage and any changed-edge overrides. State persists across calls in a session, which saves recomputation but keeps its memory allocated.",
+    "guarantee": "On a stable directed graph with non-negative costs and an admissible, consistent heuristic, repair returns a shortest route to the exact goal. Correct incremental results depend on reporting every relevant edge-cost change.",
+    "scaling": "Repeated nearby changes can be cheap because prior values remain useful. Changes that affect a large fraction of the graph reduce that benefit; number and location of changed edges are as important as graph size."
+  },
+  "weighted_astar": {
+    "time_order": "O((V + E) log V) worst case",
+    "space_order": "O(V + E) in worst case",
+    "model": "Weighted A* ranks each vertex by g + w·h, where w is at least one. Raising w gives the remaining-distance estimate more influence, while the implementation closes each vertex once and stops when a goal is popped.",
+    "time": "With V explicit vertices and E edges, heap and relaxation work has the same O((V + E) log V) worst-case graph form as best-first A*. A larger weight often changes how many vertices are expanded, but no runtime reduction follows from the formula itself.",
+    "space": "Search arrays and useful frontier entries are O(V), alongside O(V + E) graph storage. Duplicate heap entries from improved open costs can increase frontier allocation; route reconstruction uses O(L).",
+    "guarantee": "The weight changes ordering, not edge costs. This implementation does not reopen closed vertices, so do not assume a w-suboptimal bound for arbitrary admissible heuristics; validate guarantees against the exact heuristic and stopping conditions used.",
+    "scaling": "Weight, heuristic consistency, tie ordering, and graph shape jointly affect expansions and route cost. Compare several weights on identical inputs and report both success and cost, rather than runtime alone."
+  },
+  "reexp_astar": {
+    "time_order": "O(P log P + scanned edges)",
+    "space_order": "O(V + P) query state",
+    "model": "ReExpA* ranks states with weighted f and can reopen a closed state after a sufficiently large cost improvement. Parameter r and r_mode set the threshold; tie_break orders equal-f choices by lower or higher g.",
+    "time": "Let P be accepted queue pushes and R be actual expansions. Heap work is O(P log P); edge work is the sum of outgoing edges scanned across R expansions. Reopening can make R exceed V, and its exact count depends on r, the weight, and graph consistency.",
+    "space": "Per-vertex costs, parents, and state flags use O(V). Each accepted re-open can leave a stale heap entry, so frontier storage depends on P and can grow beyond one entry per vertex; the prepared graph remains O(V + E).",
+    "guarantee": "This is weighted A* with conditional re-expansion, not an unrestricted optimality certificate. The repository exposes absolute, relative-edge, and relative-g thresholds; the chosen threshold can trade extra work for improved correction of closed-state costs.",
+    "scaling": "Small thresholds can cause repeated work; large or infinite thresholds suppress reopens and behave more greedily. Record weight, r, r_mode, tie_break, stop reason, and reopens when comparing results."
+  },
+  "anytime_astar": {
+    "time_order": "Sum of configured A* passes",
+    "space_order": "One pass + incumbent path",
+    "model": "The planner runs weighted A* repeatedly with the configured weight sequence, each pass starting a fresh search. It keeps the lowest-cost successful path seen and can finish with weight 1 for an A* pass.",
+    "time": "For passes i with weights wᵢ, total work is approximately the sum of each pass's best-first search cost, not one shared incremental search. Each pass has O((V + E) log V) worst-case graph work; repeated passes can therefore cost several full searches.",
+    "space": "Only one pass's graph-search arrays and heap are active at a time, plus the best path retained so far. Peak query state is O(V) with O(L) incumbent storage; the native graph takes O(V + E).",
+    "guarantee": "The returned result is the least-cost successful path among completed configured passes. A final weight of one can provide the shortest-path result under A*'s heuristic conditions if that pass succeeds; early termination may return only an incumbent.",
+    "scaling": "The number and order of weights matter because this implementation repeats rather than reuses search state. Compare time-to-first-route and best-cost-over-time, and state whether the weight-one pass completed."
+  },
+  "jps": {
+    "time_order": "Grid scan dependent",
+    "space_order": "O(W × H) search state",
+    "model": "Jump Point Search uses symmetry-pruning rules on a uniform 8-connected grid. It advances along straight or diagonal rays and inserts only jump points where obstacles or forced-neighbor rules change the useful choices.",
+    "time": "Let W and H be grid width and height. Work depends on jump-point expansions and the number of cells inspected along each ray; long jumps reduce queue operations but still scan cells. There is no graph-level O(V + E) scan because the specialized kernel does not materialize a CSR graph.",
+    "space": "Dense per-cell cost, parent, and closed data scale with O(W × H), with additional jump-point frontier entries. Occupancy is snapshotted for the native call; the output retains only the returned cell route.",
+    "guarantee": "The pruning argument relies on a uniform-cost, standard 8-connected grid with diagonal corner cutting prohibited. Under that contract, compare path cost with Dijkstra or A* on the same grid; weighted terrain is outside JPS's supported model.",
+    "scaling": "Open corridors let rays skip many queue states, but obstacle patterns create more turning points and scans. Grid dimensions, corner rules, and jump direction structure determine work more than the route length alone."
+  },
+  "jpsw": {
+    "time_order": "Weighted jump scans",
+    "space_order": "O(W × H) search state",
+    "model": "JPSW searches a positive-cost terrain grid directly. Weighted local-neighborhood pruning chooses useful successors, and a jump stops at terrain boundaries or forced choices where skipping cells could change the accumulated cost.",
+    "time": "For a W-by-H grid, runtime depends on generated jump points, cells traversed by each weighted ray, and terrain-boundary stops. A long ray may reduce heap work while still examining many cells; weighted search has no simple O(V + E) graph bound.",
+    "space": "Cost, parent, and closed-state arrays scale with O(W × H), with a frontier of generated jump states. The native call also needs snapshots of cell validity and positive finite terrain costs.",
+    "guarantee": "The project limits JPSW to TerrainCostGrid2D, positive finite terrain costs, an exact cell goal, standard 8-connected motion, and no corner cutting. Use an exact cost-aware grid search as a reference when validating routes.",
+    "scaling": "Frequent changes in terrain cost create more jump stops and neighborhood decisions. Performance depends on the terrain layout as well as obstacle geometry; compare it with Dijkstra on the identical weighted cell-integral model."
+  },
+  "theta_star": {
+    "time_order": "Heap work + line-of-sight scans",
+    "space_order": "O(W × H) search state",
+    "model": "Theta* relaxes grid neighbors but may assign a neighbor's parent to the current node's parent when a clear line of sight exists. This creates any-angle segments while the search still stores grid cells as states.",
+    "time": "For W × H cells, queue work resembles an 8-neighbor graph search, plus visibility traversals for shortcut candidates. If L is the total number of cells touched by those traversals, a useful accounting is O((V + E) log V + L), with V = W×H and E at most about 8V.",
+    "space": "The grid search keeps per-cell costs, parents, and closed flags, or O(W × H), plus its frontier. The returned path stores only waypoint cells; it does not expand the visible segments into every crossed cell.",
+    "guarantee": "Line of sight rejects blocked cells and corner cutting, and terrain cost is integrated along candidate segments. Theta* produces useful any-angle paths but does not generally prove the globally shortest continuous path around obstacles.",
+    "scaling": "Long shortcuts can touch many cells per visibility check. Grid resolution, the number of successful and failed shortcuts, and terrain variation determine the extra work beyond ordinary neighbor relaxation."
+  },
+  "lazy_theta_star": {
+    "time_order": "Heap work + deferred visibility scans",
+    "space_order": "O(W × H) search state",
+    "model": "Lazy Theta* proposes a parent shortcut without immediately checking every line of sight. When a node is expanded, it validates that parent edge and repairs the parent through a cheaper visible closed neighbor if the shortcut is blocked.",
+    "time": "The base search visits cells and grid neighbors; visibility checks are deferred to expansion and may be repeated during repair. With V = W×H, E≈8V, and L total cells traversed by actual line-of-sight checks, account for O((V + E) log V + L) work rather than treating each shortcut as constant cost.",
+    "space": "Per-cell cost, parent, and closed state plus the frontier require O(W × H) search memory. Deferred validation changes when the visibility work occurs, not the need to retain the grid and current parent choices.",
+    "guarantee": "The supported grid contract checks visibility against blocked cells and prohibits corner cutting. Lazy validation preserves this collision rule, while any-angle path quality remains an approximation to the globally shortest continuous route.",
+    "scaling": "Lazy checks help when many proposed shortcuts are never needed. If most expanded nodes require repair, total visibility work can approach or exceed eager Theta*; obstacle density and line lengths decide which behavior appears."
+  },
+  "rrt": {
+    "time_order": "n NN queries + motion checks",
+    "space_order": "O(n·d) tree storage",
+    "model": "Each accepted sample becomes a node in a tree rooted at the start. The planner finds a nearby node, steers by at most step_size, checks the state and connecting motion, then attaches the valid candidate.",
+    "time": "For n accepted nodes in d dimensions, work is the sum of n nearest-neighbor queries, steering, and collision checks. An incremental KD index is typically helpful in low dimensions, but nearest-neighbor search can approach a full scan as dimension grows; collision cost depends on the space model.",
+    "space": "Coordinates, costs, parents, and the nearest-neighbor index grow approximately O(n·d) plus O(n) metadata. The planner returns one parent chain of length L; nodes rejected by collision checks do not enter the tree.",
+    "guarantee": "A finite run may not reach the goal and the first returned route is not cost-optimal. Classical probabilistic-completeness results require sampling and steering assumptions; the project result is bounded by its iteration/time budget and validity model.",
+    "scaling": "Narrow passages reduce the chance that random samples create progress. Dimension, step size, goal sampling, collision-check resolution, and nearest-neighbor performance all affect the number of useful nodes."
+  },
+  "rrt_star": {
+    "time_order": "NN + near-neighbor rewiring",
+    "space_order": "O(n·d) tree storage",
+    "model": "RRT* uses RRT-style samples, then queries a radius of nearby nodes to choose the lowest-cost valid parent and rewire neighbors through the new node. The project radius follows a dimension-dependent log(n)/n schedule capped by step size.",
+    "time": "For n tree nodes in d dimensions, each iteration pays for a nearest query, a radius query, and collision checks for promising parent and rewire edges. The number of near nodes is geometry-dependent and can be large; dense worst cases approach quadratic pairwise work over a run.",
+    "space": "The tree stores O(n·d) coordinates and O(n) costs, parents, and flags, plus the nearest-neighbor index. Rewiring can update descendant costs, so temporary work grows with the affected subtree rather than only the new edge.",
+    "guarantee": "RRT* seeks lower-cost routes through parent selection and rewiring. Its asymptotic-optimality result is a limit under sampling, connection-radius, and problem assumptions; a finite run returns only its best incumbent and may find no route.",
+    "scaling": "More samples increase opportunities to improve a path but also add neighbor queries and rewiring checks. Dimension, collision cost, radius cap, and the shape of the free space control the practical trade-off."
+  },
+  "informed_rrt_star": {
+    "time_order": "RRT* neighbor + collision work",
+    "space_order": "O(n·d) tree storage",
+    "model": "After an initial feasible path, Informed RRT* samples the subset of states that could improve the incumbent under an admissible cost-to-come plus cost-to-go bound. In the Euclidean path-length case this informed set is an ellipsoid between start and goal.",
+    "time": "With n tree nodes and dimension d, each iteration still performs nearest and radius-neighbor queries, candidate edge checks, and rewiring. Restricting samples can reduce wasted work, but the number of neighbors and expensive collision checks remains data-dependent and can grow quadratically in dense cases.",
+    "space": "The planner retains the RRT* tree and spatial index, approximately O(n·d) coordinates plus O(n) metadata. The incumbent path adds O(L); sampling the informed region does not remove existing tree storage.",
+    "guarantee": "The project's planner requires an exact point goal, Euclidean distance, and additive path length. Under the classical RRT* assumptions the informed restriction preserves asymptotic optimality; a bounded run is not an exact continuous optimum.",
+    "scaling": "The first feasible path matters: a tighter incumbent shrinks the informed set and can focus later samples. If the initial path is poor or the useful region is narrow, the advantage over RRT* may be small."
+  },
+  "fmt_star": {
+    "time_order": "O(n + E) search; E can be n²",
+    "space_order": "O(n + E) sampled graph",
+    "model": "FMT* draws a fixed set of n samples, then grows a cost-ordered wavefront through a random geometric graph. For each unvisited sample, it selects the cheapest valid parent from the current near set and validates candidate motions lazily.",
+    "time": "Neighbor queries and edge checks depend on the connection radius and the number E of candidate sample pairs. Sparse geometric neighborhoods can keep E modest; in a dense worst case the implicit graph has O(n²) candidate edges, with collision checks often dominating queue operations.",
+    "space": "The fixed sample set, costs, parent links, and open/unvisited flags use O(n). Temporary neighbor lists and any retained edge data depend on E; coordinates contribute O(n·d) bytes in d dimensions.",
+    "guarantee": "FMT* is designed to approach optimal path cost as sample count grows under its sampling and connection assumptions. This project uses a fixed sample_count per call, so a returned path is best understood relative to that finite sampled graph.",
+    "scaling": "Increasing sample_count improves graph coverage but increases neighbor work and the chance of many candidate edges. Collision-check cost and narrow passages can dominate even when the geometric graph is sparse."
+  },
+  "prm_star": {
+    "time_order": "Neighbor search + E edge checks",
+    "space_order": "O(n + E) roadmap",
+    "model": "PRM* samples collision-free configurations, connects nearby pairs according to its roadmap rule, and runs a shortest-path search on the validated graph between exact start and goal points.",
+    "time": "For n samples and E candidate connections, construction pays for sampling, neighborhood queries, and motion validation; graph search then costs O((n + E) log n) with heap ordering. The random-geometric connection rule is sparse in typical fixed-dimension settings, but E can reach O(n²) in dense worst cases.",
+    "space": "The roadmap stores O(n) vertices and O(E) edges, plus O(n·d) sample coordinates and search metadata. The resulting graph can be reused in a roadmap object; custom callbacks may add Python-side collision work when explicitly enabled.",
+    "guarantee": "The returned route is shortest among currently valid edges in the constructed roadmap. PRM*'s asymptotic-optimality statement is about growing samples under metric, connection, and validity assumptions, not exact continuous optimality at finite n.",
+    "scaling": "Sample count and connection radius trade coverage against edge checks and memory. Symmetric local motion validity is part of this project's contract; obstacle geometry and dimension change how many candidate edges survive."
+  },
+  "lazy_prm": {
+    "time_order": "Repeated graph search + edge checks",
+    "space_order": "O(n + E) cached roadmap",
+    "model": "Lazy PRM builds a candidate roadmap without checking every edge first. It finds a promising route, validates only its unverified edges, removes invalid connections, caches outcomes, and searches again until the candidate is valid or no route remains.",
+    "time": "For n samples and E candidate edges, one shortest-path pass costs O((n + E) log n); several passes may be needed as invalid edges are discovered. Total work also includes motion validation for each edge checked, so in a cluttered roadmap repeated searches can dominate.",
+    "space": "The candidate roadmap, edge-validation cache, and search arrays use O(n + E) memory, with O(n·d) coordinates. Cached valid/invalid labels avoid repeating checks across later passes or reusable queries.",
+    "guarantee": "When validation terminates, the returned path uses only validated motions and is shortest among the remaining valid edges in this finite roadmap. Its quality relative to continuous space depends on sample coverage and the connection rule.",
+    "scaling": "Lazy validation helps when the best route uses only a small part of a large roadmap. If many candidate routes cross obstacles, each repair adds edge checks and a new graph search."
+  },
+  "ait_star": {
+    "time_order": "O((n + E) log n) + checks",
+    "space_order": "O(n + E) sampled search state",
+    "model": "AIT* samples a finite Euclidean random graph, computes a reverse cost-to-go estimate from the goal, and uses it to order a forward search. When an edge is found invalid, the cached edge status repairs the reverse heuristic before search continues.",
+    "time": "For n samples and E radius-connected candidate pairs, reverse heuristic passes and forward vertex/edge queues perform graph-like O((n + E) log n) work, plus collision checks. E depends on dimension and radius and can approach O(n²) in a dense graph; repairs add passes after invalid edges.",
+    "space": "Samples, reverse heuristic, forward g values, parents, closed flags, and edge-validity cache scale with O(n + E), plus O(n·d) coordinates. The edge cache grows as the search discovers and validates candidate connections.",
+    "guarantee": "The AIT* literature proves almost-sure asymptotic optimality under its sampling and objective assumptions. This implementation uses exact point goals, Euclidean distance, additive path length, and a finite sample_count, so finite results are not continuous-space certificates.",
+    "scaling": "More accurate reverse estimates can focus forward expansions, but computing them and repairing them after collision discovery costs time. Sample count, neighborhood density, and the rate of invalid edges set the balance."
+  },
+  "eit_star": {
+    "time_order": "AIT* search + effort passes",
+    "space_order": "O(n + E) sampled search state",
+    "model": "EIT* adds an estimate of edge-validation effort to AIT*'s cost-to-go guidance. It maintains both path-cost and effort heuristics, so among promising edges it can prefer routes expected to require fewer collision-check steps.",
+    "time": "For n samples and E radius-connected pairs, the cost and effort reverse searches plus forward queues are graph-like O((n + E) log n), with potentially repeated repairs and motion checks. Effort is estimated from edge length and collision_step, while real callback cost can vary.",
+    "space": "The planner stores sample coordinates, two reverse estimates, cost/effort labels, parents, heaps, and cached edge validity. Memory scales with O(n·d + n + E); edge-cache growth follows the number of queried connections.",
+    "guarantee": "The literature describes EIT* as almost-surely asymptotically optimal under its assumptions. This repository restricts it to exact goals, Euclidean distance, additive path length, and finite samples; effort ordering is a search bias, not a proof of lower runtime.",
+    "scaling": "Collision-check cost matters most when many candidate edges are invalid or expensive to validate. If checks are cheap or the effort proxy poorly predicts actual work, the extra effort heuristic may provide little practical benefit."
+  },
+  "eirm_star": {
+    "time_order": "Roadmap search + new validations",
+    "space_order": "O(n + E) persistent roadmap",
+    "model": "EIRM* keeps a reusable Euclidean roadmap and remembers edge-validation outcomes and collision effort. A new exact-goal query searches the shared graph, refining only the connections and estimates it needs for that query.",
+    "time": "For n retained samples and E candidate edges, graph-search work is roughly O((n + E) log n), plus any new neighbor queries and collision checks. Reuse can reduce repeated validation across goals; the first query pays construction costs and dense graphs can still approach O(n²) candidate pairs.",
+    "space": "Unlike a one-shot tree, the reusable roadmap retains O(n·d) sample coordinates, O(E) candidate edges or cache entries, and per-query search state. Persistent storage grows with the explored roadmap and cached collision information.",
+    "guarantee": "A query returns a route supported by validated roadmap motions under the project's exact-goal, Euclidean, additive path-length contract. Reuse accelerates repeated work but does not make the finite roadmap a continuous-space optimality certificate.",
+    "scaling": "The strongest benefit appears across multiple related goal queries in the same space. Roadmap size, cache hit rate, changed collision geometry, and new connection count determine whether reuse pays off."
+  },
+  "fcit_star": {
+    "time_order": "Up to O(n²) candidate pairs",
+    "space_order": "O(n·d) + queued batches",
+    "model": "FCIT* searches a fully connected informed sample graph without a nearest-neighbor index. It creates per-source local edge queues, orders candidate edges by informed cost, and validates promising connections in batches.",
+    "time": "With n samples, a fully connected undirected graph has n(n−1)/2 candidate pairs. The planner generates and orders these candidates lazily, then batches motion checks; pruning can avoid validating many edges, but the candidate-pair space remains quadratic in the worst case.",
+    "space": "Sample coordinates and tree/search arrays use O(n·d + n). Per-source queues and pending validation batches add temporary storage tied to candidate edges; batch_size caps the validation batch, not the total number of pairs considered.",
+    "guarantee": "The FCIT* paper establishes anytime almost-sure asymptotic optimality under its assumptions. This project requires an exact point goal, Euclidean metric, additive path length, and finite samples; fully connected means candidate edges, not that every edge is collision-free.",
+    "scaling": "Avoiding neighbor-index queries can help when edge evaluation is cheap and batching is effective. In expensive collision spaces or larger sample sets, quadratic candidate generation and validation can become the dominant cost."
+  },
+  "rit_star": {
+    "time_order": "Metric + neighbor + edge work",
+    "space_order": "O(n·d) + metric field",
+    "model": "RIT* orders informed samples using a Riemannian metric tensor rather than plain Euclidean distance. The metric shapes edge costs and informed sets; optional CARM updates a spatial cost field from collision feedback.",
+    "time": "For n samples in dimension d, runtime includes metric evaluations during neighbor and heuristic work, candidate-edge ordering, and motion validation. CARM also inserts and queries collision samples in a spatial hash; callback cost and local neighbor density prevent one universal n-only bound.",
+    "space": "The tree and sample coordinates use O(n·d) plus O(n) parent/cost data. RIT* keeps metric scratch arrays and, for 2D CARM, a bounded spatial hash and collision sample storage; higher-dimensional metric callbacks add their own computation.",
+    "guarantee": "The supported contract requires additive Riemannian arc length and symmetric positive-definite metric tensors with global eigenvalue bounds. These conditions support valid lower bounds; finite-sample route quality still depends on sampling and collision validation.",
+    "scaling": "Metric anisotropy and dimension increase distance, heuristic, and edge-cost work. CARM can adapt to observed collisions, but a varying field or expensive metric callback may cost more than it saves in search effort."
+  },
+  "jit_star": {
+    "time_order": "RRT* neighbors + Jacobian costs",
+    "space_order": "O(n·d) + feedback cache",
+    "model": "JIT* uses informed RRT*-style tree growth and rewiring, with optional Jacobian-weighted edge cost for robot manipulability. It also adds bounded ancestor candidates and records failed collision edges as feedback for later refinements.",
+    "time": "For n nodes, each iteration performs nearest/radius-neighbor queries, candidate edge-cost evaluation, collision checks, rewiring, and descendant-cost updates. Jacobian callbacks can add substantial per-edge work; failed-edge feedback and ancestor depth add extra data-dependent operations.",
+    "space": "Tree coordinates and metadata grow with O(n·d + n), plus the nearest-neighbor index, collision-feedback cache, and temporary neighbor/ancestor lists. Manipulability callbacks must return a finite robot Jacobian and require explicit opt-in.",
+    "guarantee": "This project's contract supports exact goals with additive Euclidean or Jacobian-weighted path cost. It does not claim that a finite run is globally optimal; compare the same cost model and callback settings when evaluating a result.",
+    "scaling": "Robot dimension, Jacobian evaluation cost, neighbor count, rewired subtree size, and feedback-cache growth all matter. Limiting ancestor depth bounds one refinement source but may change which alternate connections are considered."
+  },
+  "hybrid_astar": {
+    "time_order": "O((N + M) log N) + collision checks",
+    "space_order": "O(N) pose states",
+    "model": "Hybrid A* keys a continuous SE(2) pose into discrete search bins, then expands forward and reverse bicycle-model steering primitives. It checks the full vehicle footprint and periodically tries collision-checked Dubins or Reeds-Shepp connections to the goal.",
+    "time": "Let N be distinct pose/direction keys expanded and M the generated primitive transitions. Heap work is O((N + M) log N); each transition also pays footprint collision checks along its samples, and analytic connectors add their own swept-motion checks.",
+    "space": "Pose costs, parents, directions, and frontier entries scale with O(N), while the occupancy map is retained as input. Fine position or heading resolution increases the number of distinct keys and memory; output includes poses and motion segments.",
+    "guarantee": "The planner respects SE(2), steering limits, vehicle footprint, and forward/reverse primitives. Search is over a discretized pose key with analytic expansions, so it does not certify the globally optimal continuous vehicle trajectory.",
+    "scaling": "Heading and position resolution, steering primitive count, vehicle size, and obstacles drive N and collision checks. Tight turns and reverse maneuvers can increase expansions; a connector helps only when its swept path is valid."
+  },
+  "state_lattice": {
+    "time_order": "O((N + M) log N) + checks",
+    "space_order": "O(N) lattice search state",
+    "model": "State-lattice search runs A* over discretized SE(2) states using a finite caller-supplied set of local motion primitives. Every primitive is interpolated at a configured step and checked against the complete vehicle footprint before relaxation.",
+    "time": "Let N be reached lattice states and M the feasible primitive transitions examined. Heap search costs O((N + M) log N); motion validation adds work proportional to sampled poses along each primitive and footprint geometry checks.",
+    "space": "The implicit lattice avoids storing every possible edge. Search costs, parents, and frontier use O(N), with additional storage for the finite primitive library and occupancy grid; the path output contains selected motion segments.",
+    "guarantee": "If the finite lattice is fully searched with an admissible heuristic, optimality is only with respect to the supplied primitives, state quantization, collision step, and cost model. It cannot represent motions omitted from that library.",
+    "scaling": "More primitives improve control coverage but increase branching factor M per state. Finer state bins increase N, while smaller collision steps increase checks per primitive and can substantially raise runtime."
+  },
+  "bit_star": {
+    "time_order": "Ordered edge work; E can be n²",
+    "space_order": "O(n·d + E) per batch",
+    "model": "BIT* samples in batches and orders implicit edges by an estimate of total solution cost, much like graph search over a random geometric graph. It validates an edge only when that edge becomes promising enough to inspect.",
+    "time": "For n total samples and E generated candidate edges, queue operations are roughly O(E log E) plus vertex work and collision checks. Batch size controls how many new samples enter at once; a dense candidate graph can expose O(n²) edges over the run.",
+    "space": "The planner retains O(n·d) sample coordinates, tree costs and parents, nearest-neighbor data, and edge/vertex queues. Pending candidates can make temporary memory depend on E; batch_size bounds each sample batch rather than total search state.",
+    "guarantee": "BIT* searches toward minimum additive Euclidean path length and has asymptotic-optimality theory under its sampling and connection assumptions. A finite sample budget yields a best-known route, not an exact continuous optimum.",
+    "scaling": "Batch size trades sampling overhead against queue growth and reordering. Sample count, dimension, obstacle checks, and how quickly a good incumbent appears determine how much of the implicit graph must be explored."
+  },
+  "abit_star": {
+    "time_order": "BIT* ordered edge work by batch",
+    "space_order": "O(n·d + E) per batch",
+    "model": "ABIT* runs BIT*-style batches with inflation and truncation factors that decrease over time. Early search can favor a fast feasible route; later batches reduce bias and revisit promising edges for better cost.",
+    "time": "For n samples and E candidate edges considered across batches, ordered queue work is approximately O(E log E) plus vertex and collision-check costs. Reconsideration across batches can repeat operations, and dense candidate sets may reach O(n²) edges.",
+    "space": "The planner retains all sampled states and tree metadata, O(n·d + n), plus spatial index and temporary queues tied to candidate edges E. Batch size controls arrivals per round but not the total retained sample set.",
+    "guarantee": "ABIT* is an anytime informed search whose inflation and truncation relax over successive batches. The project requires exact goals, Euclidean metric, additive path length, and finite sample_count; stop reason and batches determine what refinement completed.",
+    "scaling": "More batches and samples give more chances to improve the incumbent but can repeat edge ordering and collision work. Report incumbent cost over time, batch count, and completed sample budget rather than only final runtime."
+  },
+  "rrt_connect": {
+    "time_order": "Two-tree NN + extension checks",
+    "space_order": "O(n·d) two-tree storage",
+    "model": "RRT-Connect grows trees from start and goal. It alternates a random extension on one tree with repeated greedy extensions of the other toward the new state, stopping when the trees can be connected by valid motion.",
+    "time": "For n accepted nodes in dimension d, work includes nearest-neighbor queries on alternating trees and one or more steering/collision checks per attempted connection. A single extension can add several nodes, so runtime depends on step size, obstacle layout, and the number of connect attempts.",
+    "space": "Both trees retain O(n·d) coordinates and O(n) parent/cost metadata, plus separate nearest-neighbor indexes. Reconstructing the joined route costs O(L) and reverses one tree's parent chain to preserve start-to-goal order.",
+    "guarantee": "The planner is designed to find a feasible connection quickly, not to optimize path cost. A bounded random run can fail; a successful result is valid only under the space's state and motion collision checks.",
+    "scaling": "Bidirectional growth can help when start and goal regions are far apart in open space. Narrow passages, poor extension length, asymmetric reachability, and expensive collision checks can prevent the trees from connecting efficiently."
+  },
+  "sipp": {
+    "time_order": "O((S + A) log S)",
+    "space_order": "O(S + A) temporal states",
+    "model": "SIPP searches safe intervals rather than every time tick. A state is a graph node paired with one maximal safe time interval, and its label is the earliest arrival within that interval; waiting shifts departure to avoid blocked nodes and edges.",
+    "time": "Let S be the number of reachable node/interval states and A the feasible transitions between them. Heap ordering and interval-aware relaxations are O((S + A) log S) in a sparse representation, plus work scanning blocked intervals that affect each transition.",
+    "space": "The planner stores one earliest-arrival label and parent per discovered safe-interval state, plus queues and converted interval data. Memory grows with the number of intervals, not with the numeric duration of the entire timeline as a time-expanded grid would.",
+    "guarantee": "The contract requires positive finite edge durations, half-open blocked node/edge intervals, allowed waiting, and an exact goal. Under this model, the interval abstraction preserves earliest-arrival reasoning without discretizing every time step.",
+    "scaling": "Many alternating blocked and safe intervals increase S and interval scans. Long empty time horizons alone need not add states, while dense edge constraints or narrow departure windows can create substantial transition work."
+  },
+  "bounded_suboptimal_sipp": {
+    "time_order": "SIPP search + focal maintenance",
+    "space_order": "O(S + A) temporal states",
+    "model": "This variant keeps SIPP's node/safe-interval states and earliest-arrival labels, then adds a reverse lower bound and a focal queue. It expands eligible states by a secondary hop-count criterion while keeping them within the configured w factor of the best arrival estimate.",
+    "time": "For S interval states and A feasible transitions, the base heap search is O((S + A) log S); reverse lower-bound computation and focal-queue updates add further ordered-set work. Better arrivals can reopen a state, so queue work tracks successful updates as well as unique states.",
+    "space": "Costs, parents, versions, and open/focal bookkeeping use O(S), with transition and blocked-interval data adding O(A) and input-size storage. The focal structure duplicates queue metadata but still scales with discovered interval states and updates.",
+    "guarantee": "The supported w value must be finite and at least one. The documented suboptimality bound applies when the result stop_reason is success; budget-limited or incomplete results do not inherit that success guarantee.",
+    "scaling": "The number of safe intervals and edge constraints controls the state graph. Increasing w broadens the eligible focal set; repeated improved arrivals and reverse-heuristic preparation add work beyond ordinary SIPP."
+  },
+  "kinodynamic_sipp": {
+    "time_order": "Departure-time and primitive dependent",
+    "space_order": "O(S) velocity-interval states",
+    "model": "A state combines configuration, velocity, and a safe time interval. The search projects feasible integer departure ticks through constant-acceleration motion primitives; only zero-speed configurations may wait to the end of their safe interval.",
+    "time": "Let S be reachable configuration/velocity/interval states and P the feasible primitive departures tested. Heap work depends on generated transitions, while projection may examine many integer departure times per primitive; collision and duration checks add cost for each candidate.",
+    "space": "The planner stores discovered velocity-interval labels, parents, and frontier entries, or O(S), plus blocked intervals and primitive data. Unlike plain SIPP, state count also grows with velocity labels and distinct integer-time arrival possibilities.",
+    "guarantee": "The supported model uses integer time ticks, velocity-labelled configurations, constant-acceleration primitives, finite speed/acceleration/deceleration limits, and waiting only at zero speed. Results are for that discrete primitive model, not arbitrary continuous controls.",
+    "scaling": "More velocity bins, safe intervals, primitives, and departure ticks multiply candidate transitions. Tight dynamic obstacles can make feasible departure windows sparse and increase the cost of projecting alternatives."
+  },
+  "eecbs": {
+    "time_order": "Exponential high-level worst case",
+    "space_order": "High-level nodes × agent paths",
+    "model": "EECBS combines low-level focal searches for individual agents with a high-level conflict tree. When two paths conflict at a vertex or edge swap, it branches by adding a constraint for one agent and replans that agent's path.",
+    "time": "For A agents, a low-level state is a graph node/time pair. If Q states are open, this implementation scans the open vector to select a focal state, so selection can cost O(Q) per expansion. The high-level search similarly scans H open conflict-tree nodes per selection, with up to O(A²T) pairwise conflict checks for path horizon T. H can grow exponentially in conflicts.",
+    "space": "The open conflict tree stores constraints, costs, conflict estimates, and a path for each agent per node, so memory grows with H times the stored path lengths and can be exponential. Each low-level search also keeps node/time states and an open vector whose size is Q.",
+    "guarantee": "The project requires an undirected unit-weight graph, unique starts/goals, vertex and edge-swap conflicts, and finite w ≥ 1. The documented w-suboptimal guarantee applies to successful results under this contract.",
+    "scaling": "Agent count is only part of the story: crossing corridors, shared bottlenecks, and long horizons create conflicts and branches. Report high- and low-level expansions, makespan/sum cost, conflicts, and stop reason."
+  },
+  "lacam_star": {
+    "time_order": "Exponential joint-state worst case",
+    "space_order": "O(|V|^A) state-space bound",
+    "model": "LaCAM* searches configurations of all agents and incrementally constructs collision-free joint transitions. Lazy constraint reasoning delays deciding every agent move combination until the partial configuration requires it; a seeded anytime order influences which candidate is explored first.",
+    "time": "With |V| graph vertices and A agents, the joint configuration space is bounded by |V|^A before collision rules prune it. Each expanded configuration may consider many combined moves, so worst-case time is exponential in agent count despite lazy enumeration.",
+    "space": "Stored joint configurations, transition candidates, parent links, and the open set can also grow exponentially with A. The compact single-agent graph is only O(|V| + |E|); joint-state storage is the dominant scale risk.",
+    "guarantee": "The contract requires an undirected unit graph, unique starts/goals, vertex and edge-swap conflicts, and agents staying at reached goals. The seeded anytime search returns an optimal solution when it exhausts the open set under cumulative transition costs.",
+    "scaling": "Open floor can keep branching manageable, while narrow shared passages create many coupled choices. Agent count, graph degree, conflict density, seed, and whether the open set is exhausted determine runtime and proof status."
+  }
+}

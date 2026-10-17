@@ -8,13 +8,12 @@ import collections
 import datetime as dt
 import html
 import json
+from pathlib import Path
 import re
 import shutil
 import sys
-import xml.etree.ElementTree as ET
-from pathlib import Path
 from typing import Any
-
+import xml.etree.ElementTree as ET
 
 WEBSITE_ROOT = Path(__file__).resolve().parent
 PROJECT_ROOT = WEBSITE_ROOT.parent
@@ -52,12 +51,22 @@ def read_json(path: Path) -> Any:
         raise SystemExit(f"Cannot read {path.relative_to(PROJECT_ROOT)}: {exc}") from exc
 
 
-def load_catalog() -> tuple[list[dict[str, Any]], dict[str, dict[str, str]], dict[str, Any]]:
+def load_catalog() -> tuple[
+    list[dict[str, Any]],
+    dict[str, dict[str, str]],
+    dict[str, Any],
+    dict[str, dict[str, str]],
+]:
     planners = read_json(WEBSITE_ROOT / "data" / "planners.json")
     lessons = read_json(WEBSITE_ROOT / "data" / "tutorials.json")
+    analyses = read_json(WEBSITE_ROOT / "data" / "algorithm_analysis.json")
     project_map = read_json(WEBSITE_ROOT / "data" / "project-map.json")
-    if not isinstance(planners, list) or not isinstance(lessons, dict):
-        raise SystemExit("Planner and lesson data must be a list and an object.")
+    if (
+        not isinstance(planners, list)
+        or not isinstance(lessons, dict)
+        or not isinstance(analyses, dict)
+    ):
+        raise SystemExit("Planner, lesson, and algorithm-analysis data have invalid types.")
 
     matrix = (PROJECT_ROOT / "SUPPORTED_ALGORITHMS.md").read_text(encoding="utf-8")
     rows = {match["id"]: match.groupdict() for match in PLANNER_ROWS.finditer(matrix)}
@@ -78,6 +87,13 @@ def load_catalog() -> tuple[list[dict[str, Any]], dict[str, dict[str, str]], dic
             f"Tutorial coverage differs from the planner catalogue: "
             f"missing={missing}, extra={extra}"
         )
+    if set(ids) != set(analyses):
+        missing = sorted(set(ids) - set(analyses))
+        extra = sorted(set(analyses) - set(ids))
+        raise SystemExit(
+            f"Algorithm-analysis coverage differs from the planner catalogue: "
+            f"missing={missing}, extra={extra}"
+        )
 
     counts = collections.Counter(planner.get("kind") for planner in planners)
     if counts != collections.Counter(EXPECTED_FAMILY_COUNTS):
@@ -86,6 +102,7 @@ def load_catalog() -> tuple[list[dict[str, Any]], dict[str, dict[str, str]], dic
     for planner in planners:
         planner_id = planner["id"]
         lesson = lessons[planner_id]
+        analysis = analyses[planner_id]
         if not all(
             lesson.get(field)
             for field in ("tagline", "story", "experiment", "question", "answer")
@@ -101,6 +118,22 @@ def load_catalog() -> tuple[list[dict[str, Any]], dict[str, dict[str, str]], dic
             raise SystemExit(f"{planner_id} must have a setup and three worked-example steps.")
         if len(lesson.get("metrics", [])) < 3:
             raise SystemExit(f"{planner_id} must name at least three evaluation metrics.")
+        required_analysis_fields = (
+            "time_order",
+            "space_order",
+            "model",
+            "time",
+            "space",
+            "guarantee",
+            "scaling",
+        )
+        if not all(analysis.get(field) for field in required_analysis_fields):
+            raise SystemExit(f"Algorithm analysis is incomplete for {planner_id}.")
+        analysis_copy = " ".join(
+            analysis[field] for field in ("model", "time", "space", "guarantee", "scaling")
+        )
+        if len(re.findall(r"\b[\w*·×−≥/+-]+\b", analysis_copy)) < 100:
+            raise SystemExit(f"Algorithm analysis is too short for {planner_id}.")
         expanded_copy = " ".join(
             [
                 lesson["mechanism"],
@@ -128,7 +161,7 @@ def load_catalog() -> tuple[list[dict[str, Any]], dict[str, dict[str, str]], dic
 
     validate_map_paths(project_map)
 
-    return planners, rows, project_map
+    return planners, rows, project_map, analyses
 
 
 def source_url(path: str) -> str:
@@ -164,6 +197,7 @@ def json_ld(value: dict[str, Any]) -> str:
 def lesson_page(
     planner: dict[str, Any],
     lesson: dict[str, Any],
+    analysis: dict[str, str],
     registry_row: dict[str, str],
     planner_by_id: dict[str, dict[str, Any]],
     planner_positions: dict[str, int],
@@ -175,7 +209,8 @@ def lesson_page(
     kind = planner["kind"]
     page_url = f"{BASE_URL}/algorithms/{planner_id}/"
     description = (
-        f"{lesson['tagline']} Learn the idea, trade-off, and motion-planning concept."
+        f"{title} algorithm analysis: time and space complexity, search strategy, "
+        "guarantees, and an interactive robot motion planning lesson."
     )[:158].rsplit(" ", 1)[0]
     depth = len(output_file.parent.relative_to(output_root).parts)
     asset_root = "../" * depth
@@ -208,7 +243,7 @@ def lesson_page(
         {
             "@context": "https://schema.org",
             "@type": "LearningResource",
-            "name": f"{title} Explained",
+            "name": f"{title} Algorithm Analysis and Tutorial",
             "headline": title,
             "description": description,
             "url": page_url,
@@ -223,11 +258,19 @@ def lesson_page(
             "teaches": [
                 "Robot motion planning",
                 "Autonomous agent path planning",
+                "Algorithm time and space complexity",
                 planner["principle"],
             ],
             "educationalUse": "Instruction",
             "audience": {"@type": "EducationalAudience", "educationalRole": "student"},
-            "keywords": [title, "robot motion planning", "path planning algorithm", "autonomous agents"],
+            "keywords": [
+                title,
+                "robot motion planning",
+                "path planning algorithm",
+                "autonomous agents",
+                "time complexity",
+                "space complexity",
+            ],
             "isPartOf": {
                 "@type": "WebSite",
                 "name": "Pathplanning Learning Lab",
@@ -262,19 +305,19 @@ def lesson_page(
     <meta property="og:type" content="article" />
     <meta property="article:section" content="{html.escape(FAMILY_LABELS[kind], quote=True)}" />
     <meta property="og:site_name" content="Pathplanning Learning Lab" />
-    <meta property="og:title" content="{html.escape(title)} Explained | Pathplanning" />
+    <meta property="og:title" content="{html.escape(title)} Algorithm Analysis | Pathplanning" />
     <meta property="og:description" content="{html.escape(description, quote=True)}" />
     <meta property="og:url" content="{page_url}" />
     <meta property="og:image" content="{BASE_URL}/og-image.png" />
     <meta property="og:image:alt" content="A robot finding a route around obstacles" />
     <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:title" content="{html.escape(title)} Explained | Pathplanning" />
+    <meta name="twitter:title" content="{html.escape(title)} Algorithm Analysis | Pathplanning" />
     <meta name="twitter:description" content="{html.escape(description, quote=True)}" />
     <meta name="twitter:image" content="{BASE_URL}/og-image.png" />
     <meta name="twitter:image:alt" content="A robot finding a route around obstacles" />
     <script type="application/ld+json">{schema}</script>
     <script type="application/ld+json">{breadcrumb_schema}</script>
-    <title>{html.escape(title)} Explained | Pathplanning Tutorial</title>
+    <title>{html.escape(title)} Algorithm Analysis &amp; Tutorial | Pathplanning</title>
   </head>
   <body class="learning-body lesson-body family-{html.escape(kind)}">
     <a class="skip-link" href="#lesson-main">Skip to lesson</a>
@@ -310,6 +353,7 @@ def lesson_page(
           <a href="#watch">Watch it think</a>
           <a href="#mechanism">How it decides</a>
           <a href="#example">Worked example</a>
+          <a href="#analysis">Algorithm analysis</a>
           <a href="#tradeoff">Fit & trade-off</a>
           <a href="#evaluation">Evaluate fairly</a>
           <a href="#try-it">Your turn</a>
@@ -350,8 +394,47 @@ def lesson_page(
             <ol class="lesson-steps lesson-example-steps">{example_steps}</ol>
           </section>
 
+          <section id="analysis" class="lesson-section lesson-analysis">
+            <p class="lesson-section-label">05 · ALGORITHM ANALYSIS</p>
+            <h2>What drives time, memory, and guarantees?</h2>
+            <p class="analysis-intro">These bounds describe the planner's search work under its stated input model. Graph preparation, collision-check cost, and callback work can add time beyond the search-loop estimate.</p>
+            <div class="analysis-complexity" aria-label="Complexity summary">
+              <article class="analysis-complexity-card">
+                <span>Runtime pattern</span>
+                <code>{html.escape(analysis["time_order"])}</code>
+              </article>
+              <article class="analysis-complexity-card">
+                <span>Memory pattern</span>
+                <code>{html.escape(analysis["space_order"])}</code>
+              </article>
+            </div>
+            <dl class="analysis-details">
+              <div>
+                <dt>Search state and ordering</dt>
+                <dd>{html.escape(analysis["model"])}</dd>
+              </div>
+              <div>
+                <dt>Time complexity</dt>
+                <dd>{html.escape(analysis["time"])}</dd>
+              </div>
+              <div>
+                <dt>Memory complexity</dt>
+                <dd>{html.escape(analysis["space"])}</dd>
+              </div>
+              <div>
+                <dt>Guarantees and assumptions</dt>
+                <dd>{html.escape(analysis["guarantee"])}</dd>
+              </div>
+              <div>
+                <dt>What changes as the problem grows</dt>
+                <dd>{html.escape(analysis["scaling"])}</dd>
+              </div>
+            </dl>
+            <p class="analysis-source-note">Project-specific behavior: <a href="https://github.com/damminhtien/pathplanning/blob/main/SUPPORTED_ALGORITHMS.md" target="_blank" rel="noreferrer">supported planner contracts</a> · <a href="https://github.com/damminhtien/pathplanning/blob/main/docs/benchmark_contract.md" target="_blank" rel="noreferrer">benchmark and measurement method</a>.</p>
+          </section>
+
           <section id="tradeoff" class="lesson-section lesson-tradeoff">
-            <p class="lesson-section-label">05 · WHEN IT FITS</p>
+            <p class="lesson-section-label">06 · WHEN IT FITS</p>
             <h2>Choose it for the problem it solves.</h2>
             <div class="lesson-fit-grid">
               <article class="lesson-fit-card">
@@ -369,7 +452,7 @@ def lesson_page(
           </section>
 
           <section id="evaluation" class="lesson-section lesson-evaluation">
-            <p class="lesson-section-label">06 · EVALUATE IT FAIRLY</p>
+            <p class="lesson-section-label">07 · EVALUATE IT FAIRLY</p>
             <h2>What would make this a fair comparison?</h2>
             <p>{html.escape(lesson["evaluation"])}</p>
             <h3 class="lesson-subheading">Useful measures for this planner</h3>
@@ -378,7 +461,7 @@ def lesson_page(
           </section>
 
           <section id="try-it" class="lesson-section lesson-try">
-            <p class="lesson-section-label">07 · YOUR TURN</p>
+            <p class="lesson-section-label">08 · YOUR TURN</p>
             <h2>{html.escape(lesson["experiment"])}</h2>
             <details class="lesson-question">
               <summary>{html.escape(lesson["question"])}</summary>
@@ -663,7 +746,7 @@ def copy_static_files(output: Path) -> None:
 
 
 def build(output: Path) -> int:
-    planners, rows, map_data = load_catalog()
+    planners, rows, map_data, analyses = load_catalog()
     lessons = read_json(WEBSITE_ROOT / "data" / "tutorials.json")
     if len(planners) != 37:
         raise SystemExit(f"Expected 37 supported planner tutorials; found {len(planners)}.")
@@ -693,6 +776,7 @@ def build(output: Path) -> int:
             lesson_page(
                 planner,
                 lessons[planner["id"]],
+                analyses[planner["id"]],
                 rows[planner["id"]],
                 planner_by_id,
                 planner_positions,
