@@ -10,9 +10,10 @@ flowchart LR
   References[references.json]
   Registry[SUPPORTED_ALGORITHMS.md]
   MapData[project-map.json]
+  DatasetData[datasets.json]
   Content[sitebuilder.content\nload and validate]
   Build[sitebuilder.pipeline\nassemble output]
-  PageRenderers[sitebuilder.renderers\nindex, lesson, mind map]
+  PageRenderers[sitebuilder.renderers\nindex, lesson, datasets, mind map]
   Dist[website/dist\nstatic pages and assets]
   Browser[app.js\npage bootstrap]
   Catalog[scripts/catalog.js\nsearch and filters]
@@ -25,6 +26,7 @@ flowchart LR
   References --> Content
   Registry --> Content
   MapData --> Content
+  DatasetData --> Content
   Content --> Build
   PageRenderers --> Build
   Build --> Dist
@@ -36,6 +38,7 @@ flowchart LR
 
 ## Responsibilities
 
+- The dataset guide and source-specific profiles are generated from website/data/datasets.json. The builder validates their sections, citations, repository paths, and related-profile links before writing indexable pages and sitemap entries.
 - `data/` holds planner descriptions, lessons, algorithm analyses, research references, and the project map. These files are the site content source.
 - `sitebuilder/content.py` loads the content once, checks it against `SUPPORTED_ALGORITHMS.md`, and validates lesson, analysis, reference, source-path, and cross-reference coverage.
 - `sitebuilder/math_text.py` handles safe HTML escaping and inline LaTeX conversion.

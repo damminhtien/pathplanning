@@ -33,9 +33,13 @@ def render_map_nodes(nodes: list[dict[str, Any]], depth: int = 0) -> str:
         if page:
             lesson_href = html.escape(f"{BASE_URL}{page}", quote=True)
             principle = render_math_text(node.get("principle", ""))
+            page_label = html.escape(node.get("page_label", "Read the lesson"))
+            principle_markup = (
+                f'<span class="mindmap-principle">{principle}</span>' if principle else ""
+            )
             details += (
                 f'<a class="mindmap-lesson" href="{lesson_href}">'
-                f'<span>Read the lesson</span><span class="mindmap-principle">{principle}</span></a>'
+                f"<span>{page_label}</span>{principle_markup}</a>"
             )
         children = render_map_nodes(node.get("children", []), depth + 1)
         children_markup = f'<ul class="mindmap-children">{children}</ul>' if children else ""
@@ -127,6 +131,7 @@ def map_page(map_data: dict[str, Any], planner_count: int) -> str:
       </a>
       <nav aria-label="Learning navigation">
         <a href="../#algorithms">Algorithm atlas</a>
+        <a href="../datasets/">Datasets</a>
         <a href="../#evaluation">Evaluation</a>
         <a href="https://github.com/damminhtien/pathplanning" target="_blank" rel="noreferrer">Source</a>
       </nav>

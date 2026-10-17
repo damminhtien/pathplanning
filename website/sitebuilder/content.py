@@ -25,6 +25,8 @@ class SiteContent:
     references: dict[str, dict[str, Any]]
     registry_rows: dict[str, dict[str, str]]
     project_map: dict[str, Any]
+    datasets: list[dict[str, Any]]
+    dataset_snapshot: dict[str, Any]
 
 
 def read_json(path: Path) -> Any:
@@ -40,16 +42,18 @@ def load_site_content() -> SiteContent:
     analyses = read_json(WEBSITE_ROOT / "data" / "algorithm_analysis.json")
     references = read_json(WEBSITE_ROOT / "data" / "references.json")
     project_map = read_json(WEBSITE_ROOT / "data" / "project-map.json")
+    dataset_catalog = read_json(WEBSITE_ROOT / "data" / "datasets.json")
     if (
         not isinstance(planners, list)
         or not isinstance(lessons, dict)
         or not isinstance(analyses, dict)
         or not isinstance(references, dict)
         or not isinstance(project_map, dict)
+        or not isinstance(dataset_catalog, dict)
+        or not isinstance(dataset_catalog.get("datasets"), list)
+        or not isinstance(dataset_catalog.get("snapshot"), dict)
     ):
-        raise SystemExit(
-            "Planner lesson, analysis, reference, or project-map data has invalid types."
-        )
+        raise SystemExit("Planner, learning, project-map, or dataset content has invalid types.")
 
     matrix = (PROJECT_ROOT / "SUPPORTED_ALGORITHMS.md").read_text(encoding="utf-8")
     rows = {match["id"]: match.groupdict() for match in PLANNER_ROWS.finditer(matrix)}
@@ -161,6 +165,176 @@ def load_site_content() -> SiteContent:
 
     validate_map_paths(project_map)
 
+    datasets = dataset_catalog["datasets"]
+    if not datasets or any(not isinstance(dataset, dict) for dataset in datasets):
+        raise SystemExit("The dataset catalog must contain dataset objects.")
+    dataset_ids = [dataset.get("id") for dataset in datasets]
+    if any(not isinstance(dataset_id, str) for dataset_id in dataset_ids):
+        raise SystemExit("The dataset catalog must contain string IDs.")
+    if len(dataset_ids) != len(set(dataset_ids)):
+        raise SystemExit("The dataset catalog must contain unique string IDs.")
+    dataset_id_set = set(dataset_ids)
+    for dataset in datasets:
+        dataset_id = dataset["id"]
+        required_dataset_fields = (
+            "title",
+            "eyebrow",
+            "tagline",
+            "description",
+            "source_name",
+            "inventory_scope",
+            "campaign_status",
+            "source_url",
+        )
+        if not re.fullmatch(r"[a-z0-9]+(?:-[a-z0-9]+)*", dataset_id):
+            raise SystemExit(f"Invalid dataset page ID: {dataset_id!r}")
+        if not all(
+            isinstance(dataset.get(field), str) and dataset[field].strip()
+            for field in required_dataset_fields
+        ):
+            raise SystemExit(f"Dataset metadata is incomplete for {dataset_id}.")
+        if dataset.get("schema_type") not in {"Dataset", "TechArticle"}:
+            raise SystemExit(f"Unsupported structured-data type for {dataset_id}.")
+        if not dataset["source_url"].startswith("https://"):
+            raise SystemExit(f"Dataset source URL must use HTTPS for {dataset_id}.")
+
+        stats = dataset.get("stats")
+        if (
+            not isinstance(stats, list)
+            or len(stats) < 3
+            or any(
+                not isinstance(row, dict)
+                or not isinstance(row.get("value"), str)
+                or not row["value"].strip()
+                or not isinstance(row.get("label"), str)
+                or not row["label"].strip()
+                for row in stats
+            )
+        ):
+            raise SystemExit(f"Dataset statistics are incomplete for {dataset_id}.")
+
+        sections = dataset.get("sections")
+        if not isinstance(sections, list):
+            raise SystemExit(f"Dataset sections are invalid for {dataset_id}.")
+        section_ids = [
+            section.get("id") if isinstance(section, dict) else None for section in sections
+        ]
+        if (
+            len(sections) < 4
+            or len(section_ids) != len(set(section_ids))
+            or any(not isinstance(section_id, str) for section_id in section_ids)
+        ):
+            raise SystemExit(f"Dataset sections are incomplete for {dataset_id}.")
+        for section in sections:
+            if not all(
+                isinstance(section.get(field), str) and section[field].strip()
+                for field in ("id", "label", "title")
+            ):
+                raise SystemExit(f"Dataset section heading is incomplete for {dataset_id}.")
+            paragraphs = section.get("paragraphs", [])
+            bullets = section.get("bullets", [])
+            if not isinstance(paragraphs, list) or not isinstance(bullets, list):
+                raise SystemExit(f"Dataset section copy is invalid for {dataset_id}.")
+            if any(
+                not isinstance(text, str) or not text.strip() for text in [*paragraphs, *bullets]
+            ):
+                raise SystemExit(f"Dataset section copy is incomplete for {dataset_id}.")
+            table = section.get("table")
+            if table:
+                if (
+                    not isinstance(table, dict)
+                    or not isinstance(table.get("caption"), str)
+                    or not table["caption"].strip()
+                    or not isinstance(table.get("headers"), list)
+                    or not table["headers"]
+                    or not isinstance(table.get("rows"), list)
+                    or any(
+                        not isinstance(cell, str) or not cell.strip() for cell in table["headers"]
+                    )
+                    or any(
+                        not isinstance(row, list)
+                        or len(row) != len(table["headers"])
+                        or any(not isinstance(cell, str) or not cell.strip() for cell in row)
+                        for row in table["rows"]
+                    )
+                ):
+                    raise SystemExit(f"Dataset table is invalid for {dataset_id}.")
+            callout = section.get("callout")
+            if callout:
+                if not isinstance(callout, dict) or not all(
+                    isinstance(callout.get(field), str) and callout[field].strip()
+                    for field in ("title", "text")
+                ):
+                    raise SystemExit(f"Dataset callout is invalid for {dataset_id}.")
+            if not paragraphs and not bullets and not section.get("table"):
+                raise SystemExit(f"Dataset section has no content for {dataset_id}.")
+        word_count = len(
+            re.findall(
+                r"\b[\w'-]+\b",
+                " ".join(
+                    text
+                    for section in sections
+                    for text in [
+                        section["title"],
+                        *section.get("paragraphs", []),
+                        *section.get("bullets", []),
+                    ]
+                ),
+            )
+        )
+        if word_count < 300:
+            raise SystemExit(f"Dataset page content is too short for {dataset_id}.")
+
+        sources = dataset.get("sources")
+        if not isinstance(sources, list) or not sources:
+            raise SystemExit(f"Dataset sources are missing for {dataset_id}.")
+        for source in sources:
+            if (
+                not isinstance(source, dict)
+                or not all(
+                    isinstance(source.get(field), str) and source[field].strip()
+                    for field in ("name", "url", "context")
+                )
+                or not source["url"].startswith("https://")
+            ):
+                raise SystemExit(f"Dataset source reference is incomplete for {dataset_id}.")
+
+        project_paths = dataset.get("project_paths", [])
+        if not isinstance(project_paths, list) or not project_paths:
+            raise SystemExit(f"Dataset project references are missing for {dataset_id}.")
+        for path in project_paths:
+            if not isinstance(path, str) or not (PROJECT_ROOT / path).is_file():
+                raise SystemExit(f"Dataset project reference does not exist: {path}")
+        related = dataset.get("related", [])
+        if (
+            not isinstance(related, list)
+            or any(not isinstance(related_id, str) for related_id in related)
+            or not set(related).issubset(dataset_id_set)
+        ):
+            raise SystemExit(f"Dataset page {dataset_id} references an unknown dataset.")
+
+    snapshot = dataset_catalog["snapshot"]
+    for field in (
+        "inventory_date",
+        "evaluation_date",
+        "characterization_path",
+        "installation_path",
+    ):
+        if not isinstance(snapshot.get(field), str) or not snapshot[field].strip():
+            raise SystemExit(f"Dataset snapshot is missing {field}.")
+    for field in (
+        "entry_count",
+        "collection_count",
+        "source_count",
+        "observation_count",
+        "cohort_count",
+    ):
+        if type(snapshot.get(field)) is not int or snapshot[field] <= 0:
+            raise SystemExit(f"Dataset snapshot has an invalid {field}.")
+    for field in ("characterization_path", "installation_path"):
+        if not (PROJECT_ROOT / snapshot[field]).is_file():
+            raise SystemExit(f"Dataset snapshot document does not exist: {snapshot[field]}")
+
     return SiteContent(
         planners=planners,
         lessons=lessons,
@@ -168,6 +342,8 @@ def load_site_content() -> SiteContent:
         references=references,
         registry_rows=rows,
         project_map=project_map,
+        datasets=datasets,
+        dataset_snapshot=snapshot,
     )
 
 

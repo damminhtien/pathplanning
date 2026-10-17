@@ -98,6 +98,7 @@
         <a href="#playground">Simulator</a>
         <a href="#algorithms">Algorithms</a>
         <a href="#evaluation">Evaluation</a>
+        <a href="datasets/">Datasets</a>
         <a href="mindmap/">Project map</a>
         <a class="nav-github" href="https://github.com/damminhtien/pathplanning" target="_blank" rel="noreferrer">GitHub</a>
       </nav>
@@ -241,13 +242,14 @@
             <p>This is the number of entries discovered across five sources. Some entries are mirrors or configurations, so the total is not 1,297 independent worlds.</p>
           </div>
           <div class="dataset-grid" id="dataset-grid">
-            <article class="dataset-card" data-family="MovingAI"><div class="dataset-top"><span class="dataset-type">GRID AND VOXEL MAPS</span><span class="dataset-count">853 entries</span></div><h3>MovingAI</h3><p>Game, street, maze, terrain, and 3D voxel maps.</p><div class="dataset-bar"><i style="--bar:66%"></i></div><small>809 current 2D maps, 44 3D maps</small></article>
-            <article class="dataset-card" data-family="BARN"><div class="dataset-top"><span class="dataset-type">ROBOT SIMULATION</span><span class="dataset-count">300 entries</span></div><h3>BARN</h3><p>Cylinder-obstacle scenes for mobile robot planning.</p><div class="dataset-bar"><i style="--bar:23%"></i></div><small>300 static worlds</small></article>
-            <article class="dataset-card" data-family="Monash"><div class="dataset-top"><span class="dataset-type">3D VOXEL MAPS</span><span class="dataset-count">90 entries</span></div><h3>Monash</h3><p>Voxel maps from game levels, sandstone, and plants.</p><div class="dataset-bar"><i style="--bar:7%"></i></div><small>46 new maps, 44 older Warframe mirrors</small></article>
-            <article class="dataset-card" data-family="OMPL"><div class="dataset-top"><span class="dataset-type">ROBOT MODELS</span><span class="dataset-count">29 entries</span></div><h3>OMPL</h3><p>Robot configurations and geometric problem definitions.</p><div class="dataset-bar"><i style="--bar:3%"></i></div><small>25 configurations, 4 geometric demos</small></article>
-            <article class="dataset-card" data-family="DIMACS"><div class="dataset-top"><span class="dataset-type">ROAD NETWORKS</span><span class="dataset-count">25 entries</span></div><h3>DIMACS</h3><p>Directed road graphs with weights and parallel arcs.</p><div class="dataset-bar"><i style="--bar:2%"></i></div><small>12 networks for distance and time, Rome99</small></article>
+            <article class="dataset-card" data-family="MovingAI"><div class="dataset-top"><span class="dataset-type">GRID AND VOXEL MAPS</span><span class="dataset-count">853 entries</span></div><h3>MovingAI</h3><p>Game, street, maze, terrain, and 3D voxel maps.</p><div class="dataset-bar"><i style="--bar:66%"></i></div><small>809 current 2D maps, 44 3D maps</small><div class="dataset-card-links"><a href="datasets/movingai-grids/">2D grids</a><a href="datasets/movingai-voxels/">3D voxels</a></div></article>
+            <article class="dataset-card" data-family="BARN"><div class="dataset-top"><span class="dataset-type">ROBOT SIMULATION</span><span class="dataset-count">300 entries</span></div><h3>BARN</h3><p>Cylinder-obstacle scenes for mobile robot planning.</p><div class="dataset-bar"><i style="--bar:23%"></i></div><small>300 static worlds</small><div class="dataset-card-links"><a href="datasets/barn-navigation/">Read the profile</a></div></article>
+            <article class="dataset-card" data-family="Monash"><div class="dataset-top"><span class="dataset-type">3D VOXEL MAPS</span><span class="dataset-count">90 entries</span></div><h3>Monash</h3><p>Voxel maps from game levels, sandstone, and plants.</p><div class="dataset-bar"><i style="--bar:7%"></i></div><small>46 new maps, 44 older Warframe mirrors</small><div class="dataset-card-links"><a href="datasets/monash-voxels/">Read the profile</a></div></article>
+            <article class="dataset-card" data-family="OMPL"><div class="dataset-top"><span class="dataset-type">ROBOT MODELS</span><span class="dataset-count">29 entries</span></div><h3>OMPL</h3><p>Robot configurations and geometric problem definitions.</p><div class="dataset-bar"><i style="--bar:3%"></i></div><small>25 configurations, 4 geometric demos</small><div class="dataset-card-links"><a href="datasets/ompl-problems/">Read the profile</a></div></article>
+            <article class="dataset-card" data-family="DIMACS"><div class="dataset-top"><span class="dataset-type">ROAD NETWORKS</span><span class="dataset-count">25 entries</span></div><h3>DIMACS</h3><p>Directed road graphs with weights and parallel arcs.</p><div class="dataset-bar"><i style="--bar:2%"></i></div><small>12 networks for distance and time, Rome99</small><div class="dataset-card-links"><a href="datasets/dimacs-roads/">Read the profile</a></div></article>
           </div>
           <p class="chart-caption">Bars show each source's share of the 1,297 catalog entries. They do not show difficulty or benchmark weight.</p>
+          <a class="dataset-guide-link" href="datasets/">Explore the detailed dataset guide <span aria-hidden="true">→</span></a>
 
           <div class="campaign-panel">
             <div class="campaign-intro">
@@ -301,6 +303,7 @@
           <div><p class="eyebrow">BRING YOUR OWN QUESTION</p><h2>The world changes.<br /><span class="gradient-text">Does the agent adapt?</span></h2><p>Read the API, check the supported planner matrix, or browse examples to keep learning.</p></div>
           <div class="closing-actions">
             <a class="button button-outline" href="mindmap/">Explore the project map</a>
+            <a class="button button-outline" href="datasets/">Read the dataset guide</a>
             <a class="button button-primary" href="https://github.com/damminhtien/pathplanning/blob/main/README.md" target="_blank" rel="noreferrer">Get started</a>
             <a class="button button-outline" href="https://github.com/damminhtien/pathplanning/blob/main/SUPPORTED_ALGORITHMS.md" target="_blank" rel="noreferrer">Supported planners</a>
             <a class="button button-outline" href="https://github.com/damminhtien/pathplanning/tree/main/examples" target="_blank" rel="noreferrer">Browse examples</a>
@@ -314,6 +317,7 @@
       <p>Learn how an agent finds a route. Then ask whether that route is any good.</p>
       <a href="https://github.com/damminhtien/pathplanning" target="_blank" rel="noreferrer">Open-source project</a>
       <a href="mindmap/">Project mind map</a>
+      <a href="datasets/">Dataset guide</a>
       <small>Animations on this page illustrate algorithm concepts. See the source and documentation for each planner's exact contract.</small>
     </footer>
   </body>

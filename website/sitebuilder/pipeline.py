@@ -13,16 +13,21 @@ import xml.etree.ElementTree as ET
 from .config import BASE_URL, BUILD_MARKER, FAMILY_LABELS, PROJECT_ROOT, WEBSITE_ROOT
 from .content import SiteContent, expand_project_map, load_site_content
 from .renderers.catalog import render_static_catalog
+from .renderers.datasets import dataset_detail_page, dataset_index_page
 from .renderers.lesson import lesson_page
 from .renderers.mindmap import map_page
 
 
-def build_sitemap(planners: list[dict[str, Any]], today: str) -> str:
+def build_sitemap(
+    planners: list[dict[str, Any]], datasets: list[dict[str, Any]], today: str
+) -> str:
     namespace = "http://www.sitemaps.org/schemas/sitemap/0.9"
     ET.register_namespace("", namespace)
     root = ET.Element(f"{{{namespace}}}urlset")
     urls = [f"{BASE_URL}/", f"{BASE_URL}/mindmap/"]
     urls.extend(f"{BASE_URL}/algorithms/{planner['id']}/" for planner in planners)
+    urls.append(f"{BASE_URL}/datasets/")
+    urls.extend(f"{BASE_URL}/datasets/{dataset['id']}/" for dataset in datasets)
     for url in urls:
         entry = ET.SubElement(root, f"{{{namespace}}}url")
         ET.SubElement(entry, f"{{{namespace}}}loc").text = url
@@ -59,7 +64,7 @@ def copy_static_files(output: Path) -> None:
         shutil.copy2(WEBSITE_ROOT / name, output / name)
     shutil.copytree(WEBSITE_ROOT / "data", output / "data")
     shutil.copytree(WEBSITE_ROOT / "scripts", output / "scripts")
-    for name in ("learning.css", "mindmap.css", "mindmap.js"):
+    for name in ("learning.css", "mindmap.css", "mindmap.js", "datasets.css"):
         shutil.copy2(WEBSITE_ROOT / name, output / name)
 
 
@@ -98,7 +103,9 @@ def build(output: Path) -> int:
 
     (output / "index.html").write_text(render_home(content), encoding="utf-8")
     today = dt.datetime.now(dt.timezone.utc).date().isoformat()
-    (output / "sitemap.xml").write_text(build_sitemap(content.planners, today), encoding="utf-8")
+    (output / "sitemap.xml").write_text(
+        build_sitemap(content.planners, content.datasets, today), encoding="utf-8"
+    )
 
     planner_by_id = {planner["id"]: planner for planner in content.planners}
     planner_positions = {
@@ -124,6 +131,34 @@ def build(output: Path) -> int:
             encoding="utf-8",
         )
 
+    datasets_dir = output / "datasets"
+    datasets_dir.mkdir()
+    datasets_by_id = {dataset["id"]: dataset for dataset in content.datasets}
+    index_file = datasets_dir / "index.html"
+    index_file.write_text(
+        dataset_index_page(
+            content.datasets,
+            content.dataset_snapshot,
+            output,
+            index_file,
+        ),
+        encoding="utf-8",
+    )
+    for dataset in content.datasets:
+        page_dir = datasets_dir / dataset["id"]
+        page_dir.mkdir()
+        page_file = page_dir / "index.html"
+        page_file.write_text(
+            dataset_detail_page(
+                dataset,
+                datasets_by_id,
+                content.dataset_snapshot,
+                output,
+                page_file,
+            ),
+            encoding="utf-8",
+        )
+
     expanded_map = expand_project_map(content.project_map, content.planners, content.registry_rows)
     map_dir = output / "mindmap"
     map_dir.mkdir()
@@ -132,6 +167,6 @@ def build(output: Path) -> int:
     )
     print(
         f"Built the home page, project mind map, and {len(content.planners)} "
-        f"planner lessons in {output}"
+        f"planner lessons and {len(content.datasets)} dataset profiles in {output}"
     )
     return len(content.planners)

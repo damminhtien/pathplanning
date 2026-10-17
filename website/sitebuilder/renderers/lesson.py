@@ -166,6 +166,7 @@ def lesson_page(
       </a>
       <nav aria-label="Learning navigation">
         <a href="{asset_root}#algorithms">Algorithm atlas</a>
+        <a href="{asset_root}datasets/">Datasets</a>
         <a href="{asset_root}mindmap/">Project mind map</a>
         <a href="https://github.com/damminhtien/pathplanning" target="_blank" rel="noreferrer">Source</a>
       </nav>

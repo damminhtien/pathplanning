@@ -1,0 +1,677 @@
+{
+  "snapshot": {
+    "inventory_date": "2026-10-08",
+    "evaluation_date": "2026-10-09",
+    "entry_count": 1297,
+    "collection_count": 22,
+    "source_count": 5,
+    "observation_count": 226255,
+    "cohort_count": 12,
+    "characterization_path": "docs/benchmarks/dataset_characterization.md",
+    "installation_path": "docs/benchmarks/dataset_installation.md"
+  },
+  "datasets": [
+    {
+      "id": "movingai-grids",
+      "title": "MovingAI 2D Grid Maps",
+      "eyebrow": "2D GRID PATHFINDING",
+      "tagline": "From game maps to generated mazes, the map family changes what search must work through.",
+      "description": "A detailed guide to the MovingAI 2D grid benchmark: its 789 land maps, 20 terrain maps, scenario files, movement rules, evaluation coverage, and known limitations.",
+      "source_name": "Moving AI Lab",
+      "schema_type": "Dataset",
+      "source_url": "https://www.movingai.com/benchmarks/grids.html",
+      "inventory_scope": "789 land-grid maps and 20 weighted-terrain maps.",
+      "campaign_status": "The work pass covered all 789 eligible land maps; latency covered 788 map/query identities. Terrain has no planner results because its original cost table is unavailable.",
+      "stats": [
+        { "value": "809", "label": "2D map entries" },
+        { "value": "789", "label": "land maps in the grid profile" },
+        { "value": "20", "label": "terrain maps without source costs" },
+        { "value": "3,363", "label": "selected coverage queries" }
+      ],
+      "sections": [
+        {
+          "id": "what-it-is",
+          "label": "01 / THE COLLECTION",
+          "title": "One grid format, several different worlds.",
+          "paragraphs": [
+            "The MovingAI 2D collection brings together maps from commercial games, street layouts, and generated room, maze, and random environments. The inventory snapshot records 809 maps: 789 land maps used by the repository’s octile grid profile and 20 weighted-terrain maps. The map families are useful because their structure varies; a 512-by-512 maze with narrow corridors is not interchangeable with a more open game map of the same dimensions.",
+            "A map describes occupancy on a regular rectangular grid. The associated scenario files describe start and goal cells and include a source-recorded path length. A scenario file is a finite query set, not every possible start/goal pair on the map."
+          ],
+          "bullets": [
+            "The land profile accepts the ASCII type octile format and checks declared width and height against the file.",
+            "Cells marked ., G, or S are traversable. @, O, T, and W are blocked; unrecognized symbols fail validation.",
+            "Each accepted scenario row has nine fields and a supported version header. Map paths must remain inside the chosen dataset root."
+          ],
+          "callout": {
+            "title": "Map size is not a difficulty score",
+            "text": "The project characterizes free-cell count, legal degree, connected components, dead ends, clearance, and the selected query distribution separately. It does not collapse them into one score."
+          }
+        },
+        {
+          "id": "movement-model",
+          "label": "02 / MOVEMENT AND COST",
+          "title": "The movement rule defines the answer.",
+          "paragraphs": [
+            "The land comparison uses an eight-neighbor grid. Cardinal steps cost 1 and diagonal steps cost √2. A diagonal is legal only when both adjacent cardinal cells are free, so the route cannot squeeze through a blocked corner. The reference solver reconstructs shortest-path cost independently from occupancy rather than trusting a planner’s internal graph.",
+            "Terrain maps are a separate problem. Their labels describe passable terrain types with intended nonuniform costs, but the original cost table is unavailable in the repository’s source inventory. Treating every terrain cell as cost 1 would change the task, so terrain is catalogued but excluded from cost-based planner comparisons."
+          ],
+          "table": {
+            "caption": "The two 2D input groups have different comparison status.",
+            "headers": ["Input group", "Cell semantics", "Current evaluation status"],
+            "rows": [
+              ["Land grids", "Blocked or traversable cells; 8 legal moves with strict corner checks", "Measured with the land_octile_v1 profile"],
+              ["Weighted terrain", "Traversable labels whose original costs are missing", "Registered, but no planner cost results"]
+            ]
+          }
+        },
+        {
+          "id": "evaluation",
+          "label": "03 / WHAT WAS MEASURED",
+          "title": "Broad map coverage, sampled queries.",
+          "paragraphs": [
+            "The recorded grid-coverage cohort selected 3,363 queries across 789 eligible land maps and compared 12 planner variants. The work pass reached all maps with source scenarios. The latency pass covered 788 map/query identities with seven measured runs per variant; the memory pass used 30 selected queries. This is a structured sample, not a run of every row in every source scenario file.",
+            "A separate grid-specialist cohort covered 788 map/query pairs for four planners. JPS matched the independent optimum on all 788 pairs. D* Lite did so on 750; 38 were resource-limited. Theta* and Lazy Theta* were checked as valid any-angle paths under their own visibility rule, so their lengths are not labeled octile-optimal grid results."
+          ],
+          "bullets": [
+            "Reachable source queries and seeded unreachable queries have separate denominators.",
+            "The negative-query cohort contains 80 cases; each of 12 variants classified all 80 correctly.",
+            "Source scenario optima are checked with a format-aware allowance for the file’s rounded diagonal constant. Candidate path costs still use the strict independent oracle tolerance."
+          ],
+          "callout": {
+            "title": "A selected query is not a selected map",
+            "text": "Coverage can span every eligible map while measuring only a small fraction of its possible endpoint pairs. Reports keep map coverage, query coverage, repeated runs, and memory samples distinct."
+          }
+        },
+        {
+          "id": "limits",
+          "label": "04 / INTERPRETATION",
+          "title": "What these results can and cannot say.",
+          "paragraphs": [
+            "Game, street, maze, room, and random labels are source-family names. They are not proof that all maps in a family share the same topology. The characterization report shows large structural variation even between maps with the same dimensions and family label.",
+            "The measured octile profile says nothing about a physical robot footprint, continuous collision checking, moving obstacles, or coordination among multiple agents. MovingAI also hosts MAPF and 3D benchmarks, but those are separate task families and are described on their own pages."
+          ],
+          "bullets": [
+            "Do not combine terrain with land-grid results until the source cost table and matching oracle are available.",
+            "Do not treat every source scenario row as an independent map or as a representative sample of all possible queries.",
+            "Keep any-angle path checks separate from grid-optimality claims."
+          ]
+        }
+      ],
+      "sources": [
+        {
+          "name": "MovingAI 2D Grid Benchmarks",
+          "url": "https://www.movingai.com/benchmarks/grids.html",
+          "context": "Official map and scenario collection."
+        },
+        {
+          "name": "MovingAI weighted terrain maps",
+          "url": "https://www.movingai.com/benchmarks/weighted/index.html",
+          "context": "Source page for terrain labels and the separate weighted-map family."
+        },
+        {
+          "name": "Benchmarks for Grid-Based Pathfinding",
+          "url": "https://www.cs.du.edu/~sturtevant/papers/benchmarks.pdf",
+          "context": "Original paper describing the MovingAI map repository and benchmark characteristics."
+        }
+      ],
+      "project_paths": [
+        "docs/shortest_path_benchmark_contract.md",
+        "docs/benchmarks/dataset_characterization.md",
+        "scripts/shortest_path_benchmark/workloads.py",
+        "scripts/shortest_path_benchmark/reference.py"
+      ],
+      "related": ["movingai-voxels", "monash-voxels", "dimacs-roads"]
+    },
+    {
+      "id": "movingai-voxels",
+      "title": "MovingAI 3D Warframe Voxels",
+      "eyebrow": "3D VOXEL PATHFINDING",
+      "tagline": "A three-dimensional occupancy grid makes the neighborhood and corner policy part of the benchmark.",
+      "description": "Understand the MovingAI Warframe voxel maps, corrected scenario lineage, strict 26-neighbor paths, and the repository’s limited measured coverage.",
+      "source_name": "Moving AI Lab",
+      "schema_type": "Dataset",
+      "source_url": "https://www.movingai.com/benchmarks/voxels.html",
+      "inventory_scope": "44 Warframe voxel maps with versioned scenario files.",
+      "campaign_status": "One map was processed and 43 were resource-limited. Results are a partial cohort, not a collection-wide comparison.",
+      "stats": [
+        { "value": "44", "label": "Warframe maps" },
+        { "value": "1", "label": "map measured in the recorded cohort" },
+        { "value": "43", "label": "maps resource-limited" },
+        { "value": "26", "label": "candidate neighbor directions" }
+      ],
+      "sections": [
+        {
+          "id": "what-it-is",
+          "label": "01 / THE COLLECTION",
+          "title": "Voxel maps from three-dimensional game spaces.",
+          "paragraphs": [
+            "MovingAI’s Warframe collection represents game environments as regular 3D voxel grids. The repository inventory contains 44 maps linked to scenario files. Each voxel is either blocked or part of the free configuration space used by this benchmark profile.",
+            "The official MovingAI page documents a January 2019 correction after a movement-model issue was identified. The older Warframe collection mirrored by Monash is Version 1 from around 2018 and must not be counted as 44 additional independent maps."
+          ],
+          "bullets": [
+            "A scenario supplies voxel-space endpoints and a source-reported path cost.",
+            "The project records the source version, scenario row, asset hash, and source optimum with benchmark provenance.",
+            "Voxel maps are not continuous robot geometry: each free cell is a discrete state under a declared neighbor rule."
+          ]
+        },
+        {
+          "id": "movement-model",
+          "label": "02 / MOVEMENT AND COST",
+          "title": "Strict 26-neighbor motion.",
+          "paragraphs": [
+            "The repository’s comparison profile connects face, edge, and corner neighbors in 3D, with Euclidean step lengths. A diagonal move is accepted only when every proper side voxel needed by the transition is free. This strict rule prevents a route from cutting through the edge or corner of an occupied voxel.",
+            "Because source optima and planner paths depend on those rules, the evaluator builds an independent reference graph from the occupancy data and checks the reported scenario optimum against it before using the case as an optimality result."
+          ],
+          "table": {
+            "caption": "The evaluation keeps source metadata and its own correctness check separate.",
+            "headers": ["Record", "Meaning", "Validation"],
+            "rows": [
+              ["Occupancy", "Free and blocked voxels", "Map dimensions, bounds, and traversability checks"],
+              ["Scenario", "Start, goal, source cost, and source row", "Endpoint validity plus independent reference solve"],
+              ["Candidate route", "Planner-returned voxel sequence", "Legal transitions, collision-free steps, and reconstructed cost"]
+            ]
+          }
+        },
+        {
+          "id": "evaluation",
+          "label": "03 / WHAT WAS MEASURED",
+          "title": "Two distinct voxel maps reached the oracle.",
+          "paragraphs": [
+            "Across the MovingAI and Monash voxel sources, the recorded campaign ran two distinct maps against 13 planner variants. It produced 20 optimal and 6 valid suboptimal outcomes under the strict 26-neighbor oracle. The 44 Warframe mirrors were deduplicated by content and lineage rather than run twice.",
+            "For MovingAI specifically, one map was processed and 43 were recorded as resource-limited. That is a narrow slice of the 44-map collection; it does not establish collection-wide planner performance."
+          ],
+          "bullets": [
+            "Keep byte-identical maps from different mirrors in one lineage group.",
+            "A source optimum disagreement is an input/reference issue to resolve before comparing planners.",
+            "Report resource limits and excluded maps in the denominator."
+          ],
+          "callout": {
+            "title": "Two maps do not represent 44 maps",
+            "text": "The voxel result is a measured cohort, not a ranking over the full MovingAI collection. The catalog retains all resource-limited assets so that missing coverage remains visible."
+          }
+        },
+        {
+          "id": "limits",
+          "label": "04 / INTERPRETATION",
+          "title": "Discrete voxel search is not robot flight.",
+          "paragraphs": [
+            "These data test discrete search over voxel occupancy. They do not model a drone’s continuous dynamics, sensing, battery constraints, swept-volume collision geometry, or replanning in a changing environment. Those capabilities require different state and transition models.",
+            "Map dimensions can be enormous while the traversable region is sparse. The project therefore reports actual free voxels, components, and resource-limited records separately instead of treating bounding volume as reachable search space."
+          ],
+          "bullets": [
+            "Do not mix voxel outcomes with 2D grid, weighted road-graph, or continuous BARN results.",
+            "The Monash mirror page explains why its old Warframe scenarios are not an independent second benchmark.",
+            "The broader Monash voxel families have a separate profile because their origins and query generation differ."
+          ]
+        }
+      ],
+      "sources": [
+        {
+          "name": "MovingAI 3D Voxel Benchmarks",
+          "url": "https://www.movingai.com/benchmarks/voxels.html",
+          "context": "Official collection page and scenario-version notes."
+        },
+        {
+          "name": "Benchmarks for Pathfinding in 3D Voxel Space",
+          "url": "https://ojs.aaai.org/index.php/SOCS/article/view/18464",
+          "context": "Original SoCS paper describing the Warframe voxel maps and source scenarios."
+        }
+      ],
+      "project_paths": [
+        "docs/shortest_path_benchmark_contract.md",
+        "docs/benchmarks/dataset_characterization.md",
+        "scripts/benchmark_datasets/profiles.py",
+        "scripts/benchmark_format_cohorts.py"
+      ],
+      "related": ["monash-voxels", "movingai-grids"]
+    },
+    {
+      "id": "monash-voxels",
+      "title": "Monash 3D Voxel Benchmarks",
+      "eyebrow": "3D PATHFINDING / THREE DOMAINS",
+      "tagline": "Game interiors, porous rock, and industrial layouts give voxel search different geometric jobs.",
+      "description": "A detailed profile of the Monash Descent, Sandstone, and Industrial Plant voxel benchmarks, their 92,000 source scenarios, duplicate Warframe mirrors, and campaign coverage.",
+      "source_name": "Monash University ShortestPathLab",
+      "schema_type": "Dataset",
+      "source_url": "https://benchmarks.pathfinding.ai/3d-benchmarks/voxel-maps/",
+      "inventory_scope": "46 new maps across Descent, Industrial Plants, and Sandstone, plus 44 older Warframe mirrors.",
+      "campaign_status": "One of the 46 new maps was measured; 45 were resource-limited. Older Warframe mirrors were deduplicated.",
+      "stats": [
+        { "value": "46", "label": "new voxel maps" },
+        { "value": "92,000", "label": "source problem instances" },
+        { "value": "44", "label": "older Warframe mirrors" },
+        { "value": "1 / 46", "label": "new maps measured" }
+      ],
+      "sections": [
+        {
+          "id": "what-it-is",
+          "label": "01 / THE COLLECTION",
+          "title": "Three application domains, one voxel representation.",
+          "paragraphs": [
+            "The Monash collection adds 46 distinct maps and 92,000 source instances across three new families: Descent game levels, sandstone pore spaces, and industrial plant layouts. Each family has different geometry and query-generation logic; a shared .3dmap representation does not make the tasks interchangeable.",
+            "The full 90-entry Monash inventory also includes 44 older Warframe maps mirrored from MovingAI. Those mirror entries remain useful for provenance and version comparison, but byte-identical copies are not independent maps and are excluded from the distinct-map campaign count."
+          ],
+          "table": {
+            "caption": "Source families and what their query sets represent.",
+            "headers": ["Family", "Source scale", "Task interpretation"],
+            "rows": [
+              ["Descent", "30 maps; 60,000 instances", "Navigate within enclosed playable areas with rooms and branching corridors"],
+              ["Industrial Plants", "5 maps; 10,000 instances", "Route between selected equipment-surface attachment locations"],
+              ["Sandstone", "11 maps; 22,000 instances", "Search through connected, winding pore space while treating rock as blocked"]
+            ]
+          }
+        },
+        {
+          "id": "structure",
+          "label": "02 / GEOMETRY",
+          "title": "The free-space model changes by source.",
+          "paragraphs": [
+            "Descent maps are voxelized game levels. Their playable interiors occupy only a portion of a large 3D bounding volume, so bounding-box size alone greatly overstates the reachable state count. Sandstone maps are derived from X-ray tomography: pore voxels are traversable and the solid rock is blocked. The Monash scenarios describe a selected set of representative pathfinding problems, not uniform random points over the bounding box.",
+            "Industrial Plant maps model layouts from chemical processing plants at 10 cm resolution. The source scenarios select points near equipment surfaces, while filtering safety and access zones and other invalid attachment locations. That distribution targets pipe routing rather than general-purpose aerial navigation."
+          ],
+          "bullets": [
+            "The source paper reports 30 Descent maps, 5 industrial layouts, and 11 sandstone maps, each with 2,000 problem instances.",
+            "The benchmark uses connected voxel occupancy; the source query endpoints and the project’s strict movement model still need independent validation.",
+            "Some source voxel lists contain repeated coordinates. The profiler counts repeated rows as a data-quality signal but treats occupancy as a set."
+          ],
+          "callout": {
+            "title": "One voxel is not one unit of difficulty",
+            "text": "The project records free volume, components, legal degree, endpoints, and oracle availability as separate descriptors. It does not infer planner difficulty from obstacle density or map dimensions alone."
+          }
+        },
+        {
+          "id": "evaluation",
+          "label": "03 / WHAT WAS MEASURED",
+          "title": "Only one new Monash map ran in the campaign.",
+          "paragraphs": [
+            "The recorded voxel campaign evaluated two distinct maps total across MovingAI and Monash. One was from the Monash collection; the other was from MovingAI. The remaining 45 new Monash maps were resource-limited, and the 44 Warframe mirror entries were deduplicated. Across the two distinct maps and 13 variants, the independent strict 26-neighbor reference accepted 20 optimal and 6 valid suboptimal outcomes.",
+            "The official benchmark’s 92,000 source problem instances describe the collection’s published query inventory. The repository campaign did not execute all 92,000 queries. Its observed results must be read with the measured-map denominator above."
+          ],
+          "bullets": [
+            "The reference checks connectivity and cost with the same strict transition contract used for candidate validation.",
+            "The Sandstone source describes its connected pore component under 6-neighbor adjacency; the comparison profile separately declares its 26-neighbor moves and diagonal-side-cell restrictions.",
+            "Resource-limited means no planner outcome was measured for that asset; it is not a failed route."
+          ]
+        },
+        {
+          "id": "limits",
+          "label": "04 / INTERPRETATION",
+          "title": "Preserve lineage, direction, and query intent.",
+          "paragraphs": [
+            "The older Warframe mirror uses an earlier scenario version than MovingAI’s corrected data. A map may therefore have the same geometry while its scenario rows or reported optima are incompatible. Keep source and version attached to every query.",
+            "The source scenarios for Descent, industrial routing, and sandstone answer distinct application questions. Do not pool them as if each query were drawn from the same operating distribution or infer that a uniform endpoint sampler reproduces the official task."
+          ],
+          "bullets": [
+            "Report each family separately or define explicit family weights before combining observations.",
+            "Use source-compatible scenario files and record hashes; mutable mirrors can change.",
+            "Do not describe this discrete grid campaign as a full robot navigation or pipe-routing system evaluation."
+          ]
+        }
+      ],
+      "sources": [
+        {
+          "name": "Monash Voxel Maps",
+          "url": "https://benchmarks.pathfinding.ai/3d-benchmarks/voxel-maps/",
+          "context": "Official family descriptions, map counts, and scenario counts."
+        },
+        {
+          "name": "Voxel Benchmarks for 3D Pathfinding",
+          "url": "https://ojs.aaai.org/index.php/SOCS/article/view/27283",
+          "context": "SoCS 2023 paper describing the three new voxel benchmark families."
+        }
+      ],
+      "project_paths": [
+        "docs/shortest_path_benchmark_contract.md",
+        "docs/benchmarks/dataset_characterization.md",
+        "docs/benchmarks/dataset_installation.md",
+        "scripts/benchmark_datasets/catalog.py"
+      ],
+      "related": ["movingai-voxels", "movingai-grids"]
+    },
+    {
+      "id": "dimacs-roads",
+      "title": "DIMACS Road Networks",
+      "eyebrow": "DIRECTED WEIGHTED GRAPHS",
+      "tagline": "Road routing is graph search with real edge direction, parallel arcs, and cost units that matter.",
+      "description": "A detailed guide to the DIMACS Challenge 9 road-network collection, distance and travel-time weights, directed multigraph semantics, independent shortest-path checks, and resource coverage.",
+      "source_name": "9th DIMACS Implementation Challenge",
+      "schema_type": "Dataset",
+      "source_url": "https://diag.uniroma1.it/~challenge9/download.shtml",
+      "inventory_scope": "12 U.S. road networks with distance and travel-time variants, plus Rome99.",
+      "campaign_status": "13 of 25 graph entries were measured; the other 12 were recorded as resource-limited.",
+      "stats": [
+        { "value": "25", "label": "catalog entries" },
+        { "value": "12 × 2", "label": "US graph cost variants" },
+        { "value": "13 / 25", "label": "graphs in the measured cohort" },
+        { "value": "169", "label": "planner/graph runs" }
+      ],
+      "sections": [
+        {
+          "id": "what-it-is",
+          "label": "01 / THE COLLECTION",
+          "title": "A road network is an explicit graph.",
+          "paragraphs": [
+            "The project inventory contains 12 U.S. road networks with two edge-cost versions each—physical distance and transit time—plus the Rome99 directed road graph. That makes 25 catalog entries, but not 25 disjoint geographies: distance and time versions share network topology and coordinates.",
+            "Each graph is represented by vertices and weighted arcs. Coordinates are additional geographic metadata; the route objective is determined by arc weights. A shortest-distance route and a shortest-time route can differ even when their topology is identical."
+          ],
+          "bullets": [
+            "The standard Challenge 9 graph format assigns integer node IDs and stores directed arcs with integer weights.",
+            "The format allows parallel arcs and self-loops; the original arc records remain part of source provenance.",
+            "The challenge page documents known road-data errors, including missing highway and bridge connections that can produce routes unlike real-world routes."
+          ],
+          "callout": {
+            "title": "Coordinates do not define the objective",
+            "text": "The road runner does not assume that geographic distance and stored edge costs share compatible units. It uses a zero heuristic and a Dijkstra reference for the measured query."
+          }
+        },
+        {
+          "id": "representation",
+          "label": "02 / GRAPH SEMANTICS",
+          "title": "Keep direction and edge multiplicity visible.",
+          "paragraphs": [
+            "The benchmark treats the road instances as directed weighted multigraphs. Collapsing an arc and its reverse can change reachability; dropping parallel arcs can change the available costs. For the search representation, the project keeps the minimum-cost arc for each ordered pair of endpoints, which preserves shortest-path cost for that pair and supports incremental D* Lite updates while the inventory retains the original arcs.",
+            "The DIMACS and Rome99 inputs also differ in scale and provenance. Rome99 represents a large portion of Rome’s directed road network from 1999; it is not one of the U.S. distance/time pairs."
+          ],
+          "table": {
+            "caption": "What the road-network fields mean in an evaluation.",
+            "headers": ["Field", "Use", "Common mistake"],
+            "rows": [
+              ["Directed arc", "A legal transition from one node to another", "Making all roads bidirectional without evidence"],
+              ["Integer weight", "Distance or travel-time objective for that graph version", "Comparing time weights as if they were distance"],
+              ["Coordinates", "Geographic location for display or metadata", "Using coordinate distance as an unverified heuristic"],
+              ["Parallel arc", "A distinct source edge between an ordered endpoint pair", "Dropping source multiplicity from provenance"]
+            ]
+          }
+        },
+        {
+          "id": "evaluation",
+          "label": "03 / WHAT WAS MEASURED",
+          "title": "The road cohort covered 13 of 25 graphs.",
+          "paragraphs": [
+            "The recorded campaign ran 13 graphs with 13 planner variants each. It produced 130 optimal and 39 valid suboptimal outcomes. The other 12 graphs were retained in the coverage report as resource-limited, not silently removed.",
+            "For each measured graph, the cohort selects a seeded reachable pair from the largest strongly connected component and checks the result with an independent SciPy Dijkstra oracle. This is one query per graph in the recorded cohort, so it is not a broad sample of all road trips or a traffic workload."
+          ],
+          "bullets": [
+            "The input inventory, source hash, selected component, query endpoints, and graph limits are part of the result provenance.",
+            "Planner variants receive a zero heuristic because coordinate and edge-cost units are not assumed to agree.",
+            "Report source network, weight variant, and resource limits alongside every aggregate."
+          ]
+        },
+        {
+          "id": "limits",
+          "label": "04 / INTERPRETATION",
+          "title": "Compare compatible costs on compatible graphs.",
+          "paragraphs": [
+            "The result measures shortest-path behavior on a selected directed weighted graph query. It does not benchmark live routing with changing traffic, turn restrictions, road closures, vehicle dynamics, or map-matching uncertainty.",
+            "Distance and travel-time variants are separate tasks even when they share nodes and arcs. Regional graphs can also overlap geographically, so counting each one as an independent random road network would overstate the diversity of the sample."
+          ],
+          "bullets": [
+            "Do not compare distance and time costs in the same unit or leaderboard.",
+            "Preserve negative, zero, parallel, and directed input facts rather than silently normalizing them.",
+            "Treat the 13-graph cohort as the actual measured set; the remaining 12 have no planner result in that campaign."
+          ]
+        }
+      ],
+      "sources": [
+        {
+          "name": "DIMACS Challenge 9 download catalog",
+          "url": "https://diag.uniroma1.it/~challenge9/download.shtml",
+          "context": "Official road-network inventory, distance/time variants, and source-data caveats."
+        },
+        {
+          "name": "DIMACS Challenge 9 graph format",
+          "url": "https://diag.uniroma1.it/~challenge9/format.shtml",
+          "context": "Standard graph and arc representation."
+        }
+      ],
+      "project_paths": [
+        "docs/shortest_path_benchmark_contract.md",
+        "docs/benchmarks/dataset_characterization.md",
+        "scripts/benchmark_format_cohorts.py",
+        "scripts/benchmark_datasets/profiles.py"
+      ],
+      "related": ["movingai-grids", "barn-navigation"]
+    },
+    {
+      "id": "barn-navigation",
+      "title": "BARN Robot Navigation Worlds",
+      "eyebrow": "CONTINUOUS 2D / STATIC OBSTACLES",
+      "tagline": "A robot benchmark begins with footprint and collision geometry, not just a plotted path.",
+      "description": "A careful guide to BARN’s 300 static navigation worlds and the narrower point-robot XY model used in this repository’s planner cohort.",
+      "source_name": "Benchmark for Autonomous Robot Navigation",
+      "schema_type": "Dataset",
+      "source_url": "https://www.cs.utexas.edu/~xiao/BARN/BARN.html",
+      "inventory_scope": "300 static cylinder-obstacle worlds and their supplied path assets.",
+      "campaign_status": "All 300 worlds were run in a derived point-robot XY cohort. The original full navigation task and continuous optimality were not evaluated.",
+      "stats": [
+        { "value": "300", "label": "static worlds" },
+        { "value": "30 × 30", "label": "source occupancy cells" },
+        { "value": "14", "label": "compatible planners in the cohort" },
+        { "value": "2,673", "label": "source-geometry-valid paths" }
+      ],
+      "sections": [
+        {
+          "id": "what-it-is",
+          "label": "01 / THE COLLECTION",
+          "title": "Highly cluttered environments for ground robots.",
+          "paragraphs": [
+            "BARN is a benchmark for metric ground navigation in cluttered environments. Its 300 pre-generated static worlds are built from cellular-automaton obstacle layouts and target a small unmanned ground vehicle such as the Clearpath Jackal. The original task evaluates the full sense-plan-act navigation pipeline in simulation, with robot footprint, motion, and trial outcome all affecting performance.",
+            "The repository catalog stores each world geometry and its source-provided path asset. Those paths are preserved as provenance; their array coordinates are not assumed to be a verified transform into the world coordinate frame."
+          ],
+          "bullets": [
+            "The published benchmark provides a generator for adapting worlds to different robot footprints.",
+            "The source Jackal model measures 508 × 430 × 250 mm; the repository’s geometric cohort does not apply that footprint.",
+            "The source environment includes cylinder obstacles and map bounds; the effective free space depends on the robot model and collision convention.",
+            "The benchmark is static. Dynamic-obstacle extensions such as DynaBARN are outside this repository’s measured population."
+          ],
+          "callout": {
+            "title": "BARN’s original unit is a navigation trial",
+            "text": "A geometric planner-only run on an extracted world is not the same as measuring the full simulator-based sense-plan-act pipeline."
+          }
+        },
+        {
+          "id": "source-method",
+          "label": "02 / ORIGINAL EVALUATION METHOD",
+          "title": "BARN turns map geometry into a navigation-difficulty model.",
+          "paragraphs": [
+            "The original study generated 300 maps of 30 × 30 cells from 12 cellular-automaton parameter sets, repeating each set 25 times. It inflated obstacles for a 508 × 430 mm Jackal footprint, corresponding to 5 × 5 cells, while also providing the original obstacle maps so users could generate configuration spaces for other robot sizes.",
+            "BARN describes environment difficulty with five geometric measures: distance to the closest obstacle, average visibility, dispersion, characteristic dimension, and path tortuosity. The source study related those measures to normalized traversal time from 3,000 simulation trials using DWA and Elastic Bands, penalized failed trials with 30 seconds, and ran 50 physical trials in five additional worlds."
+          ],
+          "table": {
+            "caption": "The source difficulty measures capture different parts of a route.",
+            "headers": ["Measure", "What it describes"],
+            "rows": [
+              ["Distance to closest obstacle", "Clearance between a path state and nearby geometry"],
+              ["Average visibility", "How far the environment remains visible along a set of rays"],
+              ["Dispersion", "How often a scan alternates between occupied and free space"],
+              ["Characteristic dimension", "The width of the passage around a path state"],
+              ["Tortuosity", "How much the supplied route bends relative to its direct displacement"]
+            ]
+          },
+          "callout": {
+            "title": "This is the published BARN protocol",
+            "text": "Those source metrics and navigation trials describe the original benchmark. They are separate from the repository’s point-robot XY cohort summarized below."
+          }
+        },
+        {
+          "id": "repository-model",
+          "label": "03 / REPOSITORY MODEL",
+          "title": "The measured cohort is a derived point-robot problem.",
+          "paragraphs": [
+            "For a compatible geometric comparison, the project derives a 2D XY point-robot space from each static world. Source cylinders are checked as geometry; the source obstacle envelope provides explicit bounds. The exact source robot footprint, simulator coordinate transform, and full Jackal motion constraints are not silently applied to this derived task.",
+            "A collision-free grid path certifies that a selected start and goal are connected before continuous planners run. Returned paths are checked against the source circles. The source .npy paths remain attached as lineage information but are not converted into world coordinates."
+          ],
+          "table": {
+            "caption": "Original BARN navigation and the repository’s planner cohort answer different questions.",
+            "headers": ["Aspect", "Original BARN benchmark", "Repository campaign"],
+            "rows": [
+              ["State and robot", "Robot-aware navigation for a Jackal-sized platform", "Derived point-robot XY geometry"],
+              ["Environment", "Static simulation world with cylinder obstacles", "Source circles and explicit obstacle-envelope bounds"],
+              ["Outcome", "Navigation performance of a full system", "Geometric planner path validity and no-solution status"],
+              ["Optimality", "Traversal-time and navigation metrics", "No independent continuous optimality oracle"]
+            ]
+          }
+        },
+        {
+          "id": "evaluation",
+          "label": "04 / WHAT WAS MEASURED",
+          "title": "All 300 worlds, with a clear outcome denominator.",
+          "paragraphs": [
+            "The recorded point-XY cohort ran 300 worlds across 14 compatible planners, for 4,200 planner/world outcomes. It recorded 2,673 paths valid against the source geometry and 1,527 no-solution outcomes. The campaign reported no invalid paths and no planner errors.",
+            "No independent continuous optimality oracle is available for this cohort. A valid path establishes collision-free feasibility under the derived point-robot model; it does not establish shortest-path optimality or reproduce a full BARN navigation score."
+          ],
+          "bullets": [
+            "The collision checker uses a documented sampling margin against source circles and validates returned paths against the original circles.",
+            "The no-solution count is a planner outcome, not proof that the continuous environment is disconnected.",
+            "World identity, source geometry, seeds, collision settings, and planner compatibility stay attached to the recorded result."
+          ],
+          "callout": {
+            "title": "Feasible does not mean optimal",
+            "text": "Without an independent continuous reference, report path validity and no-solution outcomes. Do not label a returned route optimal based only on the planner’s status."
+          }
+        },
+        {
+          "id": "limits",
+          "label": "05 / INTERPRETATION",
+          "title": "Footprint, dynamics, and metric units matter.",
+          "paragraphs": [
+            "Inflating obstacles for a nonzero robot footprint changes the free configuration space. So do a robot’s turning limits, acceleration, localization, collision discretization, and coordinate transforms. Those choices must be stated before comparing a planner against BARN’s published navigation results.",
+            "The project’s point-XY campaign is useful for checking geometric feasibility across the supplied worlds. Its result should not be presented as a BARN simulator score, a Jackal navigation evaluation, or evidence of behavior around moving people."
+          ],
+          "bullets": [
+            "Keep point-robot and footprint-aware results in separate cohorts.",
+            "Keep simulator navigation metrics separate from geometric path length and collision checks.",
+            "Do not use a supplied path metric as a whole-map difficulty value without the source protocol that defines it."
+          ]
+        }
+      ],
+      "sources": [
+        {
+          "name": "BARN dataset and challenge",
+          "url": "https://www.cs.utexas.edu/~xiao/BARN/BARN.html",
+          "context": "Official description, 300-world suite, customization, and citation guidance."
+        },
+        {
+          "name": "Benchmarking Metric Ground Navigation",
+          "url": "https://arxiv.org/abs/2008.13315",
+          "context": "Original research paper on the BARN benchmark and environment difficulty metrics."
+        }
+      ],
+      "project_paths": [
+        "docs/shortest_path_benchmark_contract.md",
+        "docs/benchmarks/dataset_characterization.md",
+        "scripts/benchmark_format_cohorts.py",
+        "scripts/benchmark_datasets/catalog.py"
+      ],
+      "related": ["dimacs-roads", "ompl-problems"]
+    },
+    {
+      "id": "ompl-problems",
+      "title": "OMPL and OMPL.app Problem Resources",
+      "eyebrow": "CONFIGURATION SPACES AND DEMOS",
+      "tagline": "OMPL provides problem definitions and generators, not one fixed benchmark map.",
+      "description": "A guide to the 29 OMPL and OMPL.app resources catalogued in the project, the differences among configuration spaces, and why no planner results are reported yet.",
+      "source_name": "Open Motion Planning Library",
+      "schema_type": "TechArticle",
+      "source_url": "https://ompl.kavrakilab.org/demos.html",
+      "inventory_scope": "25 OMPL.app configurations and four geometric demo definitions.",
+      "campaign_status": "Resources are catalogued and installed; zero planner measurements were recorded because the source-compatible OMPL.app collision runtime is unavailable.",
+      "stats": [
+        { "value": "29", "label": "registered resources" },
+        { "value": "25", "label": "OMPL.app configurations" },
+        { "value": "4", "label": "geometric demo definitions" },
+        { "value": "0", "label": "planner measurements" }
+      ],
+      "sections": [
+        {
+          "id": "what-it-is",
+          "label": "01 / THE RESOURCE SET",
+          "title": "A catalog of problem definitions, not a single dataset.",
+          "paragraphs": [
+            "The project inventories 25 OMPL.app problem configurations and four pinned geometric demo definitions. These resources describe different robot models, state spaces, environments, and generators. Some define a problem in a continuous configuration space; some refer to robot meshes or supporting assets. They are not a common finite graph with one shared cost model.",
+            "The collection is useful for understanding the range of motion-planning problem definitions the project tracks. It is not evidence that the repository has run OMPL, Gazebo, or ROS, or that every source robot model has a compatible collision checker here."
+          ],
+          "bullets": [
+            "A configuration space may be Rⁿ, SE(2), SE(3), a joint space, or a constrained manifold.",
+            "Workspace dimension and configuration-space dimension are different concepts.",
+            "The project pins the demo source revision and records linked meshes and other resources for provenance."
+          ],
+          "callout": {
+            "title": "A sampled roadmap is not the source problem",
+            "text": "If a planner samples a roadmap, its vertex and edge counts describe that generated search structure. They are not intrinsic sizes of the original continuous space."
+          }
+        },
+        {
+          "id": "problem-semantics",
+          "label": "02 / PROBLEM SEMANTICS",
+          "title": "Geometry, state, and objective must travel together.",
+          "paragraphs": [
+            "For a 2D point robot, a position can be enough to define state. A rigid body may also require orientation. A robot arm uses joint coordinates and collision geometry. A controlled or kinodynamic system adds feasible motion and dynamics. Projecting any of these problems onto XY can erase collisions, distances, constraints, and transitions.",
+            "An OMPL demo or OMPL.app configuration becomes comparable only when its state space, validity checker, robot geometry, goal rule, objective, and source assets are reproduced. A familiar planner name does not make two state spaces compatible."
+          ],
+          "table": {
+            "caption": "Examples of distinctions that affect a valid planner comparison.",
+            "headers": ["Problem detail", "Why it matters"],
+            "rows": [
+              ["Rⁿ versus SE(2)", "An SE(2) state includes orientation and uses a different distance/validity model"],
+              ["Robot mesh and collision checker", "The free configuration space depends on the geometry and collision semantics"],
+              ["Geometric versus control planning", "A geometric path need not satisfy velocity or dynamics constraints"],
+              ["Constraint manifold", "Valid states may lie on a lower-dimensional surface inside a larger ambient space"]
+            ]
+          }
+        },
+        {
+          "id": "evaluation",
+          "label": "03 / WHAT WAS MEASURED",
+          "title": "Resources are installed; planner results are not.",
+          "paragraphs": [
+            "The project installation record contains 99 OMPL.app resource files, four demo source files, and shared assets, but the environment does not include the OMPL.app robot-mesh collision runtime needed for a source-compatible planner comparison. The recorded evaluation therefore reports OMPL.app and geometric demos as installed with no planner measurements.",
+            "This is an explicit coverage boundary. A configuration being present on disk is not a successful planner run, and a parseable problem definition is not an independent correctness oracle."
+          ],
+          "bullets": [
+            "Before comparing planners, install or provide the matching source runtime and verify asset references.",
+            "Preserve each configuration’s state-space and validity-checking semantics.",
+            "Report unsupported or unavailable resources instead of replacing them with a simpler model without disclosure."
+          ]
+        },
+        {
+          "id": "limits",
+          "label": "04 / INTERPRETATION",
+          "title": "Use OMPL as a family of problem models.",
+          "paragraphs": [
+            "OMPL’s own documentation includes geometric, control, constrained, and benchmark demonstrations. Each is an example or configurable problem, not a blanket validation dataset for every planner in this repository.",
+            "A future campaign can select a compatible subset, freeze the relevant source revision and assets, define state and objective contracts, and add independent path or trajectory checks. Until that work is complete, the right result is “catalogued, not measured.”"
+          ],
+          "bullets": [
+            "Do not aggregate unrelated OMPL demo problems into a single average.",
+            "Do not equate an illustration or example source file with a reproducible benchmark run.",
+            "Separate exact solution, approximate solution, timeout, and unsupported-model outcomes."
+          ],
+          "callout": {
+            "title": "Compatibility is a contract",
+            "text": "State space, collision model, robot geometry, objective, and control constraints determine what a planner result means."
+          }
+        }
+      ],
+      "sources": [
+        {
+          "name": "OMPL demonstrations",
+          "url": "https://ompl.kavrakilab.org/demos.html",
+          "context": "Official examples covering geometric, control, constrained, and configurable planning problems."
+        },
+        {
+          "name": "How to benchmark planners with OMPL",
+          "url": "https://ompl.kavrakilab.org/benchmark.html",
+          "context": "Official benchmark result fields and cautions about interpreting example runs."
+        }
+      ],
+      "project_paths": [
+        "docs/benchmarks/dataset_installation.md",
+        "docs/benchmarks/dataset_characterization.md",
+        "scripts/benchmark_datasets/catalog.py",
+        "scripts/benchmark_datasets/installer.py"
+      ],
+      "related": ["barn-navigation", "movingai-voxels"]
+    }
+  ]
+}

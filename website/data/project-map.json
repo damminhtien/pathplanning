@@ -134,7 +134,7 @@
       "summary": "The project records separate benchmark cohorts and checks routes against problem-specific correctness oracles.",
       "path": "docs/benchmark_contract.md",
       "children": [
-        {"id": "dataset-catalog", "label": "Dataset inventory", "type": "evaluation", "summary": "MovingAI, BARN, Monash, OMPL, and DIMACS collections have different world models and data lineage.", "path": "scripts/benchmark_datasets/catalog.py"},
+        {"id": "dataset-catalog", "label": "Dataset inventory", "type": "evaluation", "summary": "MovingAI, BARN, Monash, OMPL, and DIMACS collections have different world models and data lineage.", "path": "scripts/benchmark_datasets/catalog.py", "page": "/datasets/", "page_label": "Browse dataset profiles"},
         {"id": "benchmark-contracts", "label": "Frozen protocols", "type": "evaluation", "summary": "Inputs, versions, hashes, seeds, and workload selection are recorded before runs.", "path": "docs/benchmark_contract.md"},
         {"id": "correctness-oracles", "label": "Independent route checks", "type": "evaluation", "summary": "Validate endpoints, collisions, legal transitions, timing, and reconstructed cost with an independent check."},
         {"id": "measures", "label": "What gets measured", "type": "evaluation", "summary": "Keep solved coverage beside latency, path quality, work counters, memory, timeouts, and missing results."},

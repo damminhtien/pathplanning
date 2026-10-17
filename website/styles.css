@@ -192,36 +192,40 @@ h2 { margin-bottom: 0; font-size: clamp(30px, 4vw, 45px); line-height: 1.13; let
 .big-number { color: var(--mint); font-size: 37px; font-weight: 730; line-height: 1; letter-spacing: -.07em; }
 .big-label { color: #d5e2ed; font-size: 12px; font-weight: 640; line-height: 1.35; }
 .big-label small { color: #8191a8; font-size: 9px; font-weight: 450; }
-.inventory-head > p { max-width: 570px; margin: 0; color: #9fadc0; font-size: 11px; line-height: 1.6; }
+.inventory-head > p { max-width: 570px; margin: 0; color: #b5c2d3; font-size: 14px; line-height: 1.7; }
 .dataset-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; }
-.dataset-card { min-height: 190px; padding: 14px; border: 1px solid var(--line); border-radius: 14px; background: rgba(12, 19, 32, .7); }
+.dataset-card { min-height: 250px; padding: 15px; border: 1px solid var(--line); border-radius: 14px; background: rgba(12, 19, 32, .7); }
 .dataset-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
-.dataset-type { color: #9ab0c9; font-size: 8px; font-weight: 700; letter-spacing: .06em; }
-.dataset-count { color: #b1c0d3; font-family: ui-monospace, monospace; font-size: 10px; }
-.dataset-card h3 { margin-bottom: 5px; font-size: 14px; }
-.dataset-card p { min-height: 43px; margin-bottom: 11px; color: #8998ad; font-size: 9px; line-height: 1.55; }
+.dataset-type { color: #b7cce1; font-size: 10px; font-weight: 700; letter-spacing: .06em; }
+.dataset-count { color: #d0dbea; font-family: ui-monospace, monospace; font-size: 12px; }
+.dataset-card h3 { margin-bottom: 7px; font-size: 18px; }
+.dataset-card p { min-height: 58px; margin-bottom: 12px; color: #b5c3d4; font-size: 13px; line-height: 1.65; }
 .dataset-bar { height: 4px; margin-bottom: 7px; overflow: hidden; border-radius: 8px; background: rgba(161, 181, 206, .1); }
 .dataset-bar i { display: block; width: var(--bar); height: 100%; border-radius: inherit; background: linear-gradient(90deg, var(--mint), #85c6ff); transform-origin: left; animation: grow-bar .85s ease both; }
 @keyframes grow-bar { from { transform: scaleX(0); } to { transform: scaleX(1); } }
-.dataset-card small { color: #6f7e94; font-size: 8px; }
-.chart-caption { margin: 10px 0 29px; color: #73829a; font-size: 9px; }
+.dataset-card small { color: #aab8cb; font-size: 11px; line-height: 1.5; }
+.dataset-card-links { display: flex; flex-wrap: wrap; gap: 5px 12px; margin-top: 12px; }
+.dataset-card-links a { color: #acd5fa; font-size: 12px; font-weight: 680; }
+.dataset-card-links a:hover, .dataset-guide-link:hover { color: #e5f4ff; text-decoration: underline; text-underline-offset: 3px; }
+.chart-caption { margin: 10px 0 20px; color: #a0aec2; font-size: 12px; line-height: 1.6; }
+.dataset-guide-link { display: inline-flex; align-items: center; gap: 9px; color: #acd5fa; font-size: 12px; font-weight: 700; }
 
 .campaign-panel { display: grid; grid-template-columns: .72fr 1.6fr; overflow: hidden; border: 1px solid rgba(164, 189, 220, .15); border-radius: 18px; background: rgba(8, 14, 26, .63); }
 .campaign-intro { padding: 23px; border-right: 1px solid var(--line); background: linear-gradient(145deg, rgba(31, 51, 70, .56), rgba(14, 22, 36, .65)); }
-.campaign-intro .eyebrow { margin-bottom: 8px; font-size: 8px; }
+.campaign-intro .eyebrow { margin-bottom: 8px; font-size: 11px; }
 .campaign-intro strong { display: block; color: var(--text); font-size: 36px; line-height: 1.1; letter-spacing: -.065em; }
-.campaign-intro > span { display: block; margin: 4px 0 17px; color: var(--mint); font-size: 10px; }
-.campaign-intro > p:not(.eyebrow) { color: #8c9bb0; font-size: 10px; line-height: 1.6; }
-.text-link { color: #a9e9d5; font-size: 9px; }
+.campaign-intro > span { display: block; margin: 4px 0 17px; color: var(--mint); font-size: 13px; line-height: 1.5; }
+.campaign-intro > p:not(.eyebrow) { color: #b4c0d0; font-size: 13px; line-height: 1.7; }
+.text-link { color: #a9e9d5; font-size: 13px; font-weight: 650; }
 .text-link:hover { text-decoration: underline; }
 .campaign-highlights { display: grid; grid-template-columns: 1fr 1fr; }
 .campaign-highlights article { min-height: 138px; padding: 19px 20px; border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); }
 .campaign-highlights article:nth-child(2n) { border-right: 0; }
 .campaign-highlights article:nth-last-child(-n + 2) { border-bottom: 0; }
-.cohort-tag { color: #9bc6ec; font-size: 8px; }
-.campaign-highlights h3 { margin: 9px 0 5px; font-size: 17px; letter-spacing: -.03em; }
-.campaign-highlights p { margin: 0; color: #8c9bb0; font-size: 9px; line-height: 1.55; }
-.not-leaderboard { max-width: 810px; margin: 18px auto 0; color: #8a98ac; font-size: 10px; line-height: 1.6; }
+.cohort-tag { color: #b1d7f8; font-size: 10px; font-weight: 700; letter-spacing: .06em; }
+.campaign-highlights h3 { margin: 9px 0 5px; font-size: 18px; letter-spacing: -.03em; }
+.campaign-highlights p { margin: 0; color: #b4c0d0; font-size: 13px; line-height: 1.7; }
+.not-leaderboard { max-width: 810px; margin: 18px auto 0; color: #b4c0d0; font-size: 13px; line-height: 1.7; }
 .not-leaderboard b { color: #c7d3e2; }
 
 .method-track { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 0; margin-top: 17px; border: 1px solid var(--line); border-radius: 17px; background: rgba(15, 23, 38, .62); }
@@ -276,7 +280,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
   .algorithm-note { padding: 22px 18px; }
   .planner-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .dataset-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-  .dataset-card { min-height: 177px; }
+  .dataset-card { min-height: 245px; }
   .method-step { padding-inline: 12px; }
   .metric-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
@@ -324,13 +328,13 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
   .inventory-head { align-items: flex-start; flex-direction: column; gap: 13px; padding: 17px; }
   .inventory-head > div { min-width: 0; }
   .dataset-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .dataset-card { min-height: 184px; padding: 12px; }
-  .dataset-card p { min-height: 47px; }
+  .dataset-card { min-height: 225px; padding: 13px; }
+  .dataset-card p { min-height: 58px; }
   .campaign-panel { grid-template-columns: 1fr; }
   .campaign-intro { border-right: 0; border-bottom: 1px solid var(--line); padding: 18px; }
   .campaign-highlights article { min-height: 160px; padding: 15px; }
   .campaign-highlights h3 { font-size: 15px; }
-  .campaign-highlights p { font-size: 8px; }
+  .campaign-highlights p { font-size: 12px; }
   .method-track { grid-template-columns: 1fr; }
   .method-step { display: grid; grid-template-columns: 34px 48px 1fr; align-items: center; gap: 4px 8px; min-height: 87px; border-right: 0; border-bottom: 1px solid var(--line); padding: 12px; }
   .method-step:last-child { border-bottom: 0; }
