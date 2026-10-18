@@ -10,14 +10,14 @@ import tomllib
 
 SUPPORTED_PYTHON_TAGS = {f"cp3{minor}" for minor in range(10, 15)}
 SUPPORTED_ARCHITECTURES = {"linux-x86_64", "macos-x86_64", "macos-arm64"}
-MANYLINUX2014_TAGS = {"manylinux2014_x86_64", "manylinux_2_17_x86_64"}
+MANYLINUX_2_28_TAGS = {"manylinux_2_28_x86_64"}
 
 
 def wheel_architectures(platform_tags: set[str], filename: str) -> set[str]:
     architectures: set[str] = set()
     linux_tags = {tag for tag in platform_tags if tag.startswith("manylinux")}
     if linux_tags:
-        if not linux_tags.intersection(MANYLINUX2014_TAGS) or not all(
+        if not linux_tags.intersection(MANYLINUX_2_28_TAGS) or not all(
             tag.endswith("_x86_64") for tag in linux_tags
         ):
             raise ValueError(f"{filename} has unsupported Linux platform tags: {linux_tags}")

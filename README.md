@@ -429,9 +429,9 @@ python -m pip install pathplanning
 ```
 
 Prebuilt wheels are published for standard CPython 3.10-3.14 on Linux x86_64
-(manylinux2014), macOS Intel (x86_64), and Apple Silicon (arm64). These wheels
-include the native libraries, so installation on those platforms does not need
-a local C or C++ compiler.
+(manylinux_2_28, glibc 2.28+), macOS Intel (x86_64), and Apple Silicon
+(arm64). These wheels include the native libraries, so installation on those
+platforms does not need a local C or C++ compiler.
 
 For a source checkout or a platform without a matching wheel, install from the
 repository:

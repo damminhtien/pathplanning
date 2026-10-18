@@ -66,7 +66,7 @@ skip = "cp3??t-* *-musllinux_* *-win*"
 test-command = "python {project}/scripts/verify_wheel_install.py"
 
 [tool.cibuildwheel.linux]
-manylinux-x86_64-image = "manylinux2014"
+manylinux-x86_64-image = "manylinux_2_28"
 
 [tool.ruff]
 target-version = "py310"

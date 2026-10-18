@@ -2,10 +2,12 @@
 
 ## D-1: Publish only platforms with implementation evidence
 
-- Decision: target Linux x86_64 manylinux2014 and macOS x86_64/arm64 wheels.
-- Reason: Linux x86_64 is the CI target; native build records cover Intel
-  macOS; the current Apple Silicon checkout provides arm64 build/test evidence.
-  Windows/MSVC and Linux arm64 are not presently validated.
+- Decision: target Linux x86_64 manylinux_2_28 and macOS x86_64/arm64 wheels.
+- Reason: Linux x86_64 is the CI target; NumPy 2.5.4 provides CPython 3.12
+  Linux wheels tagged manylinux_2_27/2_28, while the manylinux2014 clean install
+  fell back to a source build. Native build records cover Intel macOS; the
+  current Apple Silicon checkout provides arm64 build/test evidence. Windows/MSVC
+  and Linux arm64 are not presently validated.
 
 ## D-2: Ship standard CPython wheels for declared interpreter support
 

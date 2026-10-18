@@ -13,18 +13,17 @@ outside the validated scope. No Linux arm64 evidence was found.
 
 ## Current milestone
 
-M2 is implemented, pending remote matrix validation. The targets are Linux
-x86_64 manylinux2014, macOS x86_64, and macOS arm64; CPython 3.10-3.14.
-cibuildwheel's isolated test environment runs a smoke script against each
-wheel. M3 documentation and metadata changes are implemented.
+M2 is implemented and being validated on PR #3. The targets are Linux x86_64
+manylinux_2_28, macOS x86_64, and macOS arm64; CPython 3.10-3.14. cibuildwheel's
+isolated test environment runs a smoke script against each wheel. M3
+documentation and metadata changes are implemented.
 
 ## Validation evidence
 
 - Repository branch starts clean at `dev/native-wheels`.
 - `docker info` fails because no Docker daemon is running; local Linux wheel
-  builds cannot run on this host. Linux and Intel macOS validation will be
-  encoded in GitHub Actions but cannot be reported as executed until that
-  workflow runs remotely.
+  builds cannot run on this host. GitHub Actions provides Linux and macOS
+  validation.
 - `cp314-macosx_arm64` built successfully and passed cibuildwheel's clean
   install test: all five native libraries loaded and the public A* plan
   succeeded. Wheel SHA-256: `6940c92c0cfecf2b42bd32444e13086401f6d9ed3b663d4f9275831b8c1c29d1`.
@@ -37,9 +36,16 @@ wheel. M3 documentation and metadata changes are implemented.
   CPython build identifiers. Both helper scripts passed Python syntax, Ruff
   lint, and Ruff format checks. Local sdist and CPython 3.14 arm64 wheel both
   passed `twine check`; pyproject TOML parsing and `git diff --check` passed.
+- First PR CI run: all standard lint, typecheck, unit, and slow-test jobs pass;
+  macOS arm64 built and clean-installed all five CPython wheels. Linux built
+  its wheel but clean installation tried to build NumPy 2.5.4 from source
+  because the manylinux2014 environment had no compatible binary; NumPy's
+  CPython 3.12 x86_64 wheel uses manylinux_2_27/2_28 and its source build needs
+  GCC >= 10.3. The Linux baseline has been changed to manylinux_2_28. macOS
+  Intel result is still pending for the first CI run.
 
 ## Next action
 
-Commit the verified task paths and open a PR so Linux x86_64 and macOS
-Intel/arm64 clean-install matrix jobs can run. Review those remote results
-before considering the existing-version PyPI wheel upload.
+Rerun the full wheel matrix with manylinux_2_28, verify 15 wheel tags and
+clean-install smoke tests, then merge and dispatch the wheel-only upload to
+the existing PyPI version.
