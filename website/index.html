@@ -86,12 +86,13 @@
       }
     </script>
     <title>Path Planning Algorithms, Made Visible | {{PLANNER_COUNT}} Guides | Pathplanning</title>
-    <link rel="stylesheet" href="styles.css?v=hero-art-depth-20261018" />
+    <link rel="stylesheet" href="styles.css?v=three-dimensional-planning-20261018" />
     <link rel="stylesheet" href="theme.css?v=hero-art-depth-20261018" />
+    <link rel="stylesheet" href="three-dimensional.css?v=voxel-planning-20261018" />
     <link rel="stylesheet" href="case-studies.css" />
     <script>window.MathJax = {tex: {inlineMath: [["\\(", "\\)"], ["\\[", "\\]"]]}};</script>
     <script async id="mathjax-script" src="https://cdn.jsdelivr.net/npm/mathjax@4/tex-chtml.js"></script>
-    <script type="module" src="app.js"></script>
+    <script type="module" src="app.js?v=three-dimensional-planning-20261018"></script>
   </head>
   <body>
     <a class="skip-link" href="#main">Skip to content</a>
@@ -101,6 +102,7 @@
       </a>
       <nav aria-label="Main navigation">
         <a href="#playground">Simulator</a>
+        <a href="#three-dimensional">3D</a>
         <a href="#applications">Applications</a>
         <a href="#algorithms">Algorithms</a>
         <a href="#evaluation">Evaluation</a>
@@ -350,10 +352,57 @@
         <p class="under-note">Try <b>D* Lite</b>, then select “Change map” to see a route respond to a new obstacle.</p>
       </section>
 
+      <section class="section-wrap section-space three-dimensional-section" id="three-dimensional" aria-labelledby="three-dimensional-title">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">03 / THREE-DIMENSIONAL PLANNING</p>
+            <h2 id="three-dimensional-title">Planning beyond <span class="gradient-text">a flat map.</span></h2>
+          </div>
+          <p class="section-intro">Two state models bring a third dimension into the search: voxel graphs and continuous motion.</p>
+        </div>
+
+        <div class="three-d-grid" role="group" aria-label="Three-dimensional path planning demonstrations">
+          <article class="three-d-card">
+            <div class="three-d-card-heading">
+              <span>VOXEL SEARCH</span>
+              <span>26-NEIGHBOR GRID</span>
+            </div>
+            <canvas data-three-d-scene="voxel" role="img" aria-label="Isometric voxel search illustration. A* explores a three-dimensional grid and routes above a wall of blocked voxels.">A* search through a three-dimensional voxel grid.</canvas>
+            <div class="three-d-card-copy">
+              <h3>Search occupied voxels</h3>
+              <p>A 3D grid turns each free voxel into a graph state. A*, Dijkstra, and Weighted A* differ in how they order the frontier.</p>
+              <nav class="three-d-algorithm-links" aria-label="Voxel search algorithm guides">
+                <a href="algorithms/astar/">A*</a>
+                <a href="algorithms/dijkstra/">Dijkstra</a>
+                <a href="algorithms/weighted_astar/">Weighted A*</a>
+              </nav>
+            </div>
+          </article>
+
+          <article class="three-d-card">
+            <div class="three-d-card-heading">
+              <span>CONTINUOUS MOTION</span>
+              <span>3D CONFIGURATION SPACE</span>
+            </div>
+            <canvas data-three-d-scene="continuous" role="img" aria-label="Isometric continuous-space illustration. A sampling tree grows through a 3D volume around a solid obstacle and refines a collision-free route.">RRT and RRT* motion planning in continuous three-dimensional space.</canvas>
+            <div class="three-d-card-copy">
+              <h3>Connect motions through space</h3>
+              <p>RRT grows a collision-checked tree through continuous space. RRT* selects lower-cost parents and rewires neighbors; this example climbs above the obstacle.</p>
+              <nav class="three-d-algorithm-links" aria-label="Continuous 3D algorithm guides">
+                <a href="algorithms/rrt/">RRT</a>
+                <a href="algorithms/rrt_star/">RRT*</a>
+              </nav>
+            </div>
+          </article>
+        </div>
+
+        <p class="three-d-evidence">Concept animations. The recorded voxel evaluation covers two distinct maps; <a href="case-studies/#voxel-movement-rules">read its protocol and limits</a>.</p>
+      </section>
+
       <section class="section-wrap section-space" id="algorithms">
         <div class="section-heading">
           <div>
-              <p class="eyebrow">03 / ALGORITHM ATLAS</p>
+              <p class="eyebrow">04 / ALGORITHM ATLAS</p>
             <h2>{{PLANNER_COUNT}} ways to solve <span class="gradient-text">“get from here to there.”</span></h2>
           </div>
           <p class="section-intro">Browse by graph, geometry, timing, or coordination problem.</p>
@@ -374,7 +423,7 @@
         <div class="section-wrap section-space">
           <div class="section-heading">
             <div>
-              <p class="eyebrow">04 / FROM MAPS TO EVIDENCE</p>
+              <p class="eyebrow">05 / FROM MAPS TO EVIDENCE</p>
               <h2>Good evaluation starts with <span class="gradient-text">the right question.</span></h2>
             </div>
             <p class="section-intro">Five datasets. Distinct movement rules, costs, and collision models.</p>
@@ -416,7 +465,7 @@
       <section class="section-wrap section-space" id="method">
         <div class="section-heading">
           <div>
-            <p class="eyebrow">05 / HOW TO READ A MEASUREMENT</p>
+            <p class="eyebrow">06 / HOW TO READ A MEASUREMENT</p>
             <h2>Measure more than <span class="gradient-text">speed.</span></h2>
           </div>
           <p class="section-intro">Define the task, validate each route, then report the results.</p>
@@ -444,7 +493,7 @@
       <section class="section-wrap section-space front-case-studies" id="case-studies">
         <div class="section-heading case-studies-heading">
           <div>
-            <p class="eyebrow">06 / CASE STUDIES</p>
+            <p class="eyebrow">07 / CASE STUDIES</p>
             <h2>What each benchmark <span class="gradient-text">reveals.</span></h2>
           </div>
           <p class="section-intro">Results across grid maps, road networks, continuous geometry, and 3D worlds.</p>

@@ -38,6 +38,12 @@ flowchart LR
   Build --> Dist
   Browser --> Catalog
   Browser --> LandingMotion
+  Browser --> ThreeDimensional
+  ThreeDimensional[three-dimensional.js lifecycle]
+  ThreeDimensional --> Voxel3D[scripts/scenes/voxel-3d.js]
+  ThreeDimensional --> Continuous3D[scripts/scenes/continuous-3d.js]
+  Voxel3D --> SpatialDrawing[scripts/scenes/spatial-3d-shared.js]
+  Continuous3D --> SpatialDrawing
   Browser --> ApplicationScenes[applications.js\nSVG application scenes]
   Browser --> Simulator
   Simulator --> Scenes
@@ -56,6 +62,7 @@ flowchart LR
 - `sitebuilder/pipeline.py` owns output safety, static asset copying, generated family filters, lesson and case-study routes, and the sitemap. It writes generated files only to the selected output directory.
 - `app.js` starts the browser application. `scripts/catalog.js` owns catalog interactions, while `scripts/simulator.js` owns simulator state and controls. Canvas drawing is split into the grid, continuous, temporal, and multi-agent scene modules.
 - `scripts/landing-motion.js` owns front-page scroll reveals and the reading-progress indicator. It uses `IntersectionObserver`, leaves content visible when scripting or motion support is unavailable, and honors reduced-motion preferences.
+- `scripts/three-dimensional.js` owns the front-page 3D animation lifecycle. `scripts/scenes/voxel-3d.js` draws the voxel search, `continuous-3d.js` draws the sampling tree, and `spatial-3d-shared.js` contains their projection and drawing helpers. The lifecycle pauses off-screen and renders a complete static frame when reduced motion is requested; `three-dimensional.css` supplies the responsive card layout.
 - `build_site.py` stays as the stable command-line entry point used by GitHub Actions and local builds.
 
 ## Adding a planner

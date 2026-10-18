@@ -1,0 +1,161 @@
+.three-dimensional-section {
+  position: relative;
+}
+
+.three-d-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+}
+
+.three-d-card {
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid #cbd9e7;
+  border-radius: 20px;
+  background: linear-gradient(155deg, #fff 4%, #f6faff 100%);
+  box-shadow: 0 16px 40px rgb(39 75 111 / 8%), inset 0 1px #fff;
+  transition: border-color .2s ease, box-shadow .2s ease, transform .2s ease;
+}
+
+.three-d-card:hover {
+  transform: translateY(-3px);
+  border-color: #9cbada;
+  box-shadow: 0 21px 48px rgb(39 75 111 / 13%), inset 0 1px #fff;
+}
+
+.three-d-card-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 19px 20px 0;
+  color: #426b91;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: .095em;
+}
+
+.three-d-card-heading span:last-child {
+  color: #70869b;
+  font-size: 8px;
+  text-align: right;
+}
+
+.three-d-card canvas {
+  display: block;
+  width: calc(100% - 28px);
+  aspect-ratio: 1.72;
+  margin: 10px 14px 0;
+  border: 1px solid #d9e5f0;
+  border-radius: 13px;
+  background: #f5f9fd;
+}
+
+.three-d-card-copy {
+  padding: 17px 20px 20px;
+}
+
+.three-d-card-copy h3 {
+  margin-bottom: 7px;
+  color: #203b56;
+  font-size: 18px;
+  letter-spacing: -.025em;
+}
+
+.three-d-card-copy p {
+  min-height: 54px;
+  margin-bottom: 15px;
+  color: #546c83;
+  font-family: var(--reading-font);
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.three-d-algorithm-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.three-d-algorithm-links a {
+  display: inline-flex;
+  min-height: 32px;
+  align-items: center;
+  padding: 0 11px;
+  border: 1px solid #bfd2e4;
+  border-radius: 999px;
+  color: #28689f;
+  background: #f6faff;
+  font-size: 11px;
+  font-weight: 650;
+  transition: border-color .18s ease, color .18s ease, background .18s ease;
+}
+
+.three-d-algorithm-links a:hover {
+  border-color: #7eacd5;
+  color: #174f80;
+  background: #eaf4fc;
+}
+
+.three-d-evidence {
+  margin: 17px 0 0;
+  padding: 12px 15px;
+  border-left: 2px solid #8ab4d8;
+  color: #5e7489;
+  background: rgb(236 245 253 / 75%);
+  font-size: 12px;
+}
+
+.three-d-evidence a {
+  color: #28689f;
+  font-weight: 650;
+  text-decoration: underline;
+  text-decoration-color: #9dbbd6;
+  text-underline-offset: 3px;
+}
+
+.three-d-evidence a:hover {
+  color: #174f80;
+  text-decoration-color: currentColor;
+}
+
+@media (max-width: 820px) {
+  .three-d-grid {
+    grid-template-columns: 1fr;
+    gap: 14px;
+  }
+
+  .three-d-card canvas {
+    aspect-ratio: 1.95;
+  }
+}
+
+@media (max-width: 720px) {
+  .three-d-card-heading {
+    padding-inline: 14px;
+    font-size: 8px;
+  }
+
+  .three-d-card canvas {
+    width: calc(100% - 20px);
+    margin-inline: 10px;
+    aspect-ratio: 1.6;
+  }
+
+  .three-d-card-copy {
+    padding: 15px 15px 17px;
+  }
+
+  .three-d-card-copy p {
+    min-height: 0;
+    font-size: 13px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .three-d-card {
+    transition: none;
+  }
+}

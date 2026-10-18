@@ -58,6 +58,7 @@ def copy_static_files(output: Path) -> None:
         "app.js",
         "styles.css",
         "theme.css",
+        "three-dimensional.css",
         "favicon.svg",
         "og-image.png",
         "og-image.svg",

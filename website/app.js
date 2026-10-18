@@ -5,6 +5,7 @@ import { startApplicationScenes } from "./scripts/applications.js";
 import { startEnvironmentPreviews } from "./scripts/environment-previews.js";
 import { startLandingMotion } from "./scripts/landing-motion.js";
 import { createSimulator } from "./scripts/simulator.js";
+import { startThreeDimensionalScenes } from "./scripts/three-dimensional.js";
 
 async function loadPlanners() {
   const response = await fetch(new URL("data/planners.json", window.location.href));
@@ -36,6 +37,7 @@ async function startLearningLab() {
 
   const simulator = createSimulator(planners, initialPlanner, isDemoMode);
   startEnvironmentPreviews(planners);
+  startThreeDimensionalScenes();
   createCatalog(planners, simulator.setPlanner);
 }
 
