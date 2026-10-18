@@ -45,7 +45,6 @@ h1 { color: #172d47; }
 .button-quiet:hover, .button-outline:hover { border-color: #8bb5dd; background: #edf5fc; }
 .hero-art { border-color: #c8d9e9; background: radial-gradient(ellipse at 52% 58%, #fff, #edf6fd 58%, #deedf9), linear-gradient(145deg, #f5faff, #e3eff9); box-shadow: 0 24px 70px rgb(47 79 110 / 10%), inset 0 1px #fff; }
 .hero-art::before { background: radial-gradient(ellipse at 50% 58%, transparent 27%, rgb(92 137 179 / 8%) 100%); }
-.art-caption, .art-footer { color: #516d87; }
 .art-ground { fill: url(#hero-world-fill); }
 .art-ground-grid { stroke: rgb(78 119 157 / 17%); }
 .art-obstacle-right { fill: #6f8eac; }

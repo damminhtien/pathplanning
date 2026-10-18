@@ -78,10 +78,7 @@ h1 { max-width: 700px; margin-bottom: 22px; font-size: clamp(43px, 6.4vw, 76px);
 
 .hero-art { position: relative; isolation: isolate; min-height: 325px; overflow: hidden; border: 1px solid rgba(91, 130, 169, .23); border-radius: 25px; background: radial-gradient(ellipse at 52% 58%, rgba(255, 255, 255, .98), rgba(237, 246, 254, .94) 58%, rgba(222, 237, 250, .96)), linear-gradient(145deg, #f5faff, #e3eff9); box-shadow: 0 24px 70px rgba(47, 79, 110, .1), inset 0 1px #fff; }
 .hero-art::before { position: absolute; z-index: -1; inset: 0; content: ""; background: radial-gradient(ellipse at 50% 58%, transparent 27%, rgba(92, 137, 179, .08) 100%); pointer-events: none; }
-.art-caption, .art-footer { position: absolute; z-index: 4; display: flex; justify-content: space-between; width: calc(100% - 38px); left: 19px; color: #516d87; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 10px; letter-spacing: .1em; }
-.art-caption { top: 18px; }
-.art-footer { bottom: 17px; }
-.art-world { position: absolute; inset: 38px 10px 30px; }
+.art-world { position: absolute; inset: 10px; }
 .art-world svg { display: block; width: 100%; height: 100%; overflow: visible; }
 .art-ground-shadow { fill: rgba(52, 86, 119, .13); }
 .art-platform-side { stroke: rgba(57, 87, 116, .42); stroke-width: .8; stroke-linejoin: round; }
