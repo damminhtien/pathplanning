@@ -86,7 +86,7 @@
       }
     </script>
     <title>Path Planning Algorithms, Made Visible | {{PLANNER_COUNT}} Guides | Pathplanning</title>
-    <link rel="stylesheet" href="styles.css?v=agent-loop-20261017" />
+    <link rel="stylesheet" href="styles.css?v=agent-core-20261018" />
     <link rel="stylesheet" href="theme.css" />
     <link rel="stylesheet" href="case-studies.css" />
     <script>window.MathJax = {tex: {inlineMath: [["\\(", "\\)"], ["\\[", "\\]"]]}};</script>
@@ -168,18 +168,23 @@
           <div class="loop-copy">
             <p class="loop-kicker">The autonomous agent loop</p>
             <h2 id="agent-loop-title">Sense. Decide. Move. Repeat.</h2>
-            <p>An agent observes the world, plans a move, acts, then updates its plan.</p>
-            <div class="loop-cycle-note"><span aria-hidden="true"></span>Continuous feedback, one step at a time</div>
+            <p>A UAV combines stereo vision, LiDAR, and inertial sensing to map nearby space. Its planner sends a collision-aware trajectory to the autopilot, then flight and obstacle feedback close the loop.</p>
+            <div class="loop-cycle-note"><span aria-hidden="true"></span>Onboard perception · local replanning · flight control</div>
           </div>
 
           <div class="loop-diagram">
             <svg class="loop-track" viewBox="0 0 520 520" aria-hidden="true" focusable="false">
-              <circle class="loop-track-base" cx="260" cy="260" r="156" />
-              <circle class="loop-track-flow" cx="260" cy="260" r="156" />
-              <path class="loop-arrow loop-arrow-north-east" d="M381 161l-23 1 11-17z" />
-              <path class="loop-arrow loop-arrow-south-east" d="M359 381l-1-23 17 11z" />
-              <path class="loop-arrow loop-arrow-south-west" d="M139 359l23-1-11 17z" />
-              <path class="loop-arrow loop-arrow-north-west" d="M161 139l1 23-17-11z" />
+              <defs>
+                <marker id="loop-flow-arrow" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto" markerUnits="userSpaceOnUse">
+                  <path class="loop-arrow" d="M0 1 8 5 0 9Z" />
+                </marker>
+              </defs>
+              <circle class="loop-track-base" cx="260" cy="260" r="130" />
+              <circle class="loop-track-flow" cx="260" cy="260" r="130" />
+              <path class="loop-arrow-segment" d="M352 168 A130 130 0 0 1 352 352" marker-end="url(#loop-flow-arrow)" />
+              <path class="loop-arrow-segment" d="M352 352 A130 130 0 0 1 168 352" marker-end="url(#loop-flow-arrow)" />
+              <path class="loop-arrow-segment" d="M168 352 A130 130 0 0 1 168 168" marker-end="url(#loop-flow-arrow)" />
+              <path class="loop-arrow-segment" d="M168 168 A130 130 0 0 1 352 168" marker-end="url(#loop-flow-arrow)" />
             </svg>
             <div class="loop-orbit" aria-hidden="true"></div>
 
@@ -188,41 +193,46 @@
                 <span class="loop-step-icon" aria-hidden="true">
                   <svg viewBox="0 0 24 24" focusable="false"><path d="M2.5 12s3.3-6 9.5-6 9.5 6 9.5 6-3.3 6-9.5 6-9.5-6-9.5-6Z" /><circle cx="12" cy="12" r="2.6" /></svg>
                 </span>
-                <span class="loop-step-copy"><b>Observe</b><small>Sense the world</small></span>
+                <span class="loop-step-copy"><b>Perception</b><small>Stereo · LiDAR · IMU</small></span>
                 <span class="loop-step-index" aria-hidden="true">01</span>
               </li>
               <li class="loop-step loop-step-plan">
                 <span class="loop-step-icon" aria-hidden="true">
                   <svg viewBox="0 0 24 24" focusable="false"><path d="M4 19V6l5-2 6 2 5-2v13l-5 2-6-2-5 2Z" /><path d="M9 4v13m6-11v13" /><circle cx="15" cy="12" r="1.6" /></svg>
                 </span>
-                <span class="loop-step-copy"><b>Plan</b><small>Choose a route</small></span>
+                <span class="loop-step-copy"><b>Local mapping</b><small>SLAM · obstacle tracking</small></span>
                 <span class="loop-step-index" aria-hidden="true">02</span>
               </li>
               <li class="loop-step loop-step-act">
                 <span class="loop-step-icon" aria-hidden="true">
                   <svg viewBox="0 0 24 24" focusable="false"><path d="M4 12h15m-6-6 6 6-6 6" /><path d="M5 6h4M3 18h6" /></svg>
                 </span>
-                <span class="loop-step-copy"><b>Act</b><small>Move one step</small></span>
+                <span class="loop-step-copy"><b>Trajectory control</b><small>Autopilot · motor control</small></span>
                 <span class="loop-step-index" aria-hidden="true">03</span>
               </li>
               <li class="loop-step loop-step-check">
                 <span class="loop-step-icon" aria-hidden="true">
                   <svg viewBox="0 0 24 24" focusable="false"><path d="M20 11a8 8 0 0 0-14-5L4 8" /><path d="M4 4v4h4M4 13a8 8 0 0 0 14 5l2-2m0 4v-4h-4" /></svg>
                 </span>
-                <span class="loop-step-copy"><b>Check again</b><small>Check for change</small></span>
+                <span class="loop-step-copy"><b>Navigation feedback</b><small>GPS / VIO · replan</small></span>
                 <span class="loop-step-index" aria-hidden="true">04</span>
               </li>
             </ol>
 
             <div class="loop-core" aria-hidden="true">
-              <svg class="loop-core-mark" viewBox="0 0 40 40" focusable="false">
-                <circle cx="20" cy="20" r="15" />
-                <circle cx="20" cy="20" r="8" />
-                <path d="M20 2v7m0 22v7M2 20h7m22 0h7" />
-                <circle class="loop-core-point" cx="20" cy="20" r="2.5" />
+              <svg class="loop-agent-module" viewBox="0 0 96 72" focusable="false">
+                <g class="loop-agent-pins">
+                  <path d="M30 5v7m12-7v7m12-7v7m12-7v7m-36 48v7m12-7v7m12-7v7m12-7v7M13 25h7m-7 11h7m-7 11h7m56-22h7m-7 11h7m-7 11h7" />
+                </g>
+                <rect class="loop-agent-board" x="20" y="12" width="56" height="48" rx="8" />
+                <rect class="loop-agent-chip" x="32" y="22" width="32" height="28" rx="5" />
+                <path class="loop-agent-route" d="m38 42 8-11 7 7 9-13" />
+                <circle class="loop-agent-waypoint" cx="38" cy="42" r="2.2" />
+                <circle class="loop-agent-waypoint" cx="46" cy="31" r="2.2" />
+                <circle class="loop-agent-waypoint" cx="53" cy="38" r="2.2" />
+                <circle class="loop-agent-status" cx="62" cy="25" r="2.8" />
               </svg>
-              <span class="loop-core-title">AGENT</span>
-              <span class="loop-core-caption">world + goal</span>
+              <span class="loop-core-title">Agent</span>
             </div>
           </div>
         </div>

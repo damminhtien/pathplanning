@@ -73,7 +73,7 @@ h1 { color: #172d47; }
 .loop-copy h2 { color: #1b3048; }
 .loop-copy > p:not(.loop-kicker) { color: #4d647a; font-family: var(--reading-font); }
 .loop-step b { color: #203e5c; }
-.loop-step small, .loop-core-caption { color: #536b83; }
+.loop-step small { color: #536b83; }
 .section-intro { color: #61768b; }
 .workbench { border-color: #a9bfd5; background: #142f4d; box-shadow: 0 18px 48px rgb(25 53 82 / 16%); }
 .workbench-top { border-color: rgb(186 208 231 / 17%); background: #193a5d; }
