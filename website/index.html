@@ -86,8 +86,8 @@
       }
     </script>
     <title>Path Planning Algorithms, Made Visible | {{PLANNER_COUNT}} Guides | Pathplanning</title>
-    <link rel="stylesheet" href="styles.css?v=agent-control-loop-20261018" />
-    <link rel="stylesheet" href="theme.css" />
+    <link rel="stylesheet" href="styles.css?v=hero-art-depth-20261018" />
+    <link rel="stylesheet" href="theme.css?v=hero-art-depth-20261018" />
     <link rel="stylesheet" href="case-studies.css" />
     <script>window.MathJax = {tex: {inlineMath: [["\\(", "\\)"], ["\\[", "\\]"]]}};</script>
     <script async id="mathjax-script" src="https://cdn.jsdelivr.net/npm/mathjax@4/tex-chtml.js"></script>
@@ -127,32 +127,91 @@
         </div>
 
         <div class="hero-art" aria-hidden="true">
-          <div class="art-caption"><span>MISSION 008</span><span>PLAN, MOVE, REPLAN</span></div>
-          <div class="art-grid">
-            <i class="wall wall-a"></i><i class="wall wall-b"></i><i class="wall wall-c"></i>
-            <i class="wall wall-d"></i><i class="wall wall-e"></i>
-            <svg viewBox="0 0 500 300" role="presentation">
-              <path class="art-path-shadow" d="M48 250 C110 250 98 194 168 194 S222 254 280 168 S344 92 446 54" />
-              <path id="mission-route" class="art-path" d="M48 250 C110 250 98 194 168 194 S222 254 280 168 S344 92 446 54" />
-              <circle class="art-pulse" cx="48" cy="250" r="12" />
-              <circle class="art-waypoint" cx="168" cy="194" r="5" />
-              <circle class="art-waypoint art-waypoint-delay" cx="280" cy="168" r="5" />
-              <circle class="art-goal" cx="446" cy="54" r="10" />
-              <g class="art-robot">
-                <animateMotion dur="9s" repeatCount="indefinite" rotate="auto">
+          <div class="art-caption"><span>ISOMETRIC WORLD</span><span>3D OBSTACLES</span></div>
+          <div class="art-world">
+            <svg viewBox="0 0 500 280" role="presentation" focusable="false">
+              <defs>
+                <linearGradient id="hero-world-fill" x1="0" y1="0" x2="0.85" y2="1">
+                  <stop offset="0" stop-color="#f7fbff" />
+                  <stop offset="1" stop-color="#e1edf7" />
+                </linearGradient>
+                <linearGradient id="hero-block-top" x1="0" y1="0" x2="1" y2="1">
+                  <stop offset="0" stop-color="#f7fbff" />
+                  <stop offset="1" stop-color="#bdd3e7" />
+                </linearGradient>
+                <filter id="hero-block-shadow" x="-35%" y="-35%" width="180%" height="190%">
+                  <feDropShadow dx="0" dy="2" stdDeviation="1.8" flood-color="#385d7d" flood-opacity=".18" />
+                </filter>
+                <clipPath id="hero-world-clip">
+                  <polygon points="180,215 460,85 316,7 36,137" />
+                </clipPath>
+                <path id="mission-route" d="M57.2 134.4 L149.6 91.5 L185.6 111 L252.8 79.8 L286.4 98 L350.8 68.1 L406 98 L420 91.5" />
+                <g id="hero-agent-model">
+                  <ellipse class="art-agent-shadow" cx="0" cy="1" rx="15" ry="6" />
+                  <ellipse class="art-agent-wheel" cx="-9" cy="-6" rx="3" ry="5" />
+                  <ellipse class="art-agent-wheel" cx="9" cy="-6" rx="3" ry="5" />
+                  <path class="art-agent-side-left" d="M-12 -6 0 -2 0 -10 -12 -14Z" />
+                  <path class="art-agent-side-right" d="M12 -6 0 -2 0 -10 12 -14Z" />
+                  <path class="art-agent-top" d="M0 -18 12 -14 0 -10 -12 -14Z" />
+                  <ellipse class="art-agent-sensor" cx="0" cy="-14.5" rx="3.2" ry="2" />
+                  <circle class="art-agent-sensor-dot" cx="1" cy="-14.5" r=".8" />
+                </g>
+              </defs>
+
+              <polygon class="art-ground-shadow" points="180,223 460,93 316,15 36,145" />
+              <path class="art-platform-side art-platform-side-right" d="M180 215 460 85 460 93 180 223Z" />
+              <path class="art-platform-side art-platform-side-front" d="M180 215 36 137 36 145 180 223Z" />
+              <polygon class="art-ground" points="180,215 460,85 316,7 36,137" />
+              <g class="art-ground-grid" clip-path="url(#hero-world-clip)">
+                <path d="M180 215 36 137 M208 202 64 124 M236 189 92 111 M264 176 120 98 M292 163 148 85 M320 150 176 72 M348 137 204 59 M376 124 232 46 M404 111 260 33 M432 98 288 20 M460 85 316 7 M180 215 460 85 M156 202 436 72 M132 189 412 59 M108 176 388 46 M84 163 364 33 M60 150 340 20 M36 137 316 7" />
+              </g>
+              <path class="art-ground-edge" d="M180 215 460 85 316 7 36 137Z" />
+
+              <use class="art-route-base" href="#mission-route" />
+              <use class="art-route" href="#mission-route" />
+              <g class="art-agent">
+                <animateMotion dur="8s" repeatCount="indefinite" rotate="auto">
                   <mpath href="#mission-route" />
                 </animateMotion>
-                <rect x="-12" y="-9" width="24" height="18" rx="5" />
-                <path d="M0 -9 L8 -19 L8 -9" />
+                <use href="#hero-agent-model" transform="scale(1.16)" />
               </g>
-              <g class="art-robot-static" transform="translate(280 168) rotate(-31)">
-                <rect x="-12" y="-9" width="24" height="18" rx="5" />
-                <path d="M0 -9 L8 -19 L8 -9" />
+              <g class="art-agent-static" transform="translate(85.2 121.4) rotate(-25)">
+                <use href="#hero-agent-model" transform="scale(1.16)" />
               </g>
+
+              <g class="art-obstacle" transform="translate(352 111)" filter="url(#hero-block-shadow)">
+                <path class="art-obstacle-right" d="M28 -13 4 -26 4 -68.2 28 -55.2Z" />
+                <path class="art-obstacle-left" d="M-24 -13 4 -26 4 -68.2 -24 -55.2Z" />
+                <path class="art-obstacle-top" d="M0 -42.2 28 -55.2 4 -68.2 -24 -55.2Z" />
+              </g>
+              <g class="art-obstacle" transform="translate(248.8 122.7)" filter="url(#hero-block-shadow)">
+                <path class="art-obstacle-right" d="M28 -13 6.4 -24.7 6.4 -76 28 -64.3Z" />
+                <path class="art-obstacle-left" d="M-21.6 -11.7 6.4 -24.7 6.4 -76 -21.6 -63Z" />
+                <path class="art-obstacle-top" d="M0 -51.3 28 -64.3 6.4 -76 -21.6 -63Z" />
+              </g>
+              <g class="art-obstacle" transform="translate(160.8 170.8)" filter="url(#hero-block-shadow)">
+                <path class="art-obstacle-right" d="M25.2 -11.7 1.2 -24.7 1.2 -53.2 25.2 -40.2Z" />
+                <path class="art-obstacle-left" d="M-24 -13 1.2 -24.7 1.2 -53.2 -24 -41.5Z" />
+                <path class="art-obstacle-top" d="M0 -28.5 25.2 -40.2 1.2 -53.2 -24 -41.5Z" />
+              </g>
+              <g class="art-obstacle" transform="translate(140 137)" filter="url(#hero-block-shadow)">
+                <path class="art-obstacle-right" d="M30.8 -14.3 6.8 -27.3 6.8 -65.3 30.8 -52.3Z" />
+                <path class="art-obstacle-left" d="M-24 -13 6.8 -27.3 6.8 -65.3 -24 -51Z" />
+                <path class="art-obstacle-top" d="M0 -38 30.8 -52.3 6.8 -65.3 -24 -51Z" />
+              </g>
+
+              <g class="art-waypoints">
+                <circle cx="149.6" cy="91.5" r="2.8" />
+                <circle cx="252.8" cy="79.8" r="2.8" />
+                <circle cx="350.8" cy="68.1" r="2.8" />
+              </g>
+              <circle class="art-start-ring" cx="57.2" cy="134.4" r="7" />
+              <circle class="art-start-point" cx="57.2" cy="134.4" r="2.6" />
+              <circle class="art-goal-ring" cx="420" cy="91.5" r="7.5" />
+              <circle class="art-goal-point" cx="420" cy="91.5" r="2.4" />
             </svg>
           </div>
-          <div class="art-footer"><span>START <b>01</b></span><span>GOAL</span></div>
-          <span class="orbit orbit-one"></span><span class="orbit orbit-two"></span>
+          <div class="art-footer"><span>START</span><span>GOAL</span></div>
         </div>
 
         <div class="hero-stats" aria-label="Project overview">
