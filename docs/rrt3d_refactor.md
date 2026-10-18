@@ -2,20 +2,25 @@
 
 This note documents the current stateful 3D RRT API and its native backend.
 The Python-facing planner lives in
-`pathplanning/planners/sampling/dynamic_rrt.py`; the C implementation is
-`pp_dynamic_rrt_plan` in `pathplanning/native/continuous_engine.c`.
+`pathplanning/planners/sampling/dynamic_rrt.py`; its retained C session lives
+in `pathplanning/native/continuous_dynamic.c`. The one-shot compatibility
+entrypoint remains `pp_dynamic_rrt_plan`.
 
 ## Ownership and Execution
 
 `DynamicRRT3D` keeps the existing Python API and public tree views (`nodes`,
-`parent_by_node`, `edges`, and `node_state`). `grow_rrt`, `trim_rrt`,
-`regrow_rrt`, and `find_affected_edges` serialize the tree as state and parent
-arrays, call the native C planner, then rebuild the Python views from returned
-arrays.
+`parent_by_node`, `edges`, and `node_state`). The first growth call copies the
+tree into a native session. Normal `grow_rrt` calls keep that tree and its KD
+index in C and return only appended nodes to Python. `trim_rrt` and tree
+revalidation return a remapped full snapshot because pruning can change node
+IDs. Manual tree edits close the session so the next growth call recreates it
+from the Python-facing tree. `find_affected_edges` remains a one-shot query.
 
 The C engine performs pruning, incoming-edge validity checks, nearest-node
 queries, sampling, steering, tree growth, and goal connection. It uses
-contiguous state and parent arrays with an incremental KD forest. The optional
+contiguous state and parent arrays with an incremental KD forest. Built-in
+space obstacles are indexed by a BVH for candidate pruning, followed by exact
+primitive intersection checks. The optional
 `NearestNodeIndex` implementation still serves direct Python calls to
 `planner.nearest(...)`; the native growth loop does not call that Python index.
 

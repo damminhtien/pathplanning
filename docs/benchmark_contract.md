@@ -1,16 +1,17 @@
 # Benchmark Report Contract
 
-The two repository benchmark commands use the versioned
+The repository benchmark commands use the versioned
 `pathplanning_benchmark_v1` JSON contract:
 
 - `python scripts/benchmark_planners.py`
 - `python scripts/benchmark_native_sampling.py`
+- `python scripts/benchmark_continuous_scaling.py`
 
 Pass `--output path/to/report.json` to write a report atomically. `--json`
 prints the same report to stdout. The output path is excluded from the source
 fingerprint so saving a report does not change the experiment identity.
 
-This v1 contract covers those two general repository commands. The dataset
+This v1 contract covers these general repository commands. The dataset
 campaigns use source-aware runners and distinct contracts for grid,
 directed-road, voxel, and geometric inputs; see the
 [shortest-path benchmark contract](shortest_path_benchmark_contract.md) and
@@ -68,7 +69,11 @@ load, thermal state, operating system scheduling, and compiler/runtime builds.
 
 The representative planner benchmark covers the exact three workloads listed
 in each report. The native sampling benchmark covers its listed planners,
-scenario, and two space paths. Results characterize those workloads only.
+scenario, and two space paths. The continuous scaling benchmark compares
+repeated DynamicRRT3D growth using a retained native session with a one-shot
+full-tree round trip, then measures RRT at the reported obstacle counts. Its
+timings include native model setup through the public API; they characterize
+those workloads and host only.
 `examples/bench/nn_index_bench.py` is an instructional microbenchmark and
 does not emit this contract, so it is not canonical performance evidence.
 

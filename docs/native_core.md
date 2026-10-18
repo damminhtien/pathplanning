@@ -11,7 +11,7 @@ C.
 flowchart LR
     API[Python API and registry] --> ADAPTER[Typed Python adapters]
     ADAPTER -->|C ABI via ctypes| SEARCH[search_engine.cpp, mapf_search.cpp, kinodynamic_search.cpp<br/>C++17]
-    ADAPTER -->|C ABI via ctypes| CONTINUOUS[continuous_engine.c<br/>C11]
+    ADAPTER -->|C ABI via ctypes| CONTINUOUS[continuous_engine.c, continuous_collision.c, continuous_dynamic.c<br/>C11]
     GRAPH[NativeGraph or Python graph] -->|CSR arrays / one-time snapshot| SEARCH
     BUILTIN[Built-in or declared native space model] -->|bounds and obstacle arrays| CONTINUOUS
     BUILTIN -->|occupancy and vehicle geometry| KINODYNAMIC[kinodynamic_search.cpp and reeds_shepp.cpp<br/>C++17]
@@ -93,28 +93,38 @@ heuristic array.
 
 ### Continuous sampling planners
 
-`pathplanning/native/continuous_engine.c` owns the expansion loops, node and
-parent arrays, planner queues, collision checks, and incremental nearest
-neighbor index. Straight segments in declared native continuous models are
-checked analytically against box, sphere, and oriented-box obstacles; custom
-Python motion callbacks retain their own collision-checking semantics. The
-current C engine implements `rrt`, `rrt_star`,
-`informed_rrt_star`, `fmt_star`, `bit_star`, `abit_star`, `rrt_connect`, and the
-tree-pruning and growth operations used by `DynamicRRT3D`.
+`pathplanning/native/continuous_engine.c` owns registry planner expansion
+loops, planner queues, and the shared native planning helpers.
+`continuous_collision.c` builds a per-plan or per-session AABB BVH over native
+box, sphere, and oriented-box obstacles. The BVH prunes spatially unrelated
+obstacles; exact primitive checks still decide state and segment validity at
+the leaves. Custom Python motion callbacks retain their own collision-checking
+semantics. `continuous_dynamic.c` owns the one-shot and retained-session
+implementations of `DynamicRRT3D`. The registry engine implements `rrt`,
+`rrt_star`, `informed_rrt_star`, `fmt_star`, `bit_star`, `abit_star`, and
+`rrt_connect`.
 
-`pathplanning/native/continuous.py` is the Python FFI adapter. It validates and
-converts inputs, keeps temporary native arrays alive during each call, invokes
-the C ABI, and converts result arrays into the existing Python result types.
-Public planner modules retain their Python API and delegate the search work to
-this adapter.
+`pathplanning/native/_continuous_ffi.py` owns the shared `ctypes` declarations,
+native space conversion, and callback helpers. `continuous.py` adapts registry
+planners and lazily delegates the one-shot DynamicRRT compatibility call;
+`continuous_dynamic.py` owns one-shot and stateful DynamicRRT adapters, including
+session delta/snapshot conversion. This keeps C layouts out of planner
+implementation modules and isolates retained-session lifecycle code.
 
 RIT* reuses metric scratch arrays for each plan and uses a spatial hash for its
 2D collision-adaptive metric field; the bounded Gaussian-tail approximation is
 documented in the [RIT* contract](algorithms/rit_star.md).
 
 For the built-in `ContinuousSpace3D` and `Grid2DSamplingSpace` types, bounds and
-obstacle primitives are copied into contiguous arrays once per plan. A custom
-space can implement `to_native_model()` and return
+obstacle primitives are copied into contiguous arrays once per plan. Native
+collision indexes are built lazily and reused for that plan. A DynamicRRT
+session also retains its node arrays and incremental KD index across growth
+calls. Normal growth returns only the appended node delta; a prune operation
+returns a remapped full-tree snapshot. When a serialized native space model
+changes, the session rebuilds its collision index and revalidates the tree. An
+explicit prune also refreshes the index, including when a caller mutates the
+model arrays in place and keeps the same model-struct address.
+A custom space can implement `to_native_model()` and return
 `NativeContinuousSpaceModel` with the same bounds and supported box, sphere, and
 oriented-box primitives. The C engine then performs sampling, distance,
 steering, state checks, motion checks, and search directly. Python subclasses
@@ -127,9 +137,11 @@ cross into Python during planning. The result stats report whether callbacks
 were used and whether a native space model was supplied.
 
 `DynamicRRT3D` keeps its existing Python-facing tree collections for callers,
-while C performs pruning, nearest-node queries, edge checks, and growth. The
-Python object serializes the current tree and rebuilds its public collections
-from the returned arrays.
+while the C session retains the authoritative node arrays and nearest-neighbor
+index between growth calls. Python serializes the tree when a session is first
+created or after a caller manually changes it, then appends native node deltas
+to the public collections. Pruning is the operation that returns a complete
+remapped snapshot.
 
 ## Data Layout and Scale
 
@@ -172,9 +184,9 @@ implement or dispatch individual expansion steps. `MANIFEST.in` includes the
 If a library is missing or incompatible, rebuild with `make build-ext`. The
 exact ABI versions, callback failure rules, and resource ownership contract
 are documented in [Native ABI, ownership, and errors](native_abi.md). Changing
-a C struct requires updating its matching `ctypes.Structure` in `_ffi.py` or
-`continuous.py` and incrementing the corresponding ABI version in the same
-change.
+a C struct requires updating its matching `ctypes.Structure` in `_ffi.py`,
+`_continuous_ffi.py`, or the corresponding adapter and incrementing the ABI
+version in the same change.
 
 `TraceOptions` selects a diagnostic library for one planning run. Native code
 records ordered events into a bounded buffer; Python copies them into
@@ -199,12 +211,15 @@ custom objectives because their bounds rely on those assumptions.
 
 ## Benchmark Scope
 
-Both `scripts/benchmark_native_sampling.py` and
-`scripts/benchmark_planners.py` emit the shared v1 report, including raw
-measured and warm-up runs, seed and workload settings, environment and source
-provenance, and explicit summary denominators. The 2026-10-02 native sampling
-report predates that contract and remains summary-only historical evidence.
+`scripts/benchmark_native_sampling.py`, `scripts/benchmark_planners.py`, and
+`scripts/benchmark_continuous_scaling.py` emit the shared v1 report, including
+raw measured and warm-up runs, seed and workload settings, environment and
+source provenance, and explicit summary denominators. The 2026-10-02 native
+sampling report predates that contract and remains summary-only historical evidence.
 See [the benchmark contract](benchmark_contract.md). Its results are documented
 in [`docs/benchmarks/native_sampling_2026-10-02.md`](benchmarks/native_sampling_2026-10-02.md).
 The planner benchmark covers 2D A*, 2D RRT, and 3D weighted A*. Results
-characterize these workloads; they are not a planner-wide speedup claim.
+characterize these workloads; they are not a planner-wide speedup claim. The
+continuous scaling benchmark measures repeated DynamicRRT growth against a
+full-tree one-shot round trip and RRT collision workloads with 0, 10, 100, and
+500 obstacles. Its results apply only to the recorded host and workload.

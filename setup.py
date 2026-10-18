@@ -44,7 +44,11 @@ setup(
         ),
         Extension(
             "pathplanning.native._continuous_engine",
-            sources=["pathplanning/native/continuous_engine.c"],
+            sources=[
+                "pathplanning/native/continuous_engine.c",
+                "pathplanning/native/continuous_collision.c",
+                "pathplanning/native/continuous_dynamic.c",
+            ],
             include_dirs=["pathplanning/native"],
             language="c",
             extra_compile_args=["-std=c11", "-O3"],
@@ -77,7 +81,11 @@ setup(
         ),
         Extension(
             "pathplanning.native._continuous_trace_engine",
-            sources=["pathplanning/native/continuous_engine.c"],
+            sources=[
+                "pathplanning/native/continuous_engine.c",
+                "pathplanning/native/continuous_collision.c",
+                "pathplanning/native/continuous_dynamic.c",
+            ],
             include_dirs=["pathplanning/native"],
             language="c",
             define_macros=[("PP_ENABLE_TRACE", "1")],

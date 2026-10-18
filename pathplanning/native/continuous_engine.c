@@ -3,6 +3,7 @@
 #endif
 
 #include "continuous_engine.h"
+#include "continuous_internal.h"
 
 #include <math.h>
 #include <stdio.h>
@@ -11,63 +12,13 @@
 #include <time.h>
 
 #define PP_C_INF INFINITY
-#define PP_C_NONE UINT32_MAX
 #define PP_C_VERSION "1.7.0"
-#define PP_C_KD_LEVELS 32
 #define PP_C_PRM_KD_MIN_VERTICES 256
 #define PP_C_FCIT_BATCH_LIMIT 64
 #define PP_C_RIT_CARM_BIN_CAPACITY 8192
 #define PP_C_RIT_CARM_MAX_POINTS 4096
 /* Bounds the omitted normalized Gaussian tail in the 2D spatial index. */
 #define PP_C_RIT_CARM_SCALE_ERROR 1e-14
-
-typedef struct {
-    uint32_t *ids;
-    size_t count;
-} pp_kd_block;
-
-typedef struct {
-    pp_kd_block blocks[PP_C_KD_LEVELS];
-    size_t dimension;
-} pp_kd_index;
-
-typedef struct {
-    uint64_t state;
-    uint64_t increment;
-} pp_rng;
-
-#ifdef PP_ENABLE_TRACE
-typedef struct {
-    pp_trace_result *out;
-    uint64_t max_bytes;
-    size_t event_capacity;
-    size_t point_capacity;
-    size_t map_capacity;
-    uint64_t *node_ids;
-    uint64_t pending_sample;
-    uint64_t last_solution_node;
-    double last_solution_cost;
-    uint32_t side;
-    int restoring_initial;
-    uint64_t original_id;
-} pp_trace_buffer;
-#endif
-
-typedef struct {
-    double *points;
-    double *cost;
-    double *edge_cost;
-    uint32_t *parent;
-    uint32_t *first_child;
-    uint32_t *next_sibling;
-    uint8_t *flags;
-    uint32_t count;
-    uint32_t capacity;
-    size_t dimension;
-#ifdef PP_ENABLE_TRACE
-    pp_trace_buffer *trace;
-#endif
-} pp_nodes;
 
 typedef struct {
     uint32_t *items;
@@ -137,7 +88,7 @@ typedef struct {
     int occupied;
 } pp_rit_carm_bin;
 
-typedef struct {
+struct pp_rit_state {
     double *collision_points;
     size_t collision_count;
     size_t collision_capacity;
@@ -156,9 +107,9 @@ typedef struct {
     int constant_metric;
     uint64_t metric_evaluations;
     uint64_t metric_updates;
-} pp_rit_state;
+};
 
-typedef struct {
+struct pp_jit_state {
     double *failed_edges;
     size_t failure_count;
     size_t failure_capacity;
@@ -166,34 +117,8 @@ typedef struct {
     uint64_t biased_samples;
     uint64_t ancestor_candidates;
     uint64_t manipulability_evaluations;
-} pp_jit_state;
+};
 
-typedef struct {
-    const pp_continuous_callbacks *callbacks;
-    const pp_continuous_options *options;
-    size_t dimension;
-    int has_goal_point;
-    const double *goal;
-    pp_rng rng;
-    pp_nodes nodes;
-    pp_kd_index indices[2];
-    uint64_t iterations;
-    uint64_t samples;
-    uint64_t batches;
-    uint64_t motion_checks;
-    uint64_t rewires;
-    uint64_t metric_evaluations;
-    uint64_t metric_updates;
-    uint64_t jit_biased_samples;
-    uint64_t jit_ancestor_candidates;
-    uint64_t manipulability_evaluations;
-    double started;
-    pp_rit_state *rit;
-    pp_jit_state *jit;
-#ifdef PP_ENABLE_TRACE
-    pp_trace_buffer *trace;
-#endif
-} pp_context;
 
 static int pp_rit_edge_cost(pp_context *ctx, const double *a, const double *b,
                             double *out);
@@ -233,7 +158,7 @@ full:
     return -1;
 }
 
-static int pp_trace_append_event(pp_trace_buffer *trace, uint32_t kind,
+int pp_trace_append_event(pp_trace_buffer *trace, uint32_t kind,
                                  uint64_t node, uint64_t parent,
                                  double value, uint32_t side) {
     pp_trace_event *event;
@@ -246,7 +171,7 @@ static int pp_trace_append_event(pp_trace_buffer *trace, uint32_t kind,
     return 0;
 }
 
-static uint64_t pp_trace_append_point(pp_trace_buffer *trace, const double *point) {
+uint64_t pp_trace_append_point(pp_trace_buffer *trace, const double *point) {
     size_t id = trace->out->point_count;
     size_t bytes;
     if (trace->out->dimension == 0 || trace->out->dimension > SIZE_MAX / sizeof(double)) {
@@ -260,7 +185,7 @@ static uint64_t pp_trace_append_point(pp_trace_buffer *trace, const double *poin
     return (uint64_t)id;
 }
 
-static int pp_trace_map_node(pp_trace_buffer *trace, uint32_t native_id, uint64_t id) {
+int pp_trace_map_node(pp_trace_buffer *trace, uint32_t native_id, uint64_t id) {
     size_t previous = trace->map_capacity;
     if (pp_trace_reserve(trace, (size_t)native_id + 1, &trace->map_capacity,
                          sizeof(uint64_t), (void **)&trace->node_ids) != 0) return -1;
@@ -269,12 +194,12 @@ static int pp_trace_map_node(pp_trace_buffer *trace, uint32_t native_id, uint64_
     return 0;
 }
 
-static uint64_t pp_trace_id(const pp_trace_buffer *trace, uint32_t native_id) {
+uint64_t pp_trace_id(const pp_trace_buffer *trace, uint32_t native_id) {
     return native_id != PP_C_NONE && native_id < trace->map_capacity
         ? trace->node_ids[native_id] : UINT64_MAX;
 }
 
-static void pp_trace_native_event(pp_trace_buffer *trace, uint32_t kind,
+void pp_trace_native_event(pp_trace_buffer *trace, uint32_t kind,
                                   uint32_t node, uint32_t parent, double value,
                                   uint32_t side) {
     uint64_t id, parent_id;
@@ -285,7 +210,7 @@ static void pp_trace_native_event(pp_trace_buffer *trace, uint32_t kind,
     (void)pp_trace_append_event(trace, kind, id, parent_id, value, side);
 }
 
-static void pp_trace_sample(pp_context *ctx, const double *point) {
+void pp_trace_sample(pp_context *ctx, const double *point) {
     pp_trace_buffer *trace = ctx->trace;
     uint64_t id;
     if (trace == NULL || trace->out->truncated) return;
@@ -339,13 +264,13 @@ static void pp_trace_solution(pp_context *ctx, uint32_t node,
     }
 }
 
-static void pp_trace_phase(pp_context *ctx, double phase) {
+void pp_trace_phase(pp_context *ctx, double phase) {
     if (ctx->trace != NULL)
         (void)pp_trace_append_event(ctx->trace, PP_TRACE_PHASE,
                                     UINT64_MAX, UINT64_MAX, phase, ctx->trace->side);
 }
 
-static void pp_trace_init(pp_trace_buffer *buffer, pp_trace_result *out,
+void pp_trace_init(pp_trace_buffer *buffer, pp_trace_result *out,
                            size_t dimension, uint64_t max_bytes) {
     memset(out, 0, sizeof(*out));
     memset(buffer, 0, sizeof(*buffer));
@@ -355,13 +280,13 @@ static void pp_trace_init(pp_trace_buffer *buffer, pp_trace_result *out,
     buffer->last_solution_node = UINT64_MAX;
 }
 
-static void pp_trace_finish(pp_trace_buffer *buffer) {
+void pp_trace_finish(pp_trace_buffer *buffer) {
     free(buffer->node_ids);
     buffer->node_ids = NULL;
 }
 #endif
 
-static double pp_now(void) {
+double pp_now(void) {
     struct timespec value;
 #if defined(_WIN32)
     if (timespec_get(&value, TIME_UTC) != TIME_UTC) return (double)clock() / CLOCKS_PER_SEC;
@@ -371,7 +296,7 @@ static double pp_now(void) {
     return (double)value.tv_sec + (double)value.tv_nsec * 1e-9;
 }
 
-static void pp_set_error(pp_continuous_result *result, const char *message) {
+void pp_set_error(pp_continuous_result *result, const char *message) {
     size_t length;
     if (result == NULL || message == NULL) return;
     free(result->error_message);
@@ -392,7 +317,7 @@ static uint32_t pp_rng_u32(pp_rng *rng) {
     return (xorshifted >> rotation) | (xorshifted << ((-(int32_t)rotation) & 31));
 }
 
-static void pp_rng_seed(pp_rng *rng, uint64_t seed) {
+void pp_rng_seed(pp_rng *rng, uint64_t seed) {
     rng->state = 0;
     rng->increment = (seed << 1u) | 1u;
     (void)pp_rng_u32(rng);
@@ -400,11 +325,11 @@ static void pp_rng_seed(pp_rng *rng, uint64_t seed) {
     (void)pp_rng_u32(rng);
 }
 
-static double pp_uniform(pp_rng *rng) {
+double pp_uniform(pp_rng *rng) {
     return ((double)pp_rng_u32(rng) + 0.5) / 4294967296.0;
 }
 
-static double pp_distance2(const double *a, const double *b, size_t dimension) {
+double pp_distance2(const double *a, const double *b, size_t dimension) {
     double total = 0.0;
     size_t i;
     for (i = 0; i < dimension; ++i) {
@@ -412,59 +337,6 @@ static double pp_distance2(const double *a, const double *b, size_t dimension) {
         total += delta * delta;
     }
     return total;
-}
-
-static int pp_native_state_in_bounds(const pp_continuous_space_model *model,
-                                     const double *state, size_t dimension) {
-    size_t i;
-    if (model == NULL || model->lower_bounds == NULL || model->upper_bounds == NULL) return 0;
-    for (i = 0; i < dimension; ++i)
-        if (!isfinite(state[i]) || state[i] < model->lower_bounds[i] ||
-            state[i] > model->upper_bounds[i]) return 0;
-    return 1;
-}
-
-static int pp_native_state_valid(const pp_continuous_space_model *model,
-                                 const double *state, size_t dimension) {
-    size_t i, obstacle;
-    if (!pp_native_state_in_bounds(model, state, dimension)) return 0;
-    if ((model->box_count != 0 && (model->box_minima == NULL || model->box_maxima == NULL)) ||
-        (model->sphere_count != 0 && (model->sphere_centers == NULL || model->sphere_radii == NULL)) ||
-        (model->obb_count != 0 && (model->obb_centers == NULL || model->obb_extents == NULL ||
-                                   model->obb_orientations == NULL))) return 0;
-    for (obstacle = 0; obstacle < model->box_count; ++obstacle) {
-        int inside = 1;
-        for (i = 0; i < dimension; ++i) {
-            size_t at = obstacle * dimension + i;
-            if (state[i] < model->box_minima[at] || state[i] > model->box_maxima[at]) { inside = 0; break; }
-        }
-        if (inside) return 0;
-    }
-    for (obstacle = 0; obstacle < model->sphere_count; ++obstacle) {
-        double radius = model->sphere_radii[obstacle];
-        double distance2 = 0.0;
-        for (i = 0; i < dimension; ++i) {
-            double delta = state[i] - model->sphere_centers[obstacle * dimension + i];
-            distance2 += delta * delta;
-        }
-        if (distance2 <= radius * radius) return 0;
-    }
-    if (model->obb_count != 0 && dimension != 3) return 0;
-    for (obstacle = 0; obstacle < model->obb_count; ++obstacle) {
-        size_t axis, row;
-        int inside = 1;
-        for (axis = 0; axis < 3; ++axis) {
-            double local = 0.0;
-            for (row = 0; row < 3; ++row) {
-                size_t center_at = obstacle * 3 + row;
-                size_t orientation_at = obstacle * 9 + row * 3 + axis;
-                local += model->obb_orientations[orientation_at] * (state[row] - model->obb_centers[center_at]);
-            }
-            if (fabs(local) > model->obb_extents[obstacle * 3 + axis]) { inside = 0; break; }
-        }
-        if (inside) return 0;
-    }
-    return 1;
 }
 
 static int pp_id_less(uint32_t a, uint32_t b, const double *points,
@@ -566,7 +438,7 @@ static int pp_kd_insert(pp_kd_index *index, uint32_t id, const double *points) {
     return -1;
 }
 
-static void pp_kd_free(pp_kd_index *index) {
+void pp_kd_free(pp_kd_index *index) {
     size_t i;
     for (i = 0; i < PP_C_KD_LEVELS; ++i) { free(index->blocks[i].ids); index->blocks[i].ids = NULL; index->blocks[i].count = 0; }
 }
@@ -658,7 +530,7 @@ static int pp_kd_radius(const pp_kd_index *index, const double *query, double ra
     return 0;
 }
 
-static int pp_nodes_reserve(pp_nodes *nodes, uint32_t requested) {
+int pp_nodes_reserve(pp_nodes *nodes, uint32_t requested) {
     uint32_t capacity;
     double *points, *cost, *edge_cost;
     uint32_t *parent, *first_child, *next_sibling;
@@ -689,7 +561,7 @@ static int pp_nodes_reserve(pp_nodes *nodes, uint32_t requested) {
     return 0;
 }
 
-static uint32_t pp_node_add(pp_nodes *nodes, const double *state, uint32_t parent,
+uint32_t pp_node_add(pp_nodes *nodes, const double *state, uint32_t parent,
                             double cost, double edge_cost, uint8_t flags) {
     uint32_t id;
     if (nodes->count == UINT32_MAX || pp_nodes_reserve(nodes, nodes->count + 1) != 0) return PP_C_NONE;
@@ -733,12 +605,12 @@ static void pp_node_attach(pp_nodes *nodes, uint32_t id, uint32_t parent,
 #endif
 }
 
-static void pp_nodes_free(pp_nodes *nodes) {
+void pp_nodes_free(pp_nodes *nodes) {
     free(nodes->points); free(nodes->cost); free(nodes->edge_cost); free(nodes->parent);
     free(nodes->first_child); free(nodes->next_sibling); free(nodes->flags); memset(nodes, 0, sizeof(*nodes));
 }
 
-static const double *pp_point(const pp_nodes *nodes, uint32_t id) {
+const double *pp_point(const pp_nodes *nodes, uint32_t id) {
     return nodes->points + (size_t)id * nodes->dimension;
 }
 
@@ -752,105 +624,43 @@ static int pp_distance(pp_context *ctx, const double *a, const double *b, double
     *out = value; return 0;
 }
 
-static int pp_valid_state(pp_context *ctx, const double *state) {
-    int valid = ctx->callbacks->native_space != NULL
-        ? pp_native_state_valid(ctx->callbacks->native_space, state, ctx->dimension)
-        : ctx->callbacks->state_valid(ctx->callbacks->user_data, state, ctx->dimension);
+int pp_valid_state(pp_context *ctx, const double *state) {
+    int valid;
+    if (ctx->callbacks->native_space != NULL) {
+        if (ctx->collision_index == NULL ||
+            ctx->collision_model != ctx->callbacks->native_space) {
+            pp_collision_index_free(ctx->collision_index);
+            ctx->collision_index = NULL;
+            ctx->collision_model = ctx->callbacks->native_space;
+            if (pp_collision_index_create(ctx->collision_model, ctx->dimension,
+                                          &ctx->collision_index) != 0) return -1;
+        }
+        valid = pp_collision_state_valid(ctx->collision_index,
+                                         ctx->callbacks->native_space,
+                                         state, ctx->dimension);
+    } else {
+        valid = ctx->callbacks->state_valid(ctx->callbacks->user_data,
+                                            state, ctx->dimension);
+    }
     return valid == 0 || valid == 1 ? valid : -1;
 }
 
-static int pp_segment_intersects_aabb(const double *start, const double *end,
-                                      const double *minimum, const double *maximum,
-                                      size_t dimension) {
-    double first = 0.0, last = 1.0;
-    size_t axis;
-    for (axis = 0; axis < dimension; ++axis) {
-        double delta = end[axis] - start[axis];
-        double enter, leave;
-        if (delta == 0.0) {
-            if (start[axis] < minimum[axis] || start[axis] > maximum[axis])
-                return 0;
-            continue;
-        }
-        enter = (minimum[axis] - start[axis]) / delta;
-        leave = (maximum[axis] - start[axis]) / delta;
-        if (enter > leave) {
-            double swap = enter;
-            enter = leave;
-            leave = swap;
-        }
-        first = fmax(first, enter);
-        last = fmin(last, leave);
-        if (first > last) return 0;
-    }
-    return 1;
-}
-
-static int pp_native_motion_valid(const pp_continuous_space_model *model,
-                                  const double *start, const double *end,
-                                  size_t dimension) {
-    size_t obstacle, axis;
-    if (!pp_native_state_in_bounds(model, start, dimension) ||
-        !pp_native_state_in_bounds(model, end, dimension) ||
-        (model->box_count != 0 &&
-         (model->box_minima == NULL || model->box_maxima == NULL)) ||
-        (model->sphere_count != 0 &&
-         (model->sphere_centers == NULL || model->sphere_radii == NULL)) ||
-        (model->obb_count != 0 &&
-         (model->obb_centers == NULL || model->obb_extents == NULL ||
-          model->obb_orientations == NULL || dimension != 3))) return 0;
-    for (obstacle = 0; obstacle < model->box_count; ++obstacle) {
-        size_t offset = obstacle * dimension;
-        if (pp_segment_intersects_aabb(start, end,
-                model->box_minima + offset, model->box_maxima + offset,
-                dimension)) return 0;
-    }
-    for (obstacle = 0; obstacle < model->sphere_count; ++obstacle) {
-        const double *center = model->sphere_centers + obstacle * dimension;
-        double radius = model->sphere_radii[obstacle];
-        double length2 = 0.0, projection = 0.0, distance2 = 0.0;
-        for (axis = 0; axis < dimension; ++axis) {
-            double delta = end[axis] - start[axis];
-            length2 += delta * delta;
-            projection += (center[axis] - start[axis]) * delta;
-        }
-        projection = length2 == 0.0 ? 0.0 : projection / length2;
-        projection = fmax(0.0, fmin(1.0, projection));
-        for (axis = 0; axis < dimension; ++axis) {
-            double closest = start[axis] + projection * (end[axis] - start[axis]);
-            double delta = closest - center[axis];
-            distance2 += delta * delta;
-        }
-        if (distance2 <= radius * radius) return 0;
-    }
-    for (obstacle = 0; obstacle < model->obb_count; ++obstacle) {
-        double local_start[3], local_end[3], minimum[3], maximum[3];
-        size_t local_axis, row;
-        for (local_axis = 0; local_axis < 3; ++local_axis) {
-            double start_value = 0.0, end_value = 0.0;
-            for (row = 0; row < 3; ++row) {
-                size_t center_at = obstacle * 3 + row;
-                size_t orientation_at = obstacle * 9 + row * 3 + local_axis;
-                double orientation = model->obb_orientations[orientation_at];
-                start_value += orientation * (start[row] - model->obb_centers[center_at]);
-                end_value += orientation * (end[row] - model->obb_centers[center_at]);
-            }
-            local_start[local_axis] = start_value;
-            local_end[local_axis] = end_value;
-            minimum[local_axis] = -model->obb_extents[obstacle * 3 + local_axis];
-            maximum[local_axis] = model->obb_extents[obstacle * 3 + local_axis];
-        }
-        if (pp_segment_intersects_aabb(local_start, local_end, minimum, maximum, 3))
-            return 0;
-    }
-    return 1;
-}
-
-static int pp_valid_motion(pp_context *ctx, const double *a, const double *b) {
+int pp_valid_motion(pp_context *ctx, const double *a, const double *b) {
     if (ctx->callbacks->native_space != NULL) {
+        int valid;
+        if (ctx->collision_index == NULL ||
+            ctx->collision_model != ctx->callbacks->native_space) {
+            pp_collision_index_free(ctx->collision_index);
+            ctx->collision_index = NULL;
+            ctx->collision_model = ctx->callbacks->native_space;
+            if (pp_collision_index_create(ctx->collision_model, ctx->dimension,
+                                          &ctx->collision_index) != 0) return -1;
+        }
         ++ctx->motion_checks;
-        return pp_native_motion_valid(ctx->callbacks->native_space, a, b,
-                                      ctx->dimension);
+        valid = pp_collision_motion_valid(ctx->collision_index,
+                                          ctx->callbacks->native_space,
+                                          a, b, ctx->dimension);
+        return valid == 0 || valid == 1 ? valid : -1;
     }
     ++ctx->motion_checks;
     {
@@ -915,7 +725,7 @@ static int pp_valid_motion_batch(pp_context *ctx, const pp_edge_entry *edges,
     return 0;
 }
 
-static int pp_sample(pp_context *ctx, double *out) {
+int pp_sample(pp_context *ctx, double *out) {
     uint64_t attempt;
     for (attempt = 0; attempt < ctx->options->max_sample_tries; ++attempt) {
         int status;
@@ -924,7 +734,7 @@ static int pp_sample(pp_context *ctx, double *out) {
             const pp_continuous_space_model *model = ctx->callbacks->native_space;
             for (i = 0; i < ctx->dimension; ++i)
                 out[i] = model->lower_bounds[i] + pp_uniform(&ctx->rng) * (model->upper_bounds[i] - model->lower_bounds[i]);
-            status = pp_native_state_valid(model, out, ctx->dimension);
+            status = pp_valid_state(ctx, out);
         } else {
             status = ctx->callbacks->sample_free(ctx->callbacks->user_data, out, ctx->dimension);
             if (status != 0) return -1;
@@ -942,7 +752,7 @@ static int pp_sample(pp_context *ctx, double *out) {
     return -2;
 }
 
-static int pp_steer(pp_context *ctx, const double *from, const double *to, double *out,
+int pp_steer(pp_context *ctx, const double *from, const double *to, double *out,
                     double *edge_distance) {
     double distance;
     if (pp_distance(ctx, from, to, &distance) != 0) return -1;
@@ -1007,7 +817,7 @@ static double pp_radius(const pp_context *ctx, uint64_t count) {
     return fmin(ctx->options->step_size * ctx->options->rrt_star_radius_max_factor, radius);
 }
 
-static int pp_nearest(pp_context *ctx, const pp_kd_index *index, const double *target,
+int pp_nearest(pp_context *ctx, const pp_kd_index *index, const double *target,
                       uint32_t *out) {
     size_t i;
     double best = PP_C_INF;
@@ -1050,12 +860,12 @@ static int pp_radius_ids(pp_context *ctx, const pp_kd_index *index, const double
     return 0;
 }
 
-static int pp_add_index(pp_context *ctx, pp_kd_index *index, uint32_t id) {
+int pp_add_index(pp_context *ctx, pp_kd_index *index, uint32_t id) {
     if (index == NULL) return 0;
     return pp_kd_insert(index, id, ctx->nodes.points);
 }
 
-static int pp_path_to_result(pp_context *ctx, const uint32_t *ids, size_t length,
+int pp_path_to_result(pp_context *ctx, const uint32_t *ids, size_t length,
                              double path_cost, int stop_reason,
                              pp_continuous_result *result) {
     size_t i;
@@ -1082,7 +892,7 @@ static int pp_path_to_result(pp_context *ctx, const uint32_t *ids, size_t length
     return 0;
 }
 
-static size_t pp_reconstruct(const pp_nodes *nodes, uint32_t end, uint32_t *path) {
+size_t pp_reconstruct(const pp_nodes *nodes, uint32_t end, uint32_t *path) {
     size_t length = 0, i;
     uint32_t current = end;
     while (current != PP_C_NONE && length < nodes->count) {
@@ -4194,6 +4004,7 @@ static int pp_continuous_plan_impl(const pp_continuous_callbacks *callbacks,
     if (result->success) result->elapsed_s = pp_now() - ctx.started;
 done:
     pp_kd_free(&ctx.indices[0]); pp_kd_free(&ctx.indices[1]); pp_nodes_free(&ctx.nodes);
+    pp_collision_index_free(ctx.collision_index);
     free(rit.collision_points);
     free(rit.carm_bins);
     free(rit.collision_next);
@@ -4493,11 +4304,13 @@ int pp_prm_star_build(pp_prm_star_roadmap *roadmap,
     result->elapsed_s = pp_now() - ctx.started;
     pp_kd_free(&native_index);
     free(neighbors.items);
+    pp_collision_index_free(ctx.collision_index);
     return 0;
 fail:
     free(sample);
     pp_kd_free(&native_index);
     free(neighbors.items);
+    pp_collision_index_free(ctx.collision_index);
     pp_prm_star_clear_storage(roadmap);
     result->stop_reason = 4;
     result->elapsed_s = pp_now() - ctx.started;
@@ -4891,6 +4704,7 @@ done:
     }
     free(edges); free(offsets); free(neighbors); free(edge_ids); free(costs);
     free(distance); free(effort); free(parents); free(parent_edges); free(closed); free(open.items);
+    pp_collision_index_free(ctx.collision_index);
     return status;
 }
 
@@ -4938,378 +4752,6 @@ void pp_prm_star_free(pp_prm_star_roadmap *roadmap) {
     pp_prm_star_clear_storage(roadmap);
     free(roadmap);
 }
-
-static int pp_dynamic_return_path(pp_context *ctx, uint32_t goal_id,
-                                  pp_dynamic_rrt_result *result) {
-    uint32_t *ids = (uint32_t *)malloc((size_t)ctx->nodes.count * sizeof(uint32_t));
-    size_t length;
-    int status;
-    if (ids == NULL) return -1;
-    length = pp_reconstruct(&ctx->nodes, goal_id, ids);
-    status = length == 0 ? -1 : pp_path_to_result(ctx, ids, length,
-                                                   ctx->nodes.cost[goal_id], 0,
-                                                   &result->plan);
-    free(ids);
-    return status;
-}
-
-static int pp_dynamic_return_tree(const pp_nodes *nodes,
-                                  pp_dynamic_rrt_result *result) {
-    size_t point_count = (size_t)nodes->count * nodes->dimension;
-    if (nodes->count == 0 || point_count > SIZE_MAX / sizeof(double)) return -1;
-    result->tree_points = (double *)malloc(point_count * sizeof(double));
-    result->tree_parents = (uint32_t *)malloc((size_t)nodes->count * sizeof(uint32_t));
-    if (result->tree_points == NULL || result->tree_parents == NULL) return -1;
-    memcpy(result->tree_points, nodes->points, point_count * sizeof(double));
-    memcpy(result->tree_parents, nodes->parent, (size_t)nodes->count * sizeof(uint32_t));
-    result->tree_count = nodes->count;
-    return 0;
-}
-
-static int pp_dynamic_rrt_plan_impl(const pp_continuous_callbacks *callbacks,
-                                    const double *start, const double *goal,
-                                    const double *initial_points,
-                                    const uint32_t *initial_parents,
-                                    size_t initial_count, size_t dimension,
-                                    const pp_continuous_options *options,
-                                    double waypoint_sample_rate,
-                                    int prune_only,
-                                    pp_dynamic_rrt_result *result
-#ifdef PP_ENABLE_TRACE
-                                    , pp_trace_buffer *trace
-#endif
-                                    ) {
-    pp_context ctx;
-    uint32_t *remap = NULL, *invalid_nodes = NULL, goal_id = PP_C_NONE;
-    uint8_t *keep = NULL;
-    double *sample = NULL, *candidate = NULL;
-    size_t i;
-    uint64_t iteration;
-    int status = -1;
-
-    if (result == NULL) return -1;
-    memset(result, 0, sizeof(*result));
-    result->plan.stop_reason = 4;
-    if (callbacks == NULL || start == NULL || goal == NULL || initial_points == NULL ||
-        initial_parents == NULL || initial_count == 0 || options == NULL || dimension == 0 ||
-        dimension > 1024 || initial_count > UINT32_MAX - 1 ||
-        (callbacks->native_space == NULL &&
-         (callbacks->sample_free == NULL || callbacks->state_valid == NULL ||
-          callbacks->motion_valid == NULL || callbacks->distance == NULL || callbacks->steer == NULL)) ||
-        !(waypoint_sample_rate >= 0.0 && waypoint_sample_rate <= 1.0) ||
-        (prune_only != 0 && prune_only != 1) ||
-        !(options->goal_sample_rate >= 0.0 && options->goal_sample_rate <= 1.0) ||
-        options->goal_sample_rate + waypoint_sample_rate > 1.0 ||
-        options->max_iters == UINT64_MAX || options->max_sample_tries == 0 ||
-        !isfinite(options->step_size) || !(options->step_size > 0.0) ||
-        !isfinite(options->collision_step) || !(options->collision_step > 0.0) ||
-        initial_count > SIZE_MAX / dimension ||
-        initial_count * dimension > SIZE_MAX / sizeof(double)) {
-        pp_set_error(&result->plan, "dynamic RRT inputs or options are invalid");
-        return -1;
-    }
-    if (initial_parents[0] != PP_C_NONE ||
-        pp_distance2(initial_points, start, dimension) > 1e-24) {
-        pp_set_error(&result->plan, "dynamic RRT tree root must match its start state");
-        return -1;
-    }
-    for (i = 0; i < initial_count; ++i) {
-        size_t axis;
-        if (i > 0 && initial_parents[i] >= i) {
-            pp_set_error(&result->plan, "dynamic RRT parent ids must precede their children");
-            return -1;
-        }
-        for (axis = 0; axis < dimension; ++axis) {
-            if (!isfinite(initial_points[i * dimension + axis])) {
-                pp_set_error(&result->plan, "dynamic RRT tree contains a non-finite state");
-                return -1;
-            }
-        }
-    }
-
-    memset(&ctx, 0, sizeof(ctx));
-    ctx.callbacks = callbacks;
-    ctx.options = options;
-    ctx.dimension = dimension;
-    ctx.has_goal_point = 1;
-    ctx.goal = goal;
-    ctx.started = pp_now();
-    ctx.nodes.dimension = dimension;
-#ifdef PP_ENABLE_TRACE
-    ctx.trace = trace;
-    ctx.nodes.trace = trace;
-#endif
-    ctx.indices[0].dimension = dimension;
-    pp_rng_seed(&ctx.rng, options->seed);
-#ifdef PP_ENABLE_TRACE
-    if (ctx.trace != NULL) {
-        pp_trace_phase(&ctx, 0.0);  // Caller-supplied tree before pruning.
-        for (i = 0; i < initial_count && !ctx.trace->out->truncated; ++i) {
-            uint64_t id = pp_trace_append_point(ctx.trace, initial_points + i * dimension);
-            if (id == UINT64_MAX) break;
-            (void)pp_trace_append_event(ctx.trace, PP_TRACE_DISCOVER, id,
-                i == 0 ? UINT64_MAX : (uint64_t)initial_parents[i], 0.0, 0);
-        }
-        pp_trace_phase(&ctx, 1.0);  // Prune invalid edges and descendants.
-    }
-#endif
-    remap = (uint32_t *)malloc(initial_count * sizeof(uint32_t));
-    keep = (uint8_t *)calloc(initial_count, sizeof(uint8_t));
-    invalid_nodes = (uint32_t *)malloc(initial_count * sizeof(uint32_t));
-    sample = (double *)malloc(dimension * sizeof(double));
-    candidate = (double *)malloc(dimension * sizeof(double));
-    if (remap == NULL || keep == NULL || invalid_nodes == NULL || sample == NULL || candidate == NULL ||
-        pp_nodes_reserve(&ctx.nodes, (uint32_t)initial_count) != 0) {
-        pp_set_error(&result->plan, "out of memory initializing dynamic RRT");
-        goto done;
-    }
-    for (i = 0; i < initial_count; ++i) remap[i] = PP_C_NONE;
-    for (i = 0; i < initial_count; ++i) {
-        uint32_t old_parent = initial_parents[i], parent = PP_C_NONE, id;
-        double edge_cost = 0.0;
-        int valid = 1;
-        if (i != 0) {
-            int edge_valid = pp_valid_motion(
-                &ctx, initial_points + (size_t)old_parent * dimension,
-                initial_points + i * dimension);
-            if (edge_valid < 0) {
-                pp_set_error(&result->plan, "motion-validity callback failed while pruning tree");
-                goto done;
-            }
-            if (!edge_valid) invalid_nodes[result->invalid_count++] = (uint32_t)i;
-            valid = keep[old_parent] && edge_valid;
-            if (valid) {
-                parent = remap[old_parent];
-                edge_cost = sqrt(pp_distance2(
-                    initial_points + (size_t)old_parent * dimension,
-                    initial_points + i * dimension, dimension));
-            }
-        }
-        if (!valid) {
-#ifdef PP_ENABLE_TRACE
-            if (ctx.trace != NULL && !ctx.trace->out->truncated)
-                (void)pp_trace_append_event(ctx.trace, PP_TRACE_PRUNE,
-                    (uint64_t)i, i == 0 ? UINT64_MAX : (uint64_t)old_parent, 0.0, 0);
-#endif
-            continue;
-        }
-        keep[i] = 1;
-#ifdef PP_ENABLE_TRACE
-        if (ctx.trace != NULL) {
-            ctx.trace->restoring_initial = 1;
-            ctx.trace->original_id = (uint64_t)i;
-        }
-#endif
-        id = pp_node_add(&ctx.nodes, initial_points + i * dimension, parent,
-                         i == 0 ? 0.0 : ctx.nodes.cost[parent] + edge_cost,
-                         edge_cost, 0);
-#ifdef PP_ENABLE_TRACE
-        if (ctx.trace != NULL) ctx.trace->restoring_initial = 0;
-#endif
-        if (id == PP_C_NONE || pp_add_index(&ctx, &ctx.indices[0], id) != 0) {
-            pp_set_error(&result->plan, "out of memory restoring dynamic RRT tree");
-            goto done;
-        }
-        remap[i] = id;
-    }
-    if (ctx.nodes.count == 0) {
-        pp_set_error(&result->plan, "dynamic RRT start was removed while pruning the tree");
-        goto done;
-    }
-    for (i = 0; i < ctx.nodes.count; ++i) {
-        if (pp_distance2(pp_point(&ctx.nodes, (uint32_t)i), goal, dimension) <= 1e-24) {
-            int valid = pp_valid_state(&ctx, pp_point(&ctx.nodes, (uint32_t)i));
-            if (valid < 0) {
-                pp_set_error(&result->plan, "state-validity callback failed for dynamic RRT goal");
-                goto done;
-            }
-            if (valid) {
-                goal_id = (uint32_t)i;
-                break;
-            }
-        }
-    }
-    if (goal_id != PP_C_NONE) {
-        if (pp_dynamic_return_path(&ctx, goal_id, result) != 0) {
-            pp_set_error(&result->plan, "failed to reconstruct existing dynamic RRT path");
-            goto done;
-        }
-    } else if (!prune_only) {
-#ifdef PP_ENABLE_TRACE
-        pp_trace_phase(&ctx, 2.0);  // Regrowth after the pruned snapshot.
-#endif
-        for (iteration = 0; iteration <= options->max_iters; ++iteration) {
-            double draw = pp_uniform(&ctx.rng);
-            uint32_t nearest, duplicate, id;
-            double edge_cost, goal_distance;
-            int valid;
-            if (draw < options->goal_sample_rate) {
-                memcpy(sample, goal, dimension * sizeof(double));
-            } else if (draw < options->goal_sample_rate + waypoint_sample_rate) {
-                uint32_t waypoint = (uint32_t)(pp_uniform(&ctx.rng) * (double)ctx.nodes.count);
-                if (waypoint >= ctx.nodes.count) waypoint = ctx.nodes.count - 1;
-                memcpy(sample, pp_point(&ctx.nodes, waypoint), dimension * sizeof(double));
-            } else {
-                valid = pp_sample(&ctx, sample);
-                if (valid == -1) {
-                    pp_set_error(&result->plan, "sampling callback failed in dynamic RRT");
-                    goto done;
-                }
-                if (valid == -2) {
-                    pp_set_error(&result->plan, "failed to sample a free state in dynamic RRT");
-                    goto done;
-                }
-            }
-#ifdef PP_ENABLE_TRACE
-            if (draw < options->goal_sample_rate + waypoint_sample_rate)
-                pp_trace_sample(&ctx, sample);
-#endif
-            if (pp_nearest(&ctx, &ctx.indices[0], sample, &nearest) != 0 ||
-                pp_steer(&ctx, pp_point(&ctx.nodes, nearest), sample, candidate, &edge_cost) != 0 ||
-                pp_nearest(&ctx, &ctx.indices[0], candidate, &duplicate) != 0) {
-                pp_set_error(&result->plan, "nearest-node query or steering failed in dynamic RRT");
-                goto done;
-            }
-#ifdef PP_ENABLE_TRACE
-            pp_trace_native_event(ctx.trace, PP_TRACE_EXPAND, nearest, PP_C_NONE,
-                                  (double)ctx.iterations, 0);
-#endif
-            if (pp_distance2(pp_point(&ctx.nodes, duplicate), candidate, dimension) <= 1e-24) {
-                ++ctx.iterations;
-                continue;
-            }
-            valid = pp_valid_motion(&ctx, pp_point(&ctx.nodes, nearest), candidate);
-            if (valid < 0) {
-                pp_set_error(&result->plan, "motion-validity callback failed in dynamic RRT");
-                goto done;
-            }
-            if (!valid) {
-                ++ctx.iterations;
-                continue;
-            }
-            edge_cost = sqrt(pp_distance2(pp_point(&ctx.nodes, nearest), candidate, dimension));
-            id = pp_node_add(&ctx.nodes, candidate, nearest,
-                             ctx.nodes.cost[nearest] + edge_cost, edge_cost, 0);
-            if (id == PP_C_NONE || pp_add_index(&ctx, &ctx.indices[0], id) != 0) {
-                pp_set_error(&result->plan, "out of memory growing dynamic RRT tree");
-                goto done;
-            }
-            goal_distance = sqrt(pp_distance2(candidate, goal, dimension));
-            if (goal_distance <= options->step_size) {
-                valid = pp_valid_motion(&ctx, candidate, goal);
-                if (valid < 0) {
-                    pp_set_error(&result->plan, "motion-validity callback failed near dynamic RRT goal");
-                    goto done;
-                }
-                if (valid) {
-                    if (goal_distance <= 1e-12) goal_id = id;
-                    else {
-                        goal_id = pp_node_add(&ctx.nodes, goal, id,
-                            ctx.nodes.cost[id] + goal_distance, goal_distance, 0);
-                        if (goal_id == PP_C_NONE ||
-                            pp_add_index(&ctx, &ctx.indices[0], goal_id) != 0) {
-                            pp_set_error(&result->plan, "out of memory connecting dynamic RRT goal");
-                            goto done;
-                        }
-                    }
-                    ++ctx.iterations;
-                    break;
-                }
-            }
-            ++ctx.iterations;
-        }
-        if (goal_id != PP_C_NONE && pp_dynamic_return_path(&ctx, goal_id, result) != 0) {
-            pp_set_error(&result->plan, "failed to reconstruct dynamic RRT path");
-            goto done;
-        }
-    }
-    if (!result->plan.success) {
-        result->plan.stop_reason = prune_only ? 3 : 2;
-        result->plan.iters = ctx.iterations;
-        result->plan.nodes = ctx.nodes.count;
-        result->plan.sample_count = ctx.samples;
-        result->plan.motion_checks = ctx.motion_checks;
-        result->plan.elapsed_s = pp_now() - ctx.started;
-    }
-    if (pp_dynamic_return_tree(&ctx.nodes, result) != 0) {
-        pp_set_error(&result->plan, "out of memory returning dynamic RRT tree");
-        goto done;
-    }
-    result->invalid_nodes = invalid_nodes;
-    invalid_nodes = NULL;
-    status = 0;
-
-done:
-    pp_kd_free(&ctx.indices[0]);
-    pp_kd_free(&ctx.indices[1]);
-    pp_nodes_free(&ctx.nodes);
-    free(remap);
-    free(keep);
-    free(invalid_nodes);
-    free(sample);
-    free(candidate);
-    if (status != 0) {
-        free(result->tree_points);
-        free(result->tree_parents);
-        free(result->invalid_nodes);
-        result->tree_points = NULL;
-        result->tree_parents = NULL;
-        result->invalid_nodes = NULL;
-        result->tree_count = 0;
-        result->invalid_count = 0;
-    }
-    return status;
-}
-
-int pp_dynamic_rrt_plan(const pp_continuous_callbacks *callbacks,
-                        const double *start, const double *goal,
-                        const double *initial_points,
-                        const uint32_t *initial_parents,
-                        size_t initial_count, size_t dimension,
-                        const pp_continuous_options *options,
-                        double waypoint_sample_rate,
-                        int prune_only,
-                        pp_dynamic_rrt_result *result) {
-    return pp_dynamic_rrt_plan_impl(callbacks, start, goal, initial_points,
-                                     initial_parents, initial_count, dimension,
-                                     options, waypoint_sample_rate, prune_only, result
-#ifdef PP_ENABLE_TRACE
-                                     , NULL
-#endif
-                                     );
-}
-
-#ifdef PP_ENABLE_TRACE
-int pp_dynamic_rrt_plan_traced(const pp_continuous_callbacks *callbacks,
-                               const double *start, const double *goal,
-                               const double *initial_points,
-                               const uint32_t *initial_parents,
-                               size_t initial_count, size_t dimension,
-                               const pp_continuous_options *options,
-                               double waypoint_sample_rate, int prune_only,
-                               pp_dynamic_rrt_result *result,
-                               uint64_t max_bytes, pp_trace_result *trace) {
-    pp_trace_buffer buffer;
-    int status;
-    if (trace == NULL) return -1;
-    pp_trace_init(&buffer, trace, dimension, max_bytes);
-    status = pp_dynamic_rrt_plan_impl(callbacks, start, goal, initial_points,
-                                      initial_parents, initial_count, dimension,
-                                      options, waypoint_sample_rate, prune_only,
-                                      result, &buffer);
-    pp_trace_finish(&buffer);
-    return status;
-}
-
-uint32_t pp_continuous_trace_abi_version(void) { return PP_CONTINUOUS_TRACE_ABI_VERSION; }
-
-void pp_continuous_trace_free_result(pp_trace_result *trace) {
-    if (trace == NULL) return;
-    free(trace->events);
-    free(trace->points);
-    memset(trace, 0, sizeof(*trace));
-}
-#endif
 
 void pp_continuous_free_result(pp_continuous_result *result) {
     if (result == NULL) return;

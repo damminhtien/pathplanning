@@ -13,6 +13,7 @@ from scipy.spatial import cKDTree
 from pathplanning.core.contracts import ContinuousSpace, State
 from pathplanning.core.trace import PlannerTrace, TraceOptions
 from pathplanning.native.continuous import run_native_dynamic_rrt
+from pathplanning.native.continuous_dynamic import NativeDynamicRRTSession
 from pathplanning.spaces.continuous_3d import AABB, ContinuousSpace3D, Sphere
 
 Node: TypeAlias = tuple[float, float, float]
@@ -235,6 +236,7 @@ class DynamicRRT3D:
         self.node_state: dict[Node, Literal["valid", "invalid"]] = {}
         self.ind = 0
         self.i = 0
+        self._native_session: NativeDynamicRRTSession | None = None
 
         if nearest_index is not None:
             self._nearest_index = nearest_index
@@ -262,6 +264,7 @@ class DynamicRRT3D:
 
     def init_rrt(self) -> None:
         """Initialize the tree with the root node."""
+        self._close_native_session()
         self.nodes = [self.x0]
         self.parent_by_node = {}
         self.edges = set()
@@ -272,6 +275,7 @@ class DynamicRRT3D:
         """Add a node and its parent-edge relation to the tree."""
         if extended in self.node_state:
             return
+        self._close_native_session()
         self.nodes.append(extended)
         self.parent_by_node[extended] = parent_node
         self.edges.add((extended, parent_node))
@@ -305,47 +309,91 @@ class DynamicRRT3D:
 
     def grow_rrt(self, *, trace: TraceOptions | None = None) -> PlannerTrace | None:
         """Grow the tree in the C engine until the goal or iteration limit."""
-        return self._run_native(trace=trace)
+        return self._run_native(prune_tree=False, trace=trace)
 
     def regrow_rrt(self, *, trace: TraceOptions | None = None) -> PlannerTrace | None:
         """Prune invalid subtrees and continue growing them in the C engine."""
-        return self._run_native(trace=trace)
+        prune_tree = bool(
+            self._native_session is not None and self._native_session.uses_python_callbacks
+        )
+        return self._run_native(prune_tree=prune_tree, trace=trace)
 
     def trim_rrt(self, *, trace: TraceOptions | None = None) -> PlannerTrace | None:
         """Remove invalid nodes induced by dynamic obstacle updates in C."""
-        return self._run_native(max_iterations=0, prune_only=True, trace=trace)
+        return self._run_native(max_iterations=0, prune_tree=True, prune_only=True, trace=trace)
 
     def _run_native(
         self,
         *,
         max_iterations: int | None = None,
+        prune_tree: bool = False,
         prune_only: bool = False,
         trace: TraceOptions | None = None,
     ) -> PlannerTrace | None:
         if not self.nodes:
             self.init_rrt()
-        parent_ids = self._native_parent_ids()
         old_count = len(self.nodes)
-        trace_sink: list[PlannerTrace] = []
-        states, parents, success, iterations, _invalid_nodes = run_native_dynamic_rrt(
-            self.space,
-            self.x0,
-            self.xt,
-            self.nodes,
-            parent_ids,
-            self.config,
-            self.rng,
-            max_iterations=max_iterations,
-            prune_only=prune_only,
-            trace=trace,
-            trace_sink=trace_sink,
-        )
-        self._adopt_native_tree(states, parents)
+        if trace is not None:
+            self._close_native_session()
+            trace_sink: list[PlannerTrace] = []
+            states, parents, success, iterations, _invalid_nodes = run_native_dynamic_rrt(
+                self.space,
+                self.x0,
+                self.xt,
+                self.nodes,
+                self._native_parent_ids(),
+                self.config,
+                self.rng,
+                max_iterations=max_iterations,
+                prune_only=prune_only,
+                trace=trace,
+                trace_sink=trace_sink,
+            )
+            self._adopt_native_tree(states, parents)
+            self.last_trace = trace_sink[0] if trace_sink else None
+        else:
+            if self._native_session is None or not self._native_session.matches(
+                self.space, self.x0, self.xt, len(self.nodes)
+            ):
+                self._close_native_session()
+                self._native_session = NativeDynamicRRTSession(
+                    self.space,
+                    self.x0,
+                    self.xt,
+                    self.nodes,
+                    self._native_parent_ids(),
+                    self.config,
+                    self.rng,
+                )
+                prune_tree = True
+            try:
+                states, parents, success, iterations, _invalid_nodes, offset, snapshot = (
+                    self._native_session.run(
+                        self.config,
+                        max_iterations=max_iterations,
+                        prune_tree=prune_tree,
+                        prune_only=prune_only,
+                    )
+                )
+                if snapshot:
+                    self._adopt_native_tree(states, parents)
+                else:
+                    if offset != old_count:
+                        raise RuntimeError("native DynamicRRT returned an out-of-sync node delta")
+                    self._append_native_nodes(states, parents)
+            except BaseException:
+                self._close_native_session()
+                raise
+            self.last_trace = None
         self.done = success
         self.ind = iterations
         self.i += max(0, len(self.nodes) - old_count)
-        self.last_trace = trace_sink[0] if trace_sink else None
         return self.last_trace
+
+    def _close_native_session(self) -> None:
+        if self._native_session is not None:
+            self._native_session.close()
+            self._native_session = None
 
     def _native_parent_ids(self) -> list[int]:
         node_ids = {node: index for index, node in enumerate(self.nodes)}
@@ -372,6 +420,36 @@ class DynamicRRT3D:
         self.edges = edges
         self.node_state = {node: "valid" for node in self.nodes}
         self._nearest_index.reset(self.nodes)
+
+    def _append_native_nodes(
+        self, states: NDArray[np.float64], parents: NDArray[np.uint32]
+    ) -> None:
+        if states.shape != (len(parents), 3):
+            raise RuntimeError("native DynamicRRT returned mismatched node and parent deltas")
+        pending: list[tuple[Node, Node]] = []
+        pending_nodes: set[Node] = set()
+        for state, parent_raw in zip(states, parents):
+            parent_id = int(parent_raw)
+            if parent_id >= len(self.nodes) + len(pending):
+                raise RuntimeError("native DynamicRRT returned a forward parent reference")
+            node, parent = (
+                _as_node(state),
+                (
+                    self.nodes[parent_id]
+                    if parent_id < len(self.nodes)
+                    else pending[parent_id - len(self.nodes)][0]
+                ),
+            )
+            if node in self.node_state or node in pending_nodes:
+                raise RuntimeError("native DynamicRRT returned a duplicate node")
+            pending_nodes.add(node)
+            pending.append((node, parent))
+        for node, parent in pending:
+            self.nodes.append(node)
+            self.parent_by_node[node] = parent
+            self.edges.add((node, parent))
+            self.node_state[node] = "valid"
+            self._nearest_index.add(node)
 
     def find_affected_edges(self, obstacle: Obstacle) -> list[Edge]:
         """Find edges that are no longer valid after an obstacle update."""
@@ -407,6 +485,7 @@ class DynamicRRT3D:
 
     def create_tree_from_nodes(self, nodes: list[Node]) -> None:
         """Rebuild edge set from a filtered node list."""
+        self._close_native_session()
         self.nodes = list(nodes)
         self.edges = {
             (node, self.parent_by_node[node]) for node in nodes if node in self.parent_by_node

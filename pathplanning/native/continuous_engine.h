@@ -172,6 +172,19 @@ typedef struct pp_dynamic_rrt_result {
     size_t invalid_count;
 } pp_dynamic_rrt_result;
 
+typedef struct pp_dynamic_rrt_session pp_dynamic_rrt_session;
+
+typedef struct pp_dynamic_rrt_session_result {
+    pp_continuous_result plan;
+    double *tree_points;
+    uint32_t *tree_parents;
+    size_t tree_count;
+    size_t tree_offset;
+    int tree_is_snapshot;
+    uint32_t *invalid_nodes;
+    size_t invalid_count;
+} pp_dynamic_rrt_session_result;
+
 typedef struct pp_prm_star_roadmap pp_prm_star_roadmap;
 
 // Returns PP_CONTINUOUS_ABI_VERSION. This exact-match version covers exported
@@ -202,6 +215,31 @@ int pp_dynamic_rrt_plan(const pp_continuous_callbacks *callbacks,
                         pp_dynamic_rrt_result *result);
 void pp_dynamic_rrt_free_result(pp_dynamic_rrt_result *result);
 
+// A session owns its node arrays, parent arrays, and nearest-neighbor index.
+// Callback function pointers, user_data, and native model arrays are borrowed
+// for each run and must remain alive until that run returns. Run calls are
+// serialized by the caller. Set prune_tree when the environment has changed;
+// this refreshes the collision index and revalidates the tree. Otherwise the
+// retained tree is grown incrementally without revalidation.
+int pp_dynamic_rrt_session_create(const pp_continuous_callbacks *callbacks,
+                                 const double *start, const double *goal,
+                                 const double *initial_points,
+                                 const uint32_t *initial_parents,
+                                 size_t initial_count, size_t dimension,
+                                 const pp_continuous_options *options,
+                                 double waypoint_sample_rate,
+                                 pp_dynamic_rrt_session **out_session,
+                                 pp_continuous_result *error_result);
+int pp_dynamic_rrt_session_run(pp_dynamic_rrt_session *session,
+                              const pp_continuous_callbacks *callbacks,
+                              const double *start, const double *goal,
+                              const pp_continuous_options *options,
+                              double waypoint_sample_rate, int prune_tree,
+                              int prune_only,
+                              pp_dynamic_rrt_session_result *result);
+void pp_dynamic_rrt_session_free(pp_dynamic_rrt_session *session);
+void pp_dynamic_rrt_session_free_result(pp_dynamic_rrt_session_result *result);
+
 int pp_prm_star_create(size_t dimension, uint64_t sample_count, double gamma,
                        uint64_t max_sample_tries, uint64_t seed,
                        pp_prm_star_roadmap **out, char *error, size_t error_capacity);
@@ -225,6 +263,14 @@ const char *pp_continuous_engine_version(void);
 // Diagnostic-only entry points. The caller owns both result buffers and must
 // release them with the matching functions from this diagnostic library.
 uint32_t pp_continuous_trace_abi_version(void);
+int pp_dynamic_rrt_session_run_traced(pp_dynamic_rrt_session *session,
+                                      const pp_continuous_callbacks *callbacks,
+                                      const double *start, const double *goal,
+                                      const pp_continuous_options *options,
+                                      double waypoint_sample_rate, int prune_tree,
+                                      int prune_only,
+                                      pp_dynamic_rrt_session_result *result,
+                                      uint64_t max_bytes, pp_trace_result *trace);
 int pp_continuous_plan_traced(const pp_continuous_callbacks *callbacks,
                               const double *start, const double *goal,
                               size_t dimension, int has_goal_point,
