@@ -6,7 +6,7 @@ import { startEnvironmentPreviews } from "./scripts/environment-previews.js";
 import { startLandingMotion } from "./scripts/landing-motion.js";
 import { createSimulator } from "./scripts/simulator.js?v=concept-clarity-20261018";
 import { startThreeDimensionalScenes } from "./scripts/three-dimensional.js";
-import { startRecordedPlannerRuns } from "./scripts/planner-runs.js?v=recorded-trace-player-20261018";
+import { startRecordedPlannerRuns } from "./scripts/planner-runs.js?v=recorded-trace-validation-20261018";
 
 async function loadPlanners() {
   const response = await fetch(new URL("data/planners.json", window.location.href));
