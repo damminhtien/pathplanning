@@ -422,19 +422,33 @@ the matching collision and state-space runtime is available.
 
 ## Installation
 
+Install the published package with pip:
+
+```bash
+python -m pip install pathplanning
+```
+
+Prebuilt wheels are published for standard CPython 3.10-3.14 on Linux x86_64
+(manylinux_2_28, glibc 2.28+), macOS Intel (x86_64), and Apple Silicon
+(arm64). These wheels include the native libraries, so installation on those
+platforms does not need a local C or C++ compiler.
+
+For a source checkout or a platform without a matching wheel, install from the
+repository:
+
 ```bash
 git clone https://github.com/damminhtien/pathplanning.git
 cd pathplanning
 
 python -m venv .venv
 source .venv/bin/activate
-pip install --upgrade pip
-pip install .
+python -m pip install --upgrade pip
+python -m pip install .
 ```
 
-Python `>=3.10`, a C11 compiler, and a C++17 compiler are required when building
-from source. Graph, temporal, multi-agent, and vehicle kernels run in C++;
-continuous sampling and roadmap kernels run in C.
+Source builds require Python `>=3.10`, a C11 compiler, and a C++17 compiler.
+Graph, temporal, multi-agent, and vehicle kernels run in C++; continuous
+sampling and roadmap kernels run in C.
 Install the optional viewer and plotting dependencies with `pip install -e ".[viz]"`.
 
 ### Install the benchmark datasets

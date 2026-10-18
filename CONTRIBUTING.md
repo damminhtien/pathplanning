@@ -13,10 +13,12 @@ pip install -r requirements-dev.txt
 make build-ext
 ```
 
-`pip install .` builds both native libraries during installation. In a checkout,
+`pip install .` builds the five native libraries during installation. Users on
+the published wheel platforms do not need a native compiler; see the README
+installation section for the CPython and OS/architecture matrix. In a checkout,
 run `make build-ext` after changing native sources and before invoking Python
 planner code directly. `make test-unit`, `make test-slow`, and `make test-all`
-build the extensions before running their pytest tier.
+build the libraries before running their pytest tier.
 
 ## Local Quality Gates
 
