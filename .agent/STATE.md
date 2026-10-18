@@ -2,7 +2,7 @@
 
 ## Current status
 
-M1 complete. The primary checkout has unrelated website edits; this work is
+M1-M3 complete. The primary checkout has unrelated website edits; this work is
 isolated in the managed `dev/native-wheels` worktree. Current host is macOS
 arm64 with CPython 3.14.8. Docker is installed but its daemon is unavailable.
 
@@ -13,14 +13,15 @@ outside the validated scope. No Linux arm64 evidence was found.
 
 ## Current milestone
 
-M2 is implemented and being validated on PR #3. The targets are Linux x86_64
-manylinux_2_28, macOS x86_64, and macOS arm64; CPython 3.10-3.14. cibuildwheel's
-isolated test environment runs a smoke script against each wheel. M3
-documentation and metadata changes are implemented.
+M2 and M3 are implemented and validated on PR #3. M4's local and remote wheel
+builds, clean installs, and release-file validation are complete. The targets
+are Linux x86_64 manylinux_2_28, macOS x86_64, and macOS arm64; CPython
+3.10-3.14. Merge and the existing-version PyPI wheel upload remain.
 
 ## Validation evidence
 
-- Repository branch starts clean at `dev/native-wheels`.
+- Task changes are isolated in `dev/native-wheels`; only task-owned paths are
+  committed.
 - `docker info` fails because no Docker daemon is running; local Linux wheel
   builds cannot run on this host. GitHub Actions provides Linux and macOS
   validation.
@@ -42,10 +43,18 @@ documentation and metadata changes are implemented.
   because the manylinux2014 environment had no compatible binary; NumPy's
   CPython 3.12 x86_64 wheel uses manylinux_2_27/2_28 and its source build needs
   GCC >= 10.3. The Linux baseline has been changed to manylinux_2_28. macOS
-  Intel result is still pending for the first CI run.
+  Intel also completed successfully.
+- PR run `39105446215` passes all three clean-install matrix jobs: Linux x86_64
+  (6m32s), macOS arm64 (3m17s), and macOS x86_64 (10m06s). Each target built
+  CPython 3.10-3.14 wheels, loaded all five native libraries, and ran the A*
+  smoke plan. The distribution validation job passed `verify_wheelhouse.py`
+  for 15 wheels plus the matching sdist, and `twine check` passed all files.
+  The artifacts were downloaded and the 15-wheel matrix checker passed again
+  against the actual filenames. Standard lint, Pyright, unit, and slow tests
+  passed. The PyPI publish job was correctly skipped on the pull request.
 
 ## Next action
 
-Rerun the full wheel matrix with manylinux_2_28, verify 15 wheel tags and
-clean-install smoke tests, then merge and dispatch the wheel-only upload to
-the existing PyPI version.
+Merge PR #3, dispatch the wheel-only upload to the existing PyPI version from
+`main`, then verify PyPI exposes all 15 wheels with the expected platform and
+Python tags and perform a clean install from PyPI.
