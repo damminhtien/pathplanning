@@ -150,7 +150,10 @@ def _run_astar() -> dict[str, Any]:
         "family": "discrete",
         "title": "A* on MovingAI DAO / ost102d",
         "summary": "An 8-neighbor MovingAI scenario replayed from the package's native A* trace.",
-        "seed": {"value": seed, "meaning": "API seed; A* is deterministic and draws no random samples."},
+        "seed": {
+            "value": seed,
+            "meaning": "API seed; A* is deterministic and draws no random samples.",
+        },
         "input": {
             "environment": "MovingAI DAO / ost102d.map",
             "source": case["source"],
@@ -234,12 +237,8 @@ def _run_dstar() -> dict[str, Any]:
     inserted = tuple(map(int, case["inserted_obstacle"]))
     next_blocked = blocked | {inserted}
     neighbors = ((inserted[0] - 1, inserted[1]), (inserted[0] + 1, inserted[1]))
-    updates = [
-        (inserted, neighbor, math.inf)
-        for neighbor in neighbors
-    ] + [
-        (neighbor, inserted, math.inf)
-        for neighbor in neighbors
+    updates = [(inserted, neighbor, math.inf) for neighbor in neighbors] + [
+        (neighbor, inserted, math.inf) for neighbor in neighbors
     ]
     # Reuse the same D* Lite session after the map and its four directed edges change.
     space.update_obs(next_blocked)
@@ -274,12 +273,10 @@ def _run_dstar() -> dict[str, Any]:
         }
 
     before_rows = [
-        "".join("#" if (x, y) in blocked else "." for x in range(width))
-        for y in range(height)
+        "".join("#" if (x, y) in blocked else "." for x in range(width)) for y in range(height)
     ]
     after_rows = [
-        "".join("#" if (x, y) in next_blocked else "." for x in range(width))
-        for y in range(height)
+        "".join("#" if (x, y) in next_blocked else "." for x in range(width)) for y in range(height)
     ]
     return {
         "id": "dstar-lite-obstacle-insertion-grid-24x16",
@@ -288,7 +285,10 @@ def _run_dstar() -> dict[str, Any]:
         "family": "discrete",
         "title": "D* Lite repairs after an obstacle appears",
         "summary": "One persistent D* Lite session updates four directed edge costs and repairs its route.",
-        "seed": {"value": None, "meaning": "Not applicable; deterministic graph search uses no random samples."},
+        "seed": {
+            "value": None,
+            "meaning": "Not applicable; deterministic graph search uses no random samples.",
+        },
         "input": {
             "environment": "Defined 24 x 16 four-connected demonstration grid; not an external benchmark.",
             "source": case["source"],
@@ -401,12 +401,21 @@ def _run_rrt_star() -> dict[str, Any]:
         raise RuntimeError("RRT* did not return the requested points and native trace")
     path = _result_path(result).astype(np.float64, copy=False)
     source_geometry_valid = (
-        all(bounds[0, axis] <= point[axis] <= bounds[1, axis] for point in path for axis in range(2))
+        all(
+            bounds[0, axis] <= point[axis] <= bounds[1, axis] for point in path for axis in range(2)
+        )
         and all(_point_is_free(point, circles) for point in path)
-        and all(_segment_is_free(path[index], path[index + 1], circles) for index in range(len(path) - 1))
+        and all(
+            _segment_is_free(path[index], path[index + 1], circles)
+            for index in range(len(path) - 1)
+        )
     )
-    recomputed_cost = float(sum(np.linalg.norm(path[index + 1] - path[index]) for index in range(len(path) - 1)))
-    if not source_geometry_valid or not _cost_matches(float(result.stats["path_cost"]), recomputed_cost):
+    recomputed_cost = float(
+        sum(np.linalg.norm(path[index + 1] - path[index]) for index in range(len(path) - 1))
+    )
+    if not source_geometry_valid or not _cost_matches(
+        float(result.stats["path_cost"]), recomputed_cost
+    ):
         raise RuntimeError("RRT* path failed independent source-geometry or cost validation")
 
     return {
@@ -416,7 +425,10 @@ def _run_rrt_star() -> dict[str, Any]:
         "family": "continuous",
         "title": "RRT* in BARN world_236 geometry",
         "summary": "A native RRT* run on a point-robot XY query derived from BARN world_236.",
-        "seed": {"value": seed, "meaning": "NumPy default_rng seed passed through the package API."},
+        "seed": {
+            "value": seed,
+            "meaning": "NumPy default_rng seed passed through the package API.",
+        },
         "input": {
             "environment": "BARN world_236, source-derived cylinder geometry.",
             "source": source,
