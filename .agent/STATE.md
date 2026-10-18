@@ -2,26 +2,29 @@
 
 ## Current status
 
-M1-M3 complete. The primary checkout has unrelated website edits; this work is
-isolated in the managed `dev/native-wheels` worktree. Current host is macOS
-arm64 with CPython 3.14.8. Docker is installed but its daemon is unavailable.
+M1-M4 complete. PR #3 was squash-merged as `e690031b3d17becc74bddf7e9787e11350851d57`.
+Workflow dispatch `39106842580` published the 15-wheel matrix to PyPI 0.2.0
+without re-uploading its existing sdist. The primary checkout's unrelated
+website changes were preserved; implementation work was isolated in the
+managed `dev/native-wheels` worktree.
 
 The repository's Ubuntu CI and current runner/toolchain evidence support Linux
 x86_64; prior native builds cover macOS Intel and the active host covers macOS
 arm64. `setup.py` uses GCC/Clang-style C11 and C++17 flags, so Windows/MSVC is
 outside the validated scope. No Linux arm64 evidence was found.
 
-## Current milestone
+## Released wheel matrix
 
-M2 and M3 are implemented and validated on PR #3. M4's local and remote wheel
-builds, clean installs, and release-file validation are complete. The targets
-are Linux x86_64 manylinux_2_28, macOS x86_64, and macOS arm64; CPython
-3.10-3.14. Merge and the existing-version PyPI wheel upload remain.
+The release supports CPython 3.10-3.14 on Linux x86_64 (manylinux_2_28), macOS
+x86_64, and macOS arm64. Windows/MSVC, Linux arm64, musllinux, PyPy, and
+free-threaded CPython remain outside the validated scope. The native build
+uses GCC/Clang-style C11 and C++17 flags, so Windows/MSVC needs a separate,
+validated compiler path before it can be added.
 
 ## Validation evidence
 
-- Task changes are isolated in `dev/native-wheels`; only task-owned paths are
-  committed.
+- Task changes were isolated in `dev/native-wheels`; only task-owned paths
+  were committed.
 - `docker info` fails because no Docker daemon is running; local Linux wheel
   builds cannot run on this host. GitHub Actions provides Linux and macOS
   validation.
@@ -37,24 +40,24 @@ are Linux x86_64 manylinux_2_28, macOS x86_64, and macOS arm64; CPython
   CPython build identifiers. Both helper scripts passed Python syntax, Ruff
   lint, and Ruff format checks. Local sdist and CPython 3.14 arm64 wheel both
   passed `twine check`; pyproject TOML parsing and `git diff --check` passed.
-- First PR CI run: all standard lint, typecheck, unit, and slow-test jobs pass;
-  macOS arm64 built and clean-installed all five CPython wheels. Linux built
-  its wheel but clean installation tried to build NumPy 2.5.4 from source
-  because the manylinux2014 environment had no compatible binary; NumPy's
-  CPython 3.12 x86_64 wheel uses manylinux_2_27/2_28 and its source build needs
-  GCC >= 10.3. The Linux baseline has been changed to manylinux_2_28. macOS
-  Intel also completed successfully.
-- PR run `39105446215` passes all three clean-install matrix jobs: Linux x86_64
-  (6m32s), macOS arm64 (3m17s), and macOS x86_64 (10m06s). Each target built
+- The first Linux CI attempt showed that manylinux2014 forced a source build
+  of NumPy 2.5.4 because its CPython 3.12 x86_64 wheels use manylinux_2_27/2_28.
+  Switching to manylinux_2_28 fixed the clean install.
+- PR run `39106242067` passed all three clean-install matrix jobs: Linux x86_64
+  (5m31s), macOS arm64 (3m12s), and macOS x86_64 (8m39s). Each target built
   CPython 3.10-3.14 wheels, loaded all five native libraries, and ran the A*
-  smoke plan. The distribution validation job passed `verify_wheelhouse.py`
-  for 15 wheels plus the matching sdist, and `twine check` passed all files.
-  The artifacts were downloaded and the 15-wheel matrix checker passed again
-  against the actual filenames. Standard lint, Pyright, unit, and slow tests
-  passed. The PyPI publish job was correctly skipped on the pull request.
+  smoke plan. `verify_wheelhouse.py` validated 15 wheels plus the matching
+  sdist, `twine check` passed, and standard lint, Pyright, unit, and slow tests
+  passed.
+- Published workflow run `39106842580` passed the same three wheel build and
+  clean-install jobs, release-file validation, and the PyPI upload job. The
+  manual dispatch copied only `.whl` files, preserving the existing sdist.
+- PyPI's simple index lists 15 wheels and the original sdist for 0.2.0. A fresh
+  CPython 3.14 macOS arm64 virtual environment installed
+  `pathplanning==0.2.0` with `--only-binary=:all:` and passed the five-library
+  load plus public A* smoke check.
 
 ## Next action
 
-Merge PR #3, dispatch the wheel-only upload to the existing PyPI version from
-`main`, then verify PyPI exposes all 15 wheels with the expected platform and
-Python tags and perform a clean install from PyPI.
+No remaining release tasks. Add excluded platforms only after native build and
+clean-install runtime validation exists for them.
