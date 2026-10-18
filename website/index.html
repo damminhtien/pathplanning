@@ -86,7 +86,7 @@
       }
     </script>
     <title>Path Planning Algorithms, Made Visible | {{PLANNER_COUNT}} Guides | Pathplanning</title>
-    <link rel="stylesheet" href="styles.css?v=agent-core-20261018" />
+    <link rel="stylesheet" href="styles.css?v=agent-control-loop-20261018" />
     <link rel="stylesheet" href="theme.css" />
     <link rel="stylesheet" href="case-studies.css" />
     <script>window.MathJax = {tex: {inlineMath: [["\\(", "\\)"], ["\\[", "\\]"]]}};</script>
@@ -166,10 +166,8 @@
       <section class="loop-strip" aria-labelledby="agent-loop-title">
         <div class="loop-inner">
           <div class="loop-copy">
-            <p class="loop-kicker">The autonomous agent loop</p>
-            <h2 id="agent-loop-title">Observe. Plan. Act. Adapt.</h2>
-            <p>An autonomous agent observes its environment, builds a working model, and chooses actions toward a goal. It checks each result, updates its state, and revises the plan as conditions change.</p>
-            <div class="loop-cycle-note"><span aria-hidden="true"></span>Observe, model, plan, act, adapt</div>
+            <h2 id="agent-loop-title">Agent control loop</h2>
+            <p>The agent updates its state from observations, chooses an action, then checks progress against its goal. New evidence or changed constraints can trigger replanning.</p>
           </div>
 
           <div class="loop-diagram">
@@ -190,48 +188,20 @@
 
             <ol class="loop-steps" aria-label="Four stages in the autonomous agent loop">
               <li class="loop-step loop-step-observe">
-                <span class="loop-step-icon" aria-hidden="true">
-                  <svg viewBox="0 0 24 24" focusable="false"><path d="M2.5 12s3.3-6 9.5-6 9.5 6 9.5 6-3.3 6-9.5 6-9.5-6-9.5-6Z" /><circle cx="12" cy="12" r="2.6" /></svg>
-                </span>
-                <span class="loop-step-copy"><b>Observe</b><small>Sensors · maps · events</small></span>
-                <span class="loop-step-index" aria-hidden="true">01</span>
+                <span class="loop-step-copy"><b>Observation</b><small>Sensors, events, context</small></span>
               </li>
-              <li class="loop-step loop-step-plan">
-                <span class="loop-step-icon" aria-hidden="true">
-                  <svg viewBox="0 0 24 24" focusable="false"><path d="M4 19V6l5-2 6 2 5-2v13l-5 2-6-2-5 2Z" /><path d="M9 4v13m6-11v13" /><circle cx="15" cy="12" r="1.6" /></svg>
-                </span>
-                <span class="loop-step-copy"><b>World model</b><small>State · obstacles · goals</small></span>
-                <span class="loop-step-index" aria-hidden="true">02</span>
+              <li class="loop-step loop-step-state">
+                <span class="loop-step-copy"><b>State update</b><small>Model, goal, constraints</small></span>
               </li>
-              <li class="loop-step loop-step-act">
-                <span class="loop-step-icon" aria-hidden="true">
-                  <svg viewBox="0 0 24 24" focusable="false"><path d="M4 12h15m-6-6 6 6-6 6" /><path d="M5 6h4M3 18h6" /></svg>
-                </span>
-                <span class="loop-step-copy"><b>Plan &amp; act</b><small>Search · policy · actions</small></span>
-                <span class="loop-step-index" aria-hidden="true">03</span>
+              <li class="loop-step loop-step-action">
+                <span class="loop-step-copy"><b>Action selection</b><small>Planner or policy</small></span>
               </li>
-              <li class="loop-step loop-step-check">
-                <span class="loop-step-icon" aria-hidden="true">
-                  <svg viewBox="0 0 24 24" focusable="false"><path d="M20 11a8 8 0 0 0-14-5L4 8" /><path d="M4 4v4h4M4 13a8 8 0 0 0 14 5l2-2m0 4v-4h-4" /></svg>
-                </span>
-                <span class="loop-step-copy"><b>Evaluate &amp; adapt</b><small>Progress · changes · replan</small></span>
-                <span class="loop-step-index" aria-hidden="true">04</span>
+              <li class="loop-step loop-step-feedback">
+                <span class="loop-step-copy"><b>Outcome check</b><small>Progress, new evidence</small></span>
               </li>
             </ol>
 
             <div class="loop-core" aria-hidden="true">
-              <svg class="loop-agent-module" viewBox="0 0 96 72" focusable="false">
-                <g class="loop-agent-pins">
-                  <path d="M30 5v7m12-7v7m12-7v7m12-7v7m-36 48v7m12-7v7m12-7v7m12-7v7M13 25h7m-7 11h7m-7 11h7m56-22h7m-7 11h7m-7 11h7" />
-                </g>
-                <rect class="loop-agent-board" x="20" y="12" width="56" height="48" rx="8" />
-                <rect class="loop-agent-chip" x="32" y="22" width="32" height="28" rx="5" />
-                <path class="loop-agent-route" d="m38 42 8-11 7 7 9-13" />
-                <circle class="loop-agent-waypoint" cx="38" cy="42" r="2.2" />
-                <circle class="loop-agent-waypoint" cx="46" cy="31" r="2.2" />
-                <circle class="loop-agent-waypoint" cx="53" cy="38" r="2.2" />
-                <circle class="loop-agent-status" cx="62" cy="25" r="2.8" />
-              </svg>
               <span class="loop-core-title">Agent</span>
             </div>
           </div>
