@@ -129,12 +129,13 @@ export function startRecordedPlannerRuns() {
       metricItems.push(["Path length", `${result.path_cost.toFixed(3)} m`]);
       metricItems.push(["Iterations", result.iterations.toLocaleString()]);
       metricItems.push(["Tree vertices", result.tree_vertices.toLocaleString()]);
+      metricItems.push(["Route check", phase.valid ? "Passed" : "Failed"]);
     } else {
       metricItems.push(["Path cost", phase.path_cost.toFixed(3)]);
       metricItems.push(["Expanded", phase.expanded_nodes.toLocaleString()]);
       metricItems.push(["Route check", phase.valid ? "Passed" : "Failed"]);
+      metricItems.push(["Package", state.data.package.version]);
     }
-    metricItems.push(["Package", state.data.package.version]);
     const metrics = document.querySelector("#run-metrics");
     metrics.replaceChildren();
     for (const [label, value] of metricItems) {
@@ -172,7 +173,8 @@ export function startRecordedPlannerRuns() {
     const phaseCost = state.run.phases.length > 1
       ? `Current phase cost ${phase.path_cost.toFixed(3)}; final repaired cost ${result.path_cost.toFixed(3)}. `
       : `Path cost ${result.path_cost.toFixed(6)}. `;
-    addFact(facts, "Result", `${phaseCost}${result.stop_reason}. ${phase.validity_method || result.validity_method}`);
+    const routeCheck = phase.valid ? "Route check passed." : "Route check failed.";
+    addFact(facts, "Result", `${phaseCost}${result.stop_reason}. ${routeCheck} ${phase.validity_method || result.validity_method}`);
     if (input.source?.url || input.source?.benchmark_url) {
       addLinkFact(facts, "Source", input.source.url || input.source.benchmark_url, input.source.file || input.source.dataset);
     }
