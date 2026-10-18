@@ -167,9 +167,9 @@
         <div class="loop-inner">
           <div class="loop-copy">
             <p class="loop-kicker">The autonomous agent loop</p>
-            <h2 id="agent-loop-title">Sense. Decide. Move. Repeat.</h2>
-            <p>A UAV combines stereo vision, LiDAR, and inertial sensing to map nearby space. Its planner sends a collision-aware trajectory to the autopilot, then flight and obstacle feedback close the loop.</p>
-            <div class="loop-cycle-note"><span aria-hidden="true"></span>Onboard perception · local replanning · flight control</div>
+            <h2 id="agent-loop-title">Observe. Plan. Act. Adapt.</h2>
+            <p>An autonomous agent observes its environment, builds a working model, and chooses actions toward a goal. It checks each result, updates its state, and revises the plan as conditions change.</p>
+            <div class="loop-cycle-note"><span aria-hidden="true"></span>Observe, model, plan, act, adapt</div>
           </div>
 
           <div class="loop-diagram">
@@ -193,28 +193,28 @@
                 <span class="loop-step-icon" aria-hidden="true">
                   <svg viewBox="0 0 24 24" focusable="false"><path d="M2.5 12s3.3-6 9.5-6 9.5 6 9.5 6-3.3 6-9.5 6-9.5-6-9.5-6Z" /><circle cx="12" cy="12" r="2.6" /></svg>
                 </span>
-                <span class="loop-step-copy"><b>Perception</b><small>Stereo · LiDAR · IMU</small></span>
+                <span class="loop-step-copy"><b>Observe</b><small>Sensors · maps · events</small></span>
                 <span class="loop-step-index" aria-hidden="true">01</span>
               </li>
               <li class="loop-step loop-step-plan">
                 <span class="loop-step-icon" aria-hidden="true">
                   <svg viewBox="0 0 24 24" focusable="false"><path d="M4 19V6l5-2 6 2 5-2v13l-5 2-6-2-5 2Z" /><path d="M9 4v13m6-11v13" /><circle cx="15" cy="12" r="1.6" /></svg>
                 </span>
-                <span class="loop-step-copy"><b>Local mapping</b><small>SLAM · obstacle tracking</small></span>
+                <span class="loop-step-copy"><b>World model</b><small>State · obstacles · goals</small></span>
                 <span class="loop-step-index" aria-hidden="true">02</span>
               </li>
               <li class="loop-step loop-step-act">
                 <span class="loop-step-icon" aria-hidden="true">
                   <svg viewBox="0 0 24 24" focusable="false"><path d="M4 12h15m-6-6 6 6-6 6" /><path d="M5 6h4M3 18h6" /></svg>
                 </span>
-                <span class="loop-step-copy"><b>Trajectory control</b><small>Autopilot · motor control</small></span>
+                <span class="loop-step-copy"><b>Plan &amp; act</b><small>Search · policy · actions</small></span>
                 <span class="loop-step-index" aria-hidden="true">03</span>
               </li>
               <li class="loop-step loop-step-check">
                 <span class="loop-step-icon" aria-hidden="true">
                   <svg viewBox="0 0 24 24" focusable="false"><path d="M20 11a8 8 0 0 0-14-5L4 8" /><path d="M4 4v4h4M4 13a8 8 0 0 0 14 5l2-2m0 4v-4h-4" /></svg>
                 </span>
-                <span class="loop-step-copy"><b>Navigation feedback</b><small>GPS / VIO · replan</small></span>
+                <span class="loop-step-copy"><b>Evaluate &amp; adapt</b><small>Progress · changes · replan</small></span>
                 <span class="loop-step-index" aria-hidden="true">04</span>
               </li>
             </ol>
