@@ -52,7 +52,7 @@
           {
             "@type": "LearningResource",
             "name": "Interactive Motion Planning Tutorial",
-            "url": "https://damminhtien.github.io/pathplanning/#playground",
+            "url": "https://damminhtien.github.io/pathplanning/#planner-runs",
             "inLanguage": "en",
             "learningResourceType": "Interactive tutorial",
             "educationalLevel": "Intermediate",
@@ -75,12 +75,12 @@
           },
           {
             "@type": "SoftwareApplication",
-            "name": "Pathplanning Interactive Demos",
+            "name": "Pathplanning Recorded Planner Trace Viewer",
             "applicationCategory": "EducationalApplication",
             "operatingSystem": "Any modern web browser",
             "isAccessibleForFree": true,
-            "url": "https://damminhtien.github.io/pathplanning/#playground",
-            "description": "Browser-based concept animations for grid, continuous-space, temporal, and multi-agent motion planning algorithms."
+            "url": "https://damminhtien.github.io/pathplanning/#planner-runs",
+            "description": "Replay native traces captured from A*, D* Lite, and RRT* package runs, inspect their inputs and validity checks, and reproduce them with Python."
           }
         ]
       }
@@ -90,9 +90,10 @@
     <link rel="stylesheet" href="theme.css?v=hero-art-depth-20261018" />
     <link rel="stylesheet" href="three-dimensional.css?v=voxel-planning-20261018" />
     <link rel="stylesheet" href="case-studies.css" />
+    <link rel="stylesheet" href="planner-runs.css?v=recorded-native-traces-20261018" />
     <script>window.MathJax = {tex: {inlineMath: [["\\(", "\\)"], ["\\[", "\\]"]]}};</script>
     <script async id="mathjax-script" src="https://cdn.jsdelivr.net/npm/mathjax@4/tex-chtml.js"></script>
-    <script type="module" src="app.js?v=three-dimensional-planning-20261018"></script>
+    <script type="module" src="app.js?v=recorded-native-traces-20261018"></script>
   </head>
   <body>
     <a class="skip-link" href="#main">Skip to content</a>
@@ -101,7 +102,7 @@
         <span>path<span class="brand-accent">planning</span></span>
       </a>
       <nav aria-label="Main navigation">
-        <a href="#playground">Simulator</a>
+        <a href="#planner-runs">Recorded runs</a>
         <a href="#three-dimensional">3D</a>
         <a href="#applications">Applications</a>
         <a href="#algorithms">Algorithms</a>
@@ -122,10 +123,10 @@
             Path planning turns a world and a goal into a sequence of actions, from game levels and road networks to vehicle maneuvers and coordinated fleets.
           </p>
           <div class="hero-actions">
-            <a class="button button-primary" href="#playground">Start exploring</a>
+            <a class="button button-primary" href="#planner-runs">Inspect planner runs</a>
             <a class="button button-quiet" href="https://github.com/damminhtien/pathplanning/blob/main/README.md" target="_blank" rel="noreferrer">Explore the code</a>
           </div>
-          <div class="hero-note">Explore a planner. Watch it work. Compare results.</div>
+          <div class="hero-note">Replay native traces. Inspect each input. Reproduce the run with Python.</div>
         </div>
 
         <div class="hero-art" aria-hidden="true">
@@ -280,13 +281,63 @@
         <div class="application-grid"><!-- generated:application-cards --></div>
       </section>
 
-      <section class="section-wrap section-space" id="playground">
+      <section class="section-wrap section-space recorded-runs-section" id="planner-runs" aria-labelledby="planner-runs-title">
         <div class="section-heading">
           <div>
-            <p class="eyebrow">02 / TRY IT</p>
-            <h2>Every planner has its own <span class="gradient-text">way of thinking.</span></h2>
+            <p class="eyebrow">02 / PACKAGE-BACKED RUNS</p>
+            <h2 id="planner-runs-title">Replay the planner's <span class="gradient-text">actual trace.</span></h2>
           </div>
-          <p class="section-intro">Explore grid, continuous, time-dependent, and multi-agent planning.</p>
+          <p class="section-intro">A*, D* Lite, and RRT* were run through the Python package. This page replays the recorded native events; it does not run planners in your browser.</p>
+        </div>
+
+        <div class="recorded-run-layout">
+          <nav class="recorded-run-tabs" id="recorded-run-tabs" aria-label="Choose a recorded planner run"></nav>
+          <article class="recorded-run-card" id="recorded-run-card" aria-live="polite">
+            <header class="recorded-run-heading">
+              <div>
+                <p class="run-evidence-tag" id="run-evidence-tag">NATIVE PACKAGE TRACE</p>
+                <h3 id="run-title">Loading recorded runs</h3>
+                <p id="run-summary" class="run-summary"></p>
+              </div>
+              <div class="run-package-badge" id="run-package-badge">pathplanning</div>
+            </header>
+            <div class="run-phase-tabs" id="run-phase-tabs" aria-label="Choose a trace phase" hidden></div>
+            <div class="recorded-run-content">
+              <div class="recorded-run-visual">
+                <canvas id="run-canvas" width="1000" height="560" role="img" aria-label="Recorded native planner trace replay"></canvas>
+                <div class="run-controls">
+                  <div class="run-control-buttons">
+                    <button class="control-button control-primary" id="run-play" type="button">Play trace</button>
+                    <button class="control-button" id="run-step" type="button">Step event</button>
+                    <button class="control-button" id="run-reset" type="button">Reset</button>
+                  </div>
+                  <label class="run-progress-label" for="run-progress"><span id="run-status" aria-live="polite">Loading trace data</span><span id="run-event-count">0 / 0 events</span></label>
+                  <input id="run-progress" type="range" min="0" max="0" value="0" aria-label="Trace event progress" />
+                  <div class="run-legend" id="run-legend"></div>
+                </div>
+              </div>
+              <aside class="run-details" aria-label="Run inputs and results">
+                <div class="run-metrics" id="run-metrics"></div>
+                <dl id="run-facts" class="run-facts"></dl>
+                <div class="run-reproduction">
+                  <div class="run-reproduction-heading"><h4>Reproduce from the repository root</h4><button id="copy-run-command" type="button" class="copy-command">Copy</button></div>
+                  <pre><code id="run-command">.venv/bin/python -m scripts.generate_planner_demo_runs</code></pre>
+                  <a href="https://github.com/damminhtien/pathplanning/blob/main/scripts/generate_planner_demo_runs.py" target="_blank" rel="noreferrer">Read the Python runner</a>
+                </div>
+              </aside>
+            </div>
+          </article>
+        </div>
+        <p class="recorded-run-note">The saved traces were captured when the package planners ran. The browser visualizes those event logs and verified paths; it does not call the planner implementation.</p>
+      </section>
+
+      <section class="section-wrap section-space concept-section" id="playground">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">03 / CONCEPT ANIMATIONS</p>
+            <h2>Explore the planning <span class="gradient-text">ideas.</span></h2>
+          </div>
+          <p class="section-intro">These family-level animations explain common ideas. They do not execute the selected planner; use Recorded runs above for captured package traces.</p>
         </div>
 
         <div class="environment-preview-grid" role="group" aria-label="Four motion-planning environments">
@@ -315,24 +366,24 @@
         <div class="workbench">
           <div class="workbench-top">
             <div class="select-wrap">
-              <label for="planner-select">Explore a planner</label>
+              <label for="planner-select">Choose a concept to view</label>
               <select id="planner-select" aria-describedby="simulation-disclaimer"></select>
             </div>
             <div class="workbench-actions">
-              <button class="control-button control-primary" id="play-button" type="button">Run</button>
+              <button class="control-button control-primary" id="play-button" type="button">Play concept</button>
               <button class="control-button" id="step-button" type="button">Step</button>
               <button class="control-button" id="reset-button" type="button">Reset</button>
-              <button class="control-button control-change" id="change-button" type="button" hidden>Change map</button>
+              <button class="control-button control-change" id="change-button" type="button" hidden>Change illustrative map</button>
             </div>
           </div>
 
           <div class="workbench-body">
             <div class="canvas-panel">
               <div class="canvas-toolbar">
-                <span class="canvas-live"><i></i><span id="simulation-status">Ready</span></span>
+                <span class="canvas-live"><i></i><span id="simulation-status">Concept animation</span></span>
                 <span id="simulation-mode">GRID MAP, 2D</span>
               </div>
-              <canvas id="sim-canvas" width="900" height="500" aria-label="Concept animation for the selected motion-planning algorithm"></canvas>
+              <canvas id="sim-canvas" width="900" height="500" aria-label="Illustrative concept animation only; the selected planner is not executed"></canvas>
               <div class="canvas-legend" id="canvas-legend">
                 <span><i class="legend-start"></i>Start</span><span><i class="legend-goal"></i>Goal</span><span><i class="legend-open"></i>Explored frontier</span><span><i class="legend-path"></i>Path</span>
               </div>
@@ -345,17 +396,17 @@
               <p class="question-label">LOOK FOR</p>
               <p id="planner-observe" class="observe-copy"></p>
               <div class="note-metric"><span id="planner-tradeoff"></span></div>
-              <p class="simulation-disclaimer" id="simulation-disclaimer">Concept animation. See case studies for measured results.</p>
+              <p class="simulation-disclaimer" id="simulation-disclaimer">Concept animation only. No selected planner is executed here. See Recorded runs for package-generated traces.</p>
             </aside>
           </div>
         </div>
-        <p class="under-note">Try <b>D* Lite</b>, then select “Change map” to see a route respond to a new obstacle.</p>
+        <p class="under-note">The D* Lite map change illustrates replanning. It does not run the incremental D* Lite algorithm. The bidirectional animation also does not represent two simultaneous search frontiers.</p>
       </section>
 
       <section class="section-wrap section-space three-dimensional-section" id="three-dimensional" aria-labelledby="three-dimensional-title">
         <div class="section-heading">
           <div>
-            <p class="eyebrow">03 / THREE-DIMENSIONAL PLANNING</p>
+            <p class="eyebrow">04 / THREE-DIMENSIONAL PLANNING</p>
             <h2 id="three-dimensional-title">Planning beyond <span class="gradient-text">a flat map.</span></h2>
           </div>
           <p class="section-intro">Two state models bring a third dimension into the search: voxel graphs and continuous motion.</p>
@@ -402,7 +453,7 @@
       <section class="section-wrap section-space" id="algorithms">
         <div class="section-heading">
           <div>
-              <p class="eyebrow">04 / ALGORITHM ATLAS</p>
+              <p class="eyebrow">05 / ALGORITHM ATLAS</p>
             <h2>{{PLANNER_COUNT}} ways to solve <span class="gradient-text">“get from here to there.”</span></h2>
           </div>
           <p class="section-intro">Browse by graph, geometry, timing, or coordination problem.</p>
@@ -423,7 +474,7 @@
         <div class="section-wrap section-space">
           <div class="section-heading">
             <div>
-              <p class="eyebrow">05 / FROM MAPS TO EVIDENCE</p>
+              <p class="eyebrow">06 / FROM MAPS TO EVIDENCE</p>
               <h2>Good evaluation starts with <span class="gradient-text">the right question.</span></h2>
             </div>
             <p class="section-intro">Five datasets. Distinct movement rules, costs, and collision models.</p>
@@ -465,7 +516,7 @@
       <section class="section-wrap section-space" id="method">
         <div class="section-heading">
           <div>
-            <p class="eyebrow">06 / HOW TO READ A MEASUREMENT</p>
+            <p class="eyebrow">07 / HOW TO READ A MEASUREMENT</p>
             <h2>Measure more than <span class="gradient-text">speed.</span></h2>
           </div>
           <p class="section-intro">Define the task, validate each route, then report the results.</p>
@@ -493,7 +544,7 @@
       <section class="section-wrap section-space front-case-studies" id="case-studies">
         <div class="section-heading case-studies-heading">
           <div>
-            <p class="eyebrow">07 / CASE STUDIES</p>
+            <p class="eyebrow">08 / CASE STUDIES</p>
             <h2>What each benchmark <span class="gradient-text">reveals.</span></h2>
           </div>
           <p class="section-intro">Results across grid maps, road networks, continuous geometry, and 3D worlds.</p>

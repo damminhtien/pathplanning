@@ -49,6 +49,16 @@ export function createSimulator(planners, initialPlanner, isDemoMode) {
     document.querySelector("#planner-description").textContent = planner.description;
     document.querySelector("#planner-observe").textContent = planner.observe;
     document.querySelector("#planner-tradeoff").textContent = planner.tradeoff;
+    const disclaimer = document.querySelector("#simulation-disclaimer");
+    const limits = ["Concept animation only: the browser does not execute the selected package planner."];
+    if (planner.id === "dstar_lite") {
+      limits.push("The obstacle change illustrates a route change; it does not run incremental D* Lite repair.");
+    }
+    if (planner.id === "bidirectional_astar" || planner.id === "bidirectional_dijkstra") {
+      limits.push("The animation does not show two simultaneous search frontiers.");
+    }
+    limits.push("Captured package traces are available for A*, D* Lite, and RRT* above.");
+    disclaimer.textContent = limits.join(" ");
     const modes = { discrete: "GRID MAP, 2D", continuous: "CONFIGURATION SPACE", temporal: "SAFE INTERVALS, TIME", multi_agent: "MULTI-AGENT, SPACE/TIME" };
     document.querySelector("#simulation-mode").textContent = modes[planner.kind] || "MOTION PLANNING";
     document.querySelector("#canvas-legend").innerHTML = legendFor(planner.kind);
@@ -86,17 +96,17 @@ export function createSimulator(planners, initialPlanner, isDemoMode) {
   }
 
   function updatePlayButton() {
-    playButton.textContent = state.playing ? "Pause" : "Run";
+    playButton.textContent = state.playing ? "Pause concept" : "Play concept";
   }
 
   function updateSimulationStatus() {
     const status = document.querySelector("#simulation-status");
-    if (state.changed && state.planner.id === "dstar_lite") status.textContent = state.playing ? "World changed, repairing route" : "World changed, route repaired";
-    else if (state.progress >= 1) status.textContent = "Illustration complete";
+    if (state.changed && state.planner.id === "dstar_lite") status.textContent = state.playing ? "Illustrating route change" : "Route-change concept complete";
+    else if (state.progress >= 1) status.textContent = "Concept complete";
     else if (state.playing) {
-      const labels = { discrete: "Exploring the search frontier", continuous: "Sampling and connecting", temporal: "Checking safe time windows", multi_agent: "Resolving path conflicts" };
-      status.textContent = labels[state.planner.kind] || "Exploring the planner";
-    } else status.textContent = "Ready to explore";
+      const labels = { discrete: "Illustrating a search frontier", continuous: "Illustrating samples and connections", temporal: "Illustrating safe time windows", multi_agent: "Illustrating path conflicts" };
+      status.textContent = labels[state.planner.kind] || "Illustrating a planning idea";
+    } else status.textContent = "Concept animation · no planner running";
   }
 
   function resizeCanvas() {

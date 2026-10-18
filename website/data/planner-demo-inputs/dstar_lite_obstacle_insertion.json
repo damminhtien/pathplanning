@@ -1,0 +1,44 @@
+{
+  "schema_version": 1,
+  "case": "dstar-lite-obstacle-insertion",
+  "source": "Defined demonstration graph, not a benchmark map.",
+  "width": 24,
+  "height": 16,
+  "motions": [
+    [
+      1,
+      0
+    ],
+    [
+      -1,
+      0
+    ],
+    [
+      0,
+      1
+    ],
+    [
+      0,
+      -1
+    ]
+  ],
+  "edge_cost": 1.0,
+  "start": [
+    2,
+    8
+  ],
+  "goal": [
+    21,
+    8
+  ],
+  "wall_x": 10,
+  "openings_before_update": [
+    5,
+    10
+  ],
+  "inserted_obstacle": [
+    10,
+    10
+  ],
+  "update": "Block (10,10) by setting the four incident directed edge costs to infinity in the same DStarLitePlanner instance."
+}

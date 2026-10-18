@@ -52,8 +52,8 @@ export function createCatalog(planners, onSelect) {
       demoButton.className = "card-demo";
       demoButton.type = "button";
       demoButton.dataset.planner = planner.id;
-      demoButton.setAttribute("aria-label", `Show ${planner.title} in the simulator`);
-      demoButton.textContent = "Try it";
+      demoButton.setAttribute("aria-label", `View the concept animation for ${planner.title}`);
+      demoButton.textContent = "View concept";
       actions.append(readLink, demoButton);
       footer.append(principle, actions);
       card.append(top, heading, description, footer);

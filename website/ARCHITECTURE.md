@@ -47,6 +47,11 @@ flowchart LR
   Browser --> ApplicationScenes[applications.js\nSVG application scenes]
   Browser --> Simulator
   Simulator --> Scenes
+  Browser --> RecordedRuns["scripts/planner-runs.js<br/>saved package trace replay"]
+  TraceGenerator["scripts/generate_planner_demo_runs.py<br/>calls Python package APIs"] --> RunData[website/data/planner-demo-runs.json]
+  RunInputs[website/data/planner-demo-inputs/*] --> TraceGenerator
+  RunData --> Build
+  RunData -. ships .-> RecordedRuns
   Dist -. ships .-> Browser
 ```
 
@@ -60,7 +65,8 @@ flowchart LR
 - `sitebuilder/renderers/` owns static markup for the catalog, algorithm lessons, dataset profiles, case studies, and project map. Generated learning pages remain directly indexable without JavaScript and include their source references.
 - `data/applications.json` is the shared application catalog. The home page introduces domains across the project, while each generated algorithm lesson selects application contexts for its planner family.
 - `sitebuilder/pipeline.py` owns output safety, static asset copying, generated family filters, lesson and case-study routes, and the sitemap. It writes generated files only to the selected output directory.
-- `app.js` starts the browser application. `scripts/catalog.js` owns catalog interactions, while `scripts/simulator.js` owns simulator state and controls. Canvas drawing is split into the grid, continuous, temporal, and multi-agent scene modules.
+- `app.js` starts the browser application. `scripts/catalog.js` owns catalog interactions. `scripts/simulator.js` renders explicitly labeled concept animations; those animations do not execute the selected planner. Canvas drawing is split into the grid, continuous, temporal, and multi-agent scene modules.
+- `scripts/generate_planner_demo_runs.py` calls the public A* and continuous-planning APIs and the persistent D* Lite planner, captures native traces, validates final paths independently, and writes `data/planner-demo-runs.json`. Its input fixtures record source hashes and query details. `scripts/planner-runs.js` replays those saved native events; it never runs a planner in the browser. A*, D* Lite obstacle repair, and RRT* are the only package executions presented on the home page.
 - `scripts/landing-motion.js` owns front-page scroll reveals and the reading-progress indicator. It uses `IntersectionObserver`, leaves content visible when scripting or motion support is unavailable, and honors reduced-motion preferences.
 - `scripts/three-dimensional.js` owns the front-page 3D animation lifecycle. `scripts/scenes/voxel-3d.js` draws the voxel search, `continuous-3d.js` draws the sampling tree, and `spatial-3d-shared.js` contains their projection and drawing helpers. The lifecycle pauses off-screen and renders a complete static frame when reduced motion is requested; `three-dimensional.css` supplies the responsive card layout.
 - `build_site.py` stays as the stable command-line entry point used by GitHub Actions and local builds.

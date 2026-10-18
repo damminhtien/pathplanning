@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "source": {
+    "dataset": "MovingAI DAO benchmark",
+    "file": "dao/ost102d.map",
+    "benchmark_url": "https://www.movingai.com/benchmarks/grids.html",
+    "sha256": "44eaf2e95fba8e9dfbaeb47ae2aced17db3ddfbb4fc63ed5275bebee7abb7da5",
+    "scenario_file": "dao/ost102d.map.scen",
+    "scenario_line": 57,
+    "scenario_record": "5\tost102d.map\t28\t22\t6\t5\t24\t14\t21.72792206",
+    "published_optimal_cost": 21.72792206
+  },
+  "width": 28,
+  "height": 22,
+  "start": [
+    6,
+    5
+  ],
+  "goal": [
+    24,
+    14
+  ],
+  "movement": "8-neighbor octile; diagonal moves cannot cut corners",
+  "seed": 0
+}

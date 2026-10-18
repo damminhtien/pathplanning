@@ -1,11 +1,12 @@
 "use strict";
 
-import { createCatalog } from "./scripts/catalog.js";
+import { createCatalog } from "./scripts/catalog.js?v=concept-labels-20261018";
 import { startApplicationScenes } from "./scripts/applications.js";
 import { startEnvironmentPreviews } from "./scripts/environment-previews.js";
 import { startLandingMotion } from "./scripts/landing-motion.js";
-import { createSimulator } from "./scripts/simulator.js";
+import { createSimulator } from "./scripts/simulator.js?v=concept-clarity-20261018";
 import { startThreeDimensionalScenes } from "./scripts/three-dimensional.js";
+import { startRecordedPlannerRuns } from "./scripts/planner-runs.js?v=recorded-trace-player-20261018";
 
 async function loadPlanners() {
   const response = await fetch(new URL("data/planners.json", window.location.href));
@@ -44,3 +45,4 @@ async function startLearningLab() {
 startLearningLab();
 startApplicationScenes();
 startLandingMotion();
+startRecordedPlannerRuns();
