@@ -1,8 +1,8 @@
-# Plan: Performance audit and root-cause fixes
+# Plan: Native wheel publishing
 
 | Milestone | Verification boundary | Status |
 | --- | --- | --- |
-| M1. Profile representative continuous workloads | Record native/API timings and counters for PRM* and RIT* on fixed BARN cases. | done |
-| M2. Fix static native collision checking | Exact segment checks cover boxes, spheres, and OBBs; sparse-step collision regression passes. | done |
-| M3. Reduce RIT* hot-loop overhead | Reuse per-plan metric workspaces and bound/index the 2D CARM Gaussian tail; preserve deterministic path cost. | done |
-| M4. Verify and checkpoint | Run focused tests, native build, lint/type checks, repeat targeted profiles, refresh Graphify, inspect and commit. | done |
+| M1. Define supported wheel matrix | Repository evidence and native compiler flags establish target platforms and CPython versions. | done |
+| M2. Add isolated wheel smoke check and CI/release workflow | cibuildwheel builds each target; each wheel is installed in its isolated test env and exercises native loading plus the public API. | in progress |
+| M3. Update package metadata and install docs | README and package metadata state the tested wheel range and source-build fallback. | done |
+| M4. Build, clean-install, inspect, and checkpoint | Local macOS arm64 wheel passes; remote Linux x86_64/macOS x86_64/arm64 matrix passes; inspect and commit only task files. | in progress |

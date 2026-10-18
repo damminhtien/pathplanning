@@ -1,24 +1,37 @@
-# Task: Diagnose and fix measured performance bottlenecks
+# Task: Publishable native wheels
 
 ## Goal
 
-Audit the current path-planning implementation for unresolved issues, identify
-performance bottlenecks with profiling, and fix verified root causes without
-expanding the routine test or benchmark workload.
+Provide tested binary wheels for the repository's evidenced CPython platforms
+so ordinary installs do not need a local C/C++ toolchain.
+
+## Scope
+
+- Linux x86_64 using a portable manylinux wheel.
+- macOS x86_64 and arm64 using native runners.
+- CPython 3.10 through 3.14, standard GIL builds.
+- Release workflow builds, validates, and publishes wheels together with the
+  source distribution. Pull requests build and clean-install-test every wheel.
+
+Windows, Linux arm64, musllinux, PyPy, and free-threaded CPython are excluded
+until native builds and runtime behavior are validated for those targets.
+
+## Acceptance criteria
+
+- Each wheel is built in cibuildwheel's platform-compatible environment.
+- Each wheel is installed in cibuildwheel's isolated test environment and a
+  smoke check loads all packaged native libraries and runs a small public plan.
+- Linux wheels use the manylinux2014 x86_64 baseline.
+- Package metadata and installation documentation describe the tested wheel
+  matrix and source-build requirements accurately.
+- Pull request validation checks wheel and sdist metadata. PyPI publishing is
+  gated to a published GitHub release or an explicit manual dispatch from
+  `main`; manual publishing sends only wheel files.
+- Local arm64 wheel build and clean installation pass. CI matrix supplies the
+  Linux x86_64 and macOS x86_64 runtime validation.
 
 ## Constraints
 
-- Use the project Python 3.14 environment and install tools only when needed.
-- Keep regression tests small and focused.
-- Preserve public APIs, custom callback semantics, and native ABI contracts.
-- Run targeted diagnostic benchmarks during investigation; defer broad benchmark
-  data reruns until the end.
-- Stage explicit task files and commit focused changes after validation.
-
-## Acceptance
-
-- At least one measured bottleneck is fixed at its source and has a regression
-  test.
-- Focused tests, native build, lint/type checks, and `git diff --check` pass.
-- Before/after results use the same deterministic workload and explain limits.
-- Graphify is refreshed and all task changes are committed.
+- Preserve unrelated website work in the primary checkout.
+- Do not create a GitHub release or upload to PyPI in this task.
+- Stage only task-owned paths and commit the verified changes.

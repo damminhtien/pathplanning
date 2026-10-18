@@ -21,6 +21,7 @@ classifiers = [
   "Programming Language :: Python :: 3.11",
   "Programming Language :: Python :: 3.12",
   "Programming Language :: Python :: 3.13",
+  "Programming Language :: Python :: 3.14",
   "Topic :: Scientific/Engineering :: Artificial Intelligence",
   "Topic :: Scientific/Engineering :: Visualization",
 ]
@@ -58,6 +59,14 @@ include-package-data = true
 
 [tool.setuptools.package-data]
 pathplanning = ["py.typed", "THIRD_PARTY_NOTICES.md"]
+
+[tool.cibuildwheel]
+build = "cp310-* cp311-* cp312-* cp313-* cp314-*"
+skip = "cp3??t-* *-musllinux_* *-win*"
+test-command = "python {project}/scripts/verify_wheel_install.py"
+
+[tool.cibuildwheel.linux]
+manylinux-x86_64-image = "manylinux2014"
 
 [tool.ruff]
 target-version = "py310"

@@ -152,18 +152,20 @@ expansion, use a built-in native space or implement the
 ## Building and Loading
 
 Source builds require Python `>=3.10`, a C11 compiler, and a C++17 compiler.
-`pip install .` builds all four extension libraries as part of package
-installation. For a checkout, build them in place with:
+`pip install .` builds all five native libraries as part of package
+installation. Published wheels bundle these libraries for the supported
+CPython and OS/architecture matrix in the README. For a checkout, build them in
+place with:
 
 ```bash
 make build-ext
 ```
 
-The build creates production `_search_engine` and `_continuous_engine`, plus
-`_search_trace_engine` and `_continuous_trace_engine` from the same source files.
-The diagnostic variants compile with `PP_ENABLE_TRACE=1`; the production
-variants omit trace code at compile time. All export C ABI functions and are
-loaded with `ctypes`; Python does not
+The build creates production `_search_engine` and `_continuous_engine`, trace
+variants `_search_trace_engine` and `_continuous_trace_engine`, and the isolated
+`_search_metrics_engine`. Diagnostic variants compile with their respective
+feature macros; production variants omit trace and metrics code at compile
+time. All export C ABI functions and are loaded with `ctypes`; Python does not
 implement or dispatch individual expansion steps. `MANIFEST.in` includes the
 `.c`, `.cpp`, and `.h` sources in source distributions.
 
