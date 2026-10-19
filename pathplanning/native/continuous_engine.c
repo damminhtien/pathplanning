@@ -20,6 +20,12 @@
 /* Bounds the omitted normalized Gaussian tail in the 2D spatial index. */
 #define PP_C_RIT_CARM_SCALE_ERROR 1e-14
 
+static int pp_size_multiply(size_t left, size_t right, size_t *product) {
+    if (right != 0 && left > SIZE_MAX / right) return -1;
+    *product = left * right;
+    return 0;
+}
+
 typedef struct {
     uint32_t *items;
     size_t count;
@@ -544,19 +550,26 @@ int pp_nodes_reserve(pp_nodes *nodes, uint32_t requested) {
     }
     if ((size_t)capacity > SIZE_MAX / nodes->dimension / sizeof(double)) return -1;
     points = (double *)realloc(nodes->points, (size_t)capacity * nodes->dimension * sizeof(double));
-    if (points == NULL) return -1; nodes->points = points;
+    if (points == NULL) return -1;
+    nodes->points = points;
     cost = (double *)realloc(nodes->cost, (size_t)capacity * sizeof(double));
-    if (cost == NULL) return -1; nodes->cost = cost;
+    if (cost == NULL) return -1;
+    nodes->cost = cost;
     edge_cost = (double *)realloc(nodes->edge_cost, (size_t)capacity * sizeof(double));
-    if (edge_cost == NULL) return -1; nodes->edge_cost = edge_cost;
+    if (edge_cost == NULL) return -1;
+    nodes->edge_cost = edge_cost;
     parent = (uint32_t *)realloc(nodes->parent, (size_t)capacity * sizeof(uint32_t));
-    if (parent == NULL) return -1; nodes->parent = parent;
+    if (parent == NULL) return -1;
+    nodes->parent = parent;
     first_child = (uint32_t *)realloc(nodes->first_child, (size_t)capacity * sizeof(uint32_t));
-    if (first_child == NULL) return -1; nodes->first_child = first_child;
+    if (first_child == NULL) return -1;
+    nodes->first_child = first_child;
     next_sibling = (uint32_t *)realloc(nodes->next_sibling, (size_t)capacity * sizeof(uint32_t));
-    if (next_sibling == NULL) return -1; nodes->next_sibling = next_sibling;
+    if (next_sibling == NULL) return -1;
+    nodes->next_sibling = next_sibling;
     flags = (uint8_t *)realloc(nodes->flags, (size_t)capacity * sizeof(uint8_t));
-    if (flags == NULL) return -1; nodes->flags = flags;
+    if (flags == NULL) return -1;
+    nodes->flags = flags;
     nodes->capacity = capacity;
     return 0;
 }
@@ -2086,8 +2099,10 @@ static int pp_fcit_refresh_changed_sources(pp_context *ctx, uint32_t node_count,
                               queues, edge_cache, open, result) != 0) return -1;
     }
     {
-        size_t threshold = (size_t)node_count > SIZE_MAX / 4
-            ? SIZE_MAX : (size_t)node_count * 4;
+        size_t threshold;
+        if (pp_size_multiply((size_t)node_count, 4, &threshold) != 0) {
+            threshold = SIZE_MAX;
+        }
         if (open->count > threshold) {
             free(open->items);
             memset(open, 0, sizeof(*open));
@@ -2115,6 +2130,7 @@ static int pp_run_fcit(pp_context *ctx, pp_continuous_result *result) {
     double *heuristic = NULL, *old_cost = NULL, *sample = NULL;
     uint32_t root, goal_id, node_count = 0, frontier_count = 0;
     uint64_t generated = 0;
+    size_t queue_bytes, double_bytes;
     double lower_bound, best_cost = PP_C_INF;
     int stop = 3, status = -1;
 
@@ -2169,14 +2185,14 @@ static int pp_run_fcit(pp_context *ctx, pp_continuous_result *result) {
         heuristic = NULL;
         free(old_cost);
         old_cost = NULL;
-        if ((size_t)node_count > SIZE_MAX / sizeof(*queues) ||
-            (size_t)node_count > SIZE_MAX / sizeof(*heuristic)) {
+        if (pp_size_multiply((size_t)node_count, sizeof(*queues), &queue_bytes) != 0 ||
+            pp_size_multiply((size_t)node_count, sizeof(*heuristic), &double_bytes) != 0) {
             pp_set_error(result, "FCIT* sample graph is too large");
             goto done;
         }
-        queues = (pp_fcit_local_queue *)calloc(node_count, sizeof(*queues));
-        heuristic = (double *)malloc((size_t)node_count * sizeof(*heuristic));
-        old_cost = (double *)malloc((size_t)node_count * sizeof(*old_cost));
+        queues = (pp_fcit_local_queue *)calloc(1, queue_bytes);
+        heuristic = (double *)malloc(double_bytes);
+        old_cost = (double *)malloc(double_bytes);
         if (queues == NULL || heuristic == NULL || old_cost == NULL) {
             pp_set_error(result, "out of memory allocating FCIT* graph state");
             goto done;
@@ -3305,6 +3321,7 @@ static int pp_run_asymmetric(pp_context *ctx, pp_continuous_result *result,
     uint32_t *parents = NULL, *best_ids = NULL;
     uint8_t *reverse_closed = NULL;
     size_t best_length = 0;
+    size_t double_bytes;
     uint32_t root, goal_id, node_count, node;
     double best_cost = PP_C_INF, radius;
     int stop = 3, status = -1, terminate = 0;
@@ -3348,17 +3365,17 @@ static int pp_run_asymmetric(pp_context *ctx, pp_continuous_result *result,
     }
     node_count = ctx->nodes.count;
     radius = pp_radius(ctx, node_count);
-    if ((size_t)node_count > SIZE_MAX / sizeof(double)) {
+    if (pp_size_multiply((size_t)node_count, sizeof(double), &double_bytes) != 0) {
         pp_set_error(result, "AIT*/EIT* sampled graph is too large");
         goto done;
     }
-    heuristic = (double *)malloc((size_t)node_count * sizeof(*heuristic));
-    g_cost = (double *)malloc((size_t)node_count * sizeof(*g_cost));
-    expanded_cost = (double *)malloc((size_t)node_count * sizeof(*expanded_cost));
+    heuristic = (double *)malloc(double_bytes);
+    g_cost = (double *)malloc(double_bytes);
+    expanded_cost = (double *)malloc(double_bytes);
     if (effort_informed) {
-        effort_heuristic = (double *)malloc((size_t)node_count * sizeof(*effort_heuristic));
-        g_effort = (double *)malloc((size_t)node_count * sizeof(*g_effort));
-        expanded_effort = (double *)malloc((size_t)node_count * sizeof(*expanded_effort));
+        effort_heuristic = (double *)malloc(double_bytes);
+        g_effort = (double *)malloc(double_bytes);
+        expanded_effort = (double *)malloc(double_bytes);
     }
     parents = (uint32_t *)malloc((size_t)node_count * sizeof(*parents));
     reverse_closed = (uint8_t *)malloc((size_t)node_count * sizeof(*reverse_closed));
