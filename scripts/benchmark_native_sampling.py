@@ -284,6 +284,11 @@ def run_benchmarks(
     )
 
 
+def _median_ms(metrics: dict[str, Any], name: str) -> str:
+    metric = metrics.get(name)
+    return f"{metric['median'] * 1_000:.3f}" if metric is not None else "n/a"
+
+
 def _print_table(report: dict[str, Any]) -> None:
     environment = report["identity"]["environment"]
     print(
@@ -301,11 +306,6 @@ def _print_table(report: dict[str, Any]) -> None:
     print("-" * len(header))
     for row in report["results"]:
         metrics = row["metrics"]
-
-        def median_ms(name: str) -> str:
-            metric = metrics.get(name)
-            return f"{metric['median'] * 1_000:.3f}" if metric is not None else "n/a"
-
         api = metrics.get("full_api_s")
         nodes = metrics.get("nodes")
         success = row["success_rate"]
@@ -314,8 +314,8 @@ def _print_table(report: dict[str, Any]) -> None:
         print(
             f"{row['case_id']:20} {row['variant_id']:18} "
             f"{api_ms:>15} "
-            f"{median_ms('native_kernel_s'):>15} "
-            f"{median_ms('setup_and_ffi_s'):>17} "
+            f"{_median_ms(metrics, 'native_kernel_s'):>15} "
+            f"{_median_ms(metrics, 'setup_and_ffi_s'):>17} "
             f"{(f'{success:.0%}' if success is not None else 'n/a'):>9} "
             f"{nodes_text:>10} "
             f"{row['completed_count']:4d}/{row['attempt_count']:<4d}"

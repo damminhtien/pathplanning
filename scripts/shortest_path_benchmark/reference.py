@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 from decimal import Decimal, InvalidOperation
 import heapq
 import math
-from typing import Sequence
 
 from scripts.shortest_path_benchmark.workloads import MOVEMENT_PROFILE, MovingAIGrid
 

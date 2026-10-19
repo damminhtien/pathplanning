@@ -1,5 +1,3 @@
-"use strict";
-
 const TRAVELER_SELECTOR = "[data-motion-target]";
 const PATH_SELECTOR = "[data-motion-path]";
 
@@ -25,7 +23,10 @@ export function startApplicationScenes() {
         const next = traveler.path.getPointAtLength(Math.min(traveler.length, distance + 0.5));
         rotation = Math.atan2(next.y - point.y, next.x - point.x) * (180 / Math.PI);
       }
-      traveler.element.setAttribute("transform", `translate(${point.x} ${point.y}) rotate(${rotation})`);
+      traveler.element.setAttribute(
+        "transform",
+        `translate(${point.x} ${point.y}) rotate(${rotation})`,
+      );
     }
   }
 
@@ -48,21 +49,24 @@ export function startApplicationScenes() {
   }
 
   if ("IntersectionObserver" in window) {
-    const observer = new IntersectionObserver((entries) => {
-      for (const entry of entries) {
-        const scene = scenes.find((item) => item.element === entry.target);
-        if (!scene) continue;
-        if (entry.isIntersecting) {
-          visibleScenes.add(scene);
-          scene.element.classList.add("is-visible");
-        } else {
-          visibleScenes.delete(scene);
-          scene.element.classList.remove("is-visible");
+    const observer = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          const scene = scenes.find((item) => item.element === entry.target);
+          if (!scene) continue;
+          if (entry.isIntersecting) {
+            visibleScenes.add(scene);
+            scene.element.classList.add("is-visible");
+          } else {
+            visibleScenes.delete(scene);
+            scene.element.classList.remove("is-visible");
+          }
         }
-      }
-      if (visibleScenes.size) start();
-      else stop();
-    }, { rootMargin: "120px 0px" });
+        if (visibleScenes.size) start();
+        else stop();
+      },
+      { rootMargin: "120px 0px" },
+    );
     for (const scene of scenes) observer.observe(scene.element);
   } else {
     scenes.forEach((scene) => {
@@ -98,8 +102,7 @@ export function startApplicationScenes() {
 
 function createScene(element) {
   const paths = new Map(
-    [...element.querySelectorAll(PATH_SELECTOR)]
-      .map((path) => [path.dataset.motionPath, path]),
+    [...element.querySelectorAll(PATH_SELECTOR)].map((path) => [path.dataset.motionPath, path]),
   );
   const travelers = [...element.querySelectorAll(TRAVELER_SELECTOR)]
     .map((traveler) => {
@@ -125,11 +128,14 @@ function parseWait(value) {
   if (!value) return null;
   const [position, duration] = value.split(",").map(Number);
   if (!Number.isFinite(position) || !Number.isFinite(duration)) return null;
-  return { position: Math.max(0, Math.min(1, position)), duration: Math.max(0, Math.min(0.5, duration)) };
+  return {
+    position: Math.max(0, Math.min(1, position)),
+    duration: Math.max(0, Math.min(0.5, duration)),
+  };
 }
 
 function progressWithWait(phase, wait) {
-  if (!wait || !wait.duration) return phase;
+  if (!wait?.duration) return phase;
   const movingTime = 1 - wait.duration;
   const waitStart = wait.position * movingTime;
   const waitEnd = waitStart + wait.duration;

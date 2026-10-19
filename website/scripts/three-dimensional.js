@@ -1,5 +1,3 @@
-"use strict";
-
 import { createContinuousScene } from "./scenes/continuous-3d.js";
 import { createVoxelScene } from "./scenes/voxel-3d.js";
 
@@ -8,12 +6,11 @@ export function startThreeDimensionalScenes() {
   if (!section) return () => {};
 
   const sceneDrawers = { voxel: createVoxelScene(), continuous: createContinuousScene() };
-  const scenes = [...section.querySelectorAll("canvas[data-three-d-scene]")]
-    .flatMap((canvas) => {
-      const context = canvas.getContext("2d");
-      if (!context) return [];
-      return [{ canvas, context, kind: canvas.dataset.threeDScene }];
-    });
+  const scenes = [...section.querySelectorAll("canvas[data-three-d-scene]")].flatMap((canvas) => {
+    const context = canvas.getContext("2d");
+    if (!context) return [];
+    return [{ canvas, context, kind: canvas.dataset.threeDScene }];
+  });
   if (!scenes.length) return () => {};
 
   const motionQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
@@ -60,12 +57,16 @@ export function startThreeDimensionalScenes() {
     frameId = 0;
   }
 
-  const observer = "IntersectionObserver" in window
-    ? new IntersectionObserver((entries) => {
-      if (entries.some((entry) => entry.isIntersecting)) start();
-      else stop();
-    }, { rootMargin: "100px 0px", threshold: 0 })
-    : null;
+  const observer =
+    "IntersectionObserver" in window
+      ? new IntersectionObserver(
+          (entries) => {
+            if (entries.some((entry) => entry.isIntersecting)) start();
+            else stop();
+          },
+          { rootMargin: "100px 0px", threshold: 0 },
+        )
+      : null;
   const handleResize = () => {
     if (isVisible && prefersReducedMotion) drawFrame(0);
   };

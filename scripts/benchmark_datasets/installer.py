@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections import Counter, defaultdict
+from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import configparser
 from dataclasses import dataclass, field
@@ -19,7 +20,7 @@ import stat
 import tempfile
 import threading
 import time
-from typing import Any, Callable
+from typing import Any
 from urllib.error import HTTPError
 from urllib.parse import unquote, urlsplit, urlunsplit
 from urllib.request import Request, urlopen

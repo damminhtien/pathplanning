@@ -6,9 +6,25 @@ This document defines enforceable repository rules. Keywords use RFC 2119 semant
 
 - Code MUST target Python `>=3.10`.
 - Native planner code MUST target C11 (`.c`) or C++17 (`.cpp`).
-- Line length is 100, LF endings, 4-space indentation.
-- `ruff format` output is authoritative.
-- `ruff check` and `pyright` MUST pass for touched production modules.
+- Python formatting uses `ruff format` with a 100-character line length, LF
+  endings, and 4-space indentation.
+- Website JavaScript and CSS use Biome's recommended lint rules; JavaScript
+  formatting uses 2-space indentation. CSS formatting is left in its existing
+  compact style to avoid expanding every rule into separate lines.
+- Biome's descending-specificity and `!important` CSS heuristics are disabled
+  because the site intentionally layers component, responsive, and utility
+  overrides; its other recommended rules remain enabled.
+- Source and generated website HTML use `html-validate`.
+- The HTML validator keeps standards and accessibility rules enabled; it allows
+  the repository's lowercase doctype and self-closing void-element style, and
+  leaves title-length decisions to editorial review.
+- Native C/C++ sources and headers compile in strict C11/C++17 syntax-only
+  modes with warnings treated as errors.
+- JSON, YAML, TOML, XML, and SVG files receive syntax or well-formedness checks.
+- Every supported source file is checked by `make lint`; adding a new source
+  language requires adding its checker and updating the lint coverage guard.
+- Ruff and the configured Pyright API scope MUST pass for touched production
+  modules. Pyright's analyzed paths are explicitly listed in `pyrightconfig.json`.
 
 ## Naming
 
@@ -34,8 +50,15 @@ This document defines enforceable repository rules. Keywords use RFC 2119 semant
 - Run:
 
 ```bash
-ruff check .
-ruff format --check .
+make lint
+```
+
+- `make lint` is read-only and runs all repository checks through pre-commit.
+- Install development tools with `make install-dev`; this also runs `npm ci`.
+- Format source files separately:
+
+```bash
+make format
 ```
 
 - Optional stricter lint for selected files:

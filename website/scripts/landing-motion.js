@@ -1,5 +1,3 @@
-"use strict";
-
 const REVEAL_GROUPS = [
   [".hero-copy > *", true],
   [".hero-art", false],
@@ -21,19 +19,25 @@ const REVEAL_GROUPS = [
 export function startLandingMotion() {
   startReadingProgress();
 
-  if (window.matchMedia("(prefers-reduced-motion: reduce)").matches
-    || !("IntersectionObserver" in window)) return;
+  if (
+    window.matchMedia("(prefers-reduced-motion: reduce)").matches ||
+    !("IntersectionObserver" in window)
+  )
+    return;
 
   const revealTargets = collectRevealTargets();
   if (!revealTargets.length) return;
 
-  const observer = new IntersectionObserver((entries) => {
-    for (const entry of entries) {
-      if (!entry.isIntersecting) continue;
-      entry.target.classList.add("is-revealed");
-      observer.unobserve(entry.target);
-    }
-  }, { rootMargin: "0px 0px -6% 0px", threshold: 0.12 });
+  const observer = new IntersectionObserver(
+    (entries) => {
+      for (const entry of entries) {
+        if (!entry.isIntersecting) continue;
+        entry.target.classList.add("is-revealed");
+        observer.unobserve(entry.target);
+      }
+    },
+    { rootMargin: "0px 0px -6% 0px", threshold: 0.12 },
+  );
 
   for (const target of revealTargets) observer.observe(target);
   document.documentElement.classList.add("landing-motion-ready");

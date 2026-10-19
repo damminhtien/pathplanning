@@ -5,11 +5,13 @@ Thanks for helping improve PathPlanning.
 ## Prerequisites
 
 - Python `>=3.10`
+- Node.js `>=24.8` and npm for website linting
 - A C11 compiler and a C++17 compiler for source builds
 - Install development dependencies:
 
 ```bash
 pip install -r requirements-dev.txt
+npm ci
 make build-ext
 ```
 
@@ -25,12 +27,16 @@ build the libraries before running their pytest tier.
 Run these before opening a PR:
 
 ```bash
-ruff check .
-ruff format --check .
-pyright
+make lint
+make format  # only when you intend to rewrite formatting
 pytest -q
-pre-commit run --all-files
 ```
+
+`make lint` runs pre-commit across all tracked files, including Python, website
+JavaScript/CSS/HTML, native C/C++, and supported data/config formats. It also
+builds the website into a temporary directory and validates the generated
+pages. The source-coverage guard fails if a new source extension or source tree
+has no configured checker.
 
 ## Workflow
 

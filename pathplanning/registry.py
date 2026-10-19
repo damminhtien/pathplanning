@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from dataclasses import dataclass
 from types import MappingProxyType
-from typing import Any, Literal, Protocol, Union, cast
+from typing import Any, Literal, Protocol, cast
 
 from pathplanning.core.contracts import (
     ContinuousProblem,
@@ -124,12 +124,12 @@ class MultiAgentPlannerCallable(Protocol):
     ) -> MultiAgentPlanResult[Any]: ...
 
 
-PlannerCallable = Union[
-    DiscretePlannerCallable,
-    ContinuousPlannerCallable,
-    TemporalPlannerCallable,
-    MultiAgentPlannerCallable,
-]
+PlannerCallable = (
+    DiscretePlannerCallable
+    | ContinuousPlannerCallable
+    | TemporalPlannerCallable
+    | MultiAgentPlannerCallable
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -482,7 +482,7 @@ def planner_modules(problem_kind: ProblemKind | None = None) -> list[str]:
     """Return unique Python modules that implement registered planners."""
     return sorted(
         {
-            getattr(spec.planner, "__module__")
+            spec.planner.__module__
             for spec in PLANNER_REGISTRY.values()
             if problem_kind is None or spec.problem_kind == problem_kind
         }

@@ -69,7 +69,7 @@ def _grid_path_metrics(grid: MovingAIGrid, path: Any) -> tuple[bool, float | Non
         return False, None
 
     total = 0.0
-    for first, last in zip(points, points[1:]):
+    for first, last in zip(points, points[1:], strict=False):
         dx, dy = last[0] - first[0], last[1] - first[1]
         steps = max(abs(dx), abs(dy))
         if steps == 0 or (dx and dy and abs(dx) != abs(dy)):
@@ -152,7 +152,8 @@ def _any_angle_metrics(
     if not np.allclose(points[-1], goal, rtol=0.0, atol=1e-7):
         return False, None
     visible = all(
-        _segment_visible(grid, tuple(first), tuple(last)) for first, last in zip(points, points[1:])
+        _segment_visible(grid, tuple(first), tuple(last))
+        for first, last in zip(points, points[1:], strict=False)
     )
     length = float(np.linalg.norm(np.diff(points, axis=0), axis=1).sum())
     return visible, length

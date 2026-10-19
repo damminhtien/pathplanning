@@ -204,9 +204,11 @@ def _grid_path_valid(
         and cells[0] == tuple(start)
         and cells[-1] == tuple(goal)
         and all(space.is_valid_node(cell) for cell in cells)
-        and all(math.isfinite(space.edge_cost(a, b)) for a, b in zip(cells, cells[1:]))
+        and all(
+            math.isfinite(space.edge_cost(a, b)) for a, b in zip(cells, cells[1:], strict=False)
+        )
     )
-    cost = sum(space.edge_cost(a, b) for a, b in zip(cells, cells[1:]))
+    cost = sum(space.edge_cost(a, b) for a, b in zip(cells, cells[1:], strict=False))
     return valid, float(cost)
 
 

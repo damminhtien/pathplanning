@@ -41,7 +41,7 @@ def _validate_path(problem: DiscreteProblem[tuple[int, int]], path: np.ndarray) 
     total_cost = 0.0
     for point in path:
         assert graph.is_valid_node((int(point[0]), int(point[1])))
-    for first, second in zip(path, path[1:]):
+    for first, second in zip(path, path[1:], strict=False):
         source = (int(first[0]), int(first[1]))
         target = (int(second[0]), int(second[1]))
         edge_cost = graph.edge_cost(source, target)

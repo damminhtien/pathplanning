@@ -1,5 +1,3 @@
-"use strict";
-
 export function roundedRect(context, x, y, width, height, radius) {
   const r = Math.max(0, Math.min(radius, width / 2, height / 2));
   context.beginPath();
@@ -27,10 +25,9 @@ export function distance(a, b) {
 export function drawPathTrace(context, points, progress) {
   if (points.length < 2) return;
 
-  let remaining = points.slice(1).reduce(
-    (sum, point, index) => sum + distance(point, points[index]),
-    0,
-  ) * Math.max(0, Math.min(1, progress));
+  let remaining =
+    points.slice(1).reduce((sum, point, index) => sum + distance(point, points[index]), 0) *
+    Math.max(0, Math.min(1, progress));
 
   context.beginPath();
   context.moveTo(points[0].x, points[0].y);
@@ -54,7 +51,7 @@ export function drawPathTrace(context, points, progress) {
 export function drawMotionMarker(context, point, color, phase, label = "", radius = 7) {
   const pulse = (Math.sin(phase * 5) + 1) / 2;
   context.save();
-  context.globalAlpha = .2 + pulse * .18;
+  context.globalAlpha = 0.2 + pulse * 0.18;
   context.beginPath();
   context.arc(point.x, point.y, radius + 5 + pulse * 4, 0, Math.PI * 2);
   context.strokeStyle = color;
@@ -73,14 +70,16 @@ export function drawMotionMarker(context, point, color, phase, label = "", radiu
     context.font = `700 ${Math.max(8, radius * 1.1)}px ui-monospace, monospace`;
     context.textAlign = "center";
     context.textBaseline = "middle";
-    context.fillText(label, point.x, point.y + .5);
+    context.fillText(label, point.x, point.y + 0.5);
   }
   context.restore();
 }
 
 export function pathAtProgress(points, progress) {
   if (!points.length) return { x: 0, y: 0 };
-  const total = points.slice(1).reduce((sum, point, index) => sum + distance(point, points[index]), 0);
+  const total = points
+    .slice(1)
+    .reduce((sum, point, index) => sum + distance(point, points[index]), 0);
   let remaining = total * Math.max(0, Math.min(1, progress));
   for (let index = 1; index < points.length; index += 1) {
     const from = points[index - 1];
@@ -88,8 +87,8 @@ export function pathAtProgress(points, progress) {
     if (!length) continue;
     if (remaining <= length) {
       return {
-        x: from.x + (points[index].x - from.x) * remaining / length,
-        y: from.y + (points[index].y - from.y) * remaining / length,
+        x: from.x + ((points[index].x - from.x) * remaining) / length,
+        y: from.y + ((points[index].y - from.y) * remaining) / length,
       };
     }
     remaining -= length;

@@ -282,6 +282,11 @@ def run_benchmarks(
     )
 
 
+def _median_ms(metrics: dict[str, Any], name: str) -> str:
+    metric = metrics.get(name)
+    return f"{metric['median'] * 1_000:.3f}" if metric is not None else "n/a"
+
+
 def _print_table(report: dict[str, Any]) -> None:
     header = (
         f"{'case_id':28} {'runtime_med_ms':>15} {'graph_init_med_ms':>18} "
@@ -291,11 +296,6 @@ def _print_table(report: dict[str, Any]) -> None:
     print("-" * len(header))
     for row in report["results"]:
         metrics = row["metrics"]
-
-        def median_ms(name: str) -> str:
-            metric = metrics.get(name)
-            return f"{metric['median'] * 1_000:.3f}" if metric is not None else "n/a"
-
         runtime = metrics.get("runtime_s")
         nodes = metrics.get("nodes_expanded")
         success = row["success_rate"]
@@ -304,8 +304,8 @@ def _print_table(report: dict[str, Any]) -> None:
         print(
             f"{row['case_id']:28} "
             f"{runtime_ms:>15} "
-            f"{median_ms('graph_init_s'):>18} "
-            f"{median_ms('native_search_s'):>21} "
+            f"{_median_ms(metrics, 'graph_init_s'):>18} "
+            f"{_median_ms(metrics, 'native_search_s'):>21} "
             f"{nodes_text:>10} "
             f"{(f'{success:.0%}' if success is not None else 'n/a'):>9} "
             f"{row['completed_count']:4d}/{row['attempt_count']:<4d}"

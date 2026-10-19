@@ -54,13 +54,13 @@ def render_home_case_studies(studies: list[dict[str, Any]]) -> str:
         stat = study["stats"][0]
         cards.append(
             f'<a class="case-study-card" href="case-studies/#{_e(study["id"])}">'
-            f'{_visual(study["diagram"])}'
+            f"{_visual(study['diagram'])}"
             f'<div class="case-study-card-copy">'
             f'<p class="case-study-kicker">{_e(study["eyebrow"])}</p>'
-            f'<h3>{_e(study["title"])}</h3>'
+            f"<h3>{_e(study['title'])}</h3>"
             f'<p class="case-study-summary">{_e(study["summary"])}</p>'
             f'<div class="case-study-card-result"><strong>{_e(stat["value"])}</strong>'
-            f'<span>{_e(stat["label"])}</span></div>'
+            f"<span>{_e(stat['label'])}</span></div>"
             '<span class="case-study-card-link">Read the case study</span>'
             "</div></a>"
         )
@@ -70,26 +70,22 @@ def render_home_case_studies(studies: list[dict[str, Any]]) -> str:
 def _stat_cards(stats: list[dict[str, str]]) -> str:
     return "\n".join(
         f'<div class="case-study-stat"><strong>{_e(stat["value"])}</strong>'
-        f'<span>{_e(stat["label"])}</span></div>'
+        f"<span>{_e(stat['label'])}</span></div>"
         for stat in stats
     )
 
 
 def _findings(findings: list[dict[str, str]]) -> str:
     return "\n".join(
-        f'<li><h3>{_e(item["title"])}</h3><p>{_e(item["text"])}</p></li>'
-        for item in findings
+        f"<li><h3>{_e(item['title'])}</h3><p>{_e(item['text'])}</p></li>" for item in findings
     )
 
 
 def _source_links(study: dict[str, Any], asset_root: str) -> str:
     dataset_url = f"{asset_root}datasets/{_e(study['dataset_id'])}/"
-    items = [
-        f'<a href="{dataset_url}">Dataset profile</a>'
-    ]
+    items = [f'<a href="{dataset_url}">Dataset profile</a>']
     items.extend(
-        f'<a href="{_e(source["url"])}" target="_blank" rel="noreferrer">'
-        f'{_e(source["label"])}</a>'
+        f'<a href="{_e(source["url"])}" target="_blank" rel="noreferrer">{_e(source["label"])}</a>'
         for source in study["sources"]
     )
     return "".join(items)
@@ -120,24 +116,26 @@ def case_studies_page(studies: list[dict[str, Any]], output_root: Path, output_f
             "</header>"
             f'<div class="case-study-detail-grid">'
             f'<div class="case-study-evidence-column">'
-            f'{_visual(study["diagram"])}'
+            f"{_visual(study['diagram'])}"
             f'<div class="case-study-stats">{_stat_cards(study["stats"])}</div>'
             f'<nav class="case-study-source-links" aria-label="Sources for {_e(study["title"])}">'
-            f'{_source_links(study, asset_root)}</nav>'
+            f"{_source_links(study, asset_root)}</nav>"
             "</div>"
             f'<div class="case-study-analysis-column">'
             f'<section class="case-study-question"><p class="case-study-section-label">THE QUESTION</p>'
-            f'<p>{_e(study["question"])}</p></section>'
+            f"<p>{_e(study['question'])}</p></section>"
             f'<section class="case-study-protocol"><p class="case-study-section-label">EVALUATION PROTOCOL</p>'
-            f'<p>{_e(study["protocol"])}</p></section>'
+            f"<p>{_e(study['protocol'])}</p></section>"
             f'<section class="case-study-findings"><p class="case-study-section-label">WHAT THE RESULTS SHOW</p>'
-            f'<ol>{_findings(study["findings"])}</ol></section>'
+            f"<ol>{_findings(study['findings'])}</ol></section>"
             "</div></div>"
             f'<div class="case-study-reading-row">'
-            f'<aside class="case-study-interpretation"><h3>How to read this result</h3>'
-            f'<p>{_e(study["interpretation"])}</p></aside>'
-            f'<aside class="case-study-limitation"><h3>Scope and limits</h3>'
-            f'<p>{_e(study["limitation"])}</p></aside>'
+            f'<aside class="case-study-interpretation" aria-label="How to read: {_e(study["title"])}">'
+            f"<h3>How to read this result</h3>"
+            f"<p>{_e(study['interpretation'])}</p></aside>"
+            f'<aside class="case-study-limitation" aria-label="Scope and limits: {_e(study["title"])}">'
+            f"<h3>Scope and limits</h3>"
+            f"<p>{_e(study['limitation'])}</p></aside>"
             "</div></article>"
         )
 

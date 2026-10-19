@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable, Iterable, Sequence
+from collections.abc import Callable, Hashable, Iterable, Sequence
 import ctypes
 import operator
-from typing import Generic, Hashable, Literal, TypeVar, cast
+from typing import Generic, Literal, TypeVar, cast
 import weakref
 
 import numpy as np

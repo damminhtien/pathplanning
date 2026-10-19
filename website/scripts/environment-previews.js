@@ -1,5 +1,3 @@
-"use strict";
-
 import { createContinuousScene } from "./scenes/continuous.js";
 import { createGridScene } from "./scenes/grid.js";
 import { createMultiAgentScene } from "./scenes/multi-agent.js";
@@ -16,18 +14,25 @@ export function startEnvironmentPreviews(planners) {
   const container = document.querySelector(".environment-preview-grid");
   if (!container) return () => {};
 
-  const previews = [...container.querySelectorAll("canvas[data-environment-preview]")]
-    .flatMap((canvas, index) => {
+  const previews = [...container.querySelectorAll("canvas[data-environment-preview]")].flatMap(
+    (canvas, index) => {
       const kind = canvas.dataset.environmentPreview;
       const planner = planners.find((item) => item.kind === kind);
       const context = canvas.getContext("2d");
       const createScene = SCENE_FACTORIES[kind];
       if (!planner || !context || !createScene) return [];
 
-      const state = { planner, progress: .7, elapsed: 0, changed: false, seed: 41 + index * 17 };
+      const state = {
+        planner,
+        progress: 0.7,
+        elapsed: 0,
+        changed: false,
+        seed: 41 + index * 17,
+      };
       const draw = createScene({ context, state, planners });
-      return [{ canvas, context, draw, state, phase: index * .31 }];
-    });
+      return [{ canvas, context, draw, state, phase: index * 0.31 }];
+    },
+  );
 
   if (!previews.length) return () => {};
 
@@ -59,12 +64,19 @@ export function startEnvironmentPreviews(planners) {
       const scale = Math.min(bounds.width / 900, bounds.height / 500);
       const offsetX = (bounds.width - 900 * scale) / 2;
       const offsetY = (bounds.height - 500 * scale) / 2;
-      context.setTransform(pixelRatio * scale, 0, 0, pixelRatio * scale, offsetX * pixelRatio, offsetY * pixelRatio);
+      context.setTransform(
+        pixelRatio * scale,
+        0,
+        0,
+        pixelRatio * scale,
+        offsetX * pixelRatio,
+        offsetY * pixelRatio,
+      );
 
       const cycle = (elapsed / 9 + preview.phase) % 2;
       const sweep = cycle <= 1 ? cycle : 2 - cycle;
       state.elapsed = prefersReducedMotion ? 0 : elapsed;
-      state.progress = prefersReducedMotion ? .88 : .16 + sweep * .8;
+      state.progress = prefersReducedMotion ? 0.88 : 0.16 + sweep * 0.8;
       preview.draw(900, 500);
     }
 
@@ -84,12 +96,16 @@ export function startEnvironmentPreviews(planners) {
     frameId = 0;
   }
 
-  const observer = "IntersectionObserver" in window
-    ? new IntersectionObserver((entries) => {
-      if (entries.some((entry) => entry.isIntersecting)) start();
-      else stop();
-    }, { rootMargin: "120px 0px", threshold: 0 })
-    : null;
+  const observer =
+    "IntersectionObserver" in window
+      ? new IntersectionObserver(
+          (entries) => {
+            if (entries.some((entry) => entry.isIntersecting)) start();
+            else stop();
+          },
+          { rootMargin: "120px 0px", threshold: 0 },
+        )
+      : null;
 
   function handleResize() {
     if (isVisible && prefersReducedMotion) drawFrame(0);

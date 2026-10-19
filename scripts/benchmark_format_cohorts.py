@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import argparse
 from collections import Counter
+from collections.abc import Iterable
 from dataclasses import asdict
 import gzip
 import hashlib
@@ -17,7 +18,7 @@ import json
 import math
 from pathlib import Path
 import time
-from typing import Any, Iterable
+from typing import Any
 import xml.etree.ElementTree as ET
 
 import numpy as np
@@ -257,7 +258,7 @@ def _path_cost_and_validity(
     if path is None:
         return None, None
     total = 0.0
-    for source, target in zip(path, path[1:]):
+    for source, target in zip(path, path[1:], strict=False):
         begin, end = int(indptr[source]), int(indptr[source + 1])
         row = indices[begin:end]
         matches = np.flatnonzero(row == target)

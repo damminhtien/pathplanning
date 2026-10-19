@@ -39,4 +39,6 @@ def test_eit_star_finds_a_valid_path_around_obstacle() -> None:
     assert result.path is not None
     assert result.stats["path_cost"] == pytest.approx(ait_result.stats["path_cost"])
     assert result.stats["motion_checks"] > 0
-    assert all(space.is_motion_valid(a, b) for a, b in zip(result.path, result.path[1:]))
+    assert all(
+        space.is_motion_valid(a, b) for a, b in zip(result.path, result.path[1:], strict=False)
+    )

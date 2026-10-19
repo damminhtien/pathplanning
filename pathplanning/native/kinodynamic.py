@@ -61,7 +61,7 @@ def run_hybrid_astar(
     wheelbase = _finite_positive(space, "wheelbase")
     footprint_length = _finite_positive(space, "footprint_length")
     footprint_width = _finite_positive(space, "footprint_width")
-    maximum_steering = getattr(space, "max_steering_angle")
+    maximum_steering = space.max_steering_angle
     if isinstance(maximum_steering, bool) or not isinstance(maximum_steering, (int, float)):
         raise TypeError("space.max_steering_angle must be a finite real number")
     maximum_steering = float(maximum_steering)

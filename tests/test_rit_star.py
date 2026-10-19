@@ -61,7 +61,8 @@ def test_rit_star_refines_metric_from_collision_feedback() -> None:
     assert result.path is not None
     assert result.stats["metric_updates"] > 0
     assert all(
-        space.is_motion_valid(start, end) for start, end in zip(result.path, result.path[1:])
+        space.is_motion_valid(start, end)
+        for start, end in zip(result.path, result.path[1:], strict=False)
     )
 
 

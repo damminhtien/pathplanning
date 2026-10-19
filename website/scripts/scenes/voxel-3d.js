@@ -1,5 +1,3 @@
-"use strict";
-
 import {
   createProjection,
   drawGrid,
@@ -100,10 +98,11 @@ function planVoxelSearch() {
     for (const move of moves) {
       const next = bestPoint.map((value, axis) => value + move[axis]);
       if (
-        next.some((value, axis) => value < 0 || value >= VOXEL_VOLUME["xyz"[axis]])
-        || isBlockedVoxel(next)
-        || !canTraverseVoxel(bestPoint, next)
-      ) continue;
+        next.some((value, axis) => value < 0 || value >= VOXEL_VOLUME["xyz"[axis]]) ||
+        isBlockedVoxel(next) ||
+        !canTraverseVoxel(bestPoint, next)
+      )
+        continue;
 
       const nextKey = keyOf(next);
       if (closed.has(nextKey)) continue;
@@ -136,7 +135,9 @@ function drawVoxelScene(context, width, height, phase, elapsed, search) {
 
   const obstacleCells = [...VOXEL_WALL].map((key) => key.split(",").map(Number));
   obstacleCells.sort((a, b) => a[0] + a[1] + a[2] - b[0] - b[1] - b[2]);
-  obstacleCells.forEach(([x, y, z]) => drawVoxel(context, projection, x, y, z));
+  obstacleCells.forEach(([x, y, z]) => {
+    drawVoxel(context, projection, x, y, z);
+  });
 
   const visibleNodes = Math.ceil(search.expanded.length * Math.min(phase / 0.62, 1));
   for (const [x, y, z] of search.expanded.slice(0, visibleNodes)) {
@@ -151,9 +152,10 @@ function drawVoxelScene(context, width, height, phase, elapsed, search) {
   const pathProgress = phase < 0.56 ? 0 : Math.min((phase - 0.56) / 0.24, 1);
   const routePoints = search.route.map(([x, y, z]) => [x + 0.5, y + 0.5, z + 0.5]);
   const revealedAgent = drawPath(context, projection, routePoints, pathProgress, "#2d78b8");
-  const agent = pathProgress < 1
-    ? revealedAgent
-    : pointAlongPolyline(projection, routePoints, shuttleProgress(elapsed));
+  const agent =
+    pathProgress < 1
+      ? revealedAgent
+      : pointAlongPolyline(projection, routePoints, shuttleProgress(elapsed));
   drawPoint(context, projection.point(...VOXEL_START.map((value) => value + 0.5)), "#2d78b8", 4.2);
   drawPoint(context, projection.point(...VOXEL_GOAL.map((value) => value + 0.5)), "#c78643", 4.2);
   if (agent && pathProgress > 0) drawPoint(context, agent, "#216aa7", 4.1);

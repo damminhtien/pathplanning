@@ -1,5 +1,3 @@
-"use strict";
-
 import { PLANNER_KIND_LABELS } from "./planner-kinds.js";
 
 export function createCatalog(planners, onSelect) {
@@ -10,13 +8,15 @@ export function createCatalog(planners, onSelect) {
     const query = document.querySelector("#planner-search").value.trim().toLowerCase();
     const visible = planners.filter((planner) => {
       const matchesKind = selectedKind === "all" || planner.kind === selectedKind;
-      const searchText = `${planner.id} ${planner.title} ${planner.principle} ${planner.description}`.toLowerCase();
+      const searchText =
+        `${planner.id} ${planner.title} ${planner.principle} ${planner.description}`.toLowerCase();
       return matchesKind && (!query || searchText.includes(query));
     });
     const grid = document.querySelector("#planner-grid");
     grid.innerHTML = "";
     if (!visible.length) {
-      grid.innerHTML = '<div class="empty-state">No planners match that search. Try another name or idea.</div>';
+      grid.innerHTML =
+        '<div class="empty-state">No planners match that search. Try another name or idea.</div>';
     }
     for (const planner of visible) {
       const card = document.createElement("article");
@@ -59,10 +59,10 @@ export function createCatalog(planners, onSelect) {
       card.append(top, heading, description, footer);
       grid.append(card);
     }
-    document.querySelector("#catalog-count").textContent = `Showing ${visible.length} of ${planners.length} planners`;
+    document.querySelector("#catalog-count").textContent =
+      `Showing ${visible.length} of ${planners.length} planners`;
     typesetMath(grid);
   }
-
 
   function typesetMath(element) {
     if (!mathJaxReady) {
@@ -72,9 +72,13 @@ export function createCatalog(planners, onSelect) {
           startup.then(resolve);
           return;
         }
-        document.querySelector("#mathjax-script")?.addEventListener("load", () => {
-          window.MathJax.startup.promise.then(resolve);
-        }, { once: true });
+        document.querySelector("#mathjax-script")?.addEventListener(
+          "load",
+          () => {
+            window.MathJax.startup.promise.then(resolve);
+          },
+          { once: true },
+        );
       });
     }
     mathJaxReady.then(async () => {
@@ -91,11 +95,13 @@ export function createCatalog(planners, onSelect) {
     const button = event.target.closest("[data-planner]");
     if (button) onSelect(button.dataset.planner, true);
   });
-  document.querySelectorAll(".filter-chip").forEach((button) => button.addEventListener("click", () => {
-    document.querySelector(".filter-chip.is-active").classList.remove("is-active");
-    button.classList.add("is-active");
-    renderCatalog();
-  }));
+  document.querySelectorAll(".filter-chip").forEach((button) => {
+    button.addEventListener("click", () => {
+      document.querySelector(".filter-chip.is-active").classList.remove("is-active");
+      button.classList.add("is-active");
+      renderCatalog();
+    });
+  });
   document.querySelector("#planner-search").addEventListener("input", renderCatalog);
   renderCatalog();
 }

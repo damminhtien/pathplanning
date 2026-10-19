@@ -77,7 +77,7 @@ def _grid_degrees(blocked: np.ndarray) -> np.ndarray:
             continue
         source = tuple(
             slice(max(0, -delta), min(size, size - delta))
-            for size, delta in zip(blocked.shape, move)
+            for size, delta in zip(blocked.shape, move, strict=True)
         )
         valid = free[source].copy()
         axes = [axis for axis, delta in enumerate(move) if delta]
@@ -206,7 +206,9 @@ def profile_voxels(path: Path, limits: Limits) -> tuple[dict[str, Any], dict[str
         duplicate_rows = 0
         for line in stream:
             coords = tuple(int(value) for value in line.split())
-            if len(coords) != 3 or any(not 0 <= x < size for x, size in zip(coords, dimensions)):
+            if len(coords) != 3 or any(
+                not 0 <= x < size for x, size in zip(coords, dimensions, strict=True)
+            ):
                 raise ValueError("Invalid voxel coordinate")
             index = tuple(reversed(coords))
             if bool(blocked[index]) == (header[0] == "voxel"):
@@ -361,7 +363,10 @@ def profile_voxel_scenarios(path: Path, dimensions: list[int]) -> dict[str, Any]
             if len(fields) != (8 if version == "version 1" else 9):
                 raise ValueError("Invalid voxel scenario row")
             pair = tuple(int(value) for value in fields[:6])
-            if any(not 0 <= coordinate < size for coordinate, size in zip(pair, dimensions * 2)):
+            if any(
+                not 0 <= coordinate < size
+                for coordinate, size in zip(pair, dimensions * 2, strict=True)
+            ):
                 raise ValueError("Voxel scenario endpoint out of range")
             values = [float(value) for value in fields[6:]]
             if any(value < 0 or not math.isfinite(value) for value in values):

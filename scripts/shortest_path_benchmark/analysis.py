@@ -8,6 +8,7 @@ reference result defines eligibility independently of candidate success.
 from __future__ import annotations
 
 from collections import defaultdict
+from collections.abc import Iterable, Mapping
 import hashlib
 import html
 import json
@@ -17,7 +18,7 @@ from pathlib import Path
 import random
 import statistics
 import tempfile
-from typing import Any, Iterable, Mapping
+from typing import Any
 
 ANALYSIS_VERSION = "shortest_path_analysis_v3"
 _COMPLETE_STATUSES = frozenset({"completed", "ok", "success"})
@@ -562,7 +563,9 @@ def _group_analysis(
     return {
         "pass": pass_name,
         "cohort": cohort_name,
-        "protocol": dict(zip(("pass", *_PROTOCOL_FIELDS, "movement_profile"), protocol)),
+        "protocol": dict(
+            zip(("pass", *_PROTOCOL_FIELDS, "movement_profile"), protocol, strict=True)
+        ),
         "eligibility": {
             "source": denominator_source,
             "workload_count": len(eligible),

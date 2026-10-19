@@ -31,7 +31,7 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = [
-  "pyright",
+  "pyright==1.1.414",
   "ruff==0.17.0",
   "pytest",
   "build>=1.2,<2.0",
@@ -73,9 +73,9 @@ target-version = "py310"
 line-length = 100
 
 [tool.ruff.lint]
-# Repository-wide baseline focused on correctness and import hygiene.
-# Advanced modernization rules can be tightened incrementally per module.
-select = ["E9", "F", "I"]
+# Cover syntax/style correctness, common bug patterns, and safe modernization
+# across every Python file in the repository.
+select = ["B", "E4", "E7", "E9", "F", "I", "UP"]
 
 [tool.ruff.lint.isort]
 known-first-party = [
@@ -84,7 +84,23 @@ known-first-party = [
 force-sort-within-sections = true
 
 [tool.ruff.lint.per-file-ignores]
-# Keep script-style modules runnable while preserving import ordering checks.
+# These scripts intentionally adjust sys.path before importing the checkout.
+"scripts/analyze_benchmark_datasets.py" = ["E402"]
+"scripts/benchmark_continuous_scaling.py" = ["E402"]
+"scripts/benchmark_movingai_grid_specialists.py" = ["E402"]
+"scripts/benchmark_native_sampling.py" = ["E402"]
+"scripts/benchmark_planners.py" = ["E402"]
+"scripts/benchmark_prm_roadmap_build.py" = ["E402"]
+"scripts/benchmark_scaling.py" = ["E402"]
+"scripts/benchmark_shortest_path.py" = ["E402"]
+"scripts/benchmark_trace_overhead.py" = ["E402"]
+"scripts/generate_movingai_scenario_assets.py" = ["E402"]
+"scripts/install_benchmark_datasets.py" = ["E402"]
+# This test selects the headless backend before importing the visualization API.
+"tests/test_visualization.py" = ["E402"]
+# P, E, O, and T are established geometric property names for this box type.
+"pathplanning/spaces/environment3d.py" = ["E743"]
+# Keep script-style planner modules runnable while preserving import ordering checks.
 "pathplanning/planners/search/*.py" = ["E402"]
 "pathplanning/planners/sampling/*.py" = ["E402"]
 

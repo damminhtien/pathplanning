@@ -59,7 +59,8 @@ def test_jit_star_uses_jacobian_cost_and_collision_guidance() -> None:
     assert result.stats["jit_ancestor_candidates"] > 0
     assert result.stats["path_cost"] > float(np.linalg.norm(goal - start))
     assert all(
-        space.is_motion_valid(first, second) for first, second in zip(result.path, result.path[1:])
+        space.is_motion_valid(first, second)
+        for first, second in zip(result.path, result.path[1:], strict=False)
     )
     assert space.jacobian(start).shape == (2, 3)
 

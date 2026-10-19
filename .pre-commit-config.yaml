@@ -9,6 +9,8 @@ repos:
       - id: check-ast
       - id: check-yaml
       - id: check-toml
+      - id: check-json
+      - id: check-xml
       - id: check-merge-conflict
       - id: debug-statements
 
@@ -16,21 +18,56 @@ repos:
     hooks:
       - id: ruff-format
         name: ruff format
-        entry: ruff format --check --diff --config pyproject.toml
+        entry: ruff format --check --diff .
         language: system
-        types: [python]
-        files: ^(pathplanning/.*\.py|tests/.*\.py|scripts/.*\.py|examples/.*\.py)$
+        pass_filenames: false
+        always_run: true
 
       - id: ruff-check
-        name: ruff check
-        entry: ruff check --config pyproject.toml
+        name: ruff check (all Python)
+        entry: ruff check .
         language: system
-        types: [python]
-        files: ^(pathplanning/.*\.py|tests/.*\.py|scripts/.*\.py|examples/.*\.py)$
+        pass_filenames: false
+        always_run: true
 
       - id: pyright
         name: pyright
-        entry: pyright --project pyrightconfig.json
+        entry: python3 scripts/run_pyright.py
         language: system
         pass_filenames: false
-        files: ^pathplanning/.*\.py$
+        always_run: true
+
+      - id: biome
+        name: Biome (website JavaScript and CSS)
+        entry: npm run lint:web
+        language: system
+        pass_filenames: false
+        always_run: true
+
+      - id: html-validate
+        name: html-validate (source and generated website)
+        entry: python3 scripts/lint_html.py
+        language: system
+        pass_filenames: false
+        always_run: true
+
+      - id: native-compile-lint
+        name: strict native compiler checks
+        entry: python3 scripts/lint_native.py
+        language: system
+        pass_filenames: false
+        always_run: true
+
+      - id: xml-lint
+        name: XML and SVG well-formedness
+        entry: python3 scripts/lint_xml.py
+        language: system
+        pass_filenames: false
+        always_run: true
+
+      - id: lint-coverage
+        name: source lint coverage
+        entry: python3 scripts/check_lint_coverage.py
+        language: system
+        pass_filenames: false
+        always_run: true

@@ -345,7 +345,7 @@ def _same_space_model(first: Any, second: Any) -> bool:
     if first is None or second is None:
         return first is second
     return len(first.arrays) == len(second.arrays) and all(
-        np.array_equal(left, right) for left, right in zip(first.arrays, second.arrays)
+        np.array_equal(left, right) for left, right in zip(first.arrays, second.arrays, strict=True)
     )
 
 

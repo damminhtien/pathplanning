@@ -428,7 +428,7 @@ class DynamicRRT3D:
             raise RuntimeError("native DynamicRRT returned mismatched node and parent deltas")
         pending: list[tuple[Node, Node]] = []
         pending_nodes: set[Node] = set()
-        for state, parent_raw in zip(states, parents):
+        for state, parent_raw in zip(states, parents, strict=True):
             parent_id = int(parent_raw)
             if parent_id >= len(self.nodes) + len(pending):
                 raise RuntimeError("native DynamicRRT returned a forward parent reference")

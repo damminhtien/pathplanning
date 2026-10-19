@@ -39,7 +39,9 @@ def test_lazy_prm_validates_candidate_edges_and_reuses_results() -> None:
 
         assert first.success and second.success and traced.success
         assert first.path is not None
-        assert all(space.is_motion_valid(a, b) for a, b in zip(first.path, first.path[1:]))
+        assert all(
+            space.is_motion_valid(a, b) for a, b in zip(first.path, first.path[1:], strict=False)
+        )
         assert first.stats["motion_checks"] > second.stats["motion_checks"]
         assert traced.trace is not None and traced.trace.events.size > 0
 

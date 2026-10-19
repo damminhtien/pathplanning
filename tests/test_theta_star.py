@@ -43,7 +43,7 @@ def _segment_cells(
 
 def _assert_waypoints_visible(problem: DiscreteProblem[tuple[int, int]], path: np.ndarray) -> None:
     graph = problem.graph
-    for first, second in zip(path, path[1:]):
+    for first, second in zip(path, path[1:], strict=False):
         cells = _segment_cells(tuple(first), tuple(second), graph.x_range, graph.y_range)
         assert cells
         assert all(graph.is_valid_node(cell) for cell in cells)

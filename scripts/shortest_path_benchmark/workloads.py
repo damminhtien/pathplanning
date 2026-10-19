@@ -2,12 +2,13 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 import hashlib
 import math
 from pathlib import Path
 import re
-from typing import TYPE_CHECKING, Mapping, Sequence
+from typing import TYPE_CHECKING
 
 import numpy as np
 from numpy.typing import NDArray
@@ -182,7 +183,7 @@ class MovingAIGrid:
         indices = np.empty(edge_count, dtype=np.uint64)
         costs = np.empty(edge_count, dtype=np.float64)
         next_slot = offsets[:-1].copy()
-        for (dx, dy), mask in zip(MOTIONS, masks):
+        for (dx, dy), mask in zip(MOTIONS, masks, strict=True):
             sources = np.flatnonzero(mask).astype(np.uint64)
             positions = next_slot[sources]
             indices[positions] = sources.astype(np.int64) + dy * self.width + dx

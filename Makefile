@@ -1,30 +1,37 @@
 NATIVE_BUILD_DIR ?= /tmp/pathplanning-native-build
+LOCAL_BIN ?= $(CURDIR)/.venv/bin
 
-.PHONY: install install-dev lint lint-google format precommit test test-unit test-slow test-all typecheck benchmark build-ext
+.PHONY: install install-dev lint lint-google lint-native lint-coverage format precommit test test-unit test-slow test-all typecheck benchmark build-ext
 
 install:
 	pip install .
 
 install-dev:
 	pip install -r requirements-dev.txt
+	npm ci
 	$(MAKE) build-ext
 
 lint:
-	ruff check .
-	ruff format .
+	PATH="$(LOCAL_BIN):$$PATH" pre-commit run --all-files
 
 lint-google:
 	pylint --rcfile .pylintrc pathplanning
 
 format:
-	ruff format .
+	PATH="$(LOCAL_BIN):$$PATH" ruff format .
+	npm run format:web
 
 precommit:
-	pre-commit run --all-files
+	PATH="$(LOCAL_BIN):$$PATH" pre-commit run --all-files
 
 typecheck:
-	@command -v pyright >/dev/null || (echo "pyright not found. Run: make install-dev" && exit 1)
-	pyright
+	python3 scripts/run_pyright.py
+
+lint-native:
+	python3 scripts/lint_native.py
+
+lint-coverage:
+	python3 scripts/check_lint_coverage.py
 
 build-ext:
 	python setup.py build_ext --inplace --build-temp "$(NATIVE_BUILD_DIR)/temp" --build-lib "$(NATIVE_BUILD_DIR)/lib"

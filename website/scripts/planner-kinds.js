@@ -1,5 +1,3 @@
-"use strict";
-
 export const PLANNER_KIND_LABELS = {
   discrete: "Grid & graph search",
   continuous: "Continuous motion",

@@ -69,7 +69,7 @@ def test_jps_matches_astar_cost_on_uniform_grid_maps() -> None:
         assert math.isclose(_path_cost(jps_result.path), _strict_grid_cost(problem), abs_tol=1e-8)
         for x, y in jps_result.path:
             assert problem.graph.is_valid_node((int(x), int(y)))
-        for first, second in zip(jps_result.path, jps_result.path[1:]):
+        for first, second in zip(jps_result.path, jps_result.path[1:], strict=False):
             dx, dy = int(second[0] - first[0]), int(second[1] - first[1])
             assert max(abs(dx), abs(dy)) == 1
             if dx and dy:

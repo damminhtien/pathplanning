@@ -33,7 +33,9 @@ def test_ait_star_repairs_heuristic_after_blocked_edge() -> None:
     assert result.success
     assert result.path is not None
     assert result.stats["motion_checks"] > 0
-    assert all(space.is_motion_valid(a, b) for a, b in zip(result.path, result.path[1:]))
+    assert all(
+        space.is_motion_valid(a, b) for a, b in zip(result.path, result.path[1:], strict=False)
+    )
 
 
 def test_ait_star_handles_goal_and_expansion_budget() -> None:

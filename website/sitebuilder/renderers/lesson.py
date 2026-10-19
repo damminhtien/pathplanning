@@ -146,7 +146,7 @@ def lesson_page(
     <link rel="stylesheet" href="{asset_root}styles.css" />
     <link rel="stylesheet" href="{asset_root}theme.css" />
     <link rel="stylesheet" href="{asset_root}learning.css" />
-    <script>window.MathJax = {{tex: {{inlineMath: [["\\\\(", "\\\\)"], ["\\\\[", "\\\\]"]]}}}};</script>
+    <script src="{asset_root}mathjax-config.js"></script>
     <script async id="mathjax-script" src="https://cdn.jsdelivr.net/npm/mathjax@4/tex-chtml.js"></script>
     <meta property="og:type" content="article" />
     <meta property="article:section" content="{html.escape(FAMILY_LABELS[kind], quote=True)}" />
@@ -202,7 +202,7 @@ def lesson_page(
           <a href="#example">Worked example</a>
           <a href="#analysis">Algorithm analysis</a>
           <a href="#paper">Research paper</a>
-          <a href="#tradeoff">Fit & trade-off</a>
+          <a href="#tradeoff">Fit &amp; trade-off</a>
           <a href="#evaluation">Evaluate fairly</a>
           <a href="#applications">Applications</a>
           <a href="#try-it">Your turn</a>
@@ -247,7 +247,7 @@ def lesson_page(
             <p class="lesson-section-label">05. ALGORITHM ANALYSIS</p>
             <h2>What drives time, memory, and guarantees?</h2>
             <p class="analysis-intro">These bounds describe the planner's search work under its stated input model. Graph preparation, collision-check cost, and callback work can add time beyond the search-loop estimate.</p>
-            <div class="analysis-complexity" aria-label="Complexity summary">
+            <div class="analysis-complexity" role="group" aria-label="Complexity summary">
               <article class="analysis-complexity-card">
                 <span>Runtime pattern</span>
                 <span class="math-summary">{render_math_text(analysis["time_order"])}</span>
@@ -292,8 +292,7 @@ def lesson_page(
                 <span>{html.escape(reference["authors"])} · {reference["year"]}</span>
               </div>
               <h3>{html.escape(reference["title"])}</h3>
-              <p class="paper-venue">{html.escape(reference["venue"])}</p>
-              {reference_note}
+              <p class="paper-venue">{html.escape(reference["venue"])}</p>{reference_note}
               <a class="paper-link" href="{reference_url}" target="_blank" rel="noopener noreferrer" aria-label="Read {html.escape(reference["title"], quote=True)}">Read the paper <span aria-hidden="true">↗</span></a>
             </article>
             <p class="paper-citation">{html.escape(citation_text)}</p>

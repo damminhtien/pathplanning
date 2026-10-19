@@ -7,12 +7,12 @@ occupancy hash, requested parameters, observed density, and query coordinates.
 from __future__ import annotations
 
 from collections import deque
+from collections.abc import Iterator
 from dataclasses import dataclass
 import hashlib
 import json
 import math
 import statistics
-from typing import Iterator
 
 import numpy as np
 
@@ -135,7 +135,7 @@ def sample_queries(
         raise ValueError("blocked must be a 2D bool array")
     if per_bin < 1 or len(bin_edges) < 2 or bin_edges[0] != 0 or bin_edges[-1] != 1:
         raise ValueError("Invalid displacement bins")
-    if any(left >= right for left, right in zip(bin_edges, bin_edges[1:])):
+    if any(left >= right for left, right in zip(bin_edges, bin_edges[1:], strict=False)):
         raise ValueError("Displacement bins must increase")
     free = np.argwhere(~blocked)
     if len(free) < 2:
@@ -144,7 +144,7 @@ def sample_queries(
     maximum = math.hypot(blocked.shape[0] - 1, blocked.shape[1] - 1)
     result: list[ScalingQuery] = []
     used: set[tuple[int, int, int, int]] = set()
-    for bin_index, (lower, upper) in enumerate(zip(bin_edges, bin_edges[1:])):
+    for bin_index, (lower, upper) in enumerate(zip(bin_edges, bin_edges[1:], strict=False)):
         attempts = 0
         while sum(query.displacement_bin == bin_index for query in result) < per_bin:
             if attempts >= 1_000_000:
@@ -186,14 +186,14 @@ def _room_grid(size: int, opening_width: int, seed: int) -> np.ndarray:
     rng = np.random.default_rng(_seed("room", size, opening_width, seed))
     for x in walls:
         blocked[:, x] = True
-        for y0, y1 in zip((0, *walls), (*walls, size)):
+        for y0, y1 in zip((0, *walls), (*walls, size), strict=True):
             if y1 - y0 < opening_width + 2:
                 continue
             door = int(rng.integers(y0 + 1, y1 - opening_width + 1))
             blocked[door : door + opening_width, x] = False
     for y in walls:
         blocked[y, :] = True
-        for x0, x1 in zip((0, *walls), (*walls, size)):
+        for x0, x1 in zip((0, *walls), (*walls, size), strict=True):
             if x1 - x0 < opening_width + 2:
                 continue
             door = int(rng.integers(x0 + 1, x1 - opening_width + 1))

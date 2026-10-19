@@ -56,6 +56,7 @@ def copy_static_files(output: Path) -> None:
     for name in (
         "index.html",
         "app.js",
+        "mathjax-config.js",
         "styles.css",
         "theme.css",
         "three-dimensional.css",
@@ -89,7 +90,9 @@ def render_home(content: SiteContent) -> str:
     applications_marker = "<!-- generated:application-cards -->"
     if home.count(applications_marker) != 1:
         raise SystemExit("The home page must contain exactly one application-card marker.")
-    home = home.replace(applications_marker, render_home_applications(content.applications["overview"]))
+    home = home.replace(
+        applications_marker, render_home_applications(content.applications["overview"])
+    )
     case_studies_marker = "<!-- generated:case-study-cards -->"
     if home.count(case_studies_marker) != 1:
         raise SystemExit("The home page must contain exactly one case-study-card marker.")

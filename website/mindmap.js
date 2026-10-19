@@ -1,4 +1,5 @@
 (() => {
+  // biome-ignore lint/suspicious/noRedundantUseStrict: This page loads the file as a classic script.
   "use strict";
 
   const searchInput = document.querySelector("#map-search");
@@ -18,9 +19,12 @@
     const lesson = node.querySelector(":scope > .mindmap-content > .mindmap-lesson");
     const label = node.querySelector(":scope > summary .mindmap-label");
 
-    nodes.forEach((entry) => entry.classList.toggle("is-selected", entry === node));
+    nodes.forEach((entry) => {
+      entry.classList.toggle("is-selected", entry === node);
+    });
     inspectorTitle.textContent = label?.textContent || "Project map";
-    inspectorSummary.textContent = summary?.textContent || "Explore the connections across the project.";
+    inspectorSummary.textContent =
+      summary?.textContent || "Explore the connections across the project.";
     inspectorSource.hidden = !source;
     if (source) {
       inspectorSource.href = source.href;
@@ -39,14 +43,19 @@
 
     function visit(item) {
       const node = item.querySelector(":scope > .mindmap-node");
-      const childItems = [...item.querySelectorAll(":scope > .mindmap-node > .mindmap-content > .mindmap-children > .mindmap-item")];
+      const childItems = [
+        ...item.querySelectorAll(
+          ":scope > .mindmap-node > .mindmap-content > .mindmap-children > .mindmap-item",
+        ),
+      ];
       const childVisible = childItems.some(visit);
       const matches = !query || node.dataset.search.includes(query);
       const visible = matches || childVisible;
 
       item.hidden = !visible;
       if (query && childVisible) node.open = true;
-      if (query && matches && node.querySelector(":scope > .mindmap-content > .mindmap-children")) node.open = true;
+      if (query && matches && node.querySelector(":scope > .mindmap-content > .mindmap-children"))
+        node.open = true;
       if (visible) visibleCount += 1;
       return visible;
     }
@@ -56,10 +65,14 @@
   }
 
   document.querySelector("#expand-map").addEventListener("click", () => {
-    nodes.forEach((node) => { node.open = true; });
+    nodes.forEach((node) => {
+      node.open = true;
+    });
   });
   document.querySelector("#collapse-map").addEventListener("click", () => {
-    nodes.forEach((node) => { node.open = false; });
+    nodes.forEach((node) => {
+      node.open = false;
+    });
   });
   searchInput.addEventListener("input", filterTree);
 
@@ -69,9 +82,13 @@
     const node = (focusButton || summary)?.closest(".mindmap-node");
     if (node) updateInspector(node);
   });
-  document.querySelector("#project-map").addEventListener("toggle", (event) => {
-    if (event.target.matches(".mindmap-node") && event.target.open) updateInspector(event.target);
-  }, true);
+  document.querySelector("#project-map").addEventListener(
+    "toggle",
+    (event) => {
+      if (event.target.matches(".mindmap-node") && event.target.open) updateInspector(event.target);
+    },
+    true,
+  );
 
   filterTree();
 })();

@@ -1,11 +1,10 @@
 import {
+  drawTinyLabel as drawCanvasLabel,
   drawMotionMarker,
   drawPathTrace,
-  drawTinyLabel as drawCanvasLabel,
-  pathAtProgress,
   roundedRect as drawRoundedRect,
+  pathAtProgress,
 } from "./shared.js";
-
 
 export function createGridScene({ context, state }) {
   const gridResults = new Map();
@@ -13,8 +12,18 @@ export function createGridScene({ context, state }) {
   const rows = 17;
   const startCell = { x: 1, y: 1 };
   const goalCell = { x: 28, y: 15 };
-  const directions = [[1, 0], [0, 1], [-1, 0], [0, -1], [1, 1], [-1, 1], [1, -1], [-1, -1]];
-  const roundedRect = (x, y, width, height, radius) => drawRoundedRect(context, x, y, width, height, radius);
+  const directions = [
+    [1, 0],
+    [0, 1],
+    [-1, 0],
+    [0, -1],
+    [1, 1],
+    [-1, 1],
+    [1, -1],
+    [-1, -1],
+  ];
+  const roundedRect = (x, y, width, height, radius) =>
+    drawRoundedRect(context, x, y, width, height, radius);
   const drawTinyLabel = (text, x, y, color) => drawCanvasLabel(context, text, x, y, color);
 
   function blockedCells(changed) {
@@ -37,7 +46,7 @@ export function createGridScene({ context, state }) {
   }
 
   function terrainCost(x, y) {
-    return 1 + (((x * 13 + y * 7) % 17) < 5 ? 1.2 : 0);
+    return 1 + ((x * 13 + y * 7) % 17 < 5 ? 1.2 : 0);
   }
 
   function searchGrid(planner, changed) {
@@ -79,16 +88,25 @@ export function createGridScene({ context, state }) {
         if (dx && dy && (blocked.has(`${x + dx},${y}`) || blocked.has(`${x},${y + dy}`))) continue;
         const next = id(nx, ny);
         const diagonal = dx && dy ? Math.SQRT2 : 1;
-        const cost = diagonal * (planner.id === "jpsw" ? (terrainCost(x, y) + terrainCost(nx, ny)) / 2 : 1);
+        const cost =
+          diagonal * (planner.id === "jpsw" ? (terrainCost(x, y) + terrainCost(nx, ny)) / 2 : 1);
         const candidate = g[current] + cost;
         if (candidate + 1e-9 >= g[next]) continue;
         g[next] = candidate;
         parent[next] = current;
-        if (planner.id === "reexp_astar" || planner.id === "anytime_astar" || planner.id === "weighted_astar") closed[next] = 0;
+        if (
+          planner.id === "reexp_astar" ||
+          planner.id === "anytime_astar" ||
+          planner.id === "weighted_astar"
+        )
+          closed[next] = 0;
         frontier.push(next);
       }
       steps += 1;
-      if (isQueue && queueHead > 128 && queueHead > frontier.length / 2) { frontier = frontier.slice(queueHead); queueHead = 0; }
+      if (isQueue && queueHead > 128 && queueHead > frontier.length / 2) {
+        frontier = frontier.slice(queueHead);
+        queueHead = 0;
+      }
     }
     const path = [];
     if (Number.isFinite(g[goal])) {
@@ -108,7 +126,14 @@ export function createGridScene({ context, state }) {
       const y = Math.floor(node / columns);
       if (planner.id === "greedy_best_first") return heuristic(x, y);
       if (planner.id === "dijkstra" || planner.id === "bidirectional_dijkstra") return g[node];
-      const weight = planner.id === "weighted_astar" ? 1.8 : planner.id === "reexp_astar" ? 1.35 : planner.id === "anytime_astar" ? 1.65 : 1;
+      const weight =
+        planner.id === "weighted_astar"
+          ? 1.8
+          : planner.id === "reexp_astar"
+            ? 1.35
+            : planner.id === "anytime_astar"
+              ? 1.65
+              : 1;
       return g[node] + weight * heuristic(x, y);
     }
   }
@@ -125,9 +150,20 @@ export function createGridScene({ context, state }) {
       const previousX = cx;
       const previousY = cy;
       const doubledError = 2 * error;
-      if (doubledError > -dy) { error -= dy; cx += stepX; }
-      if (doubledError < dx) { error += dx; cy += stepY; }
-      if (cx !== previousX && cy !== previousY && (blocked.has(`${cx},${previousY}`) || blocked.has(`${previousX},${cy}`))) return false;
+      if (doubledError > -dy) {
+        error -= dy;
+        cx += stepX;
+      }
+      if (doubledError < dx) {
+        error += dx;
+        cy += stepY;
+      }
+      if (
+        cx !== previousX &&
+        cy !== previousY &&
+        (blocked.has(`${cx},${previousY}`) || blocked.has(`${previousX},${cy}`))
+      )
+        return false;
       if (blocked.has(`${cx},${cy}`)) return false;
     }
     return true;
@@ -148,13 +184,16 @@ export function createGridScene({ context, state }) {
 
   function drawGrid(width, height) {
     const cacheKey = `${state.planner.id}:${state.changed}`;
-    if (!gridResults.has(cacheKey)) gridResults.set(cacheKey, searchGrid(state.planner, state.changed));
+    if (!gridResults.has(cacheKey))
+      gridResults.set(cacheKey, searchGrid(state.planner, state.changed));
     const result = gridResults.get(cacheKey);
     const gap = 2;
     const cell = Math.min((width - 38) / columns, (height - 38) / rows);
     const originX = (width - cell * columns) / 2;
     const originY = (height - cell * rows) / 2;
-    const visibleCount = Math.floor(result.expanded.length * Math.min(1, state.progress * 1.13 + 0.04));
+    const visibleCount = Math.floor(
+      result.expanded.length * Math.min(1, state.progress * 1.13 + 0.04),
+    );
     const visited = new Map();
     const split = Math.floor(visibleCount / 2);
     for (let i = 0; i < visibleCount; i += 1) visited.set(result.expanded[i], i);
@@ -173,44 +212,64 @@ export function createGridScene({ context, state }) {
         else if (exploredAt !== undefined) {
           const age = visibleCount - exploredAt - 1;
           const glow = Math.max(0, 1 - age / 14);
-          const alpha = .24 + glow * .32;
-          const tint = state.planner.id.startsWith("bidirectional_") && exploredAt > split
-            ? "180, 161, 255"
-            : "116, 171, 231";
+          const alpha = 0.24 + glow * 0.32;
+          const tint =
+            state.planner.id.startsWith("bidirectional_") && exploredAt > split
+              ? "180, 161, 255"
+              : "116, 171, 231";
           fill = `rgba(${tint}, ${alpha})`;
         }
-        if (state.planner.id === "jpsw" && !isWall && !isStart && !isGoal && terrainCost(x, y) > 1) fill = exploredAt !== undefined ? "rgba(255, 184, 117, .32)" : "rgba(255, 184, 117, .12)";
+        if (state.planner.id === "jpsw" && !isWall && !isStart && !isGoal && terrainCost(x, y) > 1)
+          fill = exploredAt !== undefined ? "rgba(255, 184, 117, .32)" : "rgba(255, 184, 117, .12)";
         context.fillStyle = fill;
-        roundedRect(px + gap / 2, py + gap / 2, cell - gap, cell - gap, Math.max(2, cell * .14));
+        roundedRect(px + gap / 2, py + gap / 2, cell - gap, cell - gap, Math.max(2, cell * 0.14));
         if (isWall) {
           context.fillStyle = "rgba(204, 221, 238, .07)";
-          roundedRect(px + cell * .16, py + cell * .18, cell * .68, cell * .64, Math.max(2, cell * .1));
+          roundedRect(
+            px + cell * 0.16,
+            py + cell * 0.18,
+            cell * 0.68,
+            cell * 0.64,
+            Math.max(2, cell * 0.1),
+          );
         }
       }
     }
     let path = result.path;
-    if (["theta_star", "lazy_theta_star"].includes(state.planner.id)) path = simplifyPath(path, result.blocked);
-    const revealStart = Math.max(.35, Math.min(.78, result.expanded.length ? result.expanded.indexOf(columns * goalCell.y + goalCell.x) / result.expanded.length : .6));
-    const pathProgress = Math.max(0, Math.min(1, (state.progress - revealStart) / (1 - revealStart)));
+    if (["theta_star", "lazy_theta_star"].includes(state.planner.id))
+      path = simplifyPath(path, result.blocked);
+    const revealStart = Math.max(
+      0.35,
+      Math.min(
+        0.78,
+        result.expanded.length
+          ? result.expanded.indexOf(columns * goalCell.y + goalCell.x) / result.expanded.length
+          : 0.6,
+      ),
+    );
+    const pathProgress = Math.max(
+      0,
+      Math.min(1, (state.progress - revealStart) / (1 - revealStart)),
+    );
     if (visibleCount) {
       const frontier = result.expanded[Math.min(visibleCount - 1, result.expanded.length - 1)];
-      const frontierX = originX + ((frontier % columns) + .5) * cell;
-      const frontierY = originY + (Math.floor(frontier / columns) + .5) * cell;
-      const pulse = .32 + ((Math.sin(state.elapsed * 7) + 1) / 2) * .22;
+      const frontierX = originX + ((frontier % columns) + 0.5) * cell;
+      const frontierY = originY + (Math.floor(frontier / columns) + 0.5) * cell;
+      const pulse = 0.32 + ((Math.sin(state.elapsed * 7) + 1) / 2) * 0.22;
       context.beginPath();
       context.arc(frontierX, frontierY, cell * pulse, 0, Math.PI * 2);
       context.strokeStyle = "rgba(193, 224, 255, .92)";
-      context.lineWidth = Math.max(1.5, cell * .09);
+      context.lineWidth = Math.max(1.5, cell * 0.09);
       context.stroke();
     }
     if (path.length > 1 && pathProgress > 0) {
       const canvasPath = path.map((node) => ({
-        x: originX + (node.x + .5) * cell,
-        y: originY + (node.y + .5) * cell,
+        x: originX + (node.x + 0.5) * cell,
+        y: originY + (node.y + 0.5) * cell,
       }));
       context.save();
       context.strokeStyle = "rgba(131, 240, 205, .96)";
-      context.lineWidth = Math.max(2, cell * .16);
+      context.lineWidth = Math.max(2, cell * 0.16);
       context.lineCap = "round";
       context.lineJoin = "round";
       context.setLineDash([7, 6]);
@@ -218,25 +277,40 @@ export function createGridScene({ context, state }) {
       drawPathTrace(context, canvasPath, pathProgress);
       context.restore();
       const robot = pathAtProgress(canvasPath, pathProgress);
-      drawMotionMarker(context, robot, "#a4f5df", state.elapsed, "R", Math.max(5, cell * .2));
+      drawMotionMarker(context, robot, "#a4f5df", state.elapsed, "R", Math.max(5, cell * 0.2));
     }
-    drawGridMarker(originX + (startCell.x + .5) * cell, originY + (startCell.y + .5) * cell, cell, "#83f0cd", "S");
-    drawGridMarker(originX + (goalCell.x + .5) * cell, originY + (goalCell.y + .5) * cell, cell, "#ffb875", "G");
-    if (state.planner.id === "dstar_lite" && !state.changed) drawTinyLabel('Press "Change map" to block a route', 15, height - 12, "#c4d0df");
-    if (state.planner.id === "anytime_astar" && state.progress > .68) drawTinyLabel("incumbent improves", width - 194, 17, "#a4edd7");
-    if (state.planner.id.startsWith("bidirectional_")) drawTinyLabel("forward and backward waves", width - 196, 17, "#c9bbff");
+    drawGridMarker(
+      originX + (startCell.x + 0.5) * cell,
+      originY + (startCell.y + 0.5) * cell,
+      cell,
+      "#83f0cd",
+      "S",
+    );
+    drawGridMarker(
+      originX + (goalCell.x + 0.5) * cell,
+      originY + (goalCell.y + 0.5) * cell,
+      cell,
+      "#ffb875",
+      "G",
+    );
+    if (state.planner.id === "dstar_lite" && !state.changed)
+      drawTinyLabel('Press "Change map" to block a route', 15, height - 12, "#c4d0df");
+    if (state.planner.id === "anytime_astar" && state.progress > 0.68)
+      drawTinyLabel("incumbent improves", width - 194, 17, "#a4edd7");
+    if (state.planner.id.startsWith("bidirectional_"))
+      drawTinyLabel("forward and backward waves", width - 196, 17, "#c9bbff");
   }
 
   function drawGridMarker(x, y, cell, color, label) {
     context.beginPath();
-    context.arc(x, y, cell * .32, 0, Math.PI * 2);
+    context.arc(x, y, cell * 0.32, 0, Math.PI * 2);
     context.fillStyle = color;
     context.fill();
     context.fillStyle = "#10202a";
-    context.font = `700 ${Math.max(8, cell * .36)}px ui-monospace, monospace`;
+    context.font = `700 ${Math.max(8, cell * 0.36)}px ui-monospace, monospace`;
     context.textAlign = "center";
     context.textBaseline = "middle";
-    context.fillText(label, x, y + .5);
+    context.fillText(label, x, y + 0.5);
   }
   return drawGrid;
 }

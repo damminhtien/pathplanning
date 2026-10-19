@@ -106,7 +106,7 @@ def map_page(map_data: dict[str, Any], planner_count: int) -> str:
     <link rel="stylesheet" href="../theme.css" />
     <link rel="stylesheet" href="../learning.css" />
     <link rel="stylesheet" href="../mindmap.css" />
-    <script>window.MathJax = {{tex: {{inlineMath: [["\\\\(", "\\\\)"], ["\\\\[", "\\\\]"]]}}}};</script>
+    <script src="../mathjax-config.js"></script>
     <script async id="mathjax-script" src="https://cdn.jsdelivr.net/npm/mathjax@4/tex-chtml.js"></script>
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="Pathplanning Learning Lab" />
@@ -121,7 +121,7 @@ def map_page(map_data: dict[str, Any], planner_count: int) -> str:
     <script type="application/ld+json">{schema}</script>
     <script type="application/ld+json">{breadcrumb_schema}</script>
     <script src="../mindmap.js" defer></script>
-    <title>The Pathplanning Project Mind Map | {planner_count} Algorithms & Toolkit</title>
+    <title>The Pathplanning Project Mind Map | {planner_count} Algorithms &amp; Toolkit</title>
   </head>
   <body class="learning-body mindmap-body">
     <a class="skip-link" href="#project-map">Skip to project map</a>

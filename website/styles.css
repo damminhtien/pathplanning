@@ -59,6 +59,7 @@ button { color: inherit; }
 .topbar .nav-github { padding: 8px 13px; border: 1px solid var(--line); border-radius: 10px; color: var(--text); }
 
 .section-wrap { width: min(1160px, calc(100% - 48px)); margin: 0 auto; }
+.not-found-layout { min-height: 100vh; display: grid; align-content: center; }
 .hero { position: relative; display: grid; grid-template-columns: 1fr .88fr; align-items: center; gap: 56px; padding-top: 94px; padding-bottom: 56px; }
 .hero-copy { position: relative; z-index: 1; }
 .eyebrow { display: flex; align-items: center; gap: 9px; margin: 0 0 16px; color: var(--mint); font-size: 10px; font-weight: 760; letter-spacing: .15em; }

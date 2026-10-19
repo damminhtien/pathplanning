@@ -266,7 +266,7 @@ def _draw_latency_rows(
     if not rows:
         raise ValueError(f"{title} has no usable latency observations")
     positions = list(range(len(rows)))
-    for position, (label, median_s, p95_s, _count) in zip(positions, rows, strict=True):
+    for position, (_label, median_s, p95_s, _count) in zip(positions, rows, strict=True):
         median_ms = median_s * 1000
         p95_ms = p95_s * 1000
         axis.errorbar(
@@ -1015,7 +1015,7 @@ def _render_outcome_panels(
     )
     flat_axes = list(axes.flat)
     statuses_seen: set[str] = set()
-    for axis, (cohort_rows, panel_title, workload_count) in zip(flat_axes, panels):
+    for axis, (cohort_rows, panel_title, workload_count) in zip(flat_axes, panels, strict=True):
         statuses_seen.update(
             _draw_outcome_panel(
                 axis,

@@ -1,5 +1,3 @@
-"use strict";
-
 import {
   createProjection,
   drawLabel,
@@ -38,9 +36,13 @@ function makeRandom(seed) {
 }
 
 function pointBlocked(point) {
-  return point.some((value, axis) => value < 0 || value > CONTINUOUS_VOLUME["xyz"[axis]])
-    || point.every((value, axis) => value >= CONTINUOUS_OBSTACLE.min[axis]
-      && value <= CONTINUOUS_OBSTACLE.max[axis]);
+  return (
+    point.some((value, axis) => value < 0 || value > CONTINUOUS_VOLUME["xyz"[axis]]) ||
+    point.every(
+      (value, axis) =>
+        value >= CONTINUOUS_OBSTACLE.min[axis] && value <= CONTINUOUS_OBSTACLE.max[axis],
+    )
+  );
 }
 
 function segmentIsClear(from, to) {
@@ -136,11 +138,12 @@ function buildContinuousTree() {
       const span = distance(nodes[index].point, point);
       const rewiredCost = parentCost + span;
       if (
-        span > 1.8
-        || rewiredCost >= nodes[index].cost
-        || isAncestor(nodes, index, parent)
-        || !segmentIsClear(point, nodes[index].point)
-      ) continue;
+        span > 1.8 ||
+        rewiredCost >= nodes[index].cost ||
+        isAncestor(nodes, index, parent) ||
+        !segmentIsClear(point, nodes[index].point)
+      )
+        continue;
       const previousParent = nodes[index].parent;
       nodes[index].parent = nodeIndex;
       nodes[index].cost = rewiredCost;
@@ -235,15 +238,21 @@ function drawContinuousScene(context, width, height, phase, elapsed, tree) {
   const routeProgress = phase < 0.71 ? 0 : Math.min((phase - 0.71) / 0.29, 1);
   const route = CONTINUOUS_ROUTE;
   const revealedAgent = drawPath(context, projection, route, routeProgress, "#2d78b8");
-  const agent = routeProgress < 1
-    ? revealedAgent
-    : pointAlongPolyline(projection, route, shuttleProgress(elapsed));
+  const agent =
+    routeProgress < 1
+      ? revealedAgent
+      : pointAlongPolyline(projection, route, shuttleProgress(elapsed));
   drawPoint(context, projection.point(...CONTINUOUS_START), "#2d78b8", 4.2);
   drawPoint(context, projection.point(...CONTINUOUS_GOAL), "#c78643", 4.2);
   if (agent && routeProgress > 0) drawPoint(context, agent, "#216aa7", 4.1);
 
   const rewireCount = tree.rewires.findIndex((event) => event.iteration > iteration);
-  drawLabel(context, `SAMPLES  ${visibleCount - 1}   /   REWIRES  ${rewireCount < 0 ? tree.rewires.length : rewireCount}`, 16, height - 15);
+  drawLabel(
+    context,
+    `SAMPLES  ${visibleCount - 1}   /   REWIRES  ${rewireCount < 0 ? tree.rewires.length : rewireCount}`,
+    16,
+    height - 15,
+  );
 }
 
 export function createContinuousScene() {

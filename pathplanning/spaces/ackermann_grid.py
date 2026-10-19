@@ -10,6 +10,8 @@ from numpy.typing import NDArray
 from pathplanning.core.types import RNG, Float, FloatArray, Vec
 from pathplanning.native.continuous_model import NativeAckermannGridModel
 
+_DEFAULT_MAX_STEERING_ANGLE = math.radians(35.0)
+
 
 def _wrap_yaw(angle: float) -> float:
     return (angle + math.pi) % (2.0 * math.pi) - math.pi
@@ -48,7 +50,7 @@ class AckermannGridSpace:
         resolution: Float,
         origin: Vec = (0.0, 0.0),
         wheelbase: Float = 1.0,
-        max_steering_angle: Float = math.radians(35.0),
+        max_steering_angle: Float = _DEFAULT_MAX_STEERING_ANGLE,
         footprint_length: Float = 1.0,
         footprint_width: Float = 0.6,
         collision_step: Float | None = None,

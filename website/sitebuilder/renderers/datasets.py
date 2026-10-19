@@ -32,8 +32,7 @@ def _page_head(
     extra_stylesheets: tuple[str, ...] = ("datasets.css",),
 ) -> str:
     stylesheet_links = "\n".join(
-        f'    <link rel="stylesheet" href="{asset_root}{_e(name)}" />'
-        for name in extra_stylesheets
+        f'    <link rel="stylesheet" href="{asset_root}{_e(name)}" />' for name in extra_stylesheets
     )
     return f"""<!doctype html>
 <html lang="en">
@@ -127,7 +126,7 @@ def _section(section: dict[str, Any]) -> str:
     callout_markup = ""
     if callout:
         callout_markup = (
-            '<aside class="dataset-callout"><strong>'
+            f'<aside class="dataset-callout" aria-label="{_e(callout["title"])}"><strong>'
             f"{_e(callout['title'])}</strong><p>{_e(callout['text'])}</p></aside>"
         )
     return f"""<section class="dataset-section" id="{_e(section["id"])}">
@@ -243,7 +242,7 @@ def dataset_index_page(
         <p class="lesson-kicker">BENCHMARK DATA / A FIELD GUIDE</p>
         <h1>The worlds behind<br /><span>the search.</span></h1>
         <p class="dataset-lede">A planner only answers a question about the world it was given. These profiles explain where the benchmark data comes from, how each problem is represented, what the project actually measured, and where the evidence stops.</p>
-        <div class="dataset-index-stats" aria-label="Dataset inventory snapshot">
+        <div class="dataset-index-stats" role="group" aria-label="Dataset inventory snapshot">
           <div><strong>{snapshot["entry_count"]:,}</strong><span>catalog entries</span></div>
           <div><strong>{snapshot["collection_count"]}</strong><span>source/family collections</span></div>
           <div><strong>{snapshot["observation_count"]:,}</strong><span>recorded observations</span></div>

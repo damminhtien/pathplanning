@@ -1,0 +1,9 @@
+{
+  "$schema": "https://html-validate.org/schemas/config.json",
+  "extends": ["html-validate:recommended"],
+  "rules": {
+    "doctype-style": "off",
+    "long-title": "off",
+    "void-style": "off"
+  }
+}

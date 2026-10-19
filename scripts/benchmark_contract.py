@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections import defaultdict
+from collections.abc import Callable
 from datetime import datetime, timezone
 import hashlib
 import json
@@ -18,7 +19,7 @@ import sys
 import sysconfig
 import tempfile
 import time
-from typing import Any, Callable
+from typing import Any
 import uuid
 
 import numpy as np

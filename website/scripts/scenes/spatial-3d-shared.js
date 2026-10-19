@@ -1,5 +1,3 @@
-"use strict";
-
 export function createProjection(width, height, volume) {
   const xUnit = Math.min(
     (width - 44) / (volume.x + volume.y),
@@ -23,7 +21,9 @@ export function createProjection(width, height, volume) {
 function drawPolygon(context, points, fill, stroke = "rgba(74, 105, 135, .34)") {
   context.beginPath();
   context.moveTo(points[0].x, points[0].y);
-  points.slice(1).forEach((point) => context.lineTo(point.x, point.y));
+  points.slice(1).forEach((point) => {
+    context.lineTo(point.x, point.y);
+  });
   context.closePath();
   context.fillStyle = fill;
   context.fill();
@@ -54,7 +54,12 @@ export function drawGrid(context, projection, volume) {
   }
 
   context.strokeStyle = "rgba(61, 104, 148, .3)";
-  for (const [x, y] of [[0, 0], [volume.x, 0], [0, volume.y], [volume.x, volume.y]]) {
+  for (const [x, y] of [
+    [0, 0],
+    [volume.x, 0],
+    [0, volume.y],
+    [volume.x, volume.y],
+  ]) {
     const from = projection.point(x, y, 0);
     const to = projection.point(x, y, volume.z);
     context.beginPath();
@@ -71,18 +76,16 @@ export function drawVoxel(context, projection, x, y, z) {
     projection.point(x + 1, y + 1, z + 1),
     projection.point(x, y + 1, z + 1),
   ];
-  drawPolygon(context, [
-    projection.point(x, y + 1, z),
-    projection.point(x + 1, y + 1, z),
-    top[2],
-    top[3],
-  ], "#91abc2");
-  drawPolygon(context, [
-    projection.point(x + 1, y, z),
-    projection.point(x + 1, y + 1, z),
-    top[2],
-    top[1],
-  ], "#7592ad");
+  drawPolygon(
+    context,
+    [projection.point(x, y + 1, z), projection.point(x + 1, y + 1, z), top[2], top[3]],
+    "#91abc2",
+  );
+  drawPolygon(
+    context,
+    [projection.point(x + 1, y, z), projection.point(x + 1, y + 1, z), top[2], top[1]],
+    "#7592ad",
+  );
   drawPolygon(context, top, "#d8e7f4", "rgba(69, 103, 134, .45)");
 }
 
@@ -95,18 +98,18 @@ export function drawPrism(context, projection, box) {
     projection.point(maxX, maxY, maxZ),
     projection.point(x, maxY, maxZ),
   ];
-  drawPolygon(context, [
-    projection.point(x, maxY, z),
-    projection.point(maxX, maxY, z),
-    top[2],
-    top[3],
-  ], "rgba(117, 149, 180, .78)", "rgba(57, 88, 119, .52)");
-  drawPolygon(context, [
-    projection.point(maxX, y, z),
-    projection.point(maxX, maxY, z),
-    top[2],
-    top[1],
-  ], "rgba(85, 119, 153, .88)", "rgba(57, 88, 119, .58)");
+  drawPolygon(
+    context,
+    [projection.point(x, maxY, z), projection.point(maxX, maxY, z), top[2], top[3]],
+    "rgba(117, 149, 180, .78)",
+    "rgba(57, 88, 119, .52)",
+  );
+  drawPolygon(
+    context,
+    [projection.point(maxX, y, z), projection.point(maxX, maxY, z), top[2], top[1]],
+    "rgba(85, 119, 153, .88)",
+    "rgba(57, 88, 119, .58)",
+  );
   drawPolygon(context, top, "rgba(211, 228, 243, .9)", "rgba(57, 88, 119, .58)");
 }
 
@@ -127,10 +130,11 @@ export function drawPoint(context, point, color, radius = 3) {
 export function drawPath(context, projection, points, progress, color) {
   if (points.length < 2 || progress <= 0) return;
   const screenPoints = points.map(([x, y, z]) => projection.point(x, y, z));
-  const lengths = screenPoints.slice(1).map((point, index) => Math.hypot(
-    point.x - screenPoints[index].x,
-    point.y - screenPoints[index].y,
-  ));
+  const lengths = screenPoints
+    .slice(1)
+    .map((point, index) =>
+      Math.hypot(point.x - screenPoints[index].x, point.y - screenPoints[index].y),
+    );
   const fullLength = lengths.reduce((sum, value) => sum + value, 0);
   let remaining = fullLength * Math.min(progress, 1);
   const trace = [screenPoints[0]];
@@ -141,7 +145,10 @@ export function drawPath(context, projection, points, progress, color) {
     if (remaining >= span) trace.push(to);
     else {
       const ratio = remaining / span;
-      trace.push({ x: from.x + (to.x - from.x) * ratio, y: from.y + (to.y - from.y) * ratio });
+      trace.push({
+        x: from.x + (to.x - from.x) * ratio,
+        y: from.y + (to.y - from.y) * ratio,
+      });
     }
     remaining -= span;
   }
@@ -152,7 +159,13 @@ export function drawPath(context, projection, points, progress, color) {
   context.strokeStyle = `${color}35`;
   context.lineWidth = 7;
   context.beginPath();
-  trace.forEach((point, index) => index ? context.lineTo(point.x, point.y) : context.moveTo(point.x, point.y));
+  trace.forEach((point, index) => {
+    if (index) {
+      context.lineTo(point.x, point.y);
+    } else {
+      context.moveTo(point.x, point.y);
+    }
+  });
   context.stroke();
   context.strokeStyle = color;
   context.lineWidth = 2.5;
@@ -164,11 +177,13 @@ export function drawPath(context, projection, points, progress, color) {
 export function pointAlongPolyline(projection, points, progress) {
   if (!points.length) return null;
   const screenPoints = points.map(([x, y, z]) => projection.point(x, y, z));
-  const lengths = screenPoints.slice(1).map((point, index) => Math.hypot(
-    point.x - screenPoints[index].x,
-    point.y - screenPoints[index].y,
-  ));
-  let remaining = lengths.reduce((sum, value) => sum + value, 0) * Math.min(Math.max(progress, 0), 1);
+  const lengths = screenPoints
+    .slice(1)
+    .map((point, index) =>
+      Math.hypot(point.x - screenPoints[index].x, point.y - screenPoints[index].y),
+    );
+  let remaining =
+    lengths.reduce((sum, value) => sum + value, 0) * Math.min(Math.max(progress, 0), 1);
   for (let index = 0; index < lengths.length; index += 1) {
     const from = screenPoints[index];
     const to = screenPoints[index + 1];
@@ -183,7 +198,7 @@ export function pointAlongPolyline(projection, points, progress) {
 }
 
 export function shuttleProgress(elapsed, period = 3.2) {
-  const cycle = (elapsed % period) / period * 2;
+  const cycle = ((elapsed % period) / period) * 2;
   return cycle <= 1 ? cycle : 2 - cycle;
 }
 
@@ -218,7 +233,12 @@ export function drawVolumeFrame(context, projection, volume) {
       context.stroke();
     }
   }
-  for (const [x, y] of [[0, 0], [volume.x, 0], [0, volume.y], [volume.x, volume.y]]) {
+  for (const [x, y] of [
+    [0, 0],
+    [volume.x, 0],
+    [0, volume.y],
+    [volume.x, volume.y],
+  ]) {
     const from = projection.point(x, y, 0);
     const to = projection.point(x, y, volume.z);
     context.beginPath();

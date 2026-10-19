@@ -413,7 +413,7 @@ def prepare_manifest(
         family_maps[str(case["family"])][map_path].append(str(case["workload_id"]))
         map_free_nodes[map_path] = int(case["free_nodes"])
     memory_ids = []
-    for family, maps_in_family in sorted(family_maps.items()):
+    for _family, maps_in_family in sorted(family_maps.items()):
         ordered_maps = sorted(
             maps_in_family,
             key=lambda map_path: (map_free_nodes[map_path], map_path),

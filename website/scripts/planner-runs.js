@@ -1,5 +1,3 @@
-"use strict";
-
 const TRACE_DURATION_MIN_MS = 4500;
 const TRACE_DURATION_MAX_MS = 22000;
 
@@ -39,7 +37,11 @@ export function startRecordedPlannerRuns() {
       const response = await fetch(new URL("data/planner-demo-runs.json", window.location.href));
       if (!response.ok) throw new Error(`Recorded trace request failed: ${response.status}`);
       const payload = await response.json();
-      if (payload.schema_version !== 1 || !Array.isArray(payload.runs) || payload.runs.length !== 3) {
+      if (
+        payload.schema_version !== 1 ||
+        !Array.isArray(payload.runs) ||
+        payload.runs.length !== 3
+      ) {
         throw new Error("The recorded trace file has an unsupported schema.");
       }
       state.data = payload;
@@ -48,7 +50,8 @@ export function startRecordedPlannerRuns() {
     } catch (error) {
       console.error(error);
       document.querySelector("#run-title").textContent = "Recorded runs could not be loaded";
-      document.querySelector("#run-summary").textContent = "Reload the page or use the Python runner from the repository.";
+      document.querySelector("#run-summary").textContent =
+        "Reload the page or use the Python runner from the repository.";
       document.querySelector("#run-status").textContent = "Trace data unavailable";
       playButton.disabled = true;
       resetButton.disabled = true;
@@ -78,8 +81,10 @@ export function startRecordedPlannerRuns() {
     });
     document.querySelector("#run-title").textContent = run.title;
     document.querySelector("#run-summary").textContent = run.summary;
-    document.querySelector("#run-package-badge").textContent = `${state.data.package.name} ${state.data.package.version}`;
-    document.querySelector("#run-evidence-tag").textContent = "TRACE CAPTURED FROM NATIVE PACKAGE RUN";
+    document.querySelector("#run-package-badge").textContent =
+      `${state.data.package.name} ${state.data.package.version}`;
+    document.querySelector("#run-evidence-tag").textContent =
+      "TRACE CAPTURED FROM NATIVE PACKAGE RUN";
     renderPhaseTabs();
     setPhase(0);
   }
@@ -156,42 +161,85 @@ export function startRecordedPlannerRuns() {
     facts.replaceChildren();
     addFact(facts, "Environment", input.environment);
     addFact(facts, "Start and goal", `${formatPoint(start)} to ${formatPoint(goal)}`);
-    addFact(facts, "Random seed", run.seed.value === null ? run.seed.meaning : `${run.seed.value.toLocaleString()} · ${run.seed.meaning}`);
+    addFact(
+      facts,
+      "Random seed",
+      run.seed.value === null
+        ? run.seed.meaning
+        : `${run.seed.value.toLocaleString()} · ${run.seed.meaning}`,
+    );
     addFact(facts, "Movement model", input.movement);
     if (run.planner_id === "dstar_lite") {
-      addFact(facts, "Map update", `Insert obstacle at ${formatPoint(input.inserted_obstacle)}; update ${input.directed_edges_updated} directed edge costs, then reuse the same D* Lite session.`);
+      addFact(
+        facts,
+        "Map update",
+        `Insert obstacle at ${formatPoint(input.inserted_obstacle)}; update ${input.directed_edges_updated} directed edge costs, then reuse the same D* Lite session.`,
+      );
     }
     if (run.planner_id === "rrt_star") {
       addFact(facts, "Robot model", input.robot_model);
-      addFact(facts, "Geometry", `${input.source_obstacle_count} source cylinders; bounds ${input.bounds[0].map(formatNumber).join(", ")} to ${input.bounds[1].map(formatNumber).join(", ")}.`);
-      addFact(facts, "Collision model", `Planner obstacle radii inflated by ${input.planning_obstacle_radius_inflation.toFixed(6)} m; validity checked against source radii.`);
+      addFact(
+        facts,
+        "Geometry",
+        `${input.source_obstacle_count} source cylinders; bounds ${input.bounds[0].map(formatNumber).join(", ")} to ${input.bounds[1].map(formatNumber).join(", ")}.`,
+      );
+      addFact(
+        facts,
+        "Collision model",
+        `Planner obstacle radii inflated by ${input.planning_obstacle_radius_inflation.toFixed(6)} m; validity checked against source radii.`,
+      );
     }
-    const parameterSummary = formatParameters(run.parameters)
-      || "Package defaults; heuristic and legal moves come from the MovingAI graph.";
+    const parameterSummary =
+      formatParameters(run.parameters) ||
+      "Package defaults; heuristic and legal moves come from the MovingAI graph.";
     addFact(facts, "Planner parameters", parameterSummary);
-    addFact(facts, "Package and runtime", `${state.data.package.name} ${state.data.package.version} · Python ${state.data.runtime.python_version}`);
-    const phaseCost = state.run.phases.length > 1
-      ? `Current phase cost ${phase.path_cost.toFixed(3)}; final repaired cost ${result.path_cost.toFixed(3)}. `
-      : `Path cost ${result.path_cost.toFixed(6)}. `;
+    addFact(
+      facts,
+      "Package and runtime",
+      `${state.data.package.name} ${state.data.package.version} · Python ${state.data.runtime.python_version}`,
+    );
+    const phaseCost =
+      state.run.phases.length > 1
+        ? `Current phase cost ${phase.path_cost.toFixed(3)}; final repaired cost ${result.path_cost.toFixed(3)}. `
+        : `Path cost ${result.path_cost.toFixed(6)}. `;
     const routeCheck = phase.valid ? "Route check passed." : "Route check failed.";
-    addFact(facts, "Result", `${phaseCost}${result.stop_reason}. ${routeCheck} ${phase.validity_method || result.validity_method}`);
+    addFact(
+      facts,
+      "Result",
+      `${phaseCost}${result.stop_reason}. ${routeCheck} ${phase.validity_method || result.validity_method}`,
+    );
     if (input.source?.url || input.source?.benchmark_url) {
-      addLinkFact(facts, "Source", input.source.url || input.source.benchmark_url, input.source.file || input.source.dataset);
+      addLinkFact(
+        facts,
+        "Source",
+        input.source.url || input.source.benchmark_url,
+        input.source.file || input.source.dataset,
+      );
     }
     if (input.source?.sha256) addFact(facts, "Source SHA-256", input.source.sha256, true);
     if (input.source?.scenario_file) {
-      addFact(facts, "Scenario", `${input.source.scenario_file}, line ${input.source.scenario_line}; reference cost ${input.source.published_optimal_cost.toFixed(8)}.`);
+      addFact(
+        facts,
+        "Scenario",
+        `${input.source.scenario_file}, line ${input.source.scenario_line}; reference cost ${input.source.published_optimal_cost.toFixed(8)}.`,
+      );
     }
     if (run.planner_id === "rrt_star") {
       addFact(facts, "Query derivation", input.query.derivation);
-      addFact(facts, "Scope", "This is a point-robot XY planning problem derived from BARN geometry. It does not evaluate the Jackal footprint, dynamics, or full simulator task.");
+      addFact(
+        facts,
+        "Scope",
+        "This is a point-robot XY planning problem derived from BARN geometry. It does not evaluate the Jackal footprint, dynamics, or full simulator task.",
+      );
     }
 
     document.querySelector("#run-command").textContent = state.data.reproduction_command;
-    document.querySelector("#run-canvas").setAttribute(
-      "aria-label",
-      `${run.planner} package trace replay on ${input.environment}. ${phase.trace.events.length} recorded events.`,
-    );
+    document
+      .querySelector("#run-canvas")
+      .setAttribute(
+        "aria-label",
+        `${run.planner} package trace replay on ${input.environment}. ${phase.trace.events.length} recorded events.`,
+      );
   }
 
   function addFact(parent, label, value, asCode = false) {
@@ -224,17 +272,28 @@ export function startRecordedPlannerRuns() {
   function formatParameters(parameters) {
     return Object.entries(parameters)
       .filter(([key]) => key !== "planner" && key !== "seed")
-      .map(([key, value]) => `${key}=${value === null ? "None" : typeof value === "boolean" ? String(value) : typeof value === "number" ? formatNumber(value) : value}`)
+      .map(
+        ([key, value]) =>
+          `${key}=${value === null ? "None" : typeof value === "boolean" ? String(value) : typeof value === "number" ? formatNumber(value) : value}`,
+      )
       .join(" · ");
   }
 
   function formatPoint(point) {
     if (!Array.isArray(point)) return "not recorded";
-    return `(${point.map((value) => Number(value).toFixed(3).replace(/\.?0+$/, "")).join(", ")})`;
+    return `(${point
+      .map((value) =>
+        Number(value)
+          .toFixed(3)
+          .replace(/\.?0+$/, ""),
+      )
+      .join(", ")})`;
   }
 
   function formatNumber(value) {
-    return Number(value).toFixed(4).replace(/\.?0+$/, "");
+    return Number(value)
+      .toFixed(4)
+      .replace(/\.?0+$/, "");
   }
 
   function resetTraceState() {
@@ -262,15 +321,30 @@ export function startRecordedPlannerRuns() {
     }
     state.cursor = target;
     progress.value = String(target);
-    document.querySelector("#run-event-count").textContent = `${target.toLocaleString()} / ${events.length.toLocaleString()} events`;
+    document.querySelector("#run-event-count").textContent =
+      `${target.toLocaleString()} / ${events.length.toLocaleString()} events`;
     draw();
   }
 
   function updateLegend() {
-    const items = state.run.family === "continuous"
-      ? [["tree", "Tree edge"], ["sample", "Samples (1 in 4 shown)"], ["path", "Verified route"], ["start", "Start"], ["goal", "Goal"]]
-      : [["expanded", "Expanded node"], ["frontier", "Discovered"], ["path", "Verified route"], ["start", "Start"], ["goal", "Goal"]];
-    if (state.run.planner_id === "dstar_lite" && state.phase.id === "repair") items.unshift(["obstacle", "Inserted obstacle"]);
+    const items =
+      state.run.family === "continuous"
+        ? [
+            ["tree", "Tree edge"],
+            ["sample", "Samples (1 in 4 shown)"],
+            ["path", "Verified route"],
+            ["start", "Start"],
+            ["goal", "Goal"],
+          ]
+        : [
+            ["expanded", "Expanded node"],
+            ["frontier", "Discovered"],
+            ["path", "Verified route"],
+            ["start", "Start"],
+            ["goal", "Goal"],
+          ];
+    if (state.run.planner_id === "dstar_lite" && state.phase.id === "repair")
+      items.unshift(["obstacle", "Inserted obstacle"]);
     const legend = document.querySelector("#run-legend");
     legend.replaceChildren();
     for (const [kind, label] of items) {
@@ -328,10 +402,19 @@ export function startRecordedPlannerRuns() {
     const input = state.run.input;
     const width = input.width;
     const height = input.height;
-    const map = state.run.planner_id === "dstar_lite" && state.phase.id === "repair"
-      ? input.after_rows
-      : state.run.planner_id === "dstar_lite" ? input.before_rows : input.map_rows;
-    const transform = worldTransform([[0, 0], [width, height]], 26);
+    const map =
+      state.run.planner_id === "dstar_lite" && state.phase.id === "repair"
+        ? input.after_rows
+        : state.run.planner_id === "dstar_lite"
+          ? input.before_rows
+          : input.map_rows;
+    const transform = worldTransform(
+      [
+        [0, 0],
+        [width, height],
+      ],
+      26,
+    );
     const cell = transform.scale;
 
     for (let y = 0; y < height; y += 1) {
@@ -340,10 +423,11 @@ export function startRecordedPlannerRuns() {
         const px = transform.x(x);
         const py = transform.y(y + 1);
         const blocked = state.run.planner_id === "dstar_lite" ? row[x] === "#" : row[x] !== ".";
-        const inserted = state.run.planner_id === "dstar_lite"
-          && state.phase.id === "repair"
-          && input.inserted_obstacle[0] === x
-          && input.inserted_obstacle[1] === y;
+        const inserted =
+          state.run.planner_id === "dstar_lite" &&
+          state.phase.id === "repair" &&
+          input.inserted_obstacle[0] === x &&
+          input.inserted_obstacle[1] === y;
         context.fillStyle = inserted ? "rgba(255, 184, 117, .72)" : blocked ? "#26394e" : "#142438";
         context.fillRect(px, py, cell, cell);
         if (inserted) {
@@ -355,18 +439,18 @@ export function startRecordedPlannerRuns() {
           const node = y * width + x;
           if (state.discovered.has(node)) {
             context.fillStyle = "rgba(58, 134, 188, .34)";
-            context.fillRect(px + .5, py + .5, cell - 1, cell - 1);
+            context.fillRect(px + 0.5, py + 0.5, cell - 1, cell - 1);
           }
           if (state.expanded.has(node)) {
             context.fillStyle = "rgba(85, 183, 197, .62)";
-            context.fillRect(px + .5, py + .5, cell - 1, cell - 1);
+            context.fillRect(px + 0.5, py + 0.5, cell - 1, cell - 1);
           }
         }
       }
     }
 
     context.strokeStyle = "rgba(176, 200, 226, .09)";
-    context.lineWidth = .5;
+    context.lineWidth = 0.5;
     context.beginPath();
     for (let x = 0; x <= width; x += 1) {
       context.moveTo(transform.x(x), transform.y(0));
@@ -379,10 +463,14 @@ export function startRecordedPlannerRuns() {
     context.stroke();
 
     if (state.hasSolution) drawGridPath(state.phase.path, transform);
-    drawEndpoint(input.start || input.query?.start, transform, "#83f0cd", cell * .27);
-    drawEndpoint(input.goal || input.query?.goal, transform, "#ffb875", cell * .27);
+    drawEndpoint(input.start || input.query?.start, transform, "#83f0cd", cell * 0.27);
+    drawEndpoint(input.goal || input.query?.goal, transform, "#ffb875", cell * 0.27);
     if (state.run.planner_id === "dstar_lite" && state.phase.id === "repair") {
-      drawAnnotation(`Obstacle inserted at ${formatPoint(input.inserted_obstacle)}`, transform.left + 8, transform.top + 19);
+      drawAnnotation(
+        `Obstacle inserted at ${formatPoint(input.inserted_obstacle)}`,
+        transform.left + 8,
+        transform.top + 19,
+      );
     }
     drawAxisLabel("x", transform.right - 8, transform.bottom + 20);
     drawAxisLabel("y", transform.left - 15, transform.top + 10);
@@ -392,13 +480,13 @@ export function startRecordedPlannerRuns() {
     if (!Array.isArray(path) || path.length < 2) return;
     context.beginPath();
     path.forEach(([x, y], index) => {
-      const px = transform.x(x + .5);
-      const py = transform.y(y + .5);
+      const px = transform.x(x + 0.5);
+      const py = transform.y(y + 0.5);
       if (index === 0) context.moveTo(px, py);
       else context.lineTo(px, py);
     });
     context.strokeStyle = "#83f0cd";
-    context.lineWidth = Math.max(2, transform.scale * .16);
+    context.lineWidth = Math.max(2, transform.scale * 0.16);
     context.lineCap = "round";
     context.lineJoin = "round";
     context.stroke();
@@ -408,7 +496,12 @@ export function startRecordedPlannerRuns() {
     const input = state.run.input;
     const transform = worldTransform(input.bounds, 34);
     context.fillStyle = "#1a2c40";
-    context.fillRect(transform.left, transform.top, transform.right - transform.left, transform.bottom - transform.top);
+    context.fillRect(
+      transform.left,
+      transform.top,
+      transform.right - transform.left,
+      transform.bottom - transform.top,
+    );
 
     for (const [cx, cy, radius] of input.source_circles) {
       context.beginPath();
@@ -416,7 +509,7 @@ export function startRecordedPlannerRuns() {
       context.fillStyle = "rgba(102, 135, 163, .54)";
       context.fill();
       context.strokeStyle = "rgba(185, 211, 231, .18)";
-      context.lineWidth = .6;
+      context.lineWidth = 0.6;
       context.stroke();
     }
 
@@ -436,7 +529,13 @@ export function startRecordedPlannerRuns() {
         if (node % 4 !== 0) continue;
         if (node < 0 || node >= points.length) continue;
         context.beginPath();
-        context.arc(transform.x(points[node][0]), transform.y(points[node][1]), 1.2, 0, Math.PI * 2);
+        context.arc(
+          transform.x(points[node][0]),
+          transform.y(points[node][1]),
+          1.2,
+          0,
+          Math.PI * 2,
+        );
         context.fill();
       }
     }
@@ -467,8 +566,8 @@ export function startRecordedPlannerRuns() {
   }
 
   function drawEndpoint(point, transform, color, radius) {
-    const x = transform.x(point[0] + (state.run.family === "discrete" ? .5 : 0));
-    const y = transform.y(point[1] + (state.run.family === "discrete" ? .5 : 0));
+    const x = transform.x(point[0] + (state.run.family === "discrete" ? 0.5 : 0));
+    const y = transform.y(point[1] + (state.run.family === "discrete" ? 0.5 : 0));
     context.beginPath();
     context.arc(x, y, radius + 3, 0, Math.PI * 2);
     context.strokeStyle = color;
@@ -495,9 +594,19 @@ export function startRecordedPlannerRuns() {
   function updateStatus(mode) {
     const total = state.phase?.trace.events.length || 0;
     const complete = state.cursor >= total;
-    const suffix = mode === "playing" ? "replaying captured events" : complete ? "trace complete" : "trace paused";
-    document.querySelector("#run-status").textContent = `${state.phase?.label || "Trace"} · ${suffix}`;
-    playButton.textContent = state.playing ? "Pause trace" : complete ? "Replay trace" : "Play trace";
+    const suffix =
+      mode === "playing"
+        ? "replaying captured events"
+        : complete
+          ? "trace complete"
+          : "trace paused";
+    document.querySelector("#run-status").textContent =
+      `${state.phase?.label || "Trace"} · ${suffix}`;
+    playButton.textContent = state.playing
+      ? "Pause trace"
+      : complete
+        ? "Replay trace"
+        : "Play trace";
   }
 
   function stopPlayback() {
@@ -511,7 +620,9 @@ export function startRecordedPlannerRuns() {
     const duration = Math.min(TRACE_DURATION_MAX_MS, Math.max(TRACE_DURATION_MIN_MS, total * 2.4));
     if (!state.startedAt) state.startedAt = timestamp;
     const elapsed = Math.min(duration, timestamp - state.startedAt);
-    const target = Math.floor(state.startCursor + ((total - state.startCursor) * elapsed) / duration);
+    const target = Math.floor(
+      state.startCursor + ((total - state.startCursor) * elapsed) / duration,
+    );
     applyEventsUntil(target);
     if (elapsed >= duration || target >= total) {
       state.playing = false;
@@ -562,7 +673,9 @@ export function startRecordedPlannerRuns() {
     try {
       await navigator.clipboard.writeText(state.data.reproduction_command);
       copyButton.textContent = "Copied";
-      window.setTimeout(() => { copyButton.textContent = "Copy"; }, 1600);
+      window.setTimeout(() => {
+        copyButton.textContent = "Copy";
+      }, 1600);
     } catch (error) {
       console.error("Could not copy the reproduction command", error);
       copyButton.textContent = "Select command";

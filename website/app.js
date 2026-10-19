@@ -1,12 +1,10 @@
-"use strict";
-
-import { createCatalog } from "./scripts/catalog.js?v=concept-labels-20261018";
 import { startApplicationScenes } from "./scripts/applications.js";
+import { createCatalog } from "./scripts/catalog.js?v=concept-labels-20261018";
 import { startEnvironmentPreviews } from "./scripts/environment-previews.js";
 import { startLandingMotion } from "./scripts/landing-motion.js";
+import { startRecordedPlannerRuns } from "./scripts/planner-runs.js?v=recorded-trace-validation-20261018";
 import { createSimulator } from "./scripts/simulator.js?v=concept-clarity-20261018";
 import { startThreeDimensionalScenes } from "./scripts/three-dimensional.js";
-import { startRecordedPlannerRuns } from "./scripts/planner-runs.js?v=recorded-trace-validation-20261018";
 
 async function loadPlanners() {
   const response = await fetch(new URL("data/planners.json", window.location.href));
@@ -30,9 +28,10 @@ async function startLearningLab() {
   }
 
   const requestedDemoId = new URLSearchParams(window.location.search).get("demo");
-  const initialPlanner = planners.find((planner) => planner.id === requestedDemoId)
-    || planners.find((planner) => planner.id === "astar")
-    || planners[0];
+  const initialPlanner =
+    planners.find((planner) => planner.id === requestedDemoId) ||
+    planners.find((planner) => planner.id === "astar") ||
+    planners[0];
   const isDemoMode = initialPlanner.id === requestedDemoId;
   if (isDemoMode) document.documentElement.classList.add("demo-mode");
 

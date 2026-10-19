@@ -26,8 +26,8 @@ def render_matrix() -> str:
     ]
     constraints: dict[str, list[str]] = {}
     for name, spec in PLANNER_REGISTRY.items():
-        module = getattr(spec.planner, "__module__")
-        callable_name = getattr(spec.planner, "__name__")
+        module = spec.planner.__module__
+        callable_name = spec.planner.__name__
         lines.append(
             f"| `{spec.problem_kind}` | `{name}` | `{module}` | `{callable_name}` | supported |"
         )

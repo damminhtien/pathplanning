@@ -3,10 +3,11 @@
 from __future__ import annotations
 
 from collections import defaultdict
+from collections.abc import Iterable
 import hashlib
 import json
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any
 
 from scripts.shortest_path_benchmark.contract import canonical_json, stable_id
 from scripts.shortest_path_benchmark.runner import (

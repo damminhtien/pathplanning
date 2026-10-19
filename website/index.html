@@ -91,7 +91,7 @@
     <link rel="stylesheet" href="three-dimensional.css?v=voxel-planning-20261018" />
     <link rel="stylesheet" href="case-studies.css" />
     <link rel="stylesheet" href="planner-runs.css?v=recorded-native-traces-20261018" />
-    <script>window.MathJax = {tex: {inlineMath: [["\\(", "\\)"], ["\\[", "\\]"]]}};</script>
+    <script src="mathjax-config.js"></script>
     <script async id="mathjax-script" src="https://cdn.jsdelivr.net/npm/mathjax@4/tex-chtml.js"></script>
     <script type="module" src="app.js?v=recorded-trace-validation-20261018"></script>
   </head>
@@ -215,7 +215,7 @@
           </div>
         </div>
 
-        <div class="hero-stats" aria-label="Project overview">
+        <div class="hero-stats" role="group" aria-label="Project overview">
           <div><strong>{{PLANNER_COUNT}}</strong><span>supported planners</span></div>
           <div><strong>{{FAMILY_COUNT}}</strong><span>problem families</span></div>
           <div><strong>1,297</strong><span>catalogued data entries</span></div>
@@ -299,7 +299,7 @@
               </div>
               <div class="run-package-badge" id="run-package-badge">pathplanning</div>
             </header>
-            <div class="run-phase-tabs" id="run-phase-tabs" aria-label="Choose a trace phase" hidden></div>
+            <div class="run-phase-tabs" id="run-phase-tabs" role="group" aria-label="Choose a trace phase" hidden></div>
             <div class="recorded-run-content">
               <div class="recorded-run-visual">
                 <canvas id="run-canvas" width="1000" height="560" role="img" aria-label="Recorded native planner trace replay"></canvas>
@@ -381,13 +381,13 @@
                 <span class="canvas-live"><i></i><span id="simulation-status">Concept animation</span></span>
                 <span id="simulation-mode">GRID MAP, 2D</span>
               </div>
-              <canvas id="sim-canvas" width="900" height="500" aria-label="Illustrative concept animation only; the selected planner is not executed"></canvas>
+              <canvas id="sim-canvas" width="900" height="500" role="img" aria-label="Illustrative concept animation only; the selected planner is not executed"></canvas>
               <div class="canvas-legend" id="canvas-legend">
                 <span><i class="legend-start"></i>Start</span><span><i class="legend-goal"></i>Goal</span><span><i class="legend-open"></i>Explored frontier</span><span><i class="legend-path"></i>Path</span>
               </div>
             </div>
-            <aside class="algorithm-note" aria-live="polite" aria-atomic="true">
-              <div class="note-topline"><span id="planner-kind" class="kind-tag">GRID & GRAPH</span><span id="planner-index" class="planner-index">01 / {{PLANNER_COUNT}}</span></div>
+            <aside class="algorithm-note" aria-label="Selected planner details" aria-live="polite" aria-atomic="true">
+              <div class="note-topline"><span id="planner-kind" class="kind-tag">GRID &amp; GRAPH</span><span id="planner-index" class="planner-index">01 / {{PLANNER_COUNT}}</span></div>
               <h3 id="planner-title">A*</h3>
               <p id="planner-description"></p>
               <div class="note-separator"></div>
@@ -519,7 +519,7 @@
           </div>
           <p class="section-intro">Define the task, validate each route, then report the results.</p>
         </div>
-        <div class="method-track" aria-label="Planner evaluation process">
+        <div class="method-track" role="group" aria-label="Planner evaluation process">
           <article class="method-step"><span class="step-number">01</span><div class="step-art art-source"><i></i><i></i><i></i><i></i></div><h3>Match the problem</h3><p>Match map, motion rules, costs, robot shape, and goal policy.</p></article>
           <article class="method-step"><span class="step-number">02</span><div class="step-art art-freeze"><i></i><i></i><i></i></div><h3>Freeze the inputs</h3><p>Record source, version, hashes, seed, and workload.</p></article>
           <article class="method-step"><span class="step-number">03</span><div class="step-art art-pair"><i></i><i></i></div><h3>Run a paired comparison</h3><p>Fix start/goal pairs, protocol, warmups, repeats, and run order.</p></article>

@@ -205,8 +205,7 @@ def load_site_content() -> SiteContent:
             "limitation",
         )
         if not all(
-            isinstance(study.get(field), str) and study[field].strip()
-            for field in required_fields
+            isinstance(study.get(field), str) and study[field].strip() for field in required_fields
         ):
             raise SystemExit(f"Case-study content is incomplete for {study_id}.")
         if study.get("dataset_id") not in dataset_id_set:
@@ -237,8 +236,12 @@ def load_site_content() -> SiteContent:
                 text
                 for study in case_studies
                 for text in [
-                    study["title"], study["summary"], study["question"], study["protocol"],
-                    study["interpretation"], study["limitation"],
+                    study["title"],
+                    study["summary"],
+                    study["question"],
+                    study["protocol"],
+                    study["interpretation"],
+                    study["limitation"],
                     *(finding[key] for finding in study["findings"] for key in ("title", "text")),
                 ]
             ),

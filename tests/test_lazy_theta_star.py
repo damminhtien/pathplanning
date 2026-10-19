@@ -15,7 +15,7 @@ from pathplanning.spaces.terrain_grid2d import TerrainCostGrid2D
 
 def _assert_waypoints_visible(problem: DiscreteProblem, path: np.ndarray) -> None:
     graph = problem.graph
-    for first, second in zip(path, path[1:]):
+    for first, second in zip(path, path[1:], strict=False):
         dx, dy = second - first
         for y in range(graph.y_range):
             for x in range(graph.x_range):
