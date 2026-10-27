@@ -8,7 +8,6 @@ import numpy as np
 
 from pathplanning import plan_discrete
 from pathplanning.core.contracts import DiscreteProblem
-from pathplanning.core.results import StopReason
 from pathplanning.spaces.grid2d import Grid2DSearchSpace
 from pathplanning.spaces.terrain_grid2d import TerrainCostGrid2D
 
@@ -72,36 +71,3 @@ def test_lazy_theta_star_integrates_weighted_terrain() -> None:
     assert result.path is not None
     assert result.path.tolist() == [[0.0, 0.0], [4.0, 0.0]]
     assert math.isclose(result.stats["path_cost"], 10.0)
-
-
-def test_lazy_theta_star_handles_unreachable_goals_and_expansion_limits() -> None:
-    graph = Grid2DSearchSpace(9, 9, obstacles={(4, y) for y in range(9)})
-    unreachable = plan_discrete(
-        DiscreteProblem(graph, (0, 0), (8, 8)),
-        planner="lazy_theta_star",
-    )
-    assert not unreachable.success
-    assert unreachable.stop_reason is StopReason.NO_PROGRESS
-
-    blocked_start = plan_discrete(
-        DiscreteProblem(graph, (4, 0), (8, 8)),
-        planner="lazy_theta_star",
-    )
-    assert not blocked_start.success
-    assert blocked_start.stop_reason is StopReason.NO_PROGRESS
-
-    trivial = plan_discrete(
-        DiscreteProblem(Grid2DSearchSpace(3, 3), (1, 1), (1, 1)),
-        planner="lazy_theta_star",
-    )
-    assert trivial.success
-    assert trivial.path is not None and trivial.path.tolist() == [[1.0, 1.0]]
-    assert trivial.stats["path_cost"] == 0.0
-
-    budgeted = plan_discrete(
-        DiscreteProblem(Grid2DSearchSpace(9, 9, obstacles={(4, 4)}), (1, 1), (7, 7)),
-        planner="lazy_theta_star",
-        params={"max_expansions": 1},
-    )
-    assert not budgeted.success
-    assert budgeted.stop_reason is StopReason.MAX_ITERS

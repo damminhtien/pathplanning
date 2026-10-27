@@ -26,6 +26,12 @@ def test_eirm_star_reuses_roadmap_and_edge_validation() -> None:
         )
 
         assert first.success and second.success and traced.success
+        assert first.path is not None and second.path is not None
+        np.testing.assert_allclose(first.path[[0, -1]], [[0.5, 0.5], [9.5, 9.5]])
+        np.testing.assert_allclose(second.path, first.path)
+        assert all(space.is_motion_valid(a, b) for a, b in zip(first.path, first.path[1:]))
+        path_cost = np.linalg.norm(np.diff(first.path, axis=0), axis=1).sum()
+        assert np.isclose(first.stats["path_cost"], path_cost)
         assert first.stats["motion_checks"] > second.stats["motion_checks"]
         assert traced.trace is not None and traced.trace.events.size > 0
         assert roadmap.build_stats["roadmap_vertices"] == vertices == 96
@@ -41,3 +47,8 @@ def test_eirm_star_registry_entry_uses_roadmap_params() -> None:
     )
 
     assert result.success
+    assert result.path is not None
+    np.testing.assert_allclose(result.path[[0, -1]], [[0.25, 0.25], [1.75, 1.75]])
+    assert np.isclose(
+        result.stats["path_cost"], np.linalg.norm(np.diff(result.path, axis=0), axis=1).sum()
+    )

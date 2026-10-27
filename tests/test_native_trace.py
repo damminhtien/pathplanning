@@ -11,10 +11,8 @@ from pathplanning import TraceOptions, plan_continuous, plan_discrete
 from pathplanning.core.contracts import ContinuousProblem, DiscreteProblem, GoalState
 from pathplanning.native import NativeLibraryLoadError
 from pathplanning.planners.sampling.dynamic_rrt import DynamicRRT3D, DynamicRRT3DConfig
-from pathplanning.registry import list_planners
 from pathplanning.spaces.continuous_3d import AABB, ContinuousSpace3D
 from pathplanning.spaces.grid2d import Grid2DSamplingSpace, Grid2DSearchSpace
-from pathplanning.spaces.terrain_grid2d import TerrainCostGrid2D
 from pathplanning.viz.replay import ReplayController
 
 
@@ -31,9 +29,22 @@ def _same_plan(first, second) -> None:
     assert first.stats.get("path_cost") == second.stats.get("path_cost")
 
 
-@pytest.mark.parametrize("planner", list_planners("discrete"))
+@pytest.mark.parametrize(
+    "planner",
+    [
+        "bfs",
+        "dfs",
+        "greedy_best_first",
+        "astar",
+        "bidirectional_dijkstra",
+        "bidirectional_astar",
+        "dijkstra",
+        "weighted_astar",
+        "anytime_astar",
+    ],
+)
 def test_search_trace_matches_production(planner: str) -> None:
-    graph = TerrainCostGrid2D(np.ones((12, 12))) if planner == "jpsw" else Grid2DSearchSpace(12, 12)
+    graph = Grid2DSearchSpace(12, 12)
     problem = DiscreteProblem(graph, (1, 1), (10, 10))
     params = {"max_expansions": 5_000}
     first = plan_discrete(problem, planner=planner, params=params, seed=13)
@@ -42,6 +53,15 @@ def test_search_trace_matches_production(planner: str) -> None:
     )
 
     _same_plan(first, second)
+    assert first.success and first.path is not None
+    np.testing.assert_array_equal(first.path[[0, -1]], [problem.start, problem.goal])
+    assert all(graph.is_valid_node(tuple(point)) for point in first.path)
+    assert all(tuple(b) in graph.neighbors(tuple(a)) for a, b in zip(first.path, first.path[1:]))
+    path_cost = sum(graph.edge_cost(tuple(a), tuple(b)) for a, b in zip(first.path, first.path[1:]))
+    assert np.isfinite(path_cost)
+    assert first.stats["path_cost"] == pytest.approx(path_cost)
+    if planner not in {"dfs", "greedy_best_first"}:
+        assert path_cost == pytest.approx(9 * np.sqrt(2))
     assert first.trace is None
     assert second.trace is not None
     assert second.trace.kind == "discrete"
@@ -56,11 +76,7 @@ def test_search_trace_matches_production(planner: str) -> None:
 
 @pytest.mark.parametrize(
     "planner",
-    [
-        planner
-        for planner in list_planners("continuous")
-        if planner not in {"prm_star", "lazy_prm", "eirm_star", "hybrid_astar", "state_lattice"}
-    ],
+    ["rrt", "rrt_star", "informed_rrt_star", "fmt_star", "bit_star", "abit_star", "rrt_connect"],
 )
 def test_sampling_trace_matches_production(planner: str) -> None:
     space = Grid2DSamplingSpace(x_range=(0.0, 10.0), y_range=(0.0, 10.0))
@@ -75,14 +91,17 @@ def test_sampling_trace_matches_production(planner: str) -> None:
         "goal_sample_rate": 0.2,
         "rrt_star_radius_gamma": 6.0,
     }
-    if planner == "jit_star":
-        params["manipulability_weight"] = 0.0
     first = plan_continuous(problem, planner=planner, params=params, seed=13)
     second = plan_continuous(
         problem, planner=planner, params=params, seed=13, trace=TraceOptions(32_768)
     )
 
     _same_plan(first, second)
+    assert first.success and first.path is not None
+    np.testing.assert_allclose(first.path[[0, -1]], [problem.start, problem.goal.state])
+    assert all(space.is_motion_valid(a, b) for a, b in zip(first.path, first.path[1:]))
+    path_cost = np.linalg.norm(np.diff(first.path, axis=0), axis=1).sum()
+    assert first.stats["path_cost"] == pytest.approx(path_cost)
     assert first.trace is None
     assert second.trace is not None
     assert second.trace.kind == "continuous"
@@ -123,29 +142,6 @@ def test_small_trace_cap_truncates_continuous_points_and_map() -> None:
     point_bytes = 0 if second.trace.points is None else second.trace.points.nbytes
     payload_bytes = second.trace.events.nbytes + point_bytes
     assert payload_bytes <= 128
-
-
-def test_production_planning_does_not_load_trace_libraries(monkeypatch) -> None:
-    from pathplanning.native import _ffi
-
-    monkeypatch.setattr(_ffi, "_SEARCH_TRACE_LIB", None)
-    monkeypatch.setattr(_ffi, "_CONTINUOUS_TRACE_LIB", None)
-    discrete = DiscreteProblem(Grid2DSearchSpace(5, 5), (0, 0), (4, 4))
-    assert plan_discrete(discrete, planner="astar").success
-
-    space = Grid2DSamplingSpace(x_range=(0.0, 10.0), y_range=(0.0, 10.0))
-    continuous = ContinuousProblem(
-        space, np.array([1.0, 1.0]), GoalState(np.array([9.0, 9.0]), radius=0.0)
-    )
-    result = plan_continuous(
-        continuous,
-        planner="rrt",
-        params={"max_iters": 5, "step_size": 1.0},
-        seed=3,
-    )
-    assert result.trace is None
-    assert _ffi._SEARCH_TRACE_LIB is None
-    assert _ffi._CONTINUOUS_TRACE_LIB is None
 
 
 def test_missing_diagnostic_library_does_not_block_production(tmp_path, monkeypatch) -> None:

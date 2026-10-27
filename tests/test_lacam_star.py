@@ -69,6 +69,14 @@ def test_lacam_star_matches_joint_oracle_and_records_trace() -> None:
     assert result.success and result.stop_reason is StopReason.SUCCESS
     assert result.sum_of_costs == oracle
     assert result.makespan == max(len(path) - 1 for path in result.paths)
+    for step in range(result.makespan + 1):
+        first = result.paths[0][min(step, len(result.paths[0]) - 1)]
+        second = result.paths[1][min(step, len(result.paths[1]) - 1)]
+        assert first != second
+        if step:
+            previous_first = result.paths[0][min(step - 1, len(result.paths[0]) - 1)]
+            previous_second = result.paths[1][min(step - 1, len(result.paths[1]) - 1)]
+            assert (first, second) != (previous_second, previous_first)
     assert result.trace is not None and result.trace.events.size > 0
 
 

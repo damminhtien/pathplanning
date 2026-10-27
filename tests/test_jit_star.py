@@ -3,22 +3,10 @@
 from __future__ import annotations
 
 import numpy as np
-import pytest
 
 from pathplanning import JitParams, plan_continuous
 from pathplanning.core.contracts import ContinuousProblem, GoalState
-from pathplanning.spaces import AnisotropicContinuousSpace, PlanarManipulatorSpace
-
-
-def test_jit_star_requires_a_robot_jacobian_when_scoring_manipulability() -> None:
-    space = AnisotropicContinuousSpace([0.0], [1.0], [[1.0]])
-    with pytest.raises(ValueError, match="requires space.jacobian"):
-        plan_continuous(
-            ContinuousProblem(space, [0.0], GoalState([1.0])),
-            planner="jit_star",
-            params=JitParams(sample_count=8, batch_size=4),
-            seed=3,
-        )
+from pathplanning.spaces import PlanarManipulatorSpace
 
 
 def test_jit_star_uses_jacobian_cost_and_collision_guidance() -> None:

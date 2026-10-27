@@ -32,6 +32,13 @@ pytest -q
 pre-commit run --all-files
 ```
 
+The retained behavior matrix, test ranking, and accepted coverage losses are
+documented in [the test-suite audit](docs/test-suite-audit.md). Prefer strong
+behavioral assertions and independent regressions over repeated import/smoke
+checks. Each parametrized case counts separately; do not hide independent
+scenarios in loops or skips to meet a case budget. The audit's 107-case snapshot
+is not a limit on adding necessary regression coverage for future changes.
+
 ## Workflow
 
 1. Create a focused branch.

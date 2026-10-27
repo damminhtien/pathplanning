@@ -80,6 +80,14 @@ Track durable decisions so future agents do not re-litigate baseline choices.
 - Decision: Keep `AGENTS.md` as a compact invariant and routing file. Store the active task contract, verification-boundary plan, current state, and task decisions in `.agent/`. Keep root `tasks.md`, `state.md`, and `handoff.md` as dated project history; use `decisions.md` for durable project decisions.
 - Consequence: A fresh thread reads `AGENTS.md`, `.agent/TASK.md`, and `.agent/STATE.md`, then inspects only files needed for the next unfinished milestone.
 
+## DEC-012: Maintain a smaller suite around independent planner behavior
+
+- Date: 2026-10-27
+- Status: accepted
+- Context: The 357-case suite repeated import, smoke, validation and diagnostic matrices.
+- Decision: Retain 107 cases with behavioral coverage for all 37 registry planners, independent correctness oracles, collision and native-boundary regressions, and stateful contracts. Rank every original case and disclose Python/native coverage losses in `docs/test-suite-audit.md` and `docs/test-suite-ranking.csv`.
+- Consequence: Supporting-tool and specialized diagnostic coverage is intentionally narrower. Count parametrized cases honestly; add independent regressions when behavior changes rather than treating 107 as a permanent ceiling.
+
 ## Decision Template
 
 ```text

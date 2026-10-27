@@ -5,11 +5,9 @@ from __future__ import annotations
 import math
 
 import numpy as np
-import pytest
 
 from pathplanning import plan_discrete
 from pathplanning.core.contracts import DiscreteProblem
-from pathplanning.core.results import StopReason
 from pathplanning.spaces.grid2d import Grid2DSearchSpace
 from pathplanning.spaces.terrain_grid2d import TerrainCostGrid2D
 
@@ -86,37 +84,3 @@ def test_theta_star_integrates_weighted_terrain_along_segments() -> None:
     assert result.path is not None
     assert result.path.tolist() == [[0.0, 0.0], [4.0, 0.0]]
     assert result.stats["path_cost"] == 10.0
-
-
-def test_theta_star_reports_unreachable_and_expansion_limits() -> None:
-    graph = Grid2DSearchSpace(9, 9, obstacles={(4, y) for y in range(9)})
-    unreachable = plan_discrete(DiscreteProblem(graph, (0, 0), (8, 8)), planner="theta_star")
-    assert not unreachable.success
-    assert unreachable.stop_reason is StopReason.NO_PROGRESS
-
-    blocked_start = plan_discrete(DiscreteProblem(graph, (4, 0), (8, 8)), planner="theta_star")
-    assert not blocked_start.success
-    assert blocked_start.stop_reason is StopReason.NO_PROGRESS
-    assert blocked_start.stats["cells_checked"] > 0
-
-    budgeted = plan_discrete(
-        DiscreteProblem(Grid2DSearchSpace(9, 9, obstacles={(4, 4)}), (1, 1), (7, 7)),
-        planner="theta_star",
-        params={"max_expansions": 1},
-    )
-    assert not budgeted.success
-    assert budgeted.stop_reason is StopReason.MAX_ITERS
-
-    with pytest.raises(ValueError, match="max_expansions"):
-        plan_discrete(
-            DiscreteProblem(Grid2DSearchSpace(5, 5), (0, 0), (4, 4)),
-            planner="theta_star",
-            params={"max_expansions": 0},
-        )
-
-    class CustomCostGrid(Grid2DSearchSpace):
-        def edge_cost(self, first: tuple[int, int], second: tuple[int, int]) -> float:
-            return super().edge_cost(first, second) * 2.0
-
-    with pytest.raises(ValueError, match="built-in uniform or terrain grid cost model"):
-        plan_discrete(DiscreteProblem(CustomCostGrid(5, 5), (0, 0), (4, 4)), planner="theta_star")

@@ -65,17 +65,6 @@ def test_rit_star_refines_metric_from_collision_feedback() -> None:
     )
 
 
-def test_rit_star_requires_explicit_opt_in_for_python_metric_callbacks() -> None:
-    space = AnisotropicContinuousSpace([0.0], [1.0], [[4.0]])
-    with pytest.raises(ValueError, match="allow_python_callbacks=True"):
-        plan_continuous(
-            ContinuousProblem(space, [0.0], GoalState([1.0])),
-            planner="rit_star",
-            params=RitParams(sample_count=8, batch_size=4),
-            seed=4,
-        )
-
-
 def test_rit_star_rejects_non_positive_definite_metric_callbacks() -> None:
     class InvalidMetricSpace(AnisotropicContinuousSpace):
         def metric_tensor(self, state: np.ndarray) -> np.ndarray:

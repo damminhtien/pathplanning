@@ -3,7 +3,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from pathplanning import StateLatticeParams, TraceOptions, plan_continuous
+from pathplanning import StateLatticeParams, plan_continuous
 from pathplanning.core.contracts import (
     ContinuousProblem,
     GoalState,
@@ -139,29 +139,3 @@ def test_state_lattice_callback_requires_opt_in_and_propagates_errors() -> None:
             params=StateLatticeParams(allow_python_callbacks=True),
         )
     assert isinstance(error.value.__cause__, LookupError)
-
-
-def test_state_lattice_trace_is_bounded_and_budget_is_reported() -> None:
-    space = StateLatticeGridSpace(
-        np.zeros((12, 12), dtype=bool),
-        resolution=1.0,
-        primitives=ackermann_motion_primitives(1.0, 0.5, 1.0, collision_step=0.2),
-        footprint_length=0.6,
-        footprint_width=0.4,
-        rotation_radius=1.0 / np.tan(0.5),
-        collision_step=0.2,
-    )
-    problem = _problem(space, (2.5, 2.5, 0.0), (4.5, 2.5, 0.0))
-    traced = plan_continuous(problem, planner="state_lattice", trace=TraceOptions(max_bytes=32))
-    assert traced.success
-    assert traced.trace is not None and traced.trace.truncated
-    assert traced.path is not None
-    np.testing.assert_allclose(traced.path[-1], [4.5, 2.5, 0.0])
-
-    bounded = plan_continuous(
-        _problem(space, (2.5, 2.5, 0.0), (9.5, 2.5, 0.0)),
-        planner="state_lattice",
-        params=StateLatticeParams(max_expansions=1),
-    )
-    assert not bounded.success
-    assert bounded.stop_reason is StopReason.MAX_ITERS

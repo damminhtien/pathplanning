@@ -9,8 +9,6 @@ import pytest
 
 from pathplanning.api import plan_continuous, plan_discrete
 from pathplanning.core.contracts import ContinuousProblem, ContinuousSpace, DiscreteProblem
-from pathplanning.core.params import RrtParams
-from pathplanning.planners.sampling.rrt import RrtPlanner
 from pathplanning.planners.search._internal.native import NativeSearchError
 
 
@@ -111,26 +109,6 @@ def test_rrt_star_uses_problem_objective_and_problem_params() -> None:
     assert result.iters == 2
     assert result.stats["path_cost"] == pytest.approx(-6.0)
     assert result.stats["objective_cost"] == result.stats["path_cost"]
-    assert space.collision_step == 0.4
-    assert space.steps
-    assert set(space.steps) == {0.05}
-
-
-def test_rrt_does_not_mutate_read_only_space_collision_step() -> None:
-    space = _SequenceSpace([[2.0, 0.0]])
-    planner = RrtPlanner(
-        space,
-        RrtParams(
-            max_iters=1,
-            step_size=10.0,
-            collision_step=0.05,
-            allow_python_callbacks=True,
-        ),
-        np.random.default_rng(2),
-    )
-
-    planner.plan([0.0, 0.0], _RightHalfPlaneGoal())
-
     assert space.collision_step == 0.4
     assert space.steps
     assert set(space.steps) == {0.05}

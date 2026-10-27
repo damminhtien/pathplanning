@@ -53,4 +53,6 @@ def test_lazy_prm_is_registered_for_continuous_problems() -> None:
         seed=4,
     )
     assert result.success
+    assert result.path is not None
+    np.testing.assert_allclose(result.path[[0, -1]], [[0.5, 0.5], [1.5, 0.5]])
     assert np.isclose(result.stats["path_cost"], 1.0)

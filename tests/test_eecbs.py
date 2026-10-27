@@ -12,7 +12,6 @@ from pathplanning import MultiAgentProblem, plan, plan_multi_agent
 from pathplanning.core.results import StopReason
 from pathplanning.core.trace import TraceOptions
 from pathplanning.native import NativeGraph
-from pathplanning.spaces import Grid2DMultiAgentAdapter, Grid2DSearchSpace
 
 
 def _joint_state_soc_oracle(
@@ -70,6 +69,14 @@ def test_eecbs_matches_joint_oracle_bound_and_traces() -> None:
     assert result.success and result.stop_reason is StopReason.SUCCESS
     assert result.sum_of_costs <= 1.25 * optimum
     assert result.makespan == max(len(path) - 1 for path in result.paths)
+    for step in range(result.makespan + 1):
+        first = result.paths[0][min(step, len(result.paths[0]) - 1)]
+        second = result.paths[1][min(step, len(result.paths[1]) - 1)]
+        assert first != second
+        if step:
+            previous_first = result.paths[0][min(step - 1, len(result.paths[0]) - 1)]
+            previous_second = result.paths[1][min(step - 1, len(result.paths[1]) - 1)]
+            assert (first, second) != (previous_second, previous_first)
     assert result.trace is not None and result.trace.events.size > 0
 
     optimal = plan_multi_agent(problem, params={"w": 1.0})
@@ -129,14 +136,3 @@ def test_eecbs_rejects_non_unit_or_non_undirected_graphs() -> None:
     )
     with pytest.raises(ValueError, match="starts must be unique"):
         plan_multi_agent(MultiAgentProblem(graph, starts=(0, 0), goals=(0, 1)))
-
-
-def test_eecbs_grid_adapter_uses_four_connected_free_cells() -> None:
-    grid = Grid2DMultiAgentAdapter(Grid2DSearchSpace(width=3, height=2, obstacles={(1, 0)}))
-    result = plan_multi_agent(MultiAgentProblem(grid, starts=((0, 0),), goals=((2, 0),)))
-
-    assert result.success
-    assert result.sum_of_costs == 4
-    assert (1, 0) not in result.paths[0]
-    with pytest.raises(ValueError, match="valid graph nodes"):
-        plan_multi_agent(MultiAgentProblem(grid, starts=((1, 0),), goals=((2, 0),)))

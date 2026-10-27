@@ -1,8 +1,12 @@
-# Plan: Native wheel publishing
+# Plan: Test suite audit and reduction
 
-| Milestone | Verification boundary | Status |
-| --- | --- | --- |
-| M1. Define supported wheel matrix | Repository evidence and native compiler flags establish target platforms and CPython versions. | done |
-| M2. Add isolated wheel smoke check and CI/release workflow | cibuildwheel builds each target; each wheel is installed in its isolated test env and exercises native loading plus the public API. | done |
-| M3. Update package metadata and install docs | README and package metadata state the tested wheel range and source-build fallback. | done |
-| M4. Build, clean-install, inspect, and checkpoint | Local and remote wheel installs pass; the 15-wheel artifact set and sdist validate; merge, publish wheels to the existing version, and verify PyPI files. | done |
+1. [done] Snapshot baseline; collect per-case Python coverage, native LLVM coverage,
+   outcomes, planner execution, and uninstrumented timings.
+2. [done] Review all test assertions; rank all 357 cases and select <=107 cases with
+   critical behavior and 37/37 planner coverage. Preserve independent scenarios.
+3. [done] Remove redundant/low-value cases; strengthen retained planner assertions
+   where necessary. Measure candidate coverage and accepted coverage losses.
+4. [done] Validate clean build, all/unit/slow tests, Ruff, format, Pyright, Graphify,
+   ranking integrity, and production-source equality.
+5. [done] Inspect final diff and checkpoint the task atomically; Git history
+   records the commit containing this validated state.

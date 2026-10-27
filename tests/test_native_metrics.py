@@ -10,7 +10,6 @@ import pytest
 from pathplanning.native import NativeGraph
 from pathplanning.native._ffi import (
     GraphCsrView,
-    GraphStorageInfo,
     SearchMetrics,
     SearchOptions,
     SearchResult,
@@ -98,32 +97,6 @@ def _run(
         library.pp_search_free_result(ctypes.byref(result))
 
 
-@pytest.mark.parametrize("algorithm", [1, 2, 3, 4, 5, 6, 7, 8, 9, 10])
-def test_metrics_result_matches_release(native_graph: NativeGraph[int], algorithm: int) -> None:
-    release = load_native_library()
-    metrics_lib = load_search_metrics_library()
-    clone = _clone_for_metrics(native_graph)
-    heuristic = (ctypes.c_double * 5)(3.0, 1.0, 2.0, 0.0, 0.0)
-    weights = (ctypes.c_double * 3)(2.0, 1.5, 1.0)
-    try:
-        actual, counters = _run(metrics_lib, clone, algorithm, 3, heuristic, weights)
-        expected, _ = _run(release, native_graph._native_handle, algorithm, 3, heuristic, weights)
-        assert actual == expected
-        assert counters is not None
-        assert counters.expanded == actual[2]
-        assert counters.discovered_first == actual[3]
-        assert counters.frontier_pushes >= counters.frontier_pops
-        assert counters.native_requested_bytes_peak >= counters.state_capacity_bytes_peak
-        if algorithm == 10:
-            assert counters.capability_bits & 0b1000
-            assert not counters.capability_bits & 0b0100
-            assert counters.reopens == actual[-1]
-        else:
-            assert counters.capability_bits & 0b111 == 0b111
-    finally:
-        metrics_lib.pp_graph_free(clone)
-
-
 def test_work_counters_include_stale_heap_entries(native_graph: NativeGraph[int]) -> None:
     library = load_search_metrics_library()
     clone = _clone_for_metrics(native_graph)
@@ -157,64 +130,23 @@ def test_reexpansion_metrics_count_closed_node_reopens() -> None:
     heuristic = (ctypes.c_double * 5)(4.0, 0.0, 3.0, 0.0, 0.0)
     try:
         outcome, counters = _run(library, clone, algorithm=10, goal=4, heuristic=heuristic)
+        expected, _ = _run(
+            load_native_library(), graph._native_handle, algorithm=10, goal=4, heuristic=heuristic
+        )
 
+        assert outcome == expected
         assert outcome[0] == 1
         assert outcome[4] == pytest.approx(14.0)
         assert outcome[5] == (0, 2, 1, 3, 4)
         assert outcome[6] == 1
         assert counters is not None
         assert counters.reopens == 1
+        assert counters.expanded == outcome[2]
+        assert counters.discovered_first == outcome[3]
+        assert counters.frontier_pushes >= counters.frontier_pops
+        assert counters.native_requested_bytes_peak >= counters.state_capacity_bytes_peak
         assert counters.capability_bits & 0b1000
         assert not counters.capability_bits & 0b0100
     finally:
         library.pp_graph_free(clone)
         graph.close()
-
-
-def test_reverse_storage_is_prepared_once(native_graph: NativeGraph[int]) -> None:
-    for library, handle in (
-        (load_native_library(), native_graph._native_handle),
-        (load_search_metrics_library(), _clone_for_metrics(native_graph)),
-    ):
-        try:
-            before = GraphStorageInfo()
-            after = GraphStorageInfo()
-            repeated = GraphStorageInfo()
-            assert library.pp_graph_get_storage_info(handle, ctypes.byref(before)) == 0
-            assert before.node_count == 5 and before.edge_count == 5
-            assert before.base_csr_capacity_bytes >= 6 * 8 + 5 * (8 + 8)
-            assert before.reverse_csr_capacity_bytes == 0
-            error = ctypes.create_string_buffer(256)
-            assert library.pp_graph_prepare_reverse(handle, error, len(error)) == 0
-            assert library.pp_graph_get_storage_info(handle, ctypes.byref(after)) == 0
-            assert after.reverse_csr_capacity_bytes >= 6 * 8 + 5 * (8 + 8)
-            assert library.pp_graph_prepare_reverse(handle, error, len(error)) == 0
-            assert library.pp_graph_get_storage_info(handle, ctypes.byref(repeated)) == 0
-            assert repeated.reverse_csr_capacity_bytes == after.reverse_csr_capacity_bytes
-        finally:
-            if library is load_search_metrics_library():
-                library.pp_graph_free(handle)
-
-
-def test_validation_work_is_separate_from_search_work(native_graph: NativeGraph[int]) -> None:
-    library = load_search_metrics_library()
-    clone = _clone_for_metrics(native_graph)
-    heuristic = (ctypes.c_double * 5)(3.0, 1.0, 2.0, 0.0, 0.0)
-    try:
-        outcome, counters = _run(library, clone, algorithm=9, goal=3, heuristic=heuristic)
-        assert outcome[0] == 1
-        assert counters is not None
-        assert counters.validation_edge_checks == 5
-        assert counters.validation_heuristic_lookups == 10
-        assert counters.heuristic_lookups > 0
-        assert counters.edges_examined <= 5
-    finally:
-        library.pp_graph_free(clone)
-
-
-def test_production_binary_has_no_metrics_entry(native_graph: NativeGraph[int]) -> None:
-    release = load_native_library()
-    assert not hasattr(release, "pp_native_search_plan_measured")
-    assert not hasattr(release, "pp_search_metrics_abi_version")
-    outcome, _ = _run(release, native_graph._native_handle, algorithm=5, goal=3)
-    assert outcome[0] == 1

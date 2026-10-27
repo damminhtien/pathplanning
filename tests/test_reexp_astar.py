@@ -55,7 +55,6 @@ def test_reexp_astar_reopens_closed_node_at_zero_threshold() -> None:
     [
         (float("inf"), "abs", 15.0, 0.0),
         (1.0, "abs", 15.0, 0.0),
-        (0.5, "abs", 14.0, 1.0),
         (0.5, "rel_edge", 14.0, 1.0),
         (0.3, "rel_g", 14.0, 1.0),
     ],
@@ -75,22 +74,6 @@ def test_reexp_astar_applies_conditional_threshold(
     assert result.success
     assert result.stats["path_cost"] == pytest.approx(expected_cost)
     assert result.stats["reopens"] == expected_reopens
-
-
-@pytest.mark.parametrize(
-    ("params", "error", "message"),
-    [
-        ({"r": -0.1}, ValueError, "r must be >= 0.0"),
-        ({"r_mode": "unknown"}, ValueError, "r_mode must be one of"),
-        ({"tie_break": "unknown"}, ValueError, "tie_break must be one of"),
-        ({"weight": 0.5}, ValueError, "weight must be >= 1.0"),
-    ],
-)
-def test_reexp_astar_rejects_invalid_options(
-    params: dict[str, object], error: type[Exception], message: str
-) -> None:
-    with pytest.raises(error, match=message):
-        plan_discrete(_problem(), planner="reexp_astar", params=params)
 
 
 def test_reexp_astar_honors_expansion_limit() -> None:

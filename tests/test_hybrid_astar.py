@@ -5,9 +5,8 @@ from typing import Any
 import numpy as np
 import pytest
 
-from pathplanning import HybridAStarParams, TraceOptions, plan_continuous
+from pathplanning import HybridAStarParams, plan_continuous
 from pathplanning.core.contracts import ContinuousProblem, GoalState
-from pathplanning.core.results import StopReason
 from pathplanning.spaces import AckermannGridSpace
 
 
@@ -26,28 +25,6 @@ def _problem(
     goal: tuple[float, float, float],
 ) -> ContinuousProblem[tuple[float, float, float]]:
     return ContinuousProblem(space, start, GoalState(goal))
-
-
-def test_hybrid_astar_returns_forward_analytic_path_and_handles_start_at_goal() -> None:
-    space = _space()
-    result = plan_continuous(
-        _problem(space, (2.5, 2.5, 0.0), (5.5, 2.5, 0.0)), planner="hybrid_astar"
-    )
-
-    assert result.success
-    assert result.path is not None
-    np.testing.assert_allclose(result.path[[0, -1]], [[2.5, 2.5, 0.0], [5.5, 2.5, 0.0]])
-    assert result.directions[0] == 0
-    assert set(result.directions[1:]) == {1}
-    assert result.stats["path_cost"] == pytest.approx(3.0)
-
-    already_there = plan_continuous(
-        _problem(space, (2.5, 2.5, 0.0), (2.5, 2.5, 0.0)), planner="hybrid_astar"
-    )
-    assert already_there.success
-    assert already_there.path is not None
-    assert already_there.path.shape == (1, 3)
-    assert already_there.directions == (0,)
 
 
 def test_hybrid_astar_uses_reverse_reeds_shepp_motion() -> None:
@@ -139,22 +116,6 @@ def test_hybrid_astar_python_validity_callback_requires_opt_in() -> None:
     assert broken_space.calls == 1
 
 
-def test_hybrid_astar_trace_is_bounded_and_keeps_solution() -> None:
-    problem = _problem(_space(), (1.5, 1.5, 0.0), (3.5, 1.5, 0.0))
-    result = plan_continuous(
-        problem,
-        planner="hybrid_astar",
-        trace=TraceOptions(max_bytes=32),
-    )
-
-    assert result.success
-    assert result.trace is not None
-    assert result.path is not None
-    assert result.trace.kind == "continuous"
-    assert result.trace.truncated
-    np.testing.assert_allclose(result.path[-1], [3.5, 1.5, 0.0], atol=1e-8)
-
-
 def test_hybrid_astar_rejects_a_colliding_start_pose() -> None:
     occupancy = np.zeros((20, 20), dtype=bool)
     occupancy[2, 2] = True
@@ -163,18 +124,3 @@ def test_hybrid_astar_rejects_a_colliding_start_pose() -> None:
             _problem(_space(occupancy), (2.5, 2.5, 0.0), (5.5, 2.5, 0.0)),
             planner="hybrid_astar",
         )
-
-
-def test_hybrid_astar_reports_an_exhausted_expansion_budget() -> None:
-    result = plan_continuous(
-        _problem(_space(), (2.5, 2.5, 0.0), (12.5, 2.5, 0.0)),
-        planner="hybrid_astar",
-        params=HybridAStarParams(
-            max_expansions=1,
-            analytic_expansion_distance=0.0,
-        ),
-    )
-
-    assert not result.success
-    assert result.path is None
-    assert result.stop_reason is StopReason.MAX_ITERS

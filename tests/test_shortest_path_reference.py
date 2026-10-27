@@ -10,7 +10,6 @@ import pytest
 from scripts.shortest_path_benchmark.reference import (
     ReferenceCache,
     reference_distance,
-    scenario_matches_reference,
     validate_path,
 )
 from scripts.shortest_path_benchmark.workloads import load_map
@@ -53,13 +52,3 @@ def test_corner_and_unreachable_and_zero_cost(tmp_path: Path) -> None:
     disconnected = _grid(tmp_path, (".@", "@."))
     assert reference_distance(disconnected, 0, 3) is None
     assert validate_path(disconnected, None, 0, 3).reason == "no_path"
-
-
-def test_scenario_decimal_tolerance(tmp_path: Path) -> None:
-    _grid(tmp_path, ("..", ".."))
-    assert scenario_matches_reference("1.4142", math.sqrt(2))
-    assert scenario_matches_reference("1.414213", math.sqrt(2))
-    assert scenario_matches_reference("786.45288543", 786.4528855298877)
-    assert not scenario_matches_reference("1.40", math.sqrt(2))
-    assert not scenario_matches_reference("786.45298543", 786.4528855298877)
-    assert not scenario_matches_reference("1.4142", None)

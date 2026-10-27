@@ -47,18 +47,6 @@ def test_prm_star_world_version_change_rebuilds_roadmap() -> None:
         assert roadmap.build_stats["roadmap_vertices"] == 16
 
 
-def test_prm_star_registry_entry_uses_native_roadmap() -> None:
-    space = Grid2DSamplingSpace(x_range=(0.0, 4.0), y_range=(0.0, 4.0))
-    result = plan_continuous(
-        ContinuousProblem(space, (0.5, 0.5), GoalState((1.5, 0.5))),
-        planner="prm_star",
-        params=RoadmapParams(sample_count=12, gamma=8.0),
-        seed=4,
-    )
-    assert result.success
-    assert np.isclose(result.stats["path_cost"], 1.0)
-
-
 def test_prm_star_uses_spatial_index_for_native_roadmaps() -> None:
     sample_count = 320
     space = Grid2DSamplingSpace(x_range=(0.0, 20.0), y_range=(0.0, 20.0))
@@ -114,3 +102,17 @@ def test_prm_star_keeps_bidirectional_validation_for_python_callbacks() -> None:
         assert roadmap.build_stats["roadmap_motion_checks"] == 2 * candidates
         checked = set(motion_calls)
         assert all((end, start) in checked for start, end in checked)
+
+
+def test_prm_star_registry_entry_uses_native_roadmap() -> None:
+    space = Grid2DSamplingSpace(x_range=(0.0, 4.0), y_range=(0.0, 4.0))
+    result = plan_continuous(
+        ContinuousProblem(space, (0.5, 0.5), GoalState((1.5, 0.5))),
+        planner="prm_star",
+        params=RoadmapParams(sample_count=12, gamma=8.0),
+        seed=4,
+    )
+    assert result.success
+    assert result.path is not None
+    np.testing.assert_allclose(result.path[[0, -1]], [[0.5, 0.5], [1.5, 0.5]])
+    assert np.isclose(result.stats["path_cost"], 1.0)
